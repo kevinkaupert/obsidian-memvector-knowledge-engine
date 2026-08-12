@@ -528,6 +528,8 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
           if (activeFormulas.has(form)) formulaMatchCount += 5;
         }
 
+        const simScore = (intersectCount + formulaMatchCount * 3) / Math.max(1, activeWords.size + fWords.length);
+
         let type = "concept";
         if (f.path.includes("/definitions/") || f.name.includes("def-")) type = "definition";
         else if (f.path.includes("/theorems/") || f.name.includes("satz-") || f.name.includes("theorem-")) type = "theorem";
