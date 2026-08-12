@@ -1,9 +1,9 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Uses official Obsidian contentEl API to guarantee Floating Control Panel overlay visibility.",
+  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Restores proven rock-solid glassmorphism toolbar flex layout for 100% reliable rendering.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false

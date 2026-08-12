@@ -1354,165 +1354,189 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return "dot-network";
   }
   async onOpen() {
-    const container = this.contentEl;
+    const container = this.containerEl.children[1] || this.containerEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
-    container.style.position = "relative";
-    container.style.width = "100%";
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
     container.style.height = "100%";
-    container.style.overflow = "hidden";
-    container.style.padding = "0";
+    container.style.width = "100%";
     container.style.background = "var(--background-primary)";
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
 
-    // 1. Full-Bleed Canvas Wrap
-    const canvasWrap = container.createEl("div", {
-      style: "position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: var(--background-primary);"
+    const toolbar = container.createEl("div");
+    toolbar.style.display = "flex";
+    toolbar.style.alignItems = "center";
+    toolbar.style.flexWrap = "wrap";
+    toolbar.style.gap = "10px";
+    toolbar.style.padding = "8px 16px";
+    toolbar.style.borderBottom = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08))";
+    toolbar.style.background = "var(--background-secondary, rgba(15, 23, 42, 0.85))";
+    toolbar.style.backdropFilter = "blur(12px)";
+    toolbar.style.zIndex = "10";
+    toolbar.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.25)";
+
+    const titleBadge = toolbar.createEl("div", {
+      style: "display: flex; align-items: center; gap: 8px; margin-right: 8px;"
     });
-
-    const canvas = canvasWrap.createEl("canvas", {
-      style: "width: 100%; height: 100%; display: block; cursor: grab;"
-    });
-
-    const ctx = canvas.getContext("2d");
-
-    // 2. Gear / Controls Toggle Button (Native Obsidian Style)
-    const gearBtn = container.createEl("button", {
-      ariaLabel: "Graph-Einstellungen umschalten",
-      style: "position: absolute; top: 12px; right: 12px; z-index: 99999; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary, #1e1e2e); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);"
-    });
-    import_obsidian4.setIcon(gearBtn, "sliders");
-
-    // 3. Floating Right-Hand Graph Control Panel (Native Obsidian Style)
-    const controlPanel = container.createEl("div", {
-      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 70px); z-index: 99998; background: var(--background-secondary, #1e1e2e); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
-    });
-
-    gearBtn.onclick = () => {
-      const isVisible = controlPanel.style.display !== "none";
-      controlPanel.style.display = isVisible ? "none" : "block";
-      gearBtn.style.color = isVisible ? "var(--text-muted)" : "var(--interactive-accent, #38bdf8)";
-    };
-
-    // Header badge
-    const headerRow = controlPanel.createEl("div", {
-      style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-weight: 700; color: var(--text-normal);"
+    titleBadge.createEl("div", {
+      style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4;"
     });
     const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
-    headerRow.createEl("span", {
-      text: isMathDomain ? "2D Math Vector Space" : "2D Knowledge Vector Space"
+
+    titleBadge.createEl("span", {
+      text: isMathDomain ? "2D MATH VECTOR SPACE" : "2D KNOWLEDGE VECTOR SPACE",
+      style: "font-family: monospace; font-size: 0.82em; font-weight: 700; letter-spacing: 0.08em; color: var(--text-normal, #f1f5f9);"
     });
 
-    // Section 1: Filter Accordion
-    const filterSection = controlPanel.createEl("details", { open: true, style: "margin-bottom: 10px;" });
-    filterSection.createEl("summary", {
-      text: "Filter",
-      style: "font-weight: 600; cursor: pointer; color: var(--text-muted); margin-bottom: 6px;"
-    });
-
-    const filterInputWrap = filterSection.createEl("div", { style: "position: relative; width: 100%; margin-top: 4px;" });
-    const filterInput = filterInputWrap.createEl("input", {
+    const filterInput = toolbar.createEl("input", {
       type: "text",
-      placeholder: "-path: schema -file:index...",
+      placeholder: "Filter (z.B. path:wiki -file:index)...",
       value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
     });
-    filterInput.style.width = "100%";
-    filterInput.style.fontSize = "0.85em";
-    filterInput.style.padding = "5px 10px";
-    filterInput.style.borderRadius = "14px";
+    filterInput.style.flex = "1";
+    filterInput.style.minWidth = "220px";
+    filterInput.style.maxWidth = "400px";
+    filterInput.style.fontSize = "0.82em";
+    filterInput.style.padding = "5px 12px";
+    filterInput.style.borderRadius = "20px";
     filterInput.style.border = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.12))";
-    filterInput.style.background = "var(--background-primary, rgba(15, 23, 42, 0.8))";
+    filterInput.style.background = "var(--background-primary, rgba(30, 41, 59, 0.7))";
     filterInput.style.color = "var(--text-normal, #f8fafc)";
     filterInput.style.outline = "none";
 
-    // Section 2: Anzeige Accordion
-    const displaySection = controlPanel.createEl("details", { open: true, style: "margin-bottom: 10px;" });
-    displaySection.createEl("summary", {
-      text: "Anzeige",
-      style: "font-weight: 600; cursor: pointer; color: var(--text-muted); margin-bottom: 6px;"
+    const btnGroup = toolbar.createEl("div", {
+      style: "display: flex; align-items: center; gap: 6px;"
     });
 
-    const displayWrap = displaySection.createEl("div", { style: "display: flex; flex-direction: column; gap: 8px; margin-top: 6px;" });
-
-    // Edge Toggle Row
-    const edgeRow = displayWrap.createEl("label", {
-      style: "display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--text-normal);"
-    });
-    edgeRow.createEl("span", { text: "Kanten anzeigen" });
-    const edgeCheckbox = edgeRow.createEl("input", { type: "checkbox" });
-    edgeCheckbox.checked = this.showEdges;
-
-    // Lasso Toggle Row
-    const lassoRow = displayWrap.createEl("label", {
-      style: "display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: var(--text-normal);"
-    });
-    lassoRow.createEl("span", { text: "Lasso-Select Werkzeug" });
-    const lassoCheckbox = lassoRow.createEl("input", { type: "checkbox" });
-    lassoCheckbox.checked = this.lassoSelectMode;
-
-    // Section 3: Aktionen & KI Accordion
-    const actionsSection = controlPanel.createEl("details", { open: true, style: "margin-bottom: 10px;" });
-    actionsSection.createEl("summary", {
-      text: "Aktionen & KI",
-      style: "font-weight: 600; cursor: pointer; color: var(--text-muted); margin-bottom: 6px;"
-    });
-
-    const actionsWrap = actionsSection.createEl("div", { style: "display: flex; flex-direction: column; gap: 6px; margin-top: 6px;" });
-
-    const stylePanelBtn = (btn, bg, hoverBg) => {
-      btn.style.width = "100%";
-      btn.style.fontSize = "0.8em";
+    const styleButton = (btn, bg, hoverBg) => {
+      btn.style.fontSize = "0.78em";
       btn.style.fontWeight = "600";
-      btn.style.padding = "6px 10px";
+      btn.style.padding = "5px 12px";
       btn.style.borderRadius = "6px";
       btn.style.cursor = "pointer";
       btn.style.border = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1))";
       btn.style.background = bg;
-      btn.style.color = "var(--text-normal, #ffffff)";
+      btn.style.color = "var(--text-normal, #f8fafc)";
       btn.style.transition = "all 0.15s ease";
       btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = hoverBg; };
       btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = bg; };
     };
 
-    const refreshBtn = actionsWrap.createEl("button", { text: "Vault neu scannen" });
-    stylePanelBtn(refreshBtn, "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "var(--interactive-hover, rgba(51, 65, 85, 0.9))");
+    const refreshBtn = btnGroup.createEl("button", { text: "Scannen" });
+    styleButton(refreshBtn, "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "var(--interactive-hover, rgba(51, 65, 85, 0.9))");
 
-    const calcVectorsBtn = actionsWrap.createEl("button", { text: "BGE-M3 Vektoren berechnen" });
-    stylePanelBtn(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
+    const calcVectorsBtn = btnGroup.createEl("button", { text: "BGE-M3 Vektoren" });
+    styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
 
-    const createRelBtn = actionsWrap.createEl("button", { text: "Beziehung erstellen (≥2)" });
-    stylePanelBtn(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
+    const showEdgesToggleBtn = btnGroup.createEl("button", { text: this.showEdges ? "Kanten [ON]" : "Kanten [OFF]" });
+    styleButton(showEdgesToggleBtn, this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "rgba(51, 65, 85, 0.9)");
+
+    const lassoToggleBtn = btnGroup.createEl("button", { text: this.lassoSelectMode ? "Lasso-Select [ON]" : "Lasso-Select [OFF]" });
+    styleButton(lassoToggleBtn, this.lassoSelectMode ? "var(--interactive-accent, #38bdf8)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "rgba(51, 65, 85, 0.9)");
+
+    const createRelBtn = btnGroup.createEl("button", { text: "Beziehung (≥2 wählen)" });
+    styleButton(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
     createRelBtn.disabled = true;
     createRelBtn.style.opacity = "0.5";
 
-    const synthesizeBtn = actionsWrap.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
-    stylePanelBtn(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
+    const synthesizeBtn = btnGroup.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
+    styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
     synthesizeBtn.disabled = true;
     synthesizeBtn.style.opacity = "0.5";
 
-    const clearSelBtn = actionsWrap.createEl("button", { text: "Auswahl leeren" });
-    stylePanelBtn(clearSelBtn, "rgba(239, 68, 68, 0.15)", "rgba(239, 68, 68, 0.3)");
+    const clearSelBtn = btnGroup.createEl("button", { text: "Leeren" });
+    styleButton(clearSelBtn, "rgba(239, 68, 68, 0.15)", "rgba(239, 68, 68, 0.3)");
 
-    // Footer status inside panel
-    const statusBox = controlPanel.createEl("div", {
-      style: "font-family: monospace; font-size: 0.75em; color: var(--text-muted); margin-top: 8px; border-top: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08)); padding-top: 6px;"
+    const statusBadge = toolbar.createEl("div", {
+      style: "margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.78em; color: var(--text-muted, #94a3b8); padding: 4px 10px; background: var(--background-primary, rgba(30, 41, 59, 0.5)); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.05));"
     });
-    const statusText = statusBox.createEl("span", { text: "Lade Vault..." });
+    statusBadge.createEl("div", {
+      style: "width: 6px; height: 6px; border-radius: 50%; background: #10b981;"
+    });
+    const statusText = statusBadge.createEl("span", { text: "Lade Vault..." });
 
-    // Floating Bottom Hover Bar
+    calcVectorsBtn.onclick = async () => {
+      calcVectorsBtn.disabled = true;
+      calcVectorsBtn.setText("Vektorisieren...");
+      statusText.setText(`Berechne bge-m3 Embeddings via Ollama (0/${this.nodes.length})...`);
+
+      const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
+      const modelName = "bge-m3";
+
+      let done = 0;
+      for (const node of this.nodes) {
+        const textToEmbed = `Title: ${node.title}\nType: ${node.type}\nFormeln: ${node.latexFormulas.join(" ; ")}\nText: ${node.content}`;
+        const vec = await ClientMathEngine.getOllamaEmbedding(textToEmbed, apiBase, modelName);
+        if (vec) {
+          node.embedding = vec;
+        }
+        done++;
+        statusText.setText(`Berechne bge-m3 Embeddings (${done}/${this.nodes.length})...`);
+      }
+
+      statusText.setText("Berechne 2D-UMAP/PCA Clustering...");
+      this.compute2DPCA(this.nodes);
+
+      statusText.setText(`bge-m3 Vektor-Clustering komplett (${this.nodes.length} Notizen)!`);
+      calcVectorsBtn.disabled = false;
+      calcVectorsBtn.setText("BGE-M3 Vektoren");
+
+      this.animateToTargets(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
+
+    let filterDebounceTimer = null;
+    filterInput.addEventListener("input", () => {
+      clearTimeout(filterDebounceTimer);
+      filterDebounceTimer = setTimeout(async () => {
+        this.plugin.settings.vectorSearchExclusions = filterInput.value;
+        await this.plugin.saveSettings();
+        statusText.setText("Filtere Vault Notizen...");
+        await this.scanVaultNotes(filterInput.value);
+        updateSelectionUI();
+      }, 250);
+    });
+
+    const canvasWrap = container.createEl("div");
+    canvasWrap.style.flex = "1";
+    canvasWrap.style.position = "relative";
+    canvasWrap.style.width = "100%";
+    canvasWrap.style.height = "100%";
+
+    const canvas = canvasWrap.createEl("canvas");
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    canvas.style.cursor = "grab";
+
+    const ctx = canvas.getContext("2d");
+
     const hoverBar = container.createEl("div");
-    hoverBar.style.position = "absolute";
-    hoverBar.style.bottom = "12px";
-    hoverBar.style.left = "12px";
-    hoverBar.style.right = "284px";
     hoverBar.style.padding = "6px 12px";
-    hoverBar.style.borderRadius = "6px";
-    hoverBar.style.border = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08))";
+    hoverBar.style.borderTop = "1px solid var(--border-color, rgba(255, 255, 255, 0.08))";
     hoverBar.style.background = "var(--background-secondary, rgba(15, 23, 42, 0.9))";
-    hoverBar.style.backdropFilter = "blur(8px)";
-    hoverBar.style.fontSize = "0.82em";
+    hoverBar.style.fontSize = "0.85em";
     hoverBar.style.color = "var(--text-muted)";
     hoverBar.style.zIndex = "10";
     hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
+
+    showEdgesToggleBtn.onclick = async () => {
+      this.showEdges = !this.showEdges;
+      showEdgesToggleBtn.setText(this.showEdges ? "Kanten [ON]" : "Kanten [OFF]");
+      showEdgesToggleBtn.style.background = this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))";
+      if (this.showEdges) {
+        await this.loadRelationEdges();
+      }
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
+
+    lassoToggleBtn.onclick = () => {
+      this.lassoSelectMode = !this.lassoSelectMode;
+      lassoToggleBtn.setText(this.lassoSelectMode ? "Lasso-Select [ON]" : "Lasso-Select [OFF]");
+      lassoToggleBtn.style.background = this.lassoSelectMode ? "var(--interactive-accent, #38bdf8)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))";
+      canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
+    };
 
     const resizeCanvas = () => {
       canvas.width = canvasWrap.clientWidth * window.devicePixelRatio;
@@ -1525,19 +1549,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     resizeObserver.observe(canvasWrap);
 
     this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
-
-    edgeCheckbox.onchange = async () => {
-      this.showEdges = edgeCheckbox.checked;
-      if (this.showEdges) {
-        await this.loadRelationEdges();
-      }
-      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
-    };
-
-    lassoCheckbox.onchange = () => {
-      this.lassoSelectMode = lassoCheckbox.checked;
-      canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
-    };
 
     createRelBtn.onclick = () => {
       const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
