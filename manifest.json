@@ -1,9 +1,9 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.3.6",
+  "version": "1.3.7",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Features Rock-Solid Floating Right Control Panel Overlay inside full-space canvasWrap container.",
+  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Fixes setIcon TypeError to ensure Floating Right Control Panel Overlay renders 100% reliably.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false

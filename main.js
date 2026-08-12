@@ -1387,7 +1387,11 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       ariaLabel: "Graph-Einstellungen umschalten",
       style: "position: absolute; top: 12px; right: 12px; z-index: 1000; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);"
     });
-    import_obsidian4.setIcon(gearBtn, "sliders");
+    try {
+      (0, import_obsidian4.setIcon)(gearBtn, "sliders");
+    } catch (e) {
+      gearBtn.setText("Controls");
+    }
 
     // 3. Floating Right-Hand Control Panel (Native Obsidian Style)
     const controlPanel = canvasWrap.createEl("div", {
