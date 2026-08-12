@@ -1494,16 +1494,20 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     hoverBar.style.zIndex = "10";
     hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
 
-    edgeCheckbox.onchange = async () => {
-      this.showEdges = edgeCheckbox.checked;
+    showEdgesToggleBtn.onclick = async () => {
+      this.showEdges = !this.showEdges;
+      showEdgesToggleBtn.setText(this.showEdges ? "Kanten [ON]" : "Kanten [OFF]");
+      showEdgesToggleBtn.style.background = this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))";
       if (this.showEdges) {
         await this.loadRelationEdges();
       }
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
 
-    lassoCheckbox.onchange = () => {
-      this.lassoSelectMode = lassoCheckbox.checked;
+    lassoToggleBtn.onclick = () => {
+      this.lassoSelectMode = !this.lassoSelectMode;
+      lassoToggleBtn.setText(this.lassoSelectMode ? "Lasso-Select [ON]" : "Lasso-Select [OFF]");
+      lassoToggleBtn.style.background = this.lassoSelectMode ? "var(--interactive-accent, #38bdf8)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))";
       canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
     };
 
