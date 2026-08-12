@@ -1857,7 +1857,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const edgeSet = new Set();
     const files = this.plugin.app.vault.getMarkdownFiles();
 
-    // 1. Scan explicit relation notes in vault
+    // Scan ONLY explicit relation notes created manually in wiki/relations/
     for (const f of files) {
       if (f.path.includes("wiki/relation") || f.path.includes("/relations/")) {
         try {
@@ -1884,33 +1884,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
             }
           }
         } catch (err) {}
-      }
-    }
-
-    // 2. Scan internal [[WikiLinks]] between notes in this.nodes
-    const nodeMap = new Map();
-    this.nodes.forEach(n => nodeMap.set(n.id.toLowerCase(), n));
-
-    for (const node of this.nodes) {
-      if (node.links && node.links.length > 0) {
-        for (const targetLink of node.links) {
-          const targetNode = nodeMap.get(targetLink.toLowerCase());
-          if (targetNode && targetNode !== node) {
-            const srcId = node.id.toLowerCase();
-            const tgtId = targetNode.id.toLowerCase();
-            const key = `${srcId}->${tgtId}`;
-            if (!edgeSet.has(key)) {
-              edgeSet.add(key);
-              this.relationEdges.push({
-                srcId,
-                tgtId,
-                relType: "RELATED_TO",
-                title: `${node.title} -> ${targetNode.title}`,
-                path: node.path
-              });
-            }
-          }
-        }
       }
     }
   }
@@ -2093,27 +2066,32 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     // Render 2D Relationship Edges (Memgraph / Vault Relations)
     if (this.showEdges && this.relationEdges && this.relationEdges.length > 0) {
-      const edgeColors = {
-        PROVES: "#10b981",
-        REQUIRES: "#3b82f6",
-        IMPLIES: "#8b5cf6",
-        DEFINES: "#06b6d4",
-        EXTENDS: "#6366f1",
-        CONTRADICTS: "#ef4444",
-        USES: "#f59e0b"
-      };
+      const activeNodeIds = new Set(this.selectedNodeIds);
+      if (this.hoveredNode) activeNodeIds.add(this.hoveredNode.id);
 
-      const hasSelection = this.selectedNodeIds.size > 0 || this.hoveredNode;
+      // ONLY render edges if at least one node is selected or hovered!
+      if (activeNodeIds.size > 0) {
+        const edgeColors = {
+          PROVES: "#10b981",
+          REQUIRES: "#3b82f6",
+          IMPLIES: "#8b5cf6",
+          DEFINES: "#06b6d4",
+          EXTENDS: "#6366f1",
+          CONTRADICTS: "#ef4444",
+          USES: "#f59e0b"
+        };
 
-      this.relationEdges.forEach((edge) => {
-        const srcNode = nodeMap.get(edge.srcId);
-        const tgtNode = nodeMap.get(edge.tgtId);
-        if (!srcNode || !tgtNode) return;
+        this.relationEdges.forEach((edge) => {
+          if (edge.relType === "RELATED_TO") return;
 
-        const isSrcSelected = this.selectedNodeIds.has(srcNode.id) || this.hoveredNode === srcNode;
-        const isTgtSelected = this.selectedNodeIds.has(tgtNode.id) || this.hoveredNode === tgtNode;
+          const srcNode = nodeMap.get(edge.srcId);
+          const tgtNode = nodeMap.get(edge.tgtId);
+          if (!srcNode || !tgtNode) return;
 
-        if (hasSelection && !isSrcSelected && !isTgtSelected) return;
+          const isSrcSelected = activeNodeIds.has(srcNode.id);
+          const isTgtSelected = activeNodeIds.has(tgtNode.id);
+
+          if (!isSrcSelected && !isTgtSelected) return;
 
         const p1 = this.worldToScreen(srcNode.x, srcNode.y);
         const p2 = this.worldToScreen(tgtNode.x, tgtNode.y);
@@ -2184,6 +2162,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         ctx.restore();
       });
     }
+  }
 
     const colors = {
       definition: "#3b82f6",

@@ -1,9 +1,9 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.2.9",
+  "version": "1.3.0",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Renders Relationship Description Text on 2D Canvas edge badges with persistent hover support.",
+  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Renders 2D canvas relationship edges strictly for selected/hovered nodes and excludes implicit RELATED_TO links.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false
