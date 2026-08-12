@@ -1,9 +1,9 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Adds Native Top-Right Sliders Gear Toggle Button with high z-index Floating Control Panel Overlay.",
+  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Fixes 2D View Floating Control Panel overlay using dedicated z-index 9999 layer.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false

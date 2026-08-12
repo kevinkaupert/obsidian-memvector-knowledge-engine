@@ -1354,16 +1354,21 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return "dot-network";
   }
   async onOpen() {
-    const container = this.containerEl.children[1];
+    const viewHeader = this.containerEl.querySelector(".view-header");
+    if (viewHeader) {
+      viewHeader.style.display = "none";
+    }
+
+    const container = this.containerEl.children[1] || this.containerEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
-    container.style.display = "flex";
-    container.style.flexDirection = "column";
+    container.style.display = "block";
     container.style.height = "100%";
     container.style.width = "100%";
     container.style.background = "var(--background-primary)";
     container.style.position = "relative";
     container.style.overflow = "hidden";
+    container.style.padding = "0";
 
     // 1. Full-Bleed Canvas Wrap
     const canvasWrap = container.createEl("div");
@@ -1382,16 +1387,21 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const ctx = canvas.getContext("2d");
 
-    // 2. Gear / Controls Toggle Button (Native Obsidian Style)
-    const gearBtn = container.createEl("button", {
+    // 2. High Z-Index Overlay Layer for Floating Controls
+    const overlayLayer = container.createEl("div", {
+      style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none;"
+    });
+
+    // 3. Gear / Controls Toggle Button (Native Obsidian Style)
+    const gearBtn = overlayLayer.createEl("button", {
       ariaLabel: "Graph-Einstellungen umschalten",
-      style: "position: absolute; top: 12px; right: 12px; z-index: 100; padding: 6px; border-radius: 6px; background: var(--background-secondary, rgba(24, 24, 37, 0.9)); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.12)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px);"
+      style: "position: absolute; top: 12px; right: 12px; pointer-events: auto; padding: 6px; border-radius: 6px; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);"
     });
     import_obsidian4.setIcon(gearBtn, "sliders");
 
-    // 3. Floating Right-Hand Graph Control Panel (Native Obsidian Style)
-    const controlPanel = container.createEl("div", {
-      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 110px); z-index: 99; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.12)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
+    // 4. Floating Right-Hand Graph Control Panel (Native Obsidian Style)
+    const controlPanel = overlayLayer.createEl("div", {
+      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 100px); pointer-events: auto; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
     });
 
     gearBtn.onclick = () => {
