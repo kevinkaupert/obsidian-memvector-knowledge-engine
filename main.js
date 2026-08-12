@@ -491,6 +491,10 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 
     const ctx = canvas.getContext("2d");
 
+    const radarTooltip = radarWrap.createEl("div", {
+      style: "position: absolute; display: none; pointer-events: none; padding: 3px 7px; border-radius: 4px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255, 255, 255, 0.2); color: #f1f5f9; font-size: 0.78em; font-weight: 500; font-family: sans-serif; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.5); whitespace: nowrap;"
+    });
+
     try {
       const activeContent = await this.app.vault.read(activeFile);
       const files = this.app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path);
@@ -675,6 +679,7 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         mouseDownPos = { x: e.clientX, y: e.clientY };
         dragStart = { x: e.clientX - radarPan.x, y: e.clientY - radarPan.y };
         canvas.style.cursor = "grabbing";
+        radarTooltip.style.display = "none";
       };
 
       canvas.onmousemove = (e) => {
@@ -685,10 +690,18 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         if (isDragging) {
           radarPan.x = e.clientX - dragStart.x;
           radarPan.y = e.clientY - dragStart.y;
+          radarTooltip.style.display = "none";
           drawRadar();
         } else {
           const found = neighborNodes.find((n) => Math.hypot(mx - n.x, my - n.y) <= 14);
-          canvas.title = found ? `${found.file.name}` : "";
+          if (found) {
+            radarTooltip.setText(found.file.name);
+            radarTooltip.style.display = "block";
+            radarTooltip.style.left = `${Math.min(mx + 10, width - 130)}px`;
+            radarTooltip.style.top = `${Math.max(8, my - 26)}px`;
+          } else {
+            radarTooltip.style.display = "none";
+          }
         }
       };
 
@@ -1462,6 +1475,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           }
           updateSelectionUI();
         } else {
+          this.pan.x = canvasWrap.clientWidth / 2 - clicked.x * this.zoom;
+          this.pan.y = canvasWrap.clientHeight / 2 - clicked.y * this.zoom;
+          this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
           this.plugin.app.workspace.openLinkText(clicked.id, clicked.path, true);
         }
       }
