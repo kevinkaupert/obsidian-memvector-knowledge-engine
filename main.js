@@ -1211,6 +1211,86 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           }
         })
       );
+
+    containerEl.createEl("h3", { text: "6. Qdrant Vektor-Datenbank Anbindung" });
+    new import_obsidian3.Setting(containerEl)
+      .setName("Qdrant Server URL")
+      .setDesc("HTTP-URL deiner Qdrant-Instanz (z. B. http://localhost:6333 oder Cloud-URL).")
+      .addText((text) => text
+        .setPlaceholder("http://localhost:6333")
+        .setValue(this.plugin.settings.qdrantUrl || "http://localhost:6333")
+        .onChange(async (value) => {
+          this.plugin.settings.qdrantUrl = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+    new import_obsidian3.Setting(containerEl)
+      .setName("Qdrant Collection Name")
+      .setDesc("Name der Vektor-Collection für bge-m3 Notiz-Embeddings.")
+      .addText((text) => text
+        .setPlaceholder("obsidian_wiki_vectors")
+        .setValue(this.plugin.settings.qdrantCollection || "obsidian_wiki_vectors")
+        .onChange(async (value) => {
+          this.plugin.settings.qdrantCollection = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+    new import_obsidian3.Setting(containerEl)
+      .setName("Qdrant API Key (Optional)")
+      .setDesc("API-Schlüssel für Qdrant Cloud oder geschützte Server.")
+      .addText((text) => text
+        .setPlaceholder("Optional Key...")
+        .setValue(this.plugin.settings.qdrantApiKey || "")
+        .onChange(async (value) => {
+          this.plugin.settings.qdrantApiKey = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    containerEl.createEl("h3", { text: "7. Memgraph Graph-Datenbank Anbindung" });
+    new import_obsidian3.Setting(containerEl)
+      .setName("Memgraph Cypher HTTP Server URL")
+      .setDesc("HTTP Cypher Endpoint deiner Memgraph-Instanz (z. B. http://localhost:7000).")
+      .addText((text) => text
+        .setPlaceholder("http://localhost:7000")
+        .setValue(this.plugin.settings.memgraphUrl || "http://localhost:7000")
+        .onChange(async (value) => {
+          this.plugin.settings.memgraphUrl = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+    new import_obsidian3.Setting(containerEl)
+      .setName("Memgraph Benutzername")
+      .setDesc("Benutzername für Memgraph Authentifizierung (Standard: leer).")
+      .addText((text) => text
+        .setPlaceholder("Benutzername...")
+        .setValue(this.plugin.settings.memgraphUser || "")
+        .onChange(async (value) => {
+          this.plugin.settings.memgraphUser = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+    new import_obsidian3.Setting(containerEl)
+      .setName("Memgraph Passwort")
+      .setDesc("Passwort für Memgraph Authentifizierung.")
+      .addText((text) => text
+        .setPlaceholder("Passwort...")
+        .setValue(this.plugin.settings.memgraphPassword || "")
+        .onChange(async (value) => {
+          this.plugin.settings.memgraphPassword = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+    new import_obsidian3.Setting(containerEl)
+      .setName("Automatische Cypher-Ausführung")
+      .setDesc("Führe erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.autoSyncMemgraph || false)
+        .onChange(async (value) => {
+          this.plugin.settings.autoSyncMemgraph = value;
+          await this.plugin.saveSettings();
+        })
+      );
   }
 };
 
@@ -1234,7 +1314,15 @@ var DEFAULT_SETTINGS = {
   enableAutoSidebarUpdate: false,
   replaceBehavior: "replace",
   vectorSearchExclusions: "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
-  radarNoteCount: 10
+  radarNoteCount: 10,
+  qdrantUrl: "http://localhost:6333",
+  qdrantCollection: "obsidian_wiki_vectors",
+  qdrantApiKey: "",
+  autoSyncQdrant: false,
+  memgraphUrl: "http://localhost:7000",
+  memgraphUser: "",
+  memgraphPassword: "",
+  autoSyncMemgraph: false
 };
 
 var MATH_VECTOR_SCATTER_VIEW_TYPE = "math-vector-scatterplot-view";
