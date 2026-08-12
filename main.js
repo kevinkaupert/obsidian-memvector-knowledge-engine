@@ -715,16 +715,21 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
           radarTooltip.style.display = "none";
           drawRadar();
         } else {
-          const found = neighborNodes.find((n) => Math.hypot(mx - n.x, my - n.y) <= 14);
+          const found = neighborNodes.find((n) => Math.hypot(mx - n.x, my - n.y) <= 16);
+          canvas.title = found ? `${found.file.name}` : "";
           if (found) {
             radarTooltip.setText(found.file.name);
             radarTooltip.style.display = "block";
-            radarTooltip.style.left = `${Math.min(mx + 10, width - 130)}px`;
-            radarTooltip.style.top = `${Math.max(8, my - 26)}px`;
+            radarTooltip.style.left = `${Math.max(5, Math.min(mx + 10, width - 140))}px`;
+            radarTooltip.style.top = `${Math.max(5, my - 28)}px`;
           } else {
             radarTooltip.style.display = "none";
           }
         }
+      };
+
+      canvas.onmouseleave = () => {
+        radarTooltip.style.display = "none";
       };
 
       canvas.onmouseup = () => {
