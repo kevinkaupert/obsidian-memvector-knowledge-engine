@@ -1,0 +1,22 @@
+{
+  "name": "obsidian-llm-math-wiki",
+  "version": "1.0.0",
+  "description": "2D Math Vector Space & DeepSeek-R1 Co-Pilot for Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --target=es2020 --outfile=main.js --watch",
+    "build": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --target=es2020 --outfile=main.js --minify"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "vector-search",
+    "embeddings",
+    "mathematics",
+    "deepseek-r1",
+    "bge-m3",
+    "ollama"
+  ],
+  "author": "Kevin Mike Kaupert",
+  "license": "MIT"
+}
