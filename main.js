@@ -1459,8 +1459,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     createRelBtn.onclick = () => {
       const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
-      if (selected.length === 2) {
-        new RelationBuilderModal(this.plugin.app, this.plugin, selected[0], selected[1]).open();
+      if (selected.length >= 2) {
+        new RelationBuilderModal(this.plugin.app, this.plugin, selected).open();
       }
     };
 
@@ -1470,9 +1470,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       synthesizeBtn.style.opacity = count === 0 ? "0.5" : "1.0";
       synthesizeBtn.setText(`DeepSeek-R1 Synthese (${count})`);
 
-      createRelBtn.disabled = count !== 2;
-      createRelBtn.style.opacity = count === 2 ? "1.0" : "0.5";
-      createRelBtn.setText(count === 2 ? "Beziehung erstellen (A -> B)" : "Beziehung (2 wählen)");
+      createRelBtn.disabled = count < 2;
+      createRelBtn.style.opacity = count >= 2 ? "1.0" : "0.5";
+      createRelBtn.setText(count >= 2 ? `Beziehung erstellen (${count})` : "Beziehung (≥2 wählen)");
 
       statusText.setText(`${this.nodes.length} Notizen | ${count} ausgewählt`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
@@ -2097,11 +2097,12 @@ ${this.synthesisText}
 };
 
 var RelationBuilderModal = class extends import_obsidian4.Modal {
-  constructor(app, plugin, nodeA, nodeB) {
+  constructor(app, plugin, selectedNodes) {
     super(app);
     this.plugin = plugin;
-    this.nodeA = nodeA;
-    this.nodeB = nodeB;
+    this.selectedNodes = selectedNodes || [];
+    this.focalIndex = 0;
+    this.topology = "FOCAL_TO_REST";
     this.relType = "REQUIRES";
     this.relDesc = "";
   }
@@ -2113,26 +2114,55 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "16px";
 
-    contentEl.createEl("h2", { text: "Graph-Beziehung & Memgraph Cypher Kante erstellen" });
+    const count = this.selectedNodes.length;
+
+    contentEl.createEl("h2", { text: `Graph-Beziehungen (${count} Notizen) & Cypher Kanten erstellen` });
     contentEl.createEl("p", {
-      text: "Definiere den genauen Beziehungstyp und den didaktischen Grund für die Kante zwischen diesen beiden Notizen.",
+      text: "Definiere die Topologie, den gemeinsamen Beziehungstyp und den didaktischen Grund für alle Kanten.",
       style: "color: var(--text-muted); font-size: 0.9em; margin-bottom: 16px;"
     });
 
     const banner = contentEl.createEl("div", {
-      style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;"
+      style: "padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;"
     });
 
-    const labelA = banner.createEl("div", { text: `Quell-Knoten (A): ${this.nodeA.title}`, style: "font-weight: bold; color: #60a5fa;" });
-    const swapBtn = banner.createEl("button", { text: "A ↔ B (Richtung tauschen)", style: "font-size: 0.85em; padding: 4px 10px;" });
-    const labelB = banner.createEl("div", { text: `Ziel-Knoten (B): ${this.nodeB.title}`, style: "font-weight: bold; color: #34d399;" });
+    const topolGroup = banner.createEl("div", { style: "margin-bottom: 10px;" });
+    topolGroup.createEl("label", { text: "Beziehungs-Topologie / Richtung:", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
+    const topolSelect = topolGroup.createEl("select", {
+      style: "width: 100%; padding: 6px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);"
+    });
 
-    swapBtn.onclick = () => {
-      const temp = this.nodeA;
-      this.nodeA = this.nodeB;
-      this.nodeB = temp;
-      this.onOpen();
+    const topologies = [
+      { val: "FOCAL_TO_REST", label: "Zentral-Knoten A ➔ Alle anderen Notizen (Ein Quell-Knoten verteilt auf viele Ziele)" },
+      { val: "REST_TO_FOCAL", label: "Alle Notizen ➔ Zentral-Knoten A (Viele Vorbedingungen zielen auf ein Ergebnis)" },
+      { val: "CHAIN", label: "Lineare Kette (Notiz 1 ➔ Notiz 2 ➔ Notiz 3 ➔ ...)" }
+    ];
+    topologies.forEach((t) => {
+      const opt = topolSelect.createEl("option", { text: t.label, value: t.val });
+      if (t.val === this.topology) opt.selected = true;
+    });
+
+    topolSelect.onchange = () => {
+      this.topology = topolSelect.value;
+      if (focalGroup) focalGroup.style.display = this.topology === "CHAIN" ? "none" : "block";
+      updateCypherPreview();
     };
+
+    const focalGroup = banner.createEl("div", { style: "margin-top: 8px;" });
+    focalGroup.createEl("label", { text: "Wähle den Haupt- / Zentral-Knoten A:", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
+    const focalSelect = focalGroup.createEl("select", {
+      style: "width: 100%; padding: 6px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);"
+    });
+    this.selectedNodes.forEach((n, idx) => {
+      const opt = focalSelect.createEl("option", { text: `[${n.type.toUpperCase()}] ${n.title}`, value: String(idx) });
+      if (idx === this.focalIndex) opt.selected = true;
+    });
+    focalSelect.onchange = () => {
+      this.focalIndex = parseInt(focalSelect.value, 10) || 0;
+      updateCypherPreview();
+    };
+
+    if (this.topology === "CHAIN") focalGroup.style.display = "none";
 
     const typeGroup = contentEl.createEl("div", { style: "margin-bottom: 14px;" });
     typeGroup.createEl("label", { text: "Beziehungs-Typ (Relationship Label):", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
@@ -2176,7 +2206,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     const descGroup = contentEl.createEl("div", { style: "margin-bottom: 16px;" });
     descGroup.createEl("label", { text: "Warum sind diese Notizen verbunden? (Didaktische / Fachliche Beschreibung):", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
     const descArea = descGroup.createEl("textarea", {
-      placeholder: "Beschreibe die mathematische oder fachliche Brücke (z. B. 'Beweis durch vollständige Induktion über die Summenformel')...",
+      placeholder: "Beschreibe die Brücke zwischen den Notizen (z. B. 'Zusammengehöriger Themenkomplex zur vollständigen Induktion')...",
       style: "width: 100%; height: 80px; padding: 8px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);"
     });
     descArea.oninput = () => {
@@ -2184,16 +2214,62 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       updateCypherPreview();
     };
 
-    contentEl.createEl("h4", { text: "Generierter Memgraph Cypher-Befehl:", style: "margin-bottom: 4px;" });
+    contentEl.createEl("h4", { text: "Generierte Memgraph Cypher-Befehle:", style: "margin-bottom: 4px;" });
     const cypherBox = contentEl.createEl("pre", {
       style: "background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: var(--font-monospace); font-size: 0.85em; overflow-x: auto; white-space: pre-wrap; border: 1px solid rgba(56, 189, 248, 0.2);"
     });
 
+    const generateEdges = () => {
+      const edges = [];
+      const focal = this.selectedNodes[this.focalIndex] || this.selectedNodes[0];
+
+      if (this.topology === "CHAIN") {
+        for (let i = 0; i < this.selectedNodes.length - 1; i++) {
+          edges.push({ src: this.selectedNodes[i], tgt: this.selectedNodes[i + 1] });
+        }
+      } else if (this.topology === "REST_TO_FOCAL") {
+        this.selectedNodes.forEach((n, idx) => {
+          if (idx !== this.focalIndex) {
+            edges.push({ src: n, tgt: focal });
+          }
+        });
+      } else {
+        this.selectedNodes.forEach((n, idx) => {
+          if (idx !== this.focalIndex) {
+            edges.push({ src: focal, tgt: n });
+          }
+        });
+      }
+      return edges;
+    };
+
     const updateCypherPreview = () => {
       const typeStr = this.relType || "REQUIRES";
       const descEscaped = (this.relDesc || "").replace(/"/g, '\\"');
-      const cypher = `MATCH (a:Note {id: "${this.nodeA.id}"}), (b:Note {id: "${this.nodeB.id}"})\nMERGE (a)-[r:${typeStr} {\n  description: "${descEscaped}",\n  source_path: "${this.nodeA.path}",\n  target_path: "${this.nodeB.path}",\n  created_at: datetime()\n}]->(b)\nRETURN r;`;
-      cypherBox.setText(cypher);
+      const edges = generateEdges();
+
+      const lines = [];
+      const nodeMap = new Map();
+      let nodeCounter = 0;
+
+      edges.forEach((e) => {
+        if (!nodeMap.has(e.src.id)) nodeMap.set(e.src.id, `n${nodeCounter++}`);
+        if (!nodeMap.has(e.tgt.id)) nodeMap.set(e.tgt.id, `n${nodeCounter++}`);
+      });
+
+      const matchParts = Array.from(nodeMap.entries()).map(([id, alias]) => `(${alias}:Note {id: "${id}"})`);
+      lines.push(`MATCH ${matchParts.join(", ")}`);
+
+      edges.forEach((e, idx) => {
+        const srcAlias = nodeMap.get(e.src.id);
+        const tgtAlias = nodeMap.get(e.tgt.id);
+        lines.push(`MERGE (${srcAlias})-[r${idx}:${typeStr} { description: "${descEscaped}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`);
+      });
+
+      const returnParts = edges.map((_, idx) => `r${idx}`).join(", ");
+      lines.push(`RETURN ${returnParts};`);
+
+      cypherBox.setText(lines.join("\n"));
     };
 
     updateCypherPreview();
@@ -2219,43 +2295,51 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       saveVaultBtn.disabled = true;
       saveVaultBtn.setText("Speichere...");
       const typeStr = this.relType || "REQUIRES";
-      const slugA = this.nodeA.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
-      const slugB = this.nodeB.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
-      const relFileName = `wiki/relations/rel-${slugA}-to-${slugB}.md`;
+      const edges = generateEdges();
 
-      const relContent = `---
+      let savedCount = 0;
+      for (const e of edges) {
+        const slugA = e.src.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        const slugB = e.tgt.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
+        const relFileName = `wiki/relations/rel-${slugA}-to-${slugB}.md`;
+
+        const relContent = `---
 type: relation
-title: "${this.nodeA.title} -> ${this.nodeB.title}"
+title: "${e.src.title} -> ${e.tgt.title}"
 relation_type: "${typeStr}"
-source_note: "[[${this.nodeA.id}]]"
-target_note: "[[${this.nodeB.id}]]"
+source_note: "[[${e.src.id}]]"
+target_note: "[[${e.tgt.id}]]"
 generated:
   by: "LLM Wiki Co-Pilot 2D Graph Engine"
   at: "${new Date().toISOString()}"
 ---
 
-# relation: [[${this.nodeA.id}|${this.nodeA.title}]] -[${typeStr}]-> [[${this.nodeB.id}|${this.nodeB.title}]]
+# relation: [[${e.src.id}|${e.src.title}]] -[${typeStr}]-> [[${e.tgt.id}|${e.tgt.title}]]
 
 ## Didaktischer / Fachlicher Grund
 ${this.relDesc || "Keine zusätzliche Beschreibung angegeben."}
 
 ## Memgraph Cypher
 \`\`\`cypher
-${cypherBox.innerText}
+MATCH (a:Note {id: "${e.src.id}"}), (b:Note {id: "${e.tgt.id}"})
+MERGE (a)-[r:${typeStr} { description: "${(this.relDesc || "").replace(/"/g, '\\"')}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(b)
+RETURN r;
 \`\`\`
 `;
-      try {
-        const existing = this.app.vault.getAbstractFileByPath(relFileName);
-        if (existing) {
-          await this.app.vault.modify(existing, relContent);
-        } else {
-          await this.app.vault.create(relFileName, relContent);
+        try {
+          const existing = this.app.vault.getAbstractFileByPath(relFileName);
+          if (existing) {
+            await this.app.vault.modify(existing, relContent);
+          } else {
+            await this.app.vault.create(relFileName, relContent);
+          }
+          savedCount++;
+        } catch (err) {
+          console.log("Vault relation file append fallback:", err);
         }
-        new import_obsidian4.Notice(`Beziehungs-Notiz gespeichert unter '${relFileName}'!`);
-      } catch (err) {
-        console.log("Vault relation file append fallback:", err);
       }
 
+      new import_obsidian4.Notice(`${savedCount} Beziehungs-Notizen erfolgreich in 'wiki/relations/' gespeichert!`);
       this.close();
     };
   }

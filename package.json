@@ -1,6 +1,6 @@
 {
   "name": "obsidian-llm-math-wiki",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian.",
   "main": "main.js",
   "scripts": {
