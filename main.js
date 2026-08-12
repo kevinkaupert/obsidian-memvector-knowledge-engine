@@ -1354,54 +1354,37 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return "dot-network";
   }
   async onOpen() {
-    const viewHeader = this.containerEl.querySelector(".view-header");
-    if (viewHeader) {
-      viewHeader.style.display = "none";
-    }
-
-    const container = this.containerEl.children[1] || this.containerEl;
+    const container = this.contentEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
-    container.style.display = "block";
-    container.style.height = "100%";
-    container.style.width = "100%";
-    container.style.background = "var(--background-primary)";
     container.style.position = "relative";
+    container.style.width = "100%";
+    container.style.height = "100%";
     container.style.overflow = "hidden";
     container.style.padding = "0";
+    container.style.background = "var(--background-primary)";
 
     // 1. Full-Bleed Canvas Wrap
-    const canvasWrap = container.createEl("div");
-    canvasWrap.style.position = "absolute";
-    canvasWrap.style.top = "0";
-    canvasWrap.style.left = "0";
-    canvasWrap.style.width = "100%";
-    canvasWrap.style.height = "100%";
-    canvasWrap.style.background = "var(--background-primary)";
+    const canvasWrap = container.createEl("div", {
+      style: "position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: var(--background-primary);"
+    });
 
-    const canvas = canvasWrap.createEl("canvas");
-    canvas.style.width = "100%";
-    canvas.style.height = "100%";
-    canvas.style.display = "block";
-    canvas.style.cursor = "grab";
+    const canvas = canvasWrap.createEl("canvas", {
+      style: "width: 100%; height: 100%; display: block; cursor: grab;"
+    });
 
     const ctx = canvas.getContext("2d");
 
-    // 2. High Z-Index Overlay Layer for Floating Controls
-    const overlayLayer = container.createEl("div", {
-      style: "position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; pointer-events: none;"
-    });
-
-    // 3. Gear / Controls Toggle Button (Native Obsidian Style)
-    const gearBtn = overlayLayer.createEl("button", {
+    // 2. Gear / Controls Toggle Button (Native Obsidian Style)
+    const gearBtn = container.createEl("button", {
       ariaLabel: "Graph-Einstellungen umschalten",
-      style: "position: absolute; top: 12px; right: 12px; pointer-events: auto; padding: 6px; border-radius: 6px; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);"
+      style: "position: absolute; top: 12px; right: 12px; z-index: 99999; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary, #1e1e2e); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);"
     });
     import_obsidian4.setIcon(gearBtn, "sliders");
 
-    // 4. Floating Right-Hand Graph Control Panel (Native Obsidian Style)
-    const controlPanel = overlayLayer.createEl("div", {
-      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 100px); pointer-events: auto; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
+    // 3. Floating Right-Hand Graph Control Panel (Native Obsidian Style)
+    const controlPanel = container.createEl("div", {
+      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 70px); z-index: 99998; background: var(--background-secondary, #1e1e2e); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
     });
 
     gearBtn.onclick = () => {
