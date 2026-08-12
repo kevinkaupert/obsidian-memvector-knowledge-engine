@@ -1173,7 +1173,19 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    containerEl.createEl("h3", { text: "5. 2D Vektor-Graph Filter (Ausschlüsse)" });
+    containerEl.createEl("h3", { text: "5. Wissensdomäne & Vektorraum-Filter" });
+    new import_obsidian3.Setting(containerEl)
+      .setName("Wissensdomäne / Fachbereich")
+      .setDesc("Wähle zwischen universellen Notizbüchern (Allgemeines Wissen, Code, Forschung, PKM) oder spezialisierter Mathematik (LaTeX-Beweise & Formeln).")
+      .addDropdown((dropdown) => dropdown
+        .addOption("general", "Universelles Notizbuch (Allgemeines Wissen, Code, Forschung, PKM)")
+        .addOption("math", "Mathematik & Formalwissenschaften (LaTeX-Formeln & Beweise)")
+        .setValue(this.plugin.settings.knowledgeDomain || "general")
+        .onChange(async (value) => {
+          this.plugin.settings.knowledgeDomain = value;
+          await this.plugin.saveSettings();
+        })
+      );
     new import_obsidian3.Setting(containerEl)
       .setName("Pfad- & Datei-Ausschlüsse")
       .setDesc("Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks). Syntax wie im Obsidian Graph View.")
@@ -1205,6 +1217,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
 // src/main.ts
 var DEFAULT_SETTINGS = {
   language: "de",
+  knowledgeDomain: "general",
   triggerMode: "button",
   executionMode: "auto",
   apiServerUrl: "http://localhost:8000",
@@ -1280,8 +1293,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     titleBadge.createEl("div", {
       style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4;"
     });
+    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
+
     titleBadge.createEl("span", {
-      text: "2D MATH VECTOR SPACE",
+      text: isMathDomain ? "2D MATH VECTOR SPACE" : "2D KNOWLEDGE VECTOR SPACE",
       style: "font-family: monospace; font-size: 0.82em; font-weight: 700; letter-spacing: 0.08em; color: #f1f5f9;"
     });
 
@@ -1963,7 +1978,10 @@ Auszug:
 ${n.content}
 `).join("\n---\n");
 
-    const prompt = `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
+    const isMath = this.plugin.settings?.knowledgeDomain === "math";
+
+    const prompt = isMath
+      ? `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
 Der Benutzer hat folgende ${selected.length} mathematische Notizen im 2D-Vektorraum selektiert:
 
 ${notesSummary}
@@ -1971,7 +1989,16 @@ ${notesSummary}
 Aufgabe:
 1. Erläutere präzise auf Deutsch den mathematischen Zusammenhang, die Brücke und den roten Faden zwischen diesen ${selected.length} Notizen.
 2. Zeige, wie sie sich gegenseitig ergänzen, wo Vorbedingung/Beweisschritte vorliegen und welche mathematische Identität oder Struktur sie verbindet.
-3. Formuliere eine saubere Synthese in Markdown mit LaTeX-Formeln ($...$) und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`;
+3. Formuliere eine saubere Synthese in Markdown mit LaTeX-Formeln ($...$) und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`
+      : `Du bist ein führender Wissens-Synthesizer und KI-Co-Pilot für Obsidian Knowledge Vaults.
+Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
+
+${notesSummary}
+
+Aufgabe:
+1. Erläutere präzise auf Deutsch den inhaltlichen Zusammenhang, die Kerngedanken und den roten Faden zwischen diesen ${selected.length} Notizen.
+2. Zeige, wie die Konzepte aufeinander aufbauen, sich ergänzen oder verschiedene Blickwinkel einnehmen.
+3. Formuliere eine strukturierte Synthese in Markdown mit klaren Überschriften, Kernaussagen und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`;
 
     const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
     const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
