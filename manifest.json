@@ -1,9 +1,9 @@
 {
-  "id": "obsidian-llm-math-wiki",
-  "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.4.0",
+  "id": "obsidian-memvector-knowledge-engine",
+  "name": "MemVector Knowledge Engine",
+  "version": "1.5.0",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Restores 2D Scatterplot rendering and initial vault scanning.",
+  "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false

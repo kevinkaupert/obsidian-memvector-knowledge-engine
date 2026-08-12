@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-llm-math-wiki",
-  "version": "1.4.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian.",
+  "name": "obsidian-memvector-knowledge-engine",
+  "version": "1.5.0",
+  "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --target=es2020 --outfile=main.js --watch",
@@ -10,6 +10,7 @@
   "keywords": [
     "obsidian",
     "obsidian-plugin",
+    "memvector",
     "vector-search",
     "qdrant",
     "memgraph",

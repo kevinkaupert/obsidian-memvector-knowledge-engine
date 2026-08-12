@@ -216,7 +216,7 @@ var ClientMathEngine = class {
 var translations = {
   de: {
     // Sidebar View
-    sidebarTitle: "Math Co-Pilot",
+    sidebarTitle: "MemVector Co-Pilot",
     selectSubExprHint: "Markiere eine Formel oder einen Teilausdruck im Editor mit der Maus...",
     selectedSubExpr: "Markierter Teilausdruck:",
     contextFullExpr: "Kontext (Gesamtformel):",
@@ -230,12 +230,12 @@ var translations = {
     replacedNotice: "Teilausdruck ersetzt durch: ",
     pythonServerOffline: "Python Server nicht erreichbar.",
     // Settings Tab
-    settingsTitle: "LLM Math Wiki Co-Pilot Einstellungen",
-    settingsDesc: "Passen Sie Einstellungen f\xFCr Sprache, Ausl\xF6se-Modus, SymPy-Backend und LLM an.",
+    settingsTitle: "MemVector Knowledge Engine Einstellungen",
+    settingsDesc: "Passen Sie Einstellungen f\xFCr Sprache, Ausl\xF6se-Modus, Qdrant, Memgraph und DeepSeek-R1 LLM an.",
     languageSettingName: "Sprache (Language)",
     languageSettingDesc: "W\xE4hlen Sie die Benutzeroberfl\xE4chen-Sprache f\xFCr das Plugin.",
     triggerModeName: "Ausl\xF6se-Modus (Trigger Mode)",
-    triggerModeDesc: "W\xE4hlen Sie, wie Math Co-Pilot gestartet wird.",
+    triggerModeDesc: "W\xE4hlen Sie, wie MemVector Co-Pilot gestartet wird.",
     triggerModeButton: "Per Button oben rechts im Editor & Rechtsklick",
     triggerModeAuto: "Automatisch bei jeder Maus-Markierung",
     executionModeName: "Ausf\xFChrungs-Engine Modus",
@@ -277,7 +277,7 @@ var translations = {
   },
   en: {
     // Sidebar View
-    sidebarTitle: "Math Co-Pilot",
+    sidebarTitle: "MemVector Co-Pilot",
     selectSubExprHint: "Highlight a formula or sub-expression in the editor with your mouse...",
     selectedSubExpr: "Selected Sub-expression:",
     contextFullExpr: "Context (Full Formula):",
@@ -291,12 +291,12 @@ var translations = {
     replacedNotice: "Sub-expression replaced with: ",
     pythonServerOffline: "Python Server unreachable.",
     // Settings Tab
-    settingsTitle: "LLM Math Wiki Co-Pilot Settings",
-    settingsDesc: "Configure settings for language, trigger mode, SymPy backend, and LLM.",
+    settingsTitle: "MemVector Knowledge Engine Settings",
+    settingsDesc: "Configure settings for language, trigger mode, SymPy backend, Qdrant, Memgraph and LLM.",
     languageSettingName: "Language",
     languageSettingDesc: "Select user interface language for the plugin.",
     triggerModeName: "Trigger Mode",
-    triggerModeDesc: "Select how Math Co-Pilot is triggered.",
+    triggerModeDesc: "Select how MemVector Co-Pilot is triggered.",
     triggerModeButton: "Via top-right editor button & right-click",
     triggerModeAuto: "Automatically on mouse highlight",
     executionModeName: "Execution Engine Mode",
@@ -2671,7 +2671,7 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
     this.lastSelectionRange = null;
   }
   async onload() {
-    console.log("Loading LLM Wiki Math Co-Pilot Plugin...");
+    console.log("Loading MemVector Knowledge Engine Plugin...");
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
     this.registerView(
@@ -2687,32 +2687,32 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
       MATH_VECTOR_SCATTER_VIEW_TYPE,
       (leaf) => new VectorScatterView(leaf, this)
     );
-    this.addRibbonIcon("function-square", "Math Co-Pilot Sidebar", () => {
+    this.addRibbonIcon("function-square", "MemVector Co-Pilot Seitenleiste", () => {
       this.activateSidebarView();
     });
-    this.addRibbonIcon("dot-network", "Math 2D Vector Scatterplot", () => {
+    this.addRibbonIcon("dot-network", "MemVector 2D Vektorraum", () => {
       this.activateVectorScatterView();
     });
     this.addCommand({
       id: "analyze-selected-math",
-      name: "Math Co-Pilot: Markierte Formel analysieren",
+      name: "MemVector: Markierten Text / Formel analysieren",
       editorCallback: (editor) => {
         this.analyzeCurrentSelection(editor);
       }
     });
     this.addCommand({
       id: "open-math-wiki-sidebar",
-      name: "Math Co-Pilot: Seitenleiste \xF6ffnen",
+      name: "MemVector: Seitenleiste \xF6ffnen",
       callback: () => this.activateSidebarView()
     });
     this.addCommand({
       id: "open-math-vector-scatterplot",
-      name: "Math Co-Pilot: 2D Vektor-Scatterplot \xF6ffnen",
+      name: "MemVector: 2D Vektor-Scatterplot \xF6ffnen",
       callback: () => this.activateVectorScatterView()
     });
     this.addCommand({
       id: "scan-vault-math-equivalences",
-      name: "Math Co-Pilot: Vault nach \xE4quivalenten Formeln durchsuchen",
+      name: "MemVector: Vault nach \xE4quivalenten Konzepten & Formeln durchsuchen",
       callback: () => this.scanVaultEquivalences()
     });
     this.registerEvent(
@@ -2741,7 +2741,7 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
         const selection = editor.getSelection().trim();
         if (selection) {
           menu.addItem((item) => {
-            item.setTitle("Math Co-Pilot: Formel analysieren").setIcon("function-square").onClick(() => {
+            item.setTitle("MemVector: Text / Formel analysieren").setIcon("function-square").onClick(() => {
               this.analyzeCurrentSelection(editor);
             });
           });
@@ -2763,7 +2763,7 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
         const view = leaf.view;
         const headerActions = view.containerEl.querySelector(".view-actions");
         if (headerActions && !headerActions.querySelector(".math-copilot-top-btn")) {
-          const btn = view.addAction("function-square", "Math Co-Pilot: Formel analysieren", () => {
+          const btn = view.addAction("function-square", "MemVector: Text / Formel analysieren", () => {
             this.analyzeCurrentSelection(view.editor);
           });
           if (btn) {
@@ -2891,6 +2891,6 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
     }
   }
   onunload() {
-    console.log("Unloading LLM Wiki Math Co-Pilot Plugin.");
+    console.log("Unloading MemVector Knowledge Engine Plugin.");
   }
 };
