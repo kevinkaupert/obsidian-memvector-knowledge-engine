@@ -528,10 +528,18 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
           if (activeFormulas.has(form)) formulaMatchCount += 5;
         }
 
-        const simScore = (intersectCount + formulaMatchCount * 3) / Math.max(1, activeWords.size + fWords.length);
+        let type = "concept";
+        if (f.path.includes("/definitions/") || f.name.includes("def-")) type = "definition";
+        else if (f.path.includes("/theorems/") || f.name.includes("satz-") || f.name.includes("theorem-")) type = "theorem";
+        else if (f.path.includes("/relations/")) type = "relation";
+        else if (f.path.includes("/synthesis/")) type = "synthesis";
+        else if (f.path.includes("/courses/")) type = "course";
+        else if (f.path.includes("/questions/")) type = "question";
+        else if (f.path.includes("/sources/") || f.path.includes("raw/")) type = "source";
 
         scores.push({
           file: f,
+          type,
           score: simScore,
           formulas: fFormulas,
           content: c
@@ -639,14 +647,26 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         });
         ctx.restore();
 
+        const typeColors = {
+          definition: "#3b82f6",
+          theorem: "#10b981",
+          concept: "#f59e0b",
+          relation: "#8b5cf6",
+          synthesis: "#ec4899",
+          course: "#6366f1",
+          question: "#ef4444",
+          source: "#6b7280"
+        };
+
         neighborNodes.forEach((node) => {
-          const size = Math.max(2.5, 3.5 * Math.sqrt(radarZoom));
+          const dotRadius = Math.max(3.5, 4.5 * Math.sqrt(radarZoom));
+          const nodeColor = typeColors[node.type] || "#94a3b8";
+
           ctx.beginPath();
-          ctx.moveTo(node.x - size, node.y - size);
-          ctx.lineTo(node.x + size, node.y + size);
-          ctx.moveTo(node.x + size, node.y - size);
-          ctx.lineTo(node.x - size, node.y + size);
-          ctx.strokeStyle = "rgba(241, 245, 249, 0.9)";
+          ctx.arc(node.x, node.y, dotRadius, 0, Math.PI * 2);
+          ctx.fillStyle = nodeColor;
+          ctx.fill();
+          ctx.strokeStyle = "rgba(15, 23, 42, 0.8)";
           ctx.lineWidth = 1;
           ctx.stroke();
         });
