@@ -1354,6 +1354,16 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return "dot-network";
   }
   async onOpen() {
+    this.containerEl.style.position = "relative";
+
+    // 1. Native View Header Action Button (Top-Right Sliders Icon)
+    this.addAction("sliders", "Graph-Einstellungen umschalten", () => {
+      if (controlPanel) {
+        const isVisible = controlPanel.style.display !== "none";
+        controlPanel.style.display = isVisible ? "none" : "block";
+      }
+    });
+
     const container = this.containerEl.children[1] || this.containerEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
@@ -1365,7 +1375,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     container.style.position = "relative";
     container.style.overflow = "hidden";
 
-    // 1. Canvas Wrapper (Flex 1, full space)
+    // 2. Full-Space Canvas Wrapper
     const canvasWrap = container.createEl("div");
     canvasWrap.style.flex = "1";
     canvasWrap.style.position = "relative";
@@ -1382,27 +1392,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const ctx = canvas.getContext("2d");
 
-    // 2. Top-Right Sliders Gear Button (Native Obsidian Style)
-    const gearBtn = canvasWrap.createEl("button", {
-      ariaLabel: "Graph-Einstellungen umschalten",
-      style: "position: absolute; top: 12px; right: 12px; z-index: 1000; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); color: var(--interactive-accent, #38bdf8); cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);"
+    // 3. Floating Right-Hand Control Panel (Attached directly to top-level this.containerEl)
+    const controlPanel = this.containerEl.createEl("div", {
+      style: "position: absolute; top: 40px; right: 12px; width: 270px; max-height: calc(100% - 60px); z-index: 999999; background: var(--background-secondary, #1e1e2e); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5); font-size: 0.82em; display: block;"
     });
-    try {
-      (0, import_obsidian4.setIcon)(gearBtn, "sliders");
-    } catch (e) {
-      gearBtn.setText("Controls");
-    }
-
-    // 3. Floating Right-Hand Control Panel (Native Obsidian Style)
-    const controlPanel = canvasWrap.createEl("div", {
-      style: "position: absolute; top: 48px; right: 12px; width: 270px; max-height: calc(100% - 60px); z-index: 999; background: var(--background-secondary, rgba(24, 24, 37, 0.95)); backdrop-filter: blur(16px); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.15)); border-radius: 8px; padding: 14px; overflow-y: auto; box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4); font-size: 0.82em; display: block;"
-    });
-
-    gearBtn.onclick = () => {
-      const isVisible = controlPanel.style.display !== "none";
-      controlPanel.style.display = isVisible ? "none" : "block";
-      gearBtn.style.color = isVisible ? "var(--text-muted)" : "var(--interactive-accent, #38bdf8)";
-    };
 
     // Header badge inside panel
     const headerRow = controlPanel.createEl("div", {
