@@ -1235,11 +1235,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     this.pan = { x: 0, y: 0 };
     this.zoom = 1;
     this.isDraggingPan = false;
-    this.isDraggingBox = false;
+    this.isDraggingLasso = false;
     this.dragStart = { x: 0, y: 0 };
-    this.boxStart = { x: 0, y: 0 };
-    this.boxEnd = { x: 0, y: 0 };
-    this.boxSelectMode = false;
+    this.lassoPath = [];
+    this.lassoSelectMode = false;
     this.hoveredNode = null;
   }
   getViewType() {
@@ -1298,7 +1297,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       text: "BGE-M3 Vektoren",
       style: "background: var(--interactive-accent); color: var(--text-on-accent); font-weight: bold;"
     });
-    const boxToggleBtn = toolbar.createEl("button", { text: "Box-Select [OFF]" });
+    const lassoToggleBtn = toolbar.createEl("button", { text: "Lasso-Select [OFF]" });
     const synthesizeBtn = toolbar.createEl("button", {
       text: "Mit DeepSeek-R1 synthetisieren (0)",
       style: "background: var(--interactive-accent); color: var(--text-on-accent);"
@@ -1373,7 +1372,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     hoverBar.style.fontSize = "0.85em";
     hoverBar.style.color = "var(--text-muted)";
     hoverBar.style.zIndex = "10";
-    hoverBar.setText("Bewege die Maus über einen Vektor-Punkt für Notiz-Details. Halte Shift gedrückt zum Ziehen einer 2D Box.");
+    hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
 
     const resizeCanvas = () => {
       canvas.width = canvasWrap.clientWidth * window.devicePixelRatio;
@@ -1387,17 +1386,17 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
 
-    boxToggleBtn.onclick = () => {
-      this.boxSelectMode = !this.boxSelectMode;
-      boxToggleBtn.setText(this.boxSelectMode ? "🔲 Box-Select [ON]" : "🔲 Box-Select [OFF]");
-      boxToggleBtn.style.background = this.boxSelectMode ? "var(--interactive-accent)" : "";
-      canvas.style.cursor = this.boxSelectMode ? "crosshair" : "grab";
+    lassoToggleBtn.onclick = () => {
+      this.lassoSelectMode = !this.lassoSelectMode;
+      lassoToggleBtn.setText(this.lassoSelectMode ? "Lasso-Select [ON]" : "Lasso-Select [OFF]");
+      lassoToggleBtn.style.background = this.lassoSelectMode ? "var(--interactive-accent)" : "";
+      canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
     };
 
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
       synthesizeBtn.disabled = count === 0;
-      synthesizeBtn.setText(`✨ Mit DeepSeek-R1 synthetisieren (${count})`);
+      synthesizeBtn.setText(`Mit DeepSeek-R1 synthetisieren (${count})`);
       statusText.setText(`${this.nodes.length} Notizen | ${count} ausgewählt`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
@@ -1446,11 +1445,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
-      const isBoxMode = this.boxSelectMode || e.shiftKey;
-      if (isBoxMode) {
-        this.isDraggingBox = true;
-        this.boxStart = { x: mouseX, y: mouseY };
-        this.boxEnd = { x: mouseX, y: mouseY };
+      const isLassoMode = this.lassoSelectMode || e.shiftKey;
+      if (isLassoMode) {
+        this.isDraggingLasso = true;
+        this.lassoPath = [{ x: mouseX, y: mouseY }];
       } else {
         this.isDraggingPan = true;
         this.dragStart = { x: mouseX - this.pan.x, y: mouseY - this.pan.y };
@@ -1467,8 +1465,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         this.pan.x = mouseX - this.dragStart.x;
         this.pan.y = mouseY - this.dragStart.y;
         this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
-      } else if (this.isDraggingBox) {
-        this.boxEnd = { x: mouseX, y: mouseY };
+      } else if (this.isDraggingLasso) {
+        this.lassoPath.push({ x: mouseX, y: mouseY });
         this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
       } else {
         const hovered = this.hitTest(mouseX, mouseY);
@@ -1476,35 +1474,43 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           this.hoveredNode = hovered;
           if (hovered) {
             const mathSample = hovered.latexFormulas.length > 0 ? ` | Formel: $${hovered.latexFormulas[0]}$` : "";
-            hoverBar.setText(`📍 [${hovered.type.toUpperCase()}] ${hovered.title} (${hovered.path})${mathSample}`);
+            hoverBar.setText(`[${hovered.type.toUpperCase()}] ${hovered.title} (${hovered.path})${mathSample}`);
           } else {
-            hoverBar.setText("Bewege die Maus über einen Vektor-Punkt für Notiz-Details. Halte Shift gedrückt zum Ziehen einer 2D Box.");
+            hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
           }
           this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
         }
       }
     });
 
+    function isPointInPolygon(px, py, polygon) {
+      let inside = false;
+      for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const xi = polygon[i].x, yi = polygon[i].y;
+        const xj = polygon[j].x, yj = polygon[j].y;
+        const intersect = ((yi > py) !== (yj > py)) &&
+          (px < (xj - xi) * (py - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    }
+
     window.addEventListener("mouseup", () => {
       if (this.isDraggingPan) {
         this.isDraggingPan = false;
-        canvas.style.cursor = this.boxSelectMode ? "crosshair" : "grab";
+        canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
       }
-      if (this.isDraggingBox) {
-        this.isDraggingBox = false;
-        const xMin = Math.min(this.boxStart.x, this.boxEnd.x);
-        const xMax = Math.max(this.boxStart.x, this.boxEnd.x);
-        const yMin = Math.min(this.boxStart.y, this.boxEnd.y);
-        const yMax = Math.max(this.boxStart.y, this.boxEnd.y);
-
-        if (Math.abs(xMax - xMin) > 5 && Math.abs(yMax - yMin) > 5) {
+      if (this.isDraggingLasso) {
+        this.isDraggingLasso = false;
+        if (this.lassoPath.length > 2) {
           this.nodes.forEach((node) => {
             const screenPos = this.worldToScreen(node.x, node.y);
-            if (screenPos.x >= xMin && screenPos.x <= xMax && screenPos.y >= yMin && screenPos.y <= yMax) {
+            if (isPointInPolygon(screenPos.x, screenPos.y, this.lassoPath)) {
               this.selectedNodeIds.add(node.id);
             }
           });
         }
+        this.lassoPath = [];
         updateSelectionUI();
       }
     });
@@ -1515,7 +1521,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const mouseY = e.clientY - rect.top;
       const clicked = this.hitTest(mouseX, mouseY);
       if (clicked) {
-        if (e.shiftKey) {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) {
           if (this.selectedNodeIds.has(clicked.id)) {
             this.selectedNodeIds.delete(clicked.id);
           } else {
@@ -1881,18 +1887,19 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       }
     });
 
-    if (this.isDraggingBox) {
-      const x = Math.min(this.boxStart.x, this.boxEnd.x);
-      const y = Math.min(this.boxStart.y, this.boxEnd.y);
-      const w = Math.abs(this.boxEnd.x - this.boxStart.x);
-      const h = Math.abs(this.boxEnd.y - this.boxStart.y);
-
+    if (this.isDraggingLasso && this.lassoPath.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(this.lassoPath[0].x, this.lassoPath[0].y);
+      for (let i = 1; i < this.lassoPath.length; i++) {
+        ctx.lineTo(this.lassoPath[i].x, this.lassoPath[i].y);
+      }
+      ctx.closePath();
       ctx.fillStyle = "rgba(59, 130, 246, 0.15)";
-      ctx.fillRect(x, y, w, h);
+      ctx.fill();
       ctx.strokeStyle = "#3b82f6";
       ctx.lineWidth = 1.5;
       ctx.setLineDash([4, 4]);
-      ctx.strokeRect(x, y, w, h);
+      ctx.stroke();
       ctx.setLineDash([]);
     }
   }
