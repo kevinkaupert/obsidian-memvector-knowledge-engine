@@ -687,8 +687,20 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         "wheel",
         (e) => {
           e.preventDefault();
-          const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-          radarZoom = Math.min(5.0, Math.max(0.2, radarZoom * zoomFactor));
+          const rect = canvas.getBoundingClientRect();
+          const mx = e.clientX - rect.left;
+          const my = e.clientY - rect.top;
+
+          if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
+            const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+            const newZoom = Math.min(5.0, Math.max(0.2, radarZoom * zoomFactor));
+            radarPan.x = mx - (mx - (centerX + radarPan.x)) * (newZoom / radarZoom) - centerX;
+            radarPan.y = my - (my - (centerY + radarPan.y)) * (newZoom / radarZoom) - centerY;
+            radarZoom = newZoom;
+          } else {
+            radarPan.x -= e.deltaX * 0.85;
+            radarPan.y -= e.deltaY * 0.85;
+          }
           drawRadar();
         },
         { passive: false }
@@ -1404,21 +1416,30 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     synthesizeBtn.onclick = () => this.runDeepSeekSynthesis(hoverBar);
 
-    canvas.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-      const newZoom = Math.max(0.2, Math.min(8, this.zoom * zoomFactor));
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
 
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+        if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
+          const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+          const newZoom = Math.max(0.2, Math.min(8, this.zoom * zoomFactor));
 
-      this.pan.x = mouseX - (mouseX - this.pan.x) * (newZoom / this.zoom);
-      this.pan.y = mouseY - (mouseY - this.pan.y) * (newZoom / this.zoom);
-      this.zoom = newZoom;
+          this.pan.x = mouseX - (mouseX - this.pan.x) * (newZoom / this.zoom);
+          this.pan.y = mouseY - (mouseY - this.pan.y) * (newZoom / this.zoom);
+          this.zoom = newZoom;
+        } else {
+          this.pan.x -= e.deltaX * 0.9;
+          this.pan.y -= e.deltaY * 0.9;
+        }
 
-      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
-    });
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      },
+      { passive: false }
+    );
 
     canvas.addEventListener("mousedown", (e) => {
       const rect = canvas.getBoundingClientRect();
