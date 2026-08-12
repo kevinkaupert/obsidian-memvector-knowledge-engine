@@ -2408,16 +2408,24 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       let nodeCounter = 0;
 
       edges.forEach((e) => {
-        if (!nodeMap.has(e.src.id)) nodeMap.set(e.src.id, `n${nodeCounter++}`);
-        if (!nodeMap.has(e.tgt.id)) nodeMap.set(e.tgt.id, `n${nodeCounter++}`);
+        if (!nodeMap.has(e.src.id)) {
+          const alias = `n${nodeCounter++}`;
+          nodeMap.set(e.src.id, { alias, node: e.src });
+        }
+        if (!nodeMap.has(e.tgt.id)) {
+          const alias = `n${nodeCounter++}`;
+          nodeMap.set(e.tgt.id, { alias, node: e.tgt });
+        }
       });
 
-      const matchParts = Array.from(nodeMap.entries()).map(([id, alias]) => `(${alias}:Note {id: "${id}"})`);
-      lines.push(`MATCH ${matchParts.join(", ")}`);
+      Array.from(nodeMap.values()).forEach((item) => {
+        const titleEscaped = item.node.title.replace(/"/g, '\\"');
+        lines.push(`MERGE (${item.alias}:Note {id: "${item.node.id}"}) ON CREATE SET ${item.alias}.title = "${titleEscaped}", ${item.alias}.path = "${item.node.path}", ${item.alias}.type = "${item.node.type}"`);
+      });
 
       edges.forEach((e, idx) => {
-        const srcAlias = nodeMap.get(e.src.id);
-        const tgtAlias = nodeMap.get(e.tgt.id);
+        const srcAlias = nodeMap.get(e.src.id).alias;
+        const tgtAlias = nodeMap.get(e.tgt.id).alias;
         lines.push(`MERGE (${srcAlias})-[r${idx}:${typeStr} { description: "${descEscaped}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`);
       });
 
