@@ -1869,6 +1869,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
             const tgtMatch = yaml.match(/^target_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
             const typeMatch = yaml.match(/^relation_type:\s*["']?([^"'\n]+)/m);
 
+            const descMatch = content.match(/## Didaktischer \/ Fachlicher Grund\n([\s\S]*?)(?=\n##|$)/i);
+            const desc = descMatch ? descMatch[1].trim().replace(/\n+/g, " ") : "";
+
             if (srcMatch && tgtMatch) {
               const srcId = srcMatch[1].trim().toLowerCase();
               const tgtId = tgtMatch[1].trim().toLowerCase();
@@ -1876,7 +1879,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
               const key = `${srcId}->${tgtId}`;
               if (!edgeSet.has(key)) {
                 edgeSet.add(key);
-                this.relationEdges.push({ srcId, tgtId, relType, title: `${srcId} -> ${tgtId}`, path: f.path });
+                this.relationEdges.push({ srcId, tgtId, relType, desc, title: `${srcId} -> ${tgtId}`, path: f.path });
               }
             }
           }
@@ -2143,25 +2146,40 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         ctx.fillStyle = edgeColor;
         ctx.fill();
 
-        // Midpoint Label Badge
+        // Midpoint Label Badge + Description Text
         if (isSrcSelected || isTgtSelected || this.zoom > 0.8) {
           const midX = (p1.x + p2.x) / 2;
           const midY = (p1.y + p2.y) / 2;
 
-          ctx.font = "9px monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          const badgeText = edge.relType;
-          const textWidth = ctx.measureText(badgeText).width;
+          const rawDesc = edge.desc || "";
+          const descText = rawDesc.length > 42 ? rawDesc.slice(0, 40) + "..." : rawDesc;
+          const typeText = `[${edge.relType}]`;
 
-          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-          ctx.fillRect(midX - textWidth / 2 - 4, midY - 7, textWidth + 8, 14);
+          ctx.font = "bold 9px monospace";
+          const typeWidth = ctx.measureText(typeText).width;
+          ctx.font = "9px sans-serif";
+          const descWidth = descText ? ctx.measureText(descText).width : 0;
+
+          const badgeWidth = Math.max(typeWidth, descWidth) + 14;
+          const badgeHeight = descText ? 28 : 16;
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.94)";
+          ctx.fillRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
           ctx.strokeStyle = edgeColor;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(midX - textWidth / 2 - 4, midY - 7, textWidth + 8, 14);
+          ctx.lineWidth = 1.2;
+          ctx.strokeRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
 
+          ctx.font = "bold 9px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = descText ? "top" : "middle";
           ctx.fillStyle = edgeColor;
-          ctx.fillText(badgeText, midX, midY);
+          ctx.fillText(typeText, midX, descText ? midY - badgeHeight / 2 + 3 : midY);
+
+          if (descText) {
+            ctx.font = "9px sans-serif";
+            ctx.fillStyle = "#e2e8f0";
+            ctx.fillText(descText, midX, midY + 1);
+          }
         }
         ctx.restore();
       });
