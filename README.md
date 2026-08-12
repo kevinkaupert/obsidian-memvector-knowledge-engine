@@ -6,34 +6,34 @@ Built specifically for mathematics, science, and research vaults, this plugin co
 
 ---
 
-## 🌟 Key Features
+## Key Features
 
-### 1. 📊 2D Vector Space Scatterplot
+### 1. 2D Vector Space Scatterplot
 - **Local Embeddings:** Integrates with local Ollama (`bge-m3`) to vectorize Markdown notes, LaTeX equations ($\forall, \exists, \sum$), and frontmatter metadata.
 - **2D PCA/UMAP Clustering:** Projects 1024-dimensional dense vectors onto an interactive 2D HTML5 Canvas.
 - **Semantic Note Clouds:** Notes automatically organize into natural semantic clusters (e.g., *Definitions*, *Theorems*, *Proofs*, *Set Theory*, *Quantifiers*).
 - **Smooth Morphing Animation:** Watch nodes morph smoothly from initial positions to true 2D vector clusters.
 
-### 2. 🔲 2D Drag-Box Selection & DeepSeek-R1 Synthesis
+### 2. 2D Drag-Box Selection & DeepSeek-R1 Synthesis
 - **Drag-Box Selection:** Hold `Shift` + drag to select any subset of notes or clusters.
 - **DeepSeek-R1 Integration:** Connects directly to local Ollama (`deepseek-r1:7b` / `14b` / `32b`).
 - **1-Click Synthesis Note Creation:** Generates a structured Markdown synthesis note with formal LaTeX proofs and Obsidian `[[WikiLinks]]`, saved directly into `wiki/synthesis/`.
 
-### 3. 📍 Active Note Mini-Radar Cutout View (Sidebar)
+### 3. Active Note Mini-Radar Cutout View (Sidebar)
 - **Active Note Focus:** Automatically updates when opening or switching notes in Obsidian.
 - **Mini-Radar Canvas:** Renders a 2D cutout view centered around the active note, preserving **exact relative 2D distances and directional vectors**.
 - **Interactive Navigation:** Supports mouse-wheel zoom, drag-pan, and double-click reset.
 - **Auto-Scale Framing:** Automatically scales to frame the top $X$ nearest vector neighbors (configurable in settings).
 - **Collapsible Neighbor List:** Expandable list with 1-click note navigation.
 
-### 4. 🔍 Full Graph Search Query Syntax
+### 4. Full Graph Search Query Syntax
 - **Positive Inclusion Rules:** Filter candidates by path or filename (e.g. `path:wiki`, `file:theorem`).
 - **Negative Exclusion Rules:** Exclude specific files/directories (e.g. `-path: schema -file:index -file:log -file:README`).
 - **Live Debounced Filtering:** Toolbar search bar updates the 2D Scatterplot in real time.
 
 ---
 
-## 🚀 Quick Start & Installation
+## Quick Start & Installation
 
 ### Prerequisites
 Make sure [Ollama](https://ollama.ai) is installed and running locally on your Mac/PC:
@@ -53,11 +53,11 @@ ollama pull deepseek-r1:7b
    <your-vault>/.obsidian/plugins/obsidian-llm-math-wiki/
    ```
 2. Copy `main.js` and `manifest.json` into that folder.
-3. Open **Obsidian Settings** $\rightarrow$ **Community Plugins** $\rightarrow$ Enable **LLM Wiki Math Co-Pilot**.
+3. Open **Obsidian Settings** -> **Community Plugins** -> Enable **LLM Wiki Math Co-Pilot**.
 
 ---
 
-## ⚙️ Settings
+## Settings
 
 - **Ollama API Base URL:** `http://localhost:11434/v1` (Default)
 - **Model Name:** `deepseek-r1:7b` (or `deepseek-r1:14b` / `32b`)
@@ -66,7 +66,7 @@ ollama pull deepseek-r1:7b
 
 ---
 
-## 📜 License
+## License
 
 Distributed under the [MIT License](LICENSE).
-Created with ❤️ for mathematical research and local-first Obsidian workflows.
+Created for mathematical research and local-first Obsidian workflows.
