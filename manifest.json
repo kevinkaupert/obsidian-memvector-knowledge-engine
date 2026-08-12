@@ -1,7 +1,7 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math Co-Pilot & 2D Vector Space",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "1.0.0",
   "description": "2D Math Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Interactive HTML5 2D Scatterplot, local BGE-M3 embeddings, box-selection synthesis, active note mini-radar, and mathematical equivalence engine.",
   "author": "Kevin Mike Kaupert",
