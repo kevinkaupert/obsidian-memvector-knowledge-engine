@@ -1,9 +1,9 @@
 {
   "id": "obsidian-llm-math-wiki",
   "name": "LLM Wiki Math & Knowledge Co-Pilot",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "minAppVersion": "1.0.0",
-  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Interactive HTML5 2D Scatterplot, local BGE-M3 embeddings, lasso-selection synthesis, active note mini-radar, and domain-adaptive AI reasoning.",
+  "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian. Features 2-Node Memgraph Relationship Builder with Cypher code generator.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": false

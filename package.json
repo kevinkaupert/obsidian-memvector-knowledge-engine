@@ -1,6 +1,6 @@
 {
   "name": "obsidian-llm-math-wiki",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Universal 2D Knowledge Vector Space & DeepSeek-R1 Co-Pilot for Obsidian.",
   "main": "main.js",
   "scripts": {
@@ -11,13 +11,11 @@
     "obsidian",
     "obsidian-plugin",
     "vector-search",
-    "embeddings",
-    "knowledge-management",
-    "pkm",
-    "mathematics",
+    "memgraph",
+    "cypher",
+    "knowledge-graph",
     "deepseek-r1",
-    "bge-m3",
-    "ollama"
+    "bge-m3"
   ],
   "author": "Kevin Mike Kaupert",
   "license": "MIT"

@@ -1353,6 +1353,11 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const lassoToggleBtn = btnGroup.createEl("button", { text: "Lasso-Select [OFF]" });
     styleButton(lassoToggleBtn, "rgba(30, 41, 59, 0.8)", "rgba(51, 65, 85, 0.9)");
 
+    const createRelBtn = btnGroup.createEl("button", { text: "Beziehung (2 wählen)" });
+    styleButton(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
+    createRelBtn.disabled = true;
+    createRelBtn.style.opacity = "0.5";
+
     const synthesizeBtn = btnGroup.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
     styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
     synthesizeBtn.disabled = true;
@@ -1452,11 +1457,23 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
     };
 
+    createRelBtn.onclick = () => {
+      const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
+      if (selected.length === 2) {
+        new RelationBuilderModal(this.plugin.app, this.plugin, selected[0], selected[1]).open();
+      }
+    };
+
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
       synthesizeBtn.disabled = count === 0;
       synthesizeBtn.style.opacity = count === 0 ? "0.5" : "1.0";
       synthesizeBtn.setText(`DeepSeek-R1 Synthese (${count})`);
+
+      createRelBtn.disabled = count !== 2;
+      createRelBtn.style.opacity = count === 2 ? "1.0" : "0.5";
+      createRelBtn.setText(count === 2 ? "Beziehung erstellen (A -> B)" : "Beziehung (2 wählen)");
+
       statusText.setText(`${this.nodes.length} Notizen | ${count} ausgewählt`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
@@ -2074,6 +2091,171 @@ ${this.synthesisText}
 `;
       await this.app.vault.create(fileName, frontmatter);
       new import_obsidian4.Notice(`Synthese-Notiz erfolgreich unter '${fileName}' gespeichert!`);
+      this.close();
+    };
+  }
+};
+
+var RelationBuilderModal = class extends import_obsidian4.Modal {
+  constructor(app, plugin, nodeA, nodeB) {
+    super(app);
+    this.plugin = plugin;
+    this.nodeA = nodeA;
+    this.nodeB = nodeB;
+    this.relType = "REQUIRES";
+    this.relDesc = "";
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.style.maxHeight = "85vh";
+    contentEl.style.overflowY = "auto";
+    contentEl.style.padding = "16px";
+
+    contentEl.createEl("h2", { text: "Graph-Beziehung & Memgraph Cypher Kante erstellen" });
+    contentEl.createEl("p", {
+      text: "Definiere den genauen Beziehungstyp und den didaktischen Grund für die Kante zwischen diesen beiden Notizen.",
+      style: "color: var(--text-muted); font-size: 0.9em; margin-bottom: 16px;"
+    });
+
+    const banner = contentEl.createEl("div", {
+      style: "display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; background: rgba(30, 41, 59, 0.7); border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;"
+    });
+
+    const labelA = banner.createEl("div", { text: `Quell-Knoten (A): ${this.nodeA.title}`, style: "font-weight: bold; color: #60a5fa;" });
+    const swapBtn = banner.createEl("button", { text: "A ↔ B (Richtung tauschen)", style: "font-size: 0.85em; padding: 4px 10px;" });
+    const labelB = banner.createEl("div", { text: `Ziel-Knoten (B): ${this.nodeB.title}`, style: "font-weight: bold; color: #34d399;" });
+
+    swapBtn.onclick = () => {
+      const temp = this.nodeA;
+      this.nodeA = this.nodeB;
+      this.nodeB = temp;
+      this.onOpen();
+    };
+
+    const typeGroup = contentEl.createEl("div", { style: "margin-bottom: 14px;" });
+    typeGroup.createEl("label", { text: "Beziehungs-Typ (Relationship Label):", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
+    const typeSelect = typeGroup.createEl("select", { style: "width: 100%; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);" });
+
+    const types = [
+      { val: "REQUIRES", label: "REQUIRES — Vorbedingung / Benötigt" },
+      { val: "IMPLIES", label: "IMPLIES — Impliziert / Folgert" },
+      { val: "PROVES", label: "PROVES — Beweist / Zeigt" },
+      { val: "DEFINES", label: "DEFINES — Definiert / Erklärt" },
+      { val: "EXTENDS", label: "EXTENDS — Erweitert / Verallgemeinert" },
+      { val: "CONTRADICTS", label: "CONTRADICTS — Widerspricht / Gegenbeispiel" },
+      { val: "USES", label: "USES — Nutzt / Verwendet" },
+      { val: "CUSTOM", label: "Benutzerdefiniert (Custom)..." }
+    ];
+    types.forEach((t) => {
+      const opt = typeSelect.createEl("option", { text: t.label, value: t.val });
+      if (t.val === this.relType) opt.selected = true;
+    });
+
+    const customTypeInput = typeGroup.createEl("input", {
+      type: "text",
+      placeholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
+      style: "width: 100%; margin-top: 6px; display: none; padding: 6px 10px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);"
+    });
+
+    typeSelect.onchange = () => {
+      if (typeSelect.value === "CUSTOM") {
+        customTypeInput.style.display = "block";
+      } else {
+        customTypeInput.style.display = "none";
+        this.relType = typeSelect.value;
+      }
+      updateCypherPreview();
+    };
+    customTypeInput.oninput = () => {
+      this.relType = customTypeInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+      updateCypherPreview();
+    };
+
+    const descGroup = contentEl.createEl("div", { style: "margin-bottom: 16px;" });
+    descGroup.createEl("label", { text: "Warum sind diese Notizen verbunden? (Didaktische / Fachliche Beschreibung):", style: "display: block; font-weight: 600; margin-bottom: 4px;" });
+    const descArea = descGroup.createEl("textarea", {
+      placeholder: "Beschreibe die mathematische oder fachliche Brücke (z. B. 'Beweis durch vollständige Induktion über die Summenformel')...",
+      style: "width: 100%; height: 80px; padding: 8px; border-radius: 6px; background: var(--background-secondary); color: var(--text-normal); border: 1px solid var(--border-color);"
+    });
+    descArea.oninput = () => {
+      this.relDesc = descArea.value;
+      updateCypherPreview();
+    };
+
+    contentEl.createEl("h4", { text: "Generierter Memgraph Cypher-Befehl:", style: "margin-bottom: 4px;" });
+    const cypherBox = contentEl.createEl("pre", {
+      style: "background: #0f172a; color: #38bdf8; padding: 12px; border-radius: 6px; font-family: var(--font-monospace); font-size: 0.85em; overflow-x: auto; white-space: pre-wrap; border: 1px solid rgba(56, 189, 248, 0.2);"
+    });
+
+    const updateCypherPreview = () => {
+      const typeStr = this.relType || "REQUIRES";
+      const descEscaped = (this.relDesc || "").replace(/"/g, '\\"');
+      const cypher = `MATCH (a:Note {id: "${this.nodeA.id}"}), (b:Note {id: "${this.nodeB.id}"})\nMERGE (a)-[r:${typeStr} {\n  description: "${descEscaped}",\n  source_path: "${this.nodeA.path}",\n  target_path: "${this.nodeB.path}",\n  created_at: datetime()\n}]->(b)\nRETURN r;`;
+      cypherBox.setText(cypher);
+    };
+
+    updateCypherPreview();
+
+    const btnRow = contentEl.createEl("div", { style: "display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px;" });
+
+    const saveVaultBtn = btnRow.createEl("button", {
+      text: "In Obsidian & Cypher speichern",
+      style: "background: var(--interactive-accent); color: var(--text-on-accent); font-weight: bold;"
+    });
+    const copyCypherBtn = btnRow.createEl("button", { text: "Cypher kopieren" });
+    const closeBtn = btnRow.createEl("button", { text: "Schließen" });
+
+    closeBtn.onclick = () => this.close();
+
+    copyCypherBtn.onclick = () => {
+      navigator.clipboard.writeText(cypherBox.innerText);
+      copyCypherBtn.setText("Kopiert!");
+      setTimeout(() => copyCypherBtn.setText("Cypher kopieren"), 2000);
+    };
+
+    saveVaultBtn.onclick = async () => {
+      saveVaultBtn.disabled = true;
+      saveVaultBtn.setText("Speichere...");
+      const typeStr = this.relType || "REQUIRES";
+      const slugA = this.nodeA.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
+      const slugB = this.nodeB.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
+      const relFileName = `wiki/relations/rel-${slugA}-to-${slugB}.md`;
+
+      const relContent = `---
+type: relation
+title: "${this.nodeA.title} -> ${this.nodeB.title}"
+relation_type: "${typeStr}"
+source_note: "[[${this.nodeA.id}]]"
+target_note: "[[${this.nodeB.id}]]"
+generated:
+  by: "LLM Wiki Co-Pilot 2D Graph Engine"
+  at: "${new Date().toISOString()}"
+---
+
+# relation: [[${this.nodeA.id}|${this.nodeA.title}]] -[${typeStr}]-> [[${this.nodeB.id}|${this.nodeB.title}]]
+
+## Didaktischer / Fachlicher Grund
+${this.relDesc || "Keine zusätzliche Beschreibung angegeben."}
+
+## Memgraph Cypher
+\`\`\`cypher
+${cypherBox.innerText}
+\`\`\`
+`;
+      try {
+        const existing = this.app.vault.getAbstractFileByPath(relFileName);
+        if (existing) {
+          await this.app.vault.modify(existing, relContent);
+        } else {
+          await this.app.vault.create(relFileName, relContent);
+        }
+        new import_obsidian4.Notice(`Beziehungs-Notiz gespeichert unter '${relFileName}'!`);
+      } catch (err) {
+        console.log("Vault relation file append fallback:", err);
+      }
+
       this.close();
     };
   }
