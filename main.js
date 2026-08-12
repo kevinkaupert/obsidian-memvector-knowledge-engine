@@ -1265,50 +1265,94 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const toolbar = container.createEl("div");
     toolbar.style.display = "flex";
     toolbar.style.alignItems = "center";
-    toolbar.style.gap = "8px";
-    toolbar.style.padding = "8px 12px";
-    toolbar.style.borderBottom = "1px solid var(--border-color)";
-    toolbar.style.background = "var(--background-secondary)";
+    toolbar.style.flexWrap = "wrap";
+    toolbar.style.gap = "10px";
+    toolbar.style.padding = "8px 16px";
+    toolbar.style.borderBottom = "1px solid rgba(255, 255, 255, 0.08)";
+    toolbar.style.background = "rgba(15, 23, 42, 0.85)";
+    toolbar.style.backdropFilter = "blur(12px)";
     toolbar.style.zIndex = "10";
+    toolbar.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.25)";
 
-    toolbar.createEl("span", {
-      text: "2D Math Vector Space",
-      style: "font-weight: bold; margin-right: 12px; color: var(--text-normal);"
+    const titleBadge = toolbar.createEl("div", {
+      style: "display: flex; align-items: center; gap: 8px; margin-right: 8px;"
+    });
+    titleBadge.createEl("div", {
+      style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4;"
+    });
+    titleBadge.createEl("span", {
+      text: "2D MATH VECTOR SPACE",
+      style: "font-family: monospace; font-size: 0.82em; font-weight: 700; letter-spacing: 0.08em; color: #f1f5f9;"
     });
 
-    const filterGroup = toolbar.createEl("div", {
-      style: "display: flex; align-items: center; gap: 6px; flex: 1; max-width: 480px;"
-    });
-    const filterInput = filterGroup.createEl("input", {
+    const filterInput = toolbar.createEl("input", {
       type: "text",
       placeholder: "Filter (z.B. path:wiki -file:index)...",
       value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
     });
-    filterInput.style.width = "100%";
-    filterInput.style.fontSize = "0.85em";
-    filterInput.style.padding = "4px 8px";
-    filterInput.style.borderRadius = "4px";
-    filterInput.style.border = "1px solid var(--border-color)";
-    filterInput.style.background = "var(--background-primary)";
-    filterInput.style.color = "var(--text-normal)";
+    filterInput.style.flex = "1";
+    filterInput.style.minWidth = "220px";
+    filterInput.style.maxWidth = "400px";
+    filterInput.style.fontSize = "0.82em";
+    filterInput.style.padding = "5px 12px";
+    filterInput.style.borderRadius = "20px";
+    filterInput.style.border = "1px solid rgba(255, 255, 255, 0.12)";
+    filterInput.style.background = "rgba(30, 41, 59, 0.7)";
+    filterInput.style.color = "#f8fafc";
+    filterInput.style.outline = "none";
+    filterInput.style.transition = "all 0.2s ease";
 
-    const refreshBtn = toolbar.createEl("button", { text: "Scannen" });
-    const calcVectorsBtn = toolbar.createEl("button", {
-      text: "BGE-M3 Vektoren",
-      style: "background: var(--interactive-accent); color: var(--text-on-accent); font-weight: bold;"
+    filterInput.onfocus = () => {
+      filterInput.style.borderColor = "#06b6d4";
+      filterInput.style.boxShadow = "0 0 12px rgba(6, 182, 212, 0.3)";
+    };
+    filterInput.onblur = () => {
+      filterInput.style.borderColor = "rgba(255, 255, 255, 0.12)";
+      filterInput.style.boxShadow = "none";
+    };
+
+    const btnGroup = toolbar.createEl("div", {
+      style: "display: flex; align-items: center; gap: 6px;"
     });
-    const lassoToggleBtn = toolbar.createEl("button", { text: "Lasso-Select [OFF]" });
-    const synthesizeBtn = toolbar.createEl("button", {
-      text: "Mit DeepSeek-R1 synthetisieren (0)",
-      style: "background: var(--interactive-accent); color: var(--text-on-accent);"
-    });
+
+    const styleButton = (btn, bg, hoverBg) => {
+      btn.style.fontSize = "0.78em";
+      btn.style.fontWeight = "600";
+      btn.style.padding = "5px 12px";
+      btn.style.borderRadius = "6px";
+      btn.style.cursor = "pointer";
+      btn.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+      btn.style.background = bg;
+      btn.style.color = "#f8fafc";
+      btn.style.transition = "all 0.15s ease";
+      btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = hoverBg; };
+      btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = bg; };
+    };
+
+    const refreshBtn = btnGroup.createEl("button", { text: "Scannen" });
+    styleButton(refreshBtn, "rgba(30, 41, 59, 0.8)", "rgba(51, 65, 85, 0.9)");
+
+    const calcVectorsBtn = btnGroup.createEl("button", { text: "BGE-M3 Vektoren" });
+    styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
+
+    const lassoToggleBtn = btnGroup.createEl("button", { text: "Lasso-Select [OFF]" });
+    styleButton(lassoToggleBtn, "rgba(30, 41, 59, 0.8)", "rgba(51, 65, 85, 0.9)");
+
+    const synthesizeBtn = btnGroup.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
+    styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
     synthesizeBtn.disabled = true;
+    synthesizeBtn.style.opacity = "0.5";
 
-    const clearSelBtn = toolbar.createEl("button", { text: "Auswahl loeschen" });
-    const statusText = toolbar.createEl("span", {
-      text: "Lade Vault Notizen...",
-      style: "margin-left: auto; font-size: 0.85em; color: var(--text-muted);"
+    const clearSelBtn = btnGroup.createEl("button", { text: "Leeren" });
+    styleButton(clearSelBtn, "rgba(239, 68, 68, 0.15)", "rgba(239, 68, 68, 0.3)");
+
+    const statusBadge = toolbar.createEl("div", {
+      style: "margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.78em; color: #94a3b8; padding: 4px 10px; background: rgba(30, 41, 59, 0.5); border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.05);"
     });
+    statusBadge.createEl("div", {
+      style: "width: 6px; height: 6px; border-radius: 50%; background: #10b981;"
+    });
+    const statusText = statusBadge.createEl("span", { text: "Lade Vault..." });
 
     calcVectorsBtn.onclick = async () => {
       calcVectorsBtn.disabled = true;
@@ -1396,7 +1440,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
       synthesizeBtn.disabled = count === 0;
-      synthesizeBtn.setText(`Mit DeepSeek-R1 synthetisieren (${count})`);
+      synthesizeBtn.style.opacity = count === 0 ? "0.5" : "1.0";
+      synthesizeBtn.setText(`DeepSeek-R1 Synthese (${count})`);
       statusText.setText(`${this.nodes.length} Notizen | ${count} ausgewählt`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
