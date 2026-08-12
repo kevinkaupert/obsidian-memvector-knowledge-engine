@@ -595,24 +595,33 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         const cY = centerY + radarPan.y;
         const effectiveScale = baseScale * radarZoom;
 
+        const centerSize = Math.max(3.5, 6 * Math.sqrt(radarZoom));
         ctx.beginPath();
-        ctx.arc(cX, cY, 8 * Math.sqrt(radarZoom), 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(6, 182, 212, 0.25)";
+        ctx.arc(cX, cY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#06b6d4";
         ctx.fill();
+
+        ctx.beginPath();
+        ctx.moveTo(cX - centerSize, cY);
+        ctx.lineTo(cX + centerSize, cY);
+        ctx.moveTo(cX, cY - centerSize);
+        ctx.lineTo(cX, cY + centerSize);
         ctx.strokeStyle = "#06b6d4";
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
 
         neighborNodes.forEach((node) => {
           node.x = cX + node.dx * effectiveScale;
           node.y = cY + node.dy * effectiveScale;
 
+          const size = Math.max(2.5, 4 * Math.sqrt(radarZoom));
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 5 * Math.sqrt(radarZoom), 0, Math.PI * 2);
-          ctx.fillStyle = "#12131a";
-          ctx.fill();
-          ctx.strokeStyle = "#e2e8f0";
-          ctx.lineWidth = 1.5;
+          ctx.moveTo(node.x - size, node.y - size);
+          ctx.lineTo(node.x + size, node.y + size);
+          ctx.moveTo(node.x + size, node.y - size);
+          ctx.lineTo(node.x - size, node.y + size);
+          ctx.strokeStyle = "rgba(226, 232, 240, 0.85)";
+          ctx.lineWidth = 1;
           ctx.stroke();
         });
       };
