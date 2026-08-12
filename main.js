@@ -1543,10 +1543,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
 
-    showEdgesToggleBtn.onclick = () => {
+    showEdgesToggleBtn.onclick = async () => {
       this.showEdges = !this.showEdges;
       showEdgesToggleBtn.setText(this.showEdges ? "Kanten [ON]" : "Kanten [OFF]");
       showEdgesToggleBtn.style.background = this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "rgba(30, 41, 59, 0.8)";
+      if (this.showEdges) {
+        await this.loadRelationEdges();
+      }
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
 
@@ -1851,20 +1854,60 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
   async loadRelationEdges() {
     this.relationEdges = [];
+    const edgeSet = new Set();
     const files = this.plugin.app.vault.getMarkdownFiles();
+
+    // 1. Scan explicit relation notes in vault
     for (const f of files) {
-      if (f.path.includes("wiki/relations/")) {
+      if (f.path.includes("wiki/relation") || f.path.includes("/relations/")) {
         try {
-          const cache = this.plugin.app.metadataCache.getFileCache(f);
-          const fm = cache?.frontmatter;
-          if (fm && fm.source_note && fm.target_note) {
-            const srcId = String(fm.source_note).replace(/[\[\]]/g, "").split("|")[0].trim().toLowerCase();
-            const tgtId = String(fm.target_note).replace(/[\[\]]/g, "").split("|")[0].trim().toLowerCase();
-            const relType = (fm.relation_type || "REQUIRES").toUpperCase();
-            const title = fm.title || `${srcId} -> ${tgtId}`;
-            this.relationEdges.push({ srcId, tgtId, relType, title, path: f.path });
+          const content = await this.plugin.app.vault.read(f);
+          const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+          if (fmMatch) {
+            const yaml = fmMatch[1];
+            const srcMatch = yaml.match(/^source_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
+            const tgtMatch = yaml.match(/^target_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
+            const typeMatch = yaml.match(/^relation_type:\s*["']?([^"'\n]+)/m);
+
+            if (srcMatch && tgtMatch) {
+              const srcId = srcMatch[1].trim().toLowerCase();
+              const tgtId = tgtMatch[1].trim().toLowerCase();
+              const relType = (typeMatch ? typeMatch[1] : "REQUIRES").trim().toUpperCase();
+              const key = `${srcId}->${tgtId}`;
+              if (!edgeSet.has(key)) {
+                edgeSet.add(key);
+                this.relationEdges.push({ srcId, tgtId, relType, title: `${srcId} -> ${tgtId}`, path: f.path });
+              }
+            }
           }
         } catch (err) {}
+      }
+    }
+
+    // 2. Scan internal [[WikiLinks]] between notes in this.nodes
+    const nodeMap = new Map();
+    this.nodes.forEach(n => nodeMap.set(n.id.toLowerCase(), n));
+
+    for (const node of this.nodes) {
+      if (node.links && node.links.length > 0) {
+        for (const targetLink of node.links) {
+          const targetNode = nodeMap.get(targetLink.toLowerCase());
+          if (targetNode && targetNode !== node) {
+            const srcId = node.id.toLowerCase();
+            const tgtId = targetNode.id.toLowerCase();
+            const key = `${srcId}->${tgtId}`;
+            if (!edgeSet.has(key)) {
+              edgeSet.add(key);
+              this.relationEdges.push({
+                srcId,
+                tgtId,
+                relType: "RELATED_TO",
+                title: `${node.title} -> ${targetNode.title}`,
+                path: node.path
+              });
+            }
+          }
+        }
       }
     }
   }
@@ -2634,6 +2677,25 @@ RETURN r;
       }
 
       new import_obsidian4.Notice(`${savedCount} Beziehungs-Notizen erfolgreich in 'wiki/relations/' gespeichert!`);
+
+      // Instant seamless real-time update of active 2D Scatterplot Views
+      try {
+        const scatterLeaves = this.app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE);
+        for (const leaf of scatterLeaves) {
+          if (leaf.view && typeof leaf.view.scanVaultNotes === "function") {
+            leaf.view.showEdges = true;
+            await leaf.view.scanVaultNotes();
+            const canvas = leaf.view.containerEl.querySelector("canvas");
+            if (canvas) {
+              const ctx = canvas.getContext("2d");
+              leaf.view.draw(ctx, canvas.clientWidth, canvas.clientHeight);
+            }
+          }
+        }
+      } catch (err) {
+        console.log("Real-time scatterplot refresh fallback:", err);
+      }
+
       this.close();
     };
   }
