@@ -617,7 +617,25 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         neighborNodes.forEach((node) => {
           node.x = cX + node.dx * effectiveScale;
           node.y = cY + node.dy * effectiveScale;
+        });
 
+        // 2D Density Field Heatmap Layer (Glowing Cluster Density)
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const miniHeatRadius = 45 * radarZoom;
+        neighborNodes.forEach((node) => {
+          const grad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, miniHeatRadius);
+          grad.addColorStop(0, "rgba(6, 182, 212, 0.22)");
+          grad.addColorStop(0.5, "rgba(59, 130, 246, 0.08)");
+          grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, miniHeatRadius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.restore();
+
+        neighborNodes.forEach((node) => {
           const size = Math.max(2.5, 3.5 * Math.sqrt(radarZoom));
           ctx.beginPath();
           ctx.moveTo(node.x - size, node.y - size);
@@ -1734,6 +1752,30 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const nodeMap = new Map();
     this.nodes.forEach((n) => nodeMap.set(n.id.toLowerCase(), n));
+
+    // 2D Kernel Density Field Heatmap Layer (Glowing Cluster Density)
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const heatmapRadius = 80 * this.zoom;
+    this.nodes.forEach((node) => {
+      const pos = this.worldToScreen(node.x, node.y);
+      if (
+        pos.x >= -heatmapRadius &&
+        pos.x <= width + heatmapRadius &&
+        pos.y >= -heatmapRadius &&
+        pos.y <= height + heatmapRadius
+      ) {
+        const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, heatmapRadius);
+        grad.addColorStop(0, "rgba(59, 130, 246, 0.14)");
+        grad.addColorStop(0.5, "rgba(139, 92, 246, 0.05)");
+        grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, heatmapRadius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    ctx.restore();
 
     const colors = {
       definition: "#3b82f6",
