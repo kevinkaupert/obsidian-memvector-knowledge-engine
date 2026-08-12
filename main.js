@@ -1341,6 +1341,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     this.lassoPath = [];
     this.lassoSelectMode = false;
     this.hoveredNode = null;
+    this.showEdges = false;
+    this.relationEdges = [];
   }
   getViewType() {
     return MATH_VECTOR_SCATTER_VIEW_TYPE;
@@ -1437,6 +1439,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const calcVectorsBtn = btnGroup.createEl("button", { text: "BGE-M3 Vektoren" });
     styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
+
+    const showEdgesToggleBtn = btnGroup.createEl("button", { text: "Kanten [OFF]" });
+    styleButton(showEdgesToggleBtn, "rgba(30, 41, 59, 0.8)", "rgba(51, 65, 85, 0.9)");
 
     const lassoToggleBtn = btnGroup.createEl("button", { text: "Lasso-Select [OFF]" });
     styleButton(lassoToggleBtn, "rgba(30, 41, 59, 0.8)", "rgba(51, 65, 85, 0.9)");
@@ -1537,6 +1542,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     resizeObserver.observe(canvasWrap);
 
     this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
+
+    showEdgesToggleBtn.onclick = () => {
+      this.showEdges = !this.showEdges;
+      showEdgesToggleBtn.setText(this.showEdges ? "Kanten [ON]" : "Kanten [OFF]");
+      showEdgesToggleBtn.style.background = this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "rgba(30, 41, 59, 0.8)";
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
 
     lassoToggleBtn.onclick = () => {
       this.lassoSelectMode = !this.lassoSelectMode;
@@ -1834,6 +1846,27 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     }
 
     this.nodes = nodes;
+    await this.loadRelationEdges();
+  }
+
+  async loadRelationEdges() {
+    this.relationEdges = [];
+    const files = this.plugin.app.vault.getMarkdownFiles();
+    for (const f of files) {
+      if (f.path.includes("wiki/relations/")) {
+        try {
+          const cache = this.plugin.app.metadataCache.getFileCache(f);
+          const fm = cache?.frontmatter;
+          if (fm && fm.source_note && fm.target_note) {
+            const srcId = String(fm.source_note).replace(/[\[\]]/g, "").split("|")[0].trim().toLowerCase();
+            const tgtId = String(fm.target_note).replace(/[\[\]]/g, "").split("|")[0].trim().toLowerCase();
+            const relType = (fm.relation_type || "REQUIRES").toUpperCase();
+            const title = fm.title || `${srcId} -> ${tgtId}`;
+            this.relationEdges.push({ srcId, tgtId, relType, title, path: f.path });
+          }
+        } catch (err) {}
+      }
+    }
   }
 
   compute2DPCA(nodes) {
@@ -2011,6 +2044,85 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       }
     });
     ctx.restore();
+
+    // Render 2D Relationship Edges (Memgraph / Vault Relations)
+    if (this.showEdges && this.relationEdges && this.relationEdges.length > 0) {
+      const edgeColors = {
+        PROVES: "#10b981",
+        REQUIRES: "#3b82f6",
+        IMPLIES: "#8b5cf6",
+        DEFINES: "#06b6d4",
+        EXTENDS: "#6366f1",
+        CONTRADICTS: "#ef4444",
+        USES: "#f59e0b"
+      };
+
+      const hasSelection = this.selectedNodeIds.size > 0 || this.hoveredNode;
+
+      this.relationEdges.forEach((edge) => {
+        const srcNode = nodeMap.get(edge.srcId);
+        const tgtNode = nodeMap.get(edge.tgtId);
+        if (!srcNode || !tgtNode) return;
+
+        const isSrcSelected = this.selectedNodeIds.has(srcNode.id) || this.hoveredNode === srcNode;
+        const isTgtSelected = this.selectedNodeIds.has(tgtNode.id) || this.hoveredNode === tgtNode;
+
+        if (hasSelection && !isSrcSelected && !isTgtSelected) return;
+
+        const p1 = this.worldToScreen(srcNode.x, srcNode.y);
+        const p2 = this.worldToScreen(tgtNode.x, tgtNode.y);
+
+        const edgeColor = edgeColors[edge.relType] || "#94a3b8";
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.strokeStyle = isSrcSelected || isTgtSelected ? edgeColor : "rgba(148, 163, 184, 0.35)";
+        ctx.lineWidth = isSrcSelected || isTgtSelected ? 2.5 : 1.2;
+        if (isSrcSelected || isTgtSelected) {
+          ctx.shadowColor = edgeColor;
+          ctx.shadowBlur = 8;
+        }
+        ctx.stroke();
+
+        // Directional arrow head
+        const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const headLen = 10 * this.zoom;
+        const arrowX = p2.x - 12 * this.zoom * Math.cos(angle);
+        const arrowY = p2.y - 12 * this.zoom * Math.sin(angle);
+
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY);
+        ctx.lineTo(arrowX - headLen * Math.cos(angle - Math.PI / 6), arrowY - headLen * Math.sin(angle - Math.PI / 6));
+        ctx.lineTo(arrowX - headLen * Math.cos(angle + Math.PI / 6), arrowY - headLen * Math.sin(angle + Math.PI / 6));
+        ctx.closePath();
+        ctx.fillStyle = edgeColor;
+        ctx.fill();
+
+        // Midpoint Label Badge
+        if (isSrcSelected || isTgtSelected || this.zoom > 0.8) {
+          const midX = (p1.x + p2.x) / 2;
+          const midY = (p1.y + p2.y) / 2;
+
+          ctx.font = "9px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          const badgeText = edge.relType;
+          const textWidth = ctx.measureText(badgeText).width;
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.fillRect(midX - textWidth / 2 - 4, midY - 7, textWidth + 8, 14);
+          ctx.strokeStyle = edgeColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(midX - textWidth / 2 - 4, midY - 7, textWidth + 8, 14);
+
+          ctx.fillStyle = edgeColor;
+          ctx.fillText(badgeText, midX, midY);
+        }
+        ctx.restore();
+      });
+    }
 
     const colors = {
       definition: "#3b82f6",
