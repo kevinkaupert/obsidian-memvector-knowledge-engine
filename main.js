@@ -579,33 +579,37 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
       const drawRadar = () => {
         ctx.clearRect(0, 0, width, height);
 
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.04)";
-        ctx.lineWidth = 1;
-        const gridSize = 40 * radarZoom;
-        const startX = (centerX + radarPan.x) % gridSize;
-        const startY = (centerY + radarPan.y) % gridSize;
-        for (let x = startX; x < width; x += gridSize) {
-          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-        }
-        for (let y = startY; y < height; y += gridSize) {
-          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-        }
-
         const cX = centerX + radarPan.x;
         const cY = centerY + radarPan.y;
         const effectiveScale = baseScale * radarZoom;
 
-        const centerSize = Math.max(3.5, 6 * Math.sqrt(radarZoom));
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        [0.25, 0.5, 0.75, 1.0].forEach((rRatio) => {
+          ctx.beginPath();
+          ctx.arc(cX, cY, maxRadius * rRatio * radarZoom, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+
+        ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
         ctx.beginPath();
-        ctx.arc(cX, cY, 3, 0, Math.PI * 2);
+        ctx.moveTo(0, cY); ctx.lineTo(width, cY);
+        ctx.moveTo(cX, 0); ctx.lineTo(cX, height);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const centerSize = Math.max(4, 7 * Math.sqrt(radarZoom));
+        ctx.beginPath();
+        ctx.arc(cX, cY, 2.5, 0, Math.PI * 2);
         ctx.fillStyle = "#06b6d4";
         ctx.fill();
 
         ctx.beginPath();
-        ctx.moveTo(cX - centerSize, cY);
-        ctx.lineTo(cX + centerSize, cY);
-        ctx.moveTo(cX, cY - centerSize);
-        ctx.lineTo(cX, cY + centerSize);
+        ctx.moveTo(cX - centerSize, cY); ctx.lineTo(cX + centerSize, cY);
+        ctx.moveTo(cX, cY - centerSize); ctx.lineTo(cX, cY + centerSize);
         ctx.strokeStyle = "#06b6d4";
         ctx.lineWidth = 1.2;
         ctx.stroke();
@@ -614,16 +618,23 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
           node.x = cX + node.dx * effectiveScale;
           node.y = cY + node.dy * effectiveScale;
 
-          const size = Math.max(2.5, 4 * Math.sqrt(radarZoom));
+          const size = Math.max(2.5, 3.5 * Math.sqrt(radarZoom));
           ctx.beginPath();
           ctx.moveTo(node.x - size, node.y - size);
           ctx.lineTo(node.x + size, node.y + size);
           ctx.moveTo(node.x + size, node.y - size);
           ctx.lineTo(node.x - size, node.y + size);
-          ctx.strokeStyle = "rgba(226, 232, 240, 0.85)";
+          ctx.strokeStyle = "rgba(241, 245, 249, 0.9)";
           ctx.lineWidth = 1;
           ctx.stroke();
         });
+
+        ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+        ctx.font = "9px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText("PROJ: 2D VECTOR SPACE", 8, 14);
+        ctx.textAlign = "right";
+        ctx.fillText(`N=${neighborNodes.length}`, width - 8, 14);
       };
 
       drawRadar();
