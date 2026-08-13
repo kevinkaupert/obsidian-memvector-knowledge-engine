@@ -1348,7 +1348,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return MATH_VECTOR_SCATTER_VIEW_TYPE;
   }
   getDisplayText() {
-    return "MemVector 2D Vektorraum";
+    return "MemVector Graph";
   }
   getIcon() {
     return "dot-network";
