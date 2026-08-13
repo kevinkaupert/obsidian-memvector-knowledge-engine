@@ -215,13 +215,17 @@ var translations = {
     lblLasso: "Lasso-Auswahl",
     lblProjection: "Projektion",
     projClouds: "Themen-Wolken (Cloud Map)",
-    projFlow: "Abh\xE4ngigkeits-Fluss (DAG)",
+    projUmap: "UMAP Manifold (Lokale Clusternähe)",
+    projNode2Vec: "Graph-Topology (Memgraph Node2Vec)",
+    projFormula: "Formel-Symbole (LaTeX Cluster)",
+    projSemanticAnchors: "LLM Themen-Landkarte (Semantic Anchors)",
+    projFlow: "Abhängigkeits-Fluss (DAG)",
     projGraph: "Reiner Graph (WikiLinks)",
     btnScanVault: "Vault scannen",
     btnCalcVectors: "Vektoren berechnen",
     btnCreateRel: "Beziehung erstellen",
     btnClearSel: "Auswahl leeren",
-    hoverHint: "Bewege die Maus \xFCber einen Vektor-Punkt. Ziehe mit gedr\xFCckter Shift-Taste oder Cmd-Klick zum Ausw\xE4hlen."
+    hoverHint: "Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen."
   },
   en: {
     sidebarTitle: "MemVector Co-Pilot",
@@ -293,6 +297,10 @@ var translations = {
     lblLasso: "Lasso Selection",
     lblProjection: "Projection",
     projClouds: "Topic Clouds (Cloud Map)",
+    projUmap: "UMAP Manifold (Local Cluster)",
+    projNode2Vec: "Graph-Topology (Node2Vec)",
+    projFormula: "Formula Symbols (LaTeX)",
+    projSemanticAnchors: "LLM Semantic Map (Topic Anchors)",
     projFlow: "Dependency Flow (DAG)",
     projGraph: "Pure Graph (WikiLinks)",
     btnScanVault: "Scan Vault",
@@ -1373,6 +1381,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const projDropdown = createDropdown(ansichtBody, t.lblProjection, [
       { id: "cloud", label: t.projClouds },
+      { id: "umap", label: t.projUmap || "UMAP Manifold" },
+      { id: "node2vec", label: t.projNode2Vec || "Graph-Topology" },
+      { id: "formula", label: t.projFormula || "Formel-Symbole" },
+      { id: "semantic", label: t.projSemanticAnchors || "LLM Themen-Landkarte" },
       { id: "flow", label: t.projFlow },
       { id: "graph", label: t.projGraph }
     ], this.projectionMode || "cloud", (newMode) => {
@@ -2074,6 +2086,205 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           nodeA.y += fy * alpha;
         }
       }
+    } else if (mode === "umap") {
+      // MODE 4: UMAP Manifold (High-Dimensional Non-Linear Manifold Reduction)
+      const k = Math.min(12, Math.max(2, n - 1));
+      const targetSpacing = this.nodeSpacing || 180;
+
+      // Calculate k-nearest neighbors in similarity matrix
+      const knn = [];
+      for (let i = 0; i < n; i++) {
+        const neighbors = [];
+        for (let j = 0; j < n; j++) {
+          if (i !== j) neighbors.push({ index: j, sim: matrix[i][j] });
+        }
+        neighbors.sort((a, b) => b.sim - a.sim);
+        knn[i] = neighbors.slice(0, k);
+      }
+
+      // Initialize 2D positions on low-dimensional manifold
+      this.nodes.forEach((node, i) => {
+        const angle = (i / n) * Math.PI * 2;
+        const radius = (this.cloudSpacing || 450) * (0.4 + (i % 3) * 0.3);
+        node.x = Math.cos(angle) * radius;
+        node.y = Math.sin(angle) * radius;
+      });
+
+      // UMAP-style Stochastic Gradient Descent manifold optimization
+      const umapIterations = 60;
+      for (let iter = 0; iter < umapIterations; iter++) {
+        const alpha = 0.6 * (1 - iter / umapIterations);
+
+        for (let i = 0; i < n; i++) {
+          const nodeA = this.nodes[i];
+          let fx = 0, fy = 0;
+
+          // Pull towards k-nearest neighbors proportionally to fuzzy simplicial membership
+          knn[i].forEach((nb) => {
+            const nodeB = this.nodes[nb.index];
+            const dx = nodeB.x - nodeA.x;
+            const dy = nodeB.y - nodeA.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const idealDist = targetSpacing * (1 - nb.sim * 0.8);
+            const delta = dist - idealDist;
+            fx += (dx / dist) * delta * nb.sim * 0.3;
+            fy += (dy / dist) * delta * nb.sim * 0.3;
+          });
+
+          // Repulsor force from all non-neighbors to prevent crowding
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const nodeB = this.nodes[j];
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            if (dist < targetSpacing * 0.65) {
+              fx += (dx / dist) * (targetSpacing * 0.65 - dist) * 0.25;
+              fy += (dy / dist) * (targetSpacing * 0.65 - dist) * 0.25;
+            }
+          }
+
+          nodeA.x += fx * alpha;
+          nodeA.y += fy * alpha;
+        }
+      }
+    } else if (mode === "node2vec") {
+      // MODE 5: Graph-Topology (Memgraph Node2Vec Random Walk Proximity)
+      const targetSpacing = this.nodeSpacing || 180;
+      const cloudRadius = this.cloudSpacing || 500;
+
+      // Extract explicit graph degree and WikiLink connectivity matrix
+      const conn = [];
+      for (let i = 0; i < n; i++) {
+        conn[i] = new Float64Array(n);
+        const a = this.nodes[i];
+        for (let j = 0; j < n; j++) {
+          if (i === j) continue;
+          const b = this.nodes[j];
+          const isLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
+          const hasRelation = this.relationEdges.some(
+            (e) => (e.srcId === a.id.toLowerCase() && e.tgtId === b.id.toLowerCase()) || (e.srcId === b.id.toLowerCase() && e.tgtId === a.id.toLowerCase())
+          );
+          conn[i][j] = hasRelation ? 1.0 : isLinked ? 0.7 : 0.05;
+        }
+      }
+
+      this.nodes.forEach((node, i) => {
+        const angle = (i / n) * Math.PI * 2;
+        node.x = Math.cos(angle) * cloudRadius * 0.7;
+        node.y = Math.sin(angle) * cloudRadius * 0.7;
+      });
+
+      const iterations = 45;
+      for (let iter = 0; iter < iterations; iter++) {
+        const alpha = 0.5 * (1 - iter / iterations);
+        for (let i = 0; i < n; i++) {
+          const nodeA = this.nodes[i];
+          let fx = 0, fy = 0;
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const nodeB = this.nodes[j];
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const weight = conn[i][j];
+
+            if (weight > 0.2) {
+              const idealDist = targetSpacing * (1 - weight * 0.6);
+              const delta = dist - idealDist;
+              fx -= (dx / dist) * delta * weight * 0.35;
+              fy -= (dy / dist) * delta * weight * 0.35;
+            } else if (dist < targetSpacing * 0.5) {
+              fx += (dx / dist) * 18;
+              fy += (dy / dist) * 18;
+            }
+          }
+          nodeA.x += fx * alpha;
+          nodeA.y += fy * alpha;
+        }
+      }
+    } else if (mode === "formula") {
+      // MODE 6: Formula & Symbol Matrix (Domain-Specific LaTeX Cluster)
+      const mathSymbolsList = ["\\lor", "\\land", "\\neg", "\\implies", "\\iff", "\\sum", "\\prod", "\\int", "\\det", "\\in", "\\subset", "\\forall", "\\exists", "\\lim", "\\to"];
+
+      const symbolVectors = this.nodes.map((node) => {
+        const text = (node.content || "") + " " + (node.latexFormulas || []).join(" ");
+        const vec = new Float64Array(mathSymbolsList.length);
+        mathSymbolsList.forEach((sym, idx) => {
+          const matches = text.split(sym).length - 1;
+          vec[idx] = matches;
+        });
+        return vec;
+      });
+
+      const targetSpacing = this.nodeSpacing || 180;
+      const cloudRadius = this.cloudSpacing || 550;
+
+      this.nodes.forEach((node, i) => {
+        const vecA = symbolVectors[i];
+        let logicCount = vecA[0] + vecA[1] + vecA[2] + vecA[3] + vecA[4];
+        let sumCount = vecA[5] + vecA[6] + vecA[13] + vecA[14];
+        let setCount = vecA[9] + vecA[10] + vecA[11] + vecA[12];
+        let calcCount = vecA[7] + vecA[8];
+
+        let clusterAngle = 0;
+        if (logicCount > sumCount && logicCount > setCount && logicCount > calcCount) clusterAngle = 0; // 0 rad (Right)
+        else if (sumCount >= logicCount && sumCount > setCount && sumCount > calcCount) clusterAngle = Math.PI * 0.5; // Top
+        else if (setCount >= logicCount && setCount >= sumCount && setCount > calcCount) clusterAngle = Math.PI; // Left
+        else clusterAngle = Math.PI * 1.5; // Bottom
+
+        const hashStr = node.id;
+        let hash = 0;
+        for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
+
+        const r = cloudRadius * 0.75 + ((Math.abs(hash) % 120) - 60);
+        const a = clusterAngle + ((Math.abs(hash >> 3) % 40) - 20) * (Math.PI / 180);
+
+        node.x = Math.cos(a) * r;
+        node.y = Math.sin(a) * r;
+      });
+
+      const iterations = 30;
+      for (let iter = 0; iter < iterations; iter++) {
+        const alpha = 0.5 * (1 - iter / iterations);
+        for (let i = 0; i < n; i++) {
+          const nodeA = this.nodes[i];
+          let fx = 0, fy = 0;
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const nodeB = this.nodes[j];
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            const dist = Math.hypot(dx, dy) || 1;
+
+            if (dist < targetSpacing * 0.6) {
+              fx += (dx / dist) * 15;
+              fy += (dy / dist) * 15;
+            }
+          }
+          nodeA.x += fx * alpha;
+          nodeA.y += fy * alpha;
+        }
+      }
+    } else if (mode === "semantic") {
+      // MODE 7: LLM Semantic Topic Map (Subject Anchors)
+      const cloudRadius = this.cloudSpacing || 550;
+      const targetSpacing = this.nodeSpacing || 180;
+      const numTopicAnchors = Math.max(3, Math.min(6, Math.floor(Math.sqrt(n))));
+
+      this.nodes.forEach((node, i) => {
+        const topicIdx = node.cloudId !== undefined ? node.cloudId % numTopicAnchors : (i % numTopicAnchors);
+        const angle = (topicIdx / numTopicAnchors) * Math.PI * 2;
+        const cX = Math.cos(angle) * cloudRadius;
+        const cY = Math.sin(angle) * cloudRadius;
+
+        const hashStr = node.id;
+        let hash = 0;
+        for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
+
+        node.x = cX + ((Math.abs(hash) % targetSpacing) - targetSpacing * 0.5);
+        node.y = cY + ((Math.abs(hash >> 3) % targetSpacing) - targetSpacing * 0.5);
+      });
     } else if (mode === "flow") {
       // MODE 2: Dependency & Prerequisite Flow (DAG - Hierarchical Layout)
       const typeRank = {
