@@ -1367,42 +1367,42 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     });
 
-    const createSlider = (parent, label, min, max, step, initialValue, onChange) => {
+    const createSlider = (parent, label, min, max, step, initialValue, displayFormatter, onChange) => {
       const row = parent.createEl("div");
-      row.style.cssText = "display:flex; flex-direction:column; padding:5px 12px; gap:2px;";
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:3px 12px; gap:8px;";
 
-      const header = row.createEl("div");
-      header.style.cssText = "display:flex; align-items:center; justify-content:space-between;";
+      const lbl = row.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.75em; color:var(--text-muted, #94a3b8); flex:1;";
 
-      const lbl = header.createEl("span", { text: label });
-      lbl.style.cssText = "font-size:0.78em; color:var(--text-muted, #94a3b8);";
-
-      const valText = header.createEl("span", { text: `${initialValue}px` });
-      valText.style.cssText = "font-size:0.75em; font-family:var(--font-monospace); color:var(--text-normal, #f8fafc); font-weight:600;";
+      const valText = row.createEl("span", { text: displayFormatter(initialValue) });
+      valText.style.cssText = "font-size:0.72em; font-family:var(--font-monospace); color:var(--text-normal, #f8fafc); font-weight:600; min-width:24px; text-align:right;";
 
       const input = row.createEl("input", { type: "range" });
       input.min = String(min);
       input.max = String(max);
       input.step = String(step);
       input.value = String(initialValue);
-      input.style.cssText = "width:100%; cursor:pointer; accent-color:#06b6d4; height:4px;";
+      input.style.cssText = "width:64px; cursor:pointer; accent-color:#06b6d4; height:3px;";
 
       input.oninput = () => {
         const val = Number(input.value);
-        valText.setText(`${val}px`);
+        valText.setText(displayFormatter(val));
         onChange(val);
       };
 
       return input;
     };
 
-    createSlider(ansichtBody, t.lblNodeDist || "Punkt-Abstand", 50, 300, 10, this.nodeSpacing || 160, (newVal) => {
+    if (this.nodeSpacing === undefined || this.nodeSpacing === 160) this.nodeSpacing = 220;
+    if (this.cloudSpacing === undefined || this.cloudSpacing === 320) this.cloudSpacing = 550;
+
+    createSlider(ansichtBody, t.lblNodeDist || "Punkt-Abstand", 100, 450, 20, this.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
       this.nodeSpacing = newVal;
       this.applyVectorLayout();
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     });
 
-    createSlider(ansichtBody, t.lblCloudDist || "Wolken-Abstand", 150, 600, 20, this.cloudSpacing || 320, (newVal) => {
+    createSlider(ansichtBody, t.lblCloudDist || "Wolken-Abstand", 250, 1100, 50, this.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
       this.cloudSpacing = newVal;
       this.applyVectorLayout();
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
@@ -2313,11 +2313,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       this.nodes.forEach((n) => {
         if (n.cloudId !== undefined) {
           if (!cloudCenters.has(n.cloudId)) {
-            cloudCenters.set(n.cloudId, { sumX: 0, sumY: 0, count: 0, label: n.cloudLabel || `Thema ${n.cloudId + 1}` });
+            cloudCenters.set(n.cloudId, { sumX: 0, sumY: 0, minY: Infinity, count: 0, label: n.cloudLabel || `Thema ${n.cloudId + 1}` });
           }
           const c = cloudCenters.get(n.cloudId);
           c.sumX += n.x;
           c.sumY += n.y;
+          if (n.y < c.minY) c.minY = n.y;
           c.count++;
         }
       });
@@ -2325,18 +2326,28 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       cloudCenters.forEach((c, cloudId) => {
         if (c.count > 0) {
           const avgX = c.sumX / c.count;
-          const avgY = c.sumY / c.count;
-          const pos = this.worldToScreen(avgX, avgY);
+          const labelY = c.minY - 50;
+          const pos = this.worldToScreen(avgX, labelY);
 
           const cloudIdx = cloudId % CLOUD_PALETTES.length;
           const palette = CLOUD_PALETTES[cloudIdx];
 
           ctx.save();
-          ctx.font = "600 12px var(--font-interface, sans-serif)";
-          ctx.fillStyle = palette.labelColor;
+          ctx.font = "bold 11px var(--font-interface, sans-serif)";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`☁️ ${c.label} (${c.count})`, pos.x, pos.y - 40 * this.zoom);
+
+          const titleText = `☁️ ${c.label.toUpperCase()} (${c.count})`;
+          const textWidth = ctx.measureText(titleText).width;
+
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.fillRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
+          ctx.strokeStyle = palette.labelColor;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
+
+          ctx.fillStyle = palette.labelColor;
+          ctx.fillText(titleText, pos.x, pos.y);
           ctx.restore();
         }
       });
@@ -2345,7 +2356,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     // 2D Kernel Density Field Heatmap Layer (Distinct Colorful Aura Glow per Cloud)
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    const heatmapRadius = 90 * this.zoom;
+    const heatmapRadius = 95 * this.zoom;
     this.nodes.forEach((node) => {
       const pos = this.worldToScreen(node.x, node.y);
       if (
@@ -2500,11 +2511,28 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       ctx.fillStyle = color;
       ctx.fill();
 
-      if (this.zoom > 0.6 || isSelected || isHovered) {
-        ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#e2e8f0" : "#94a3b8";
-        ctx.font = `${Math.max(10, Math.min(14, 11 * this.zoom))}px sans-serif`;
+      if (this.zoom > 0.45 || isSelected || isHovered) {
+        let titleText = node.title;
+        if (titleText.length > 22 && !isSelected && !isHovered && this.zoom < 1.1) {
+          titleText = titleText.slice(0, 20) + "…";
+        }
+
+        const fontH = Math.max(9, Math.min(13, 10 * this.zoom));
+        ctx.font = `${fontH}px sans-serif`;
+        const txtWidth = ctx.measureText(titleText).width;
+
+        ctx.save();
+        ctx.fillStyle = isSelected ? "rgba(15, 23, 42, 0.94)" : "rgba(15, 23, 42, 0.72)";
+        ctx.fillRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
+        ctx.strokeStyle = isSelected ? "rgba(96, 165, 250, 0.5)" : "rgba(255, 255, 255, 0.08)";
+        ctx.lineWidth = 0.8;
+        ctx.strokeRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
+
+        ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#f8fafc" : "#cbd5e1";
         ctx.textAlign = "center";
-        ctx.fillText(node.title, pos.x, pos.y + 16 * this.zoom);
+        ctx.textBaseline = "top";
+        ctx.fillText(titleText, pos.x, pos.y + 12 * this.zoom + 1);
+        ctx.restore();
       }
     });
 
