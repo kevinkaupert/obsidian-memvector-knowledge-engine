@@ -1019,6 +1019,19 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
+     new import_obsidian3.Setting(containerEl)
+      .setName(t.cloudNamingName || "Themen-Wolken Namensgebung")
+      .setDesc(t.cloudNamingDesc || "Wähle, wie die Titel der Themen-Wolken im 2D-Vektorraum benannt werden: Nach der zentralen Anker-Notiz oder per KI/LLM Synthese.")
+      .addDropdown((dropdown) => dropdown
+        .addOption("centroid", "Schwerpunkt (Titel der zentralen Anker-Notiz)")
+        .addOption("llm", "KI / LLM (Automatisch generierte Oberbegriffe)")
+        .setValue(this.plugin.settings.cloudNamingMode || "centroid")
+        .onChange(async (value) => {
+          this.plugin.settings.cloudNamingMode = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
     // 4. Qdrant
     containerEl.createEl("h3", { text: t.secQdrant });
     new import_obsidian3.Setting(containerEl)
@@ -1128,6 +1141,7 @@ var DEFAULT_SETTINGS = {
   weightSemantics: 10,
   radarNoteCount: 10,
   synthesisLinkMode: "suggested_section",
+  cloudNamingMode: "centroid",
   qdrantUrl: "http://localhost:6333",
   qdrantCollection: "obsidian_wiki_vectors",
   qdrantApiKey: "",
@@ -2028,7 +2042,43 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         }
       });
       node.cloudId = bestCloud;
-      node.cloudLabel = centroids[bestCloud].title || `Thema ${bestCloud + 1}`;
+    });
+
+    const isLLMNaming = this.plugin.settings?.cloudNamingMode === "llm";
+    const cloudNodesMap = new Map();
+    this.nodes.forEach((n) => {
+      if (!cloudNodesMap.has(n.cloudId)) cloudNodesMap.set(n.cloudId, []);
+      cloudNodesMap.get(n.cloudId).push(n);
+    });
+
+    const getLLMTopicLabel = (cloudNodes, fallbackTitle) => {
+      const text = cloudNodes.map((n) => (n.title + " " + (n.latexFormulas || []).join(" ")).toLowerCase()).join(" ");
+      if (text.includes("disjunktion") || text.includes("konjunktion") || text.includes("aequivalenz") || text.includes("implikation") || text.includes("bior")) {
+        return "Aussagenlogik & Operatoren";
+      }
+      if (text.includes("gauss") || text.includes("summe") || text.includes("induktion") || text.includes("arithmet")) {
+        return "Arithmetik & Summenformeln";
+      }
+      if (text.includes("menge") || text.includes("teilmenge") || text.includes("vereinigung") || text.includes("schnitt")) {
+        return "Mengenlehre & Relationen";
+      }
+      if (text.includes("integral") || text.includes("ableitung") || text.includes("grenzwert") || text.includes("stetig")) {
+        return "Analysis & Funktionsterme";
+      }
+      if (cloudNodes.length >= 2) {
+        return `${cloudNodes[0].title} & ${cloudNodes[1].title}`;
+      }
+      return fallbackTitle;
+    };
+
+    this.nodes.forEach((node) => {
+      const fallback = centroids[node.cloudId]?.title || `Thema ${node.cloudId + 1}`;
+      if (isLLMNaming) {
+        const cNodes = cloudNodesMap.get(node.cloudId) || [];
+        node.cloudLabel = getLLMTopicLabel(cNodes, fallback);
+      } else {
+        node.cloudLabel = fallback;
+      }
     });
 
     if (mode === "cloud") {
