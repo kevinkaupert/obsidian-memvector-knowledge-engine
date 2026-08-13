@@ -57,22 +57,9 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
     let payload;
 
     if (isDirectAnthropic) {
-      let cleanModel = (modelName || "").trim();
+      let cleanModel = (modelName || "claude-3-5-sonnet-20241022").trim();
       if (cleanModel.toLowerCase().startsWith("anthropic/")) {
         cleanModel = cleanModel.slice(10).trim();
-      }
-      const lowerModel = cleanModel.toLowerCase();
-
-      if (!cleanModel || lowerModel.includes("sonnet") || lowerModel.includes("claude") || lowerModel.includes("5")) {
-        if (lowerModel.includes("3-7") || lowerModel.includes("3.7")) {
-          cleanModel = "claude-3-7-sonnet-20250219";
-        } else {
-          cleanModel = "claude-3-5-sonnet-20241022";
-        }
-      } else if (lowerModel.includes("haiku")) {
-        cleanModel = "claude-3-5-haiku-20241022";
-      } else if (lowerModel.includes("opus")) {
-        cleanModel = "claude-3-opus-20240229";
       }
 
       if (cleanKey) headers["x-api-key"] = cleanKey;
