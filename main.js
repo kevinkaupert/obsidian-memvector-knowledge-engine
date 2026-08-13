@@ -3310,7 +3310,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     const createSingleDropdown = (parent, edgeIdx) => {
       const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || "REQUIRES";
       const select = parent.createEl("select", {
-        style: "font-size: 0.82em; font-weight: 600; padding: 6px 12px; border-radius: 6px; background: var(--background-primary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; width: 100%; max-width: 280px;"
+        style: "font-size: 0.82em; font-weight: 600; padding: 5px 8px; border-radius: 6px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; width: 170px; max-width: 170px;"
       });
 
       categories.forEach((cat) => {
@@ -3363,38 +3363,27 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       flowBody.empty();
       const edges = generateEdges();
 
-      if (count === 2) {
-        const edge = edges[0];
-        const srcNode = edge ? edge.src : this.selectedNodes[0];
-        const tgtNode = edge ? edge.tgt : this.selectedNodes[1];
+      const table = flowBody.createEl("table", {
+        style: "width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 10px; margin: 0;"
+      });
 
-        const row = flowBody.createEl("div", { style: "display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; background: var(--background-primary); padding: 14px 18px; border-radius: 6px; border: 1px solid var(--interactive-accent);" });
+      const colgroup = table.createEl("colgroup");
+      colgroup.createEl("col", { style: "width: 38%;" });
+      colgroup.createEl("col", { style: "width: 24%;" });
+      colgroup.createEl("col", { style: "width: 38%;" });
 
-        // Col 1: Source Note (Right-aligned towards arrow)
-        const srcCol = row.createEl("div", {
-          style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-          title: srcNode.title
+      const tbody = table.createEl("tbody");
+
+      if (count > 2) {
+        const masterTr = tbody.createEl("tr");
+        const masterTd = masterTr.createEl("td", {
+          colspan: "3",
+          style: "background: var(--background-primary); padding: 10px 16px; border-radius: 6px; border: 1px dashed var(--interactive-accent);"
         });
-        srcCol.setText(srcNode.title);
+        const masterWrap = masterTd.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between;" });
+        masterWrap.createEl("span", { text: "Alle Kanten gleichzeitig ändern:", style: "font-size: 0.82em; font-weight: 600; color: var(--text-muted);" });
 
-        // Col 2: Arrow + Dropdown + Arrow
-        const centerWrap = row.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;" });
-        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; font-weight: 700; color: var(--interactive-accent);" });
-        createSingleDropdown(centerWrap, 0);
-        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; font-weight: 700; color: var(--interactive-accent);" });
-
-        // Col 3: Target Note (Left-aligned away from arrow)
-        const tgtCol = row.createEl("div", {
-          style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-          title: tgtNode.title
-        });
-        tgtCol.setText(tgtNode.title);
-      } else {
-        // Multi-Node Clean 3-Column Aligned Table List
-        const masterRow = flowBody.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; background: var(--background-primary); padding: 10px 16px; border-radius: 6px; border: 1px dashed var(--interactive-accent); margin-bottom: 8px;" });
-        masterRow.createEl("span", { text: "Alle Kanten gleichzeitig ändern:", style: "font-size: 0.82em; font-weight: 600; color: var(--text-muted);" });
-
-        const masterSelect = masterRow.createEl("select", {
+        const masterSelect = masterWrap.createEl("select", {
           style: "font-size: 0.82em; font-weight: 600; padding: 5px 12px; border-radius: 6px; background: var(--background-secondary); color: var(--interactive-accent); border: 1px solid var(--interactive-accent);"
         });
         categories.forEach((cat) => {
@@ -3413,34 +3402,39 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
           updateFlowPreview();
           updateCypherPreview();
         };
-
-        // Table Rows aligned with CSS Grid (1 line per edge, perfectly aligned columns)
-        edges.forEach((e, idx) => {
-          const gridRow = flowBody.createEl("div", {
-            style: "display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; background: var(--background-primary); padding: 12px 18px; border-radius: 6px; border: 1px solid var(--background-modifier-border); margin-bottom: 12px;"
-          });
-
-          // Col 1: Source Note Title (Right-aligned towards arrow)
-          const srcCol = gridRow.createEl("div", {
-            style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-            title: e.src.title
-          });
-          srcCol.setText(e.src.title);
-
-          // Col 2: Arrow + Dropdown + Arrow
-          const centerCol = gridRow.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;" });
-          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
-          createSingleDropdown(centerCol, idx);
-          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
-
-          // Col 3: Target Note Title (Left-aligned away from arrow)
-          const tgtCol = gridRow.createEl("div", {
-            style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
-            title: e.tgt.title
-          });
-          tgtCol.setText(e.tgt.title);
-        });
       }
+
+      edges.forEach((e, idx) => {
+        const tr = tbody.createEl("tr", {
+          style: "background: var(--background-primary); border-radius: 6px; box-shadow: 0 0 0 1px var(--background-modifier-border);"
+        });
+
+        const cleanSrcTitle = e.src.title.replace(/[\r\n]+/g, " ").trim();
+        const cleanTgtTitle = e.tgt.title.replace(/[\r\n]+/g, " ").trim();
+
+        // Col 1: Source Note Title
+        const srcTd = tr.createEl("td", {
+          style: "padding: 12px 16px; text-align: right; font-size: 0.9em; font-weight: 600; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+          title: cleanSrcTitle
+        });
+        srcTd.setText(cleanSrcTitle);
+
+        // Col 2: Arrow + Dropdown + Arrow
+        const centerTd = tr.createEl("td", {
+          style: "padding: 8px 4px; text-align: center; white-space: nowrap;"
+        });
+        const centerWrap = centerTd.createEl("div", { style: "display: inline-flex; align-items: center; justify-content: center; gap: 6px;" });
+        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
+        createSingleDropdown(centerWrap, idx);
+        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
+
+        // Col 3: Target Note Title
+        const tgtTd = tr.createEl("td", {
+          style: "padding: 12px 16px; text-align: left; font-size: 0.9em; font-weight: 600; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
+          title: cleanTgtTitle
+        });
+        tgtTd.setText(cleanTgtTitle);
+      });
     };
 
     const customInput = flowCard.createEl("input", {
