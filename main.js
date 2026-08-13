@@ -30,23 +30,34 @@ var import_obsidian4 = require("obsidian");
 var import_obsidian2 = require("obsidian");
 
 // src/callDirectLLM.ts
-async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.") {
+async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent für Obsidian. Antworte kurz, strukturiert und präzise auf Deutsch.") {
   try {
-    let cleanBase = (apiBase || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
-    cleanBase = cleanBase.replace(/\/(messages|chat\/completions|models)$/i, "");
-
-    const isAnthropic = cleanBase.includes("anthropic.com");
+    const rawBase = (apiBase || "").toLowerCase().trim();
+    const cleanKey = (apiKey || "").trim();
+    const headers = { "Content-Type": "application/json" };
     let url = "";
+    let isAnthropic = false;
 
-    if (isAnthropic) {
-      if (!cleanBase.endsWith("/v1")) cleanBase = `${cleanBase}/v1`;
-      url = `${cleanBase}/messages`;
+    if (rawBase.includes("anthropic.com")) {
+      isAnthropic = true;
+      url = "https://api.anthropic.com/v1/messages";
+    } else if (rawBase.includes("deepseek.com")) {
+      url = "https://api.deepseek.com/v1/chat/completions";
+    } else if (rawBase.includes("openai.com")) {
+      url = "https://api.openai.com/v1/chat/completions";
+    } else if (rawBase.includes("openrouter.ai")) {
+      url = "https://openrouter.ai/api/v1/chat/completions";
     } else {
-      url = `${cleanBase}/chat/completions`;
+      let cleanBase = (apiBase || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
+      cleanBase = cleanBase.replace(/\/(messages|chat\/completions|models)$/i, "");
+      if (cleanBase.includes("anthropic")) {
+        isAnthropic = true;
+        url = `${cleanBase}/v1/messages`.replace(/\/v1\/v1\//, "/v1/");
+      } else {
+        url = `${cleanBase}/chat/completions`;
+      }
     }
 
-    const headers = { "Content-Type": "application/json" };
-    const cleanKey = (apiKey || "").trim();
     let payload;
 
     if (isAnthropic) {
@@ -808,26 +819,22 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 };
 
 async function fetchProviderModels(apiBaseUrl, apiKey) {
-  let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
-  cleanUrl = cleanUrl.replace(/\/(messages|chat\/completions|models)$/i, "");
-
-  const isAnthropic = cleanUrl.includes("anthropic.com");
-  if (isAnthropic && !cleanUrl.endsWith("/v1")) {
-    cleanUrl = `${cleanUrl}/v1`;
-  }
-
+  const rawBase = (apiBaseUrl || "").toLowerCase().trim();
   const cleanKey = (apiKey || "").trim();
-  const headers = { "Content-Type": "application/json" };
+  const isAnthropic = rawBase.includes("anthropic.com");
 
   if (isAnthropic) {
-    if (cleanKey) headers["x-api-key"] = cleanKey;
-    headers["anthropic-version"] = "2023-06-01";
-    headers["anthropic-dangerous-direct-browser-access"] = "true";
-  } else if (cleanKey && cleanKey !== "ollama") {
-    headers["Authorization"] = `Bearer ${cleanKey}`;
+    return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"];
   }
 
+  let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
+  cleanUrl = cleanUrl.replace(/\/(messages|chat\/completions|models)$/i, "");
   const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
+
+  const headers = { "Content-Type": "application/json" };
+  if (cleanKey && cleanKey !== "ollama") {
+    headers["Authorization"] = `Bearer ${cleanKey}`;
+  }
 
   try {
     const res = await (0, import_obsidian3.requestUrl)({
