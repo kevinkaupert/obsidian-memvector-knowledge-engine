@@ -1817,6 +1817,17 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const isMath = this.plugin.settings?.knowledgeDomain === "math";
     const n = this.nodes.length;
 
+    const typeOffsets = {
+      definition: { x: -260, y: -160 },
+      theorem: { x: 220, y: -160 },
+      concept: { x: 0, y: 180 },
+      relation: { x: -220, y: 160 },
+      synthesis: { x: 260, y: 160 },
+      course: { x: 0, y: -260 },
+      question: { x: -320, y: 0 },
+      source: { x: 320, y: 0 }
+    };
+
     const calcSimilarity = (a, b) => {
       if (a.embedding && b.embedding && a.embedding.length === b.embedding.length) {
         let dot = 0, normA = 0, normB = 0;
@@ -1843,12 +1854,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       formsA.forEach((f) => { if (formsB.has(f)) formIntersect++; });
       const formSim = formsA.size + formsB.size > 0 ? formIntersect / Math.max(1, Math.min(formsA.size, formsB.size)) : 0;
 
-      const linkSim = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase())) ? 0.4 : 0;
+      const isWikiLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
+      const linkSim = isWikiLinked ? 0.6 : 0;
 
       if (isMath) {
-        return Math.min(1.0, wordSim * 0.15 + formSim * 0.70 + linkSim * 0.15);
+        return Math.min(1.0, wordSim * 0.15 + formSim * 0.55 + linkSim * 0.30);
       } else {
-        return Math.min(1.0, wordSim * 0.75 + formSim * 0.10 + linkSim * 0.15);
+        return Math.min(1.0, wordSim * 0.55 + formSim * 0.10 + linkSim * 0.35);
       }
     };
 
@@ -1862,39 +1874,34 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       }
     }
 
-    const typeAngles = {
-      definition: -Math.PI * 0.65,
-      theorem: -Math.PI * 0.15,
-      concept: Math.PI * 0.25,
-      relation: Math.PI * 0.65,
-      synthesis: Math.PI * 0.85,
-      course: -Math.PI * 0.85,
-      question: -Math.PI * 0.45,
-      source: Math.PI * 0.45
-    };
-
+    // Assign anchor positions based on note type to preserve structured topic clouds
     for (let i = 0; i < n; i++) {
       const node = this.nodes[i];
-      const baseAngle = (typeAngles[node.type] || 0) + (i * 0.25);
+      const baseOffset = typeOffsets[node.type] || { x: 0, y: 0 };
       const hashStr = node.id + (node.content || "");
       let hash = 0;
       for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
 
-      const r = (isMath ? 180 : 120) + (Math.abs(hash) % 180);
-      node.x = Math.cos(baseAngle) * r + ((Math.abs(hash >> 3) % 120) - 60);
-      node.y = Math.sin(baseAngle) * r + ((Math.abs(hash >> 7) % 120) - 60);
+      node.anchorX = baseOffset.x + ((Math.abs(hash) % 180) - 90);
+      node.anchorY = baseOffset.y + ((Math.abs(hash >> 3) % 180) - 90);
+      node.x = node.anchorX;
+      node.y = node.anchorY;
     }
 
-    const iterations = 35;
-    const targetDistBase = isMath ? 450 : 360;
-
+    // Force-directed pass combining topic cloud anchor gravity and similarity/WikiLink springs
+    const iterations = 25;
     for (let iter = 0; iter < iterations; iter++) {
-      const alpha = 0.85 * (1 - iter / iterations);
+      const alpha = 0.45 * (1 - iter / iterations);
 
       for (let i = 0; i < n; i++) {
         const nodeA = this.nodes[i];
         let fx = 0, fy = 0;
 
+        // Gravity pull towards topic cloud anchor
+        fx += (nodeA.anchorX - nodeA.x) * 0.15;
+        fy += (nodeA.anchorY - nodeA.y) * 0.15;
+
+        // Spring attraction / repulsion to similar / linked nodes
         for (let j = 0; j < n; j++) {
           if (i === j) continue;
           const nodeB = this.nodes[j];
@@ -1903,11 +1910,15 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const dist = Math.hypot(dx, dy) || 1;
 
           const sim = matrix[i][j];
-          const idealDist = targetDistBase * (1 - sim * 0.85);
-          const delta = dist - idealDist;
-
-          fx -= (dx / dist) * delta * 0.15;
-          fy -= (dy / dist) * delta * 0.15;
+          if (sim > 0.08) {
+            const idealDist = (isMath ? 180 : 150) * (1 - sim * 0.7);
+            const delta = dist - idealDist;
+            fx -= (dx / dist) * delta * sim * 0.25;
+            fy -= (dy / dist) * delta * sim * 0.25;
+          } else if (dist < 80) {
+            fx += (dx / dist) * 12;
+            fy += (dy / dist) * 12;
+          }
         }
 
         nodeA.x += fx * alpha;
