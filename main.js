@@ -3215,6 +3215,10 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
   }
 
   onOpen() {
+    this.modalEl.style.width = "70vw";
+    this.modalEl.style.maxWidth = "920px";
+    this.modalEl.style.minWidth = "360px";
+
     const { contentEl } = this;
     contentEl.empty();
     contentEl.style.maxHeight = "88vh";
@@ -3237,17 +3241,97 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       style: "font-family: var(--font-monospace); font-size: 0.78em; padding: 4px 10px; background: var(--background-primary-alt, rgba(255, 255, 255, 0.05)); color: var(--text-muted); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));"
     });
 
-    // ── TOP CARD: Live Graph-Fluss & Richtungsvorschau ─────────────────────
+    // 23 Mathematical Relation Types Grouped by Category
+    const categories = [
+      {
+        name: "Logik & Implikation",
+        items: [
+          { val: "IMPLIES", label: "impliziert" },
+          { val: "EQUIVALENT_TO", label: "äquivalent zu" },
+          { val: "NECESSARY_CONDITION_FOR", label: "ist notwendige Bedingung für" },
+          { val: "SUFFICIENT_CONDITION_FOR", label: "ist hinreichende Bedingung für" },
+          { val: "CONTRADICTS", label: "widerspricht" },
+          { val: "IS_INDEPENDENT_OF", label: "ist unabhängig von" }
+        ]
+      },
+      {
+        name: "Beweisführung & Korollare",
+        items: [
+          { val: "PROVES", label: "beweist" },
+          { val: "REFUTES", label: "widerlegt" },
+          { val: "FOLLOWS_FROM", label: "folgt aus" },
+          { val: "BASED_ON", label: "basiert auf" },
+          { val: "COROLLARY_OF", label: "ist Korollar von" },
+          { val: "LEMMA_FOR", label: "ist Lemma für" }
+        ]
+      },
+      {
+        name: "Definitionen & Abstraktion",
+        items: [
+          { val: "DEFINES", label: "definiert" },
+          { val: "EQUIVALENT_DEFINITION_FOR", label: "ist äquivalente Definition zu" },
+          { val: "SPECIAL_CASE_OF", label: "ist Spezialfall von" },
+          { val: "GENERALIZES", label: "verallgemeinert" },
+          { val: "EXTENDS", label: "erweitert" }
+        ]
+      },
+      {
+        name: "Struktur & Isomorphie",
+        items: [
+          { val: "ISOMORPHIC_TO", label: "ist isomorph zu" },
+          { val: "EMBEDDED_IN", label: "ist eingebettet in" },
+          { val: "DUAL_TO", label: "ist dual zu" },
+          { val: "ANALOGOUS_TO", label: "ist analog zu" }
+        ]
+      },
+      {
+        name: "Beispiele & Gegenbeispiele",
+        items: [
+          { val: "EXAMPLE_FOR", label: "ist Beispiel für" },
+          { val: "COUNTEREXAMPLE_FOR", label: "ist Gegenbeispiel für" },
+          { val: "CUSTOM", label: "Frei..." }
+        ]
+      }
+    ];
+
+    // ── TOP CARD: Live Graph-Fluss & Richtungs- / Beziehungs-Vorschau ──────
     const flowCard = contentEl.createEl("div", {
-      style: "background: var(--background-secondary-alt, rgba(15, 23, 42, 0.7)); padding: 14px 16px; border-radius: 8px; border: 1px solid var(--interactive-accent, #38bdf8); margin-bottom: 16px;"
+      style: "background: var(--background-secondary-alt, rgba(15, 23, 42, 0.7)); padding: 16px; border-radius: 8px; border: 1px solid var(--interactive-accent, #38bdf8); margin-bottom: 16px;"
     });
 
-    const flowHeader = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;" });
-    flowHeader.createEl("span", { text: "GRAPH-FLUSS & RICHTUNGSVORSCHAU", style: "font-size: 0.75em; font-weight: 700; color: var(--interactive-accent, #38bdf8); letter-spacing: 0.06em;" });
+    const flowHeader = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;" });
+    flowHeader.createEl("span", { text: "GRAPH-FLUSS & KANTEN-VORSCHAU", style: "font-size: 0.75em; font-weight: 700; color: var(--interactive-accent, #38bdf8); letter-spacing: 0.06em;" });
 
-    const swapBtn = flowHeader.createEl("button", { text: "⇄ Richtung umkehren", style: "font-size: 0.75em; padding: 3px 10px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border);" });
+    const swapBtn = flowHeader.createEl("button", { text: "⇄ Richtung umkehren", style: "font-size: 0.78em; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--interactive-accent, #38bdf8);" });
 
-    const flowBody = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 0;" });
+    const flowBody = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 6px 0;" });
+
+    const createRelDropdown = (parent) => {
+      const select = parent.createEl("select", {
+        style: "font-size: 0.85em; font-weight: 600; padding: 6px 12px; border-radius: 6px; background: var(--background-primary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; max-width: 320px;"
+      });
+
+      categories.forEach((cat) => {
+        const group = select.createEl("optgroup", { label: `── ${cat.name} ──` });
+        cat.items.forEach((item) => {
+          const opt = group.createEl("option", { text: `${item.val} (${item.label})`, value: item.val });
+          if (item.val === this.relType) opt.selected = true;
+        });
+      });
+
+      select.onchange = () => {
+        if (select.value === "CUSTOM") {
+          customInput.style.display = "block";
+          this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+        } else {
+          customInput.style.display = "none";
+          this.relType = select.value;
+        }
+        updateFlowPreview();
+        updateCypherPreview();
+      };
+      return select;
+    };
 
     const updateFlowPreview = () => {
       flowBody.empty();
@@ -3259,28 +3343,44 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
         const tgtNode = edge ? edge.tgt : this.selectedNodes[1];
 
         // Source Box
-        const srcBox = flowBody.createEl("div", { style: "flex: 1; min-width: 140px; background: var(--background-primary); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
+        const srcBox = flowBody.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
         srcBox.createEl("div", { text: "🔷 QUELLE (A)", style: "font-size: 0.68em; font-weight: 700; color: #06b6d4; margin-bottom: 2px;" });
-        srcBox.createEl("div", { text: srcNode.title, style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal);" });
+        srcBox.createEl("div", { text: srcNode.title, style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal);" });
 
-        // Relation Arrow Badge
-        const arrowBadge = flowBody.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 10px;" });
-        arrowBadge.createEl("span", { text: `─── [ ${this.relType} ] ───►`, style: "font-family: var(--font-monospace); font-size: 0.8em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
+        // Relation Center Dropdown + Arrow
+        const centerWrap = flowBody.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; gap: 4px;" });
+        centerWrap.createEl("span", { text: "─── KANTENTYP (LABEL) ───►", style: "font-family: var(--font-monospace); font-size: 0.72em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
+        createRelDropdown(centerWrap);
 
         // Target Box
-        const tgtBox = flowBody.createEl("div", { style: "flex: 1; min-width: 140px; background: var(--background-primary); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
+        const tgtBox = flowBody.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
         tgtBox.createEl("div", { text: "🎯 ZIEL (B)", style: "font-size: 0.68em; font-weight: 700; color: #10b981; margin-bottom: 2px;" });
-        tgtBox.createEl("div", { text: tgtNode.title, style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal);" });
+        tgtBox.createEl("div", { text: tgtNode.title, style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal);" });
       } else {
         // Multi-Node Flow
+        const centerWrap = flowBody.createEl("div", { style: "width: 100%; display: flex; justify-content: center; margin-bottom: 8px;" });
+        createRelDropdown(centerWrap);
+
         edges.forEach((e, idx) => {
           if (idx > 0) flowBody.createEl("span", { text: "  |  ", style: "color: var(--text-muted);" });
-          const pill = flowBody.createEl("div", { style: "background: var(--background-primary); padding: 6px 10px; border-radius: 6px; font-size: 0.8em; border: 1px solid var(--background-modifier-border);" });
+          const pill = flowBody.createEl("div", { style: "background: var(--background-primary); padding: 6px 12px; border-radius: 6px; font-size: 0.8em; border: 1px solid var(--background-modifier-border);" });
           pill.createEl("span", { text: `${e.src.title} `, style: "font-weight: 600;" });
           pill.createEl("span", { text: `──[${this.relType}]──► `, style: "color: var(--interactive-accent); font-family: var(--font-monospace);" });
           pill.createEl("span", { text: e.tgt.title, style: "font-weight: 600;" });
         });
       }
+    };
+
+    const customInput = flowCard.createEl("input", {
+      type: "text",
+      placeholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
+      style: "width: 100%; font-size: 0.82em; padding: 6px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); margin-top: 10px; display: none;"
+    });
+
+    customInput.oninput = () => {
+      this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+      updateFlowPreview();
+      updateCypherPreview();
     };
 
     swapBtn.onclick = () => {
@@ -3359,128 +3459,14 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     if (this.topology === "CHAIN") focalWrap.style.display = "none";
 
-    // STEP 2: Mathematical Relationship Types (Grouped by Academic Category)
+    // STEP 2: Description Textarea
     const step2 = contentEl.createEl("div", {
       style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
     });
 
-    step2.createEl("div", { text: "2. Mathematischer Beziehungs-Typ (Label)", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;" });
+    step2.createEl("div", { text: "2. Warum sind diese Notizen verbunden? (Beschreibung)", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;" });
 
-    const categories = [
-      {
-        name: "Logik & Implikation",
-        items: [
-          { val: "IMPLIES", label: "impliziert" },
-          { val: "EQUIVALENT_TO", label: "äquivalent zu" },
-          { val: "NECESSARY_CONDITION_FOR", label: "ist notwendige Bedingung für" },
-          { val: "SUFFICIENT_CONDITION_FOR", label: "ist hinreichende Bedingung für" },
-          { val: "CONTRADICTS", label: "widerspricht" },
-          { val: "IS_INDEPENDENT_OF", label: "ist unabhängig von" }
-        ]
-      },
-      {
-        name: "Beweisführung & Korollare",
-        items: [
-          { val: "PROVES", label: "beweist" },
-          { val: "REFUTES", label: "widerlegt" },
-          { val: "FOLLOWS_FROM", label: "folgt aus" },
-          { val: "BASED_ON", label: "basiert auf" },
-          { val: "COROLLARY_OF", label: "ist Korollar von" },
-          { val: "LEMMA_FOR", label: "ist Lemma für" }
-        ]
-      },
-      {
-        name: "Definitionen & Abstraktion",
-        items: [
-          { val: "DEFINES", label: "definiert" },
-          { val: "EQUIVALENT_DEFINITION_FOR", label: "ist äquivalente Definition zu" },
-          { val: "SPECIAL_CASE_OF", label: "ist Spezialfall von" },
-          { val: "GENERALIZES", label: "verallgemeinert" },
-          { val: "EXTENDS", label: "erweitert" }
-        ]
-      },
-      {
-        name: "Struktur & Isomorphie",
-        items: [
-          { val: "ISOMORPHIC_TO", label: "ist isomorph zu" },
-          { val: "EMBEDDED_IN", label: "ist eingebettet in" },
-          { val: "DUAL_TO", label: "ist dual zu" },
-          { val: "ANALOGOUS_TO", label: "ist analog zu" }
-        ]
-      },
-      {
-        name: "Beispiele & Gegenbeispiele",
-        items: [
-          { val: "EXAMPLE_FOR", label: "ist Beispiel für" },
-          { val: "COUNTEREXAMPLE_FOR", label: "ist Gegenbeispiel für" },
-          { val: "CUSTOM", label: "Frei..." }
-        ]
-      }
-    ];
-
-    const customInput = step2.createEl("input", {
-      type: "text",
-      placeholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
-      style: "width: 100%; font-size: 0.82em; padding: 6px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); margin-top: 10px; display: none;"
-    });
-
-    const chipBtns = [];
-
-    categories.forEach((cat) => {
-      const catGroup = step2.createEl("div", { style: "margin-bottom: 10px;" });
-      catGroup.createEl("div", { text: cat.name, style: "font-size: 0.72em; font-weight: 600; color: var(--interactive-accent, #38bdf8); margin-bottom: 4px;" });
-
-      const wrap = catGroup.createEl("div", { style: "display: flex; flex-wrap: wrap; gap: 5px;" });
-
-      cat.items.forEach((chip) => {
-        const btn = wrap.createEl("button", { text: `${chip.val} (${chip.label})` });
-        btn.style.fontSize = "0.75em";
-        btn.style.fontWeight = "500";
-        btn.style.padding = "4px 9px";
-        btn.style.borderRadius = "6px";
-        btn.style.cursor = "pointer";
-        btn.style.transition = "all 0.15s ease";
-
-        const updateChipStyle = () => {
-          const isActive = this.relType === chip.val || (chip.val === "CUSTOM" && !categories.some(c => c.items.some(i => i.val === this.relType)));
-          btn.style.background = isActive ? "var(--interactive-accent, #38bdf8)" : "var(--background-primary)";
-          btn.style.color = isActive ? "#ffffff" : "var(--text-normal)";
-          btn.style.border = isActive ? "1px solid var(--interactive-accent)" : "1px solid var(--background-modifier-border)";
-        };
-
-        btn.onclick = () => {
-          if (chip.val === "CUSTOM") {
-            customInput.style.display = "block";
-            this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
-          } else {
-            customInput.style.display = "none";
-            this.relType = chip.val;
-          }
-          chipBtns.forEach((b) => b.update());
-          updateFlowPreview();
-          updateCypherPreview();
-        };
-
-        btn.update = updateChipStyle;
-        updateChipStyle();
-        chipBtns.push(btn);
-      });
-    });
-
-    customInput.oninput = () => {
-      this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
-      updateFlowPreview();
-      updateCypherPreview();
-    };
-
-    // STEP 3: Description Textarea
-    const step3 = contentEl.createEl("div", {
-      style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
-    });
-
-    step3.createEl("div", { text: "3. Warum sind diese Notizen verbunden? (Beschreibung)", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;" });
-
-    const descArea = step3.createEl("textarea", {
+    const descArea = step2.createEl("textarea", {
       placeholder: "Beschreibe den fachlichen/didaktischen Grund der Verbindung...",
       style: "width: 100%; height: 60px; font-size: 0.82em; padding: 8px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;"
     });
