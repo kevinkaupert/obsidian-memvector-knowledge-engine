@@ -993,16 +993,21 @@ async function fetchProviderModels(apiBaseUrl, apiKey) {
   const cleanKey = (apiKey || "").trim();
   const isAnthropic = rawBase.includes("anthropic");
 
+  if (isAnthropic) {
+    return [
+      "claude-3-7-sonnet-20250219",
+      "claude-3-5-sonnet-20241022",
+      "claude-3-5-haiku-20241022",
+      "claude-3-opus-20240229"
+    ];
+  }
+
   let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
   cleanUrl = cleanUrl.replace(/\/(messages|chat\/completions|models)$/i, "");
   const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
 
   const headers = { "Content-Type": "application/json" };
-  if (isAnthropic) {
-    if (cleanKey) headers["x-api-key"] = cleanKey;
-    headers["anthropic-version"] = "2023-06-01";
-    headers["anthropic-dangerous-direct-browser-access"] = "true";
-  } else if (cleanKey && cleanKey !== "ollama") {
+  if (cleanKey && cleanKey !== "ollama") {
     headers["Authorization"] = `Bearer ${cleanKey}`;
   }
 
