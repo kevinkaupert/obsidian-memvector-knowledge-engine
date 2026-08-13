@@ -1471,38 +1471,92 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Qdrant-Verbindung testen")
-      .setDesc("Prüft die Erreichbarkeit des Qdrant Vektor-Servers und der Collection.")
+      .setName("Gesamtes Vault in Qdrant indizieren")
+      .setDesc("Berechnet Embeddings für alle Notizen im Vault und lädt sie direkt in die Qdrant Vektor-Datenbank.")
       .addButton((btn) => btn
-        .setButtonText("Qdrant Verbindung testen")
+        .setButtonText("Jetzt Vault in Qdrant synchronisieren")
         .setCta()
         .onClick(async () => {
-          btn.setButtonText("Testen...");
+          btn.setButtonText("Synchronisiere Vault...");
           btn.setDisabled(true);
           try {
-            let baseUrl = (this.plugin.settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
+            const vaultFiles = this.app.vault.getMarkdownFiles();
+            new import_obsidian3.Notice(`🚀 Starte Qdrant-Synchronisation für ${vaultFiles.length} Notizen...`);
+            let count = 0;
+            const baseUrl = (this.plugin.settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
+            const collectionName = this.plugin.settings.qdrantCollection || "obsidian_wiki_vectors";
             const headers = { "Content-Type": "application/json" };
             if (this.plugin.settings.qdrantApiKey) {
               headers["api-key"] = this.plugin.settings.qdrantApiKey;
             }
-            const res = await (0, import_obsidian3.requestUrl)({
-              url: `${baseUrl}/collections`,
-              method: "GET",
+
+            // Ensure Collection exists
+            await (0, import_obsidian3.requestUrl)({
+              url: `${baseUrl}/collections/${collectionName}`,
+              method: "PUT",
               headers,
+              body: JSON.stringify({ vectors: { size: 1024, distance: "Cosine" } }),
               throwOnError: false
             });
-            if (res.status === 200) {
-              btn.setButtonText("✅ Erfolgreich!");
-              new import_obsidian3.Notice("✅ Qdrant-Verbindung erfolgreich hergestellt!");
+
+            const points = [];
+            for (let i = 0; i < vaultFiles.length; i++) {
+              const file = vaultFiles[i];
+              const content = await this.app.vault.read(file);
+              if (!content.trim()) continue;
+
+              const embedding = await fetchEmbedding(
+                content.slice(0, 1000),
+                this.plugin.settings.embeddingApiBaseUrl,
+                this.plugin.settings.embeddingApiKey,
+                this.plugin.settings.embeddingModel
+              );
+
+              if (embedding && embedding.length > 0) {
+                // simple numeric ID hash from path
+                let pointId = 0;
+                for (let c = 0; c < file.path.length; c++) {
+                  pointId = (pointId << 5) - pointId + file.path.charCodeAt(c);
+                  pointId |= 0;
+                }
+                pointId = Math.abs(pointId);
+
+                points.push({
+                  id: pointId,
+                  vector: embedding,
+                  payload: {
+                    path: file.path,
+                    title: file.basename,
+                    content: content.slice(0, 500)
+                  }
+                });
+                count++;
+              }
+            }
+
+            if (points.length > 0) {
+              const upsertRes = await (0, import_obsidian3.requestUrl)({
+                url: `${baseUrl}/collections/${collectionName}/points?wait=true`,
+                method: "PUT",
+                headers,
+                body: JSON.stringify({ points }),
+                throwOnError: false
+              });
+              if (upsertRes.status === 200) {
+                btn.setButtonText("✅ Synchronisiert!");
+                new import_obsidian3.Notice(`✅ Qdrant erfolgreich mit ${count} Notizen befüllt!`);
+              } else {
+                throw new Error(`Qdrant Upsert Fehler: HTTP ${upsertRes.status}`);
+              }
             } else {
-              throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung abgelehnt"}`);
+              new import_obsidian3.Notice("⚠️ Keine Embeddings generiert (Ollama prüfen).");
             }
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
-            new import_obsidian3.Notice(`❌ Qdrant-Verbindung fehlgeschlagen: ${err.message}`);
+            new import_obsidian3.Notice(`❌ Qdrant Sync-Fehler: ${err.message}`);
           } finally {
             setTimeout(() => {
-              btn.setButtonText("Qdrant Verbindung testen");
+              btn.setButtonText("Jetzt Vault in Qdrant synchronisieren");
               btn.setDisabled(false);
             }, 3000);
           }
