@@ -32,15 +32,21 @@ var import_obsidian2 = require("obsidian");
 // src/callDirectLLM.ts
 async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.") {
   try {
-    const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
+    let cleanBase = (apiBase || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
     const isAnthropic = cleanBase.includes("anthropic.com");
+    if (isAnthropic && !cleanBase.endsWith("/v1")) {
+      cleanBase = `${cleanBase}/v1`;
+    }
+
     let url = isAnthropic ? `${cleanBase}/messages` : `${cleanBase}/chat/completions`;
     const headers = { "Content-Type": "application/json" };
+    const cleanKey = (apiKey || "").trim();
     let payload;
 
     if (isAnthropic) {
-      if (apiKey) headers["x-api-key"] = apiKey;
+      if (cleanKey) headers["x-api-key"] = cleanKey;
       headers["anthropic-version"] = "2023-06-01";
+      headers["anthropic-dangerous-direct-browser-access"] = "true";
       payload = {
         model: modelName || "claude-3-5-sonnet-20241022",
         max_tokens: 2048,
@@ -49,8 +55,8 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
         temperature: temperature ?? 0.1
       };
     } else {
-      if (apiKey && apiKey !== "ollama") {
-        headers["Authorization"] = `Bearer ${apiKey}`;
+      if (cleanKey && cleanKey !== "ollama") {
+        headers["Authorization"] = `Bearer ${cleanKey}`;
       }
       payload = {
         model: modelName || "deepseek-r1:7b",
@@ -786,28 +792,46 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 };
 
 async function fetchProviderModels(apiBaseUrl, apiKey) {
-  const cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").replace(/\/+$/, "");
-  const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
+  let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
+  const isAnthropic = cleanUrl.includes("anthropic.com");
+  if (isAnthropic && !cleanUrl.endsWith("/v1")) {
+    cleanUrl = `${cleanUrl}/v1`;
+  }
+
+  const cleanKey = (apiKey || "").trim();
   const headers = { "Content-Type": "application/json" };
-  if (apiKey && apiKey !== "ollama") {
-    headers["Authorization"] = `Bearer ${apiKey}`;
+
+  if (isAnthropic) {
+    if (cleanKey) headers["x-api-key"] = cleanKey;
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  } else if (cleanKey && cleanKey !== "ollama") {
+    headers["Authorization"] = `Bearer ${cleanKey}`;
   }
 
-  const res = await (0, import_obsidian3.requestUrl)({
-    url: targetUrl,
-    method: "GET",
-    headers,
-    throwOnError: false
-  });
+  const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
 
-  if (res.status >= 400) {
-    throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung fehlgeschlagen"}`);
+  try {
+    const res = await (0, import_obsidian3.requestUrl)({
+      url: targetUrl,
+      method: "GET",
+      headers,
+      throwOnError: false
+    });
+
+    if (res.status === 200) {
+      const data = JSON.parse(res.text || "{}");
+      const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
+      const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
+      if (models.length > 0) return models;
+    }
+  } catch (err) {}
+
+  if (isAnthropic) {
+    return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"];
   }
 
-  const data = JSON.parse(res.text || "{}");
-  const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
-  const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
-  return models;
+  throw new Error(`HTTP Verbindungsfehler: Bitte prüfe den API-Key und die Endpoint-URL.`);
 }
 
 // src/MathWikiSettingTab.ts
