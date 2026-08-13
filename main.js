@@ -2284,6 +2284,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
   draw(ctx, width, height) {
     ctx.clearRect(0, 0, width, height);
 
+    const computedStyle = this.containerEl ? getComputedStyle(this.containerEl) : null;
+    const themeBgPill = computedStyle?.getPropertyValue("--background-primary-alt")?.trim() || "rgba(15, 23, 42, 0.80)";
+    const themeBgSelected = computedStyle?.getPropertyValue("--background-secondary")?.trim() || "rgba(15, 23, 42, 0.94)";
+    const themeTextNormal = computedStyle?.getPropertyValue("--text-normal")?.trim() || "#f8fafc";
+    const themeTextMuted = computedStyle?.getPropertyValue("--text-muted")?.trim() || "#cbd5e1";
+
     ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
     ctx.lineWidth = 1;
     const gridSize = 50 * this.zoom;
@@ -2339,7 +2345,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const titleText = `☁️ ${c.label.toUpperCase()} (${c.count})`;
           const textWidth = ctx.measureText(titleText).width;
 
-          ctx.fillStyle = "var(--background-secondary-alt, rgba(15, 23, 42, 0.85))";
+          ctx.fillStyle = themeBgSelected;
           ctx.fillRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
 
           ctx.fillStyle = palette.labelColor;
@@ -2452,7 +2458,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const badgeWidth = Math.max(typeWidth, descWidth) + 14;
           const badgeHeight = descText ? 28 : 16;
 
-          ctx.fillStyle = "var(--background-secondary-alt, rgba(15, 23, 42, 0.88))";
+          ctx.fillStyle = themeBgSelected;
           ctx.fillRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
 
           ctx.font = "bold 9px monospace";
@@ -2463,7 +2469,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
           if (descText) {
             ctx.font = "9px sans-serif";
-            ctx.fillStyle = "var(--text-normal, #e2e8f0)";
+            ctx.fillStyle = themeTextNormal;
             ctx.fillText(descText, midX, midY + 1);
           }
         }
@@ -2515,10 +2521,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         const txtWidth = ctx.measureText(titleText).width;
 
         ctx.save();
-        ctx.fillStyle = isSelected ? "var(--background-secondary, rgba(15, 23, 42, 0.92))" : "var(--background-primary-alt, rgba(15, 23, 42, 0.75))";
+        ctx.fillStyle = isSelected ? themeBgSelected : themeBgPill;
         ctx.fillRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
 
-        ctx.fillStyle = isSelected ? "var(--text-normal, #ffffff)" : isHovered ? "var(--text-normal, #f8fafc)" : "var(--text-muted, #cbd5e1)";
+        ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? themeTextNormal : themeTextMuted;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(titleText, pos.x, pos.y + 12 * this.zoom + 1);
