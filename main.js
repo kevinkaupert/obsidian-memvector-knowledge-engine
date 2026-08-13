@@ -174,8 +174,14 @@ var translations = {
     domainDesc: "Bestimmt die Merkmalsgewichtung im 2D-Vektorraum: 'Universelles Notizbuch' fokussiert Begriffsh\xE4ufigkeiten & Semantik (ideal f\xFCr PKM, Code, Forschung). 'Mathematik' gewichtet LaTeX-Formeln st\xE4rker, um mathematische Definitionen & S\xE4tze strukturell zu clustern.",
     domainGeneral: "Universelles Notizbuch (PKM, Code, Allgemeines Wissen, Forschung)",
     domainMath: "Mathematik & Formalwissenschaften (LaTeX-Formeln & Beweise)",
-    embedModelName: "Embedding Modell (Modellname)",
-    embedModelDesc: "W\xE4hlen oder tippen Sie das Modell f\xFCr Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small', 'all-minilm').",
+    embedProvName: "Embedding Provider",
+    embedProvDesc: "Anbieter f\xFCr Notiz-Embeddings (unabh\xE4ngig vom LLM-Synthese-Provider, z. B. Ollama lokal f\xFCr Embeddings & Anthropic Claude f\xFCr Synthese).",
+    embedApiBaseName: "Embedding API Base URL",
+    embedApiBaseDesc: "Basis-URL des Embedding Endpoints (z. B. http://localhost:11434/v1 f\xFCr Ollama, https://api.openai.com/v1 f\xFCr OpenAI).",
+    embedApiKeyName: "Embedding API Key",
+    embedApiKeyDesc: "API-Schl\xFCssel f\xFCr Embedding-API (f\xFCr Ollama 'ollama' eintragen).",
+    embedModelName: "Embedding Modellname",
+    embedModelDesc: "Exakter Modellname f\xFCr Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
     exclusionsName: "Pfad- & Datei-Ausschlie\xDFungen",
     exclusionsDesc: "Schlie\xDFe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
     radarCountName: "Mini-Radar Notizen-Anzahl (X)",
@@ -242,8 +248,14 @@ var translations = {
     domainDesc: "Controls feature weighting in 2D vector space clustering: 'Universal Notebook' focuses on word frequencies & semantics (ideal for PKM, code, research). 'Mathematics' heavily weights LaTeX formulas to structurally link definitions & theorems.",
     domainGeneral: "Universal Notebook (PKM, Code, General Knowledge, Research)",
     domainMath: "Mathematics & Formal Sciences (LaTeX Formulas & Proofs)",
-    embedModelName: "Embedding Model",
-    embedModelDesc: "Select or type the model for note embeddings (e.g., 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small', 'all-minilm').",
+    embedProvName: "Embedding Provider",
+    embedProvDesc: "Provider for note embeddings (independent from LLM Synthesis Provider, e.g. local Ollama for embeddings & Anthropic Claude for synthesis).",
+    embedApiBaseName: "Embedding API Base URL",
+    embedApiBaseDesc: "Base URL of embedding endpoint (e.g., http://localhost:11434/v1 for Ollama, https://api.openai.com/v1 for OpenAI).",
+    embedApiKeyName: "Embedding API Key",
+    embedApiKeyDesc: "API key for embedding API (type 'ollama' for Ollama).",
+    embedModelName: "Embedding Model Name",
+    embedModelDesc: "Exact model name for note embeddings (e.g., 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
     exclusionsName: "Path & File Exclusions",
     exclusionsDesc: "Exclude paths and files from 2D Scatterplot (e.g. -path: schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
     radarCountName: "Mini-Radar Note Count (X)",
@@ -887,6 +899,58 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
+      .setName(t.embedProvName)
+      .setDesc(t.embedProvDesc)
+      .addDropdown((dropdown) => dropdown
+        .addOption("ollama", "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("openai", "OpenAI Embeddings (api.openai.com)")
+        .addOption("custom", "Custom REST Endpoint")
+        .setValue(this.plugin.settings.embeddingProvider || "ollama")
+        .onChange(async (value) => {
+          this.plugin.settings.embeddingProvider = value;
+          if (value === "ollama") {
+            this.plugin.settings.embeddingApiBaseUrl = "http://localhost:11434/v1";
+            this.plugin.settings.embeddingApiKey = "ollama";
+            this.plugin.settings.embeddingModel = "bge-m3";
+          } else if (value === "openai") {
+            this.plugin.settings.embeddingApiBaseUrl = "https://api.openai.com/v1";
+            this.plugin.settings.embeddingApiKey = "";
+            this.plugin.settings.embeddingModel = "text-embedding-3-small";
+          } else if (value === "custom") {
+            this.plugin.settings.embeddingApiBaseUrl = "http://localhost:8000/v1";
+            this.plugin.settings.embeddingApiKey = "";
+            this.plugin.settings.embeddingModel = "custom-embed";
+          }
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.embedApiBaseName)
+      .setDesc(t.embedApiBaseDesc)
+      .addText((text) => text
+        .setPlaceholder("http://localhost:11434/v1")
+        .setValue(this.plugin.settings.embeddingApiBaseUrl || "http://localhost:11434/v1")
+        .onChange(async (value) => {
+          this.plugin.settings.embeddingApiBaseUrl = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.embedApiKeyName)
+      .setDesc(t.embedApiKeyDesc)
+      .addText((text) => text
+        .setPlaceholder("sk-... / ollama")
+        .setValue(this.plugin.settings.embeddingApiKey || "ollama")
+        .onChange(async (value) => {
+          this.plugin.settings.embeddingApiKey = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
       .setName(t.embedModelName)
       .setDesc(t.embedModelDesc)
       .addText((text) => text
@@ -1018,6 +1082,9 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
 var DEFAULT_SETTINGS = {
   language: "de",
   knowledgeDomain: "general",
+  embeddingProvider: "ollama",
+  embeddingApiBaseUrl: "http://localhost:11434/v1",
+  embeddingApiKey: "ollama",
   embeddingModel: "bge-m3",
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",
@@ -1387,8 +1454,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     calcVectorsBtn.onclick = async () => {
       const embedModel = this.plugin.settings?.embeddingModel || "bge-m3";
-      const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
-      const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
+      const apiBase = this.plugin.settings?.embeddingApiBaseUrl || "http://localhost:11434/v1";
+      const apiKey = this.plugin.settings?.embeddingApiKey || "ollama";
 
       if (!this.nodes || this.nodes.length === 0) {
         await this.scanVaultNotes();
