@@ -3307,16 +3307,18 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     const flowBody = flowCard.createEl("div", { style: "display: flex; flex-direction: column; gap: 10px;" });
 
+    const allRelItems = categories.flatMap(c => c.items);
+
     const createSingleDropdown = (parent, edgeIdx) => {
       const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || "REQUIRES";
       const select = parent.createEl("select", {
-        style: "font-size: 0.82em; font-weight: 600; padding: 5px 8px; border-radius: 6px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; width: 170px; max-width: 170px;"
+        style: "font-size: 0.78em; font-weight: 600; padding: 4px 6px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid rgba(56, 189, 248, 0.3); cursor: pointer; min-width: 0; width: auto; max-width: 140px; text-align: center;"
       });
 
       categories.forEach((cat) => {
-        const group = select.createEl("optgroup", { label: `── ${cat.name} ──` });
+        const group = select.createEl("optgroup", { label: cat.name });
         cat.items.forEach((item) => {
-          const opt = group.createEl("option", { text: `${item.val} (${item.label})`, value: item.val });
+          const opt = group.createEl("option", { text: item.label, value: item.val });
           if (item.val === currentVal) opt.selected = true;
         });
       });
@@ -3363,77 +3365,72 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       flowBody.empty();
       const edges = generateEdges();
 
-      const table = flowBody.createEl("table", {
-        style: "width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0 10px; margin: 0;"
-      });
-
-      const colgroup = table.createEl("colgroup");
-      colgroup.createEl("col", { style: "width: 38%;" });
-      colgroup.createEl("col", { style: "width: 24%;" });
-      colgroup.createEl("col", { style: "width: 38%;" });
-
-      const tbody = table.createEl("tbody");
-
+      // Master dropdown for bulk changes (3+ nodes)
       if (count > 2) {
-        const masterTr = tbody.createEl("tr");
-        const masterTd = masterTr.createEl("td", {
-          colspan: "3",
-          style: "background: var(--background-primary); padding: 10px 16px; border-radius: 6px; border: 1px dashed var(--interactive-accent);"
+        const masterRow = flowBody.createEl("div", {
+          style: "display: flex; align-items: center; gap: 12px; padding: 8px 14px; margin-bottom: 6px; background: var(--background-primary); border-radius: 6px; border: 1px dashed rgba(56, 189, 248, 0.25);"
         });
-        const masterWrap = masterTd.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between;" });
-        masterWrap.createEl("span", { text: "Alle Kanten gleichzeitig ändern:", style: "font-size: 0.82em; font-weight: 600; color: var(--text-muted);" });
+        masterRow.createEl("span", { text: "Alle:", style: "font-size: 0.78em; font-weight: 600; color: var(--text-muted); flex-shrink: 0;" });
 
-        const masterSelect = masterWrap.createEl("select", {
-          style: "font-size: 0.82em; font-weight: 600; padding: 5px 12px; border-radius: 6px; background: var(--background-secondary); color: var(--interactive-accent); border: 1px solid var(--interactive-accent);"
+        const masterSelect = masterRow.createEl("select", {
+          style: "font-size: 0.78em; font-weight: 600; padding: 4px 8px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent); border: 1px solid rgba(56, 189, 248, 0.3); flex: 1; max-width: 200px;"
         });
         categories.forEach((cat) => {
-          const group = masterSelect.createEl("optgroup", { label: `── ${cat.name} ──` });
+          const group = masterSelect.createEl("optgroup", { label: cat.name });
           cat.items.forEach((item) => {
-            const opt = group.createEl("option", { text: `${item.val} (${item.label})`, value: item.val });
+            const opt = group.createEl("option", { text: item.label, value: item.val });
             if (item.val === this.relType) opt.selected = true;
           });
         });
-
         masterSelect.onchange = () => {
           this.relType = masterSelect.value;
-          edges.forEach((_, idx) => {
-            this.edgeRelTypes[idx] = masterSelect.value;
-          });
+          edges.forEach((_, idx) => { this.edgeRelTypes[idx] = masterSelect.value; });
           updateFlowPreview();
           updateCypherPreview();
         };
       }
 
+      // Edge list container
+      const listEl = flowBody.createEl("div", {
+        style: "display: flex; flex-direction: column; gap: 4px;"
+      });
+
       edges.forEach((e, idx) => {
-        const tr = tbody.createEl("tr", {
-          style: "background: var(--background-primary); border-radius: 6px; box-shadow: 0 0 0 1px var(--background-modifier-border);"
+        const cleanSrc = e.src.title.replace(/[\r\n]+/g, " ").trim();
+        const cleanTgt = e.tgt.title.replace(/[\r\n]+/g, " ").trim();
+        const relVal = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
+        const relLabel = (allRelItems.find(r => r.val === relVal) || {}).label || relVal;
+
+        // Single row container
+        const row = listEl.createEl("div", {
+          style: "display: flex; align-items: center; gap: 0; padding: 10px 14px; border-radius: 6px; background: var(--background-primary); border-left: 3px solid " + (idx % 2 === 0 ? "rgba(56, 189, 248, 0.5)" : "rgba(16, 185, 129, 0.5)") + "; transition: background 0.15s ease;"
         });
 
-        const cleanSrcTitle = e.src.title.replace(/[\r\n]+/g, " ").trim();
-        const cleanTgtTitle = e.tgt.title.replace(/[\r\n]+/g, " ").trim();
+        // Hover effect
+        row.addEventListener("mouseenter", () => { row.style.background = "var(--background-primary-alt, rgba(255,255,255,0.04))"; });
+        row.addEventListener("mouseleave", () => { row.style.background = "var(--background-primary)"; });
 
-        // Col 1: Source Note Title
-        const srcTd = tr.createEl("td", {
-          style: "padding: 12px 16px; text-align: right; font-size: 0.9em; font-weight: 600; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-          title: cleanSrcTitle
+        // Source name
+        const srcSpan = row.createEl("span", {
+          style: "flex: 1; font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px;",
+          title: cleanSrc
         });
-        srcTd.setText(cleanSrcTitle);
+        srcSpan.setText(cleanSrc);
 
-        // Col 2: Arrow + Dropdown + Arrow
-        const centerTd = tr.createEl("td", {
-          style: "padding: 8px 4px; text-align: center; white-space: nowrap;"
+        // Arrow + Dropdown cluster (fixed width, never wraps)
+        const center = row.createEl("div", {
+          style: "display: flex; align-items: center; gap: 6px; flex-shrink: 0;"
         });
-        const centerWrap = centerTd.createEl("div", { style: "display: inline-flex; align-items: center; justify-content: center; gap: 6px;" });
-        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
-        createSingleDropdown(centerWrap, idx);
-        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
+        center.createEl("span", { text: "\u2192", style: "font-size: 1em; color: var(--text-faint); font-weight: 400;" });
+        createSingleDropdown(center, idx);
+        center.createEl("span", { text: "\u2192", style: "font-size: 1em; color: var(--text-faint); font-weight: 400;" });
 
-        // Col 3: Target Note Title
-        const tgtTd = tr.createEl("td", {
-          style: "padding: 12px 16px; text-align: left; font-size: 0.9em; font-weight: 600; color: var(--text-normal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;",
-          title: cleanTgtTitle
+        // Target name
+        const tgtSpan = row.createEl("span", {
+          style: "flex: 1; font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 10px;",
+          title: cleanTgt
         });
-        tgtTd.setText(cleanTgtTitle);
+        tgtSpan.setText(cleanTgt);
       });
     };
 
