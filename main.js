@@ -1208,18 +1208,26 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
     }
 
-    new import_obsidian3.Setting(containerEl)
+    const isAnthropicSelected = (this.plugin.settings.llmProvider === "claude") || (this.plugin.settings.apiBaseUrl || "").toLowerCase().includes("anthropic");
+
+    const tempSetting = new import_obsidian3.Setting(containerEl)
       .setName(t.temperatureTitle)
-      .setDesc(t.temperatureDesc)
+      .setDesc(isAnthropicSelected ? `${t.temperatureDesc} (Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)` : t.temperatureDesc)
       .addSlider((slider) => slider
         .setLimits(0, 1, 0.05)
         .setValue(this.plugin.settings.temperature ?? 0.1)
         .setDynamicTooltip()
+        .setDisabled(isAnthropicSelected)
         .onChange(async (value) => {
           this.plugin.settings.temperature = value;
           await this.plugin.saveSettings();
         })
       );
+
+    if (isAnthropicSelected) {
+      tempSetting.settingEl.style.opacity = "0.5";
+      tempSetting.settingEl.style.pointerEvents = "none";
+    }
 
     // 3. Wissensdomäne & Vektorraum-Filter
     containerEl.createEl("h3", { text: t.secVector });
