@@ -217,6 +217,16 @@ var translations = {
     projClouds: "Themen-Wolken (Cloud Map)",
     projFlow: "Abh\xE4ngigkeits-Fluss (DAG)",
     projGraph: "Reiner Graph (WikiLinks)",
+    lblNodeDist: "Punkt-Abstand",
+    lblCloudDist: "Wolken-Abstand",
+    weightVectorName: "Vektor-Gewichtung (%)",
+    weightVectorDesc: "Gewichtung dichter Notiz-Embeddings (z. B. bge-m3 / OpenAI).",
+    weightWikiLinksName: "WikiLink-Gewichtung (%)",
+    weightWikiLinksDesc: "Gewichtung manueller Links ([[...]]) zwischen Notizen.",
+    weightFolderName: "Ordner- / Pfad-Gewichtung (%)",
+    weightFolderDesc: "Gewichtung gemeinsamer Ordner-Verzeichnisse.",
+    weightSemanticsName: "Semantik- / Formel-Gewichtung (%)",
+    weightSemanticsDesc: "Gewichtung von Textbegriffen & LaTeX-Formeln.",
     btnScanVault: "Vault scannen",
     btnCalcVectors: "Vektoren berechnen",
     btnCreateRel: "Beziehung erstellen",
@@ -295,6 +305,16 @@ var translations = {
     projClouds: "Topic Clouds (Cloud Map)",
     projFlow: "Dependency Flow (DAG)",
     projGraph: "Pure Graph (WikiLinks)",
+    lblNodeDist: "Node Spacing",
+    lblCloudDist: "Cloud Spacing",
+    weightVectorName: "Vector Weight (%)",
+    weightVectorDesc: "Weight of dense note embeddings (e.g. bge-m3 / OpenAI).",
+    weightWikiLinksName: "WikiLink Weight (%)",
+    weightWikiLinksDesc: "Weight of manual links ([[...]]) between notes.",
+    weightFolderName: "Folder / Path Weight (%)",
+    weightFolderDesc: "Weight of shared directory paths.",
+    weightSemanticsName: "Semantics / Formula Weight (%)",
+    weightSemanticsDesc: "Weight of text terms & LaTeX formulas.",
     btnScanVault: "Scan Vault",
     btnCalcVectors: "Calculate Vectors",
     btnCreateRel: "Create Relation",
@@ -997,6 +1017,58 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.weightVectorName)
+      .setDesc(t.weightVectorDesc)
+      .addSlider((slider) => slider
+        .setLimits(0, 100, 5)
+        .setValue(this.plugin.settings.weightVector ?? 50)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.weightVector = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.weightWikiLinksName)
+      .setDesc(t.weightWikiLinksDesc)
+      .addSlider((slider) => slider
+        .setLimits(0, 100, 5)
+        .setValue(this.plugin.settings.weightWikiLinks ?? 30)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.weightWikiLinks = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.weightFolderName)
+      .setDesc(t.weightFolderDesc)
+      .addSlider((slider) => slider
+        .setLimits(0, 100, 5)
+        .setValue(this.plugin.settings.weightFolder ?? 10)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.weightFolder = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.weightSemanticsName)
+      .setDesc(t.weightSemanticsDesc)
+      .addSlider((slider) => slider
+        .setLimits(0, 100, 5)
+        .setValue(this.plugin.settings.weightSemantics ?? 10)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.weightSemantics = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
     // 4. Qdrant
     containerEl.createEl("h3", { text: t.secQdrant });
     new import_obsidian3.Setting(containerEl)
@@ -1100,6 +1172,10 @@ var DEFAULT_SETTINGS = {
   modelName: "deepseek-r1:7b",
   temperature: 0.1,
   vectorSearchExclusions: "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
+  weightVector: 50,
+  weightWikiLinks: 30,
+  weightFolder: 10,
+  weightSemantics: 10,
   radarNoteCount: 10,
   qdrantUrl: "http://localhost:6333",
   qdrantCollection: "obsidian_wiki_vectors",
@@ -1346,6 +1422,50 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       { id: "graph", label: t.projGraph }
     ], this.projectionMode || "cloud", (newMode) => {
       this.projectionMode = newMode;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const createSlider = (parent, label, min, max, step, initialValue, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; flex-direction:column; padding:5px 12px; gap:2px;";
+
+      const header = row.createEl("div");
+      header.style.cssText = "display:flex; align-items:center; justify-content:space-between;";
+
+      const lbl = header.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.78em; color:var(--text-muted, #94a3b8);";
+
+      const valText = header.createEl("span", { text: `${initialValue}px` });
+      valText.style.cssText = "font-size:0.75em; font-family:var(--font-monospace); color:var(--text-normal, #f8fafc); font-weight:600;";
+
+      const input = row.createEl("input", { type: "range" });
+      input.min = String(min);
+      input.max = String(max);
+      input.step = String(step);
+      input.value = String(initialValue);
+      input.style.cssText = "width:100%; cursor:pointer; accent-color:#06b6d4; height:4px;";
+
+      input.oninput = () => {
+        const val = Number(input.value);
+        valText.setText(`${val}px`);
+        onChange(val);
+      };
+
+      return input;
+    };
+
+    if (this.nodeSpacing === undefined) this.nodeSpacing = 160;
+    if (this.cloudSpacing === undefined) this.cloudSpacing = 320;
+
+    createSlider(ansichtBody, t.lblNodeDist, 50, 300, 10, this.nodeSpacing, (newVal) => {
+      this.nodeSpacing = newVal;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    createSlider(ansichtBody, t.lblCloudDist, 150, 600, 20, this.cloudSpacing, (newVal) => {
+      this.cloudSpacing = newVal;
       this.applyVectorLayout();
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     });
@@ -1847,6 +1967,668 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       });
     }
 
+var CLOUD_PALETTES = [
+  { inner: "rgba(6, 182, 212, 0.25)", outer: "rgba(6, 182, 212, 0.01)", labelColor: "#06b6d4" },   // Cyan
+  { inner: "rgba(139, 92, 246, 0.25)", outer: "rgba(139, 92, 246, 0.01)", labelColor: "#8b5cf6" }, // Violet
+  { inner: "rgba(16, 185, 129, 0.25)", outer: "rgba(16, 185, 129, 0.01)", labelColor: "#10b981" }, // Emerald
+  { inner: "rgba(245, 158, 11, 0.25)", outer: "rgba(245, 158, 11, 0.01)", labelColor: "#f59e0b" }, // Amber
+  { inner: "rgba(236, 72, 153, 0.25)", outer: "rgba(236, 72, 153, 0.01)", labelColor: "#ec4899" }, // Pink
+  { inner: "rgba(59, 130, 246, 0.25)", outer: "rgba(59, 130, 246, 0.01)", labelColor: "#3b82f6" }, // Blue
+  { inner: "rgba(239, 68, 68, 0.25)", outer: "rgba(239, 68, 68, 0.01)", labelColor: "#ef4444" },   // Red
+  { inner: "rgba(20, 184, 166, 0.25)", outer: "rgba(20, 184, 166, 0.01)", labelColor: "#14b8a6" }  // Teal
+];
+
+var VectorScatterView = class extends import_obsidian4.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.nodes = [];
+    this.selectedNodeIds = new Set();
+    this.pan = { x: 0, y: 0 };
+    this.zoom = 1;
+    this.isDraggingPan = false;
+    this.isDraggingLasso = false;
+    this.dragStart = { x: 0, y: 0 };
+    this.lassoPath = [];
+    this.lassoSelectMode = false;
+    this.hoveredNode = null;
+    this.showEdges = false;
+    this.relationEdges = [];
+    this.nodeSpacing = 160;
+    this.cloudSpacing = 320;
+  }
+  getViewType() {
+    return MATH_VECTOR_SCATTER_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "MemVector Graph";
+  }
+  getIcon() {
+    return "dot-network";
+  }
+  async onOpen() {
+    this.containerEl.style.position = "relative";
+
+    const container = this.containerEl.children[1] || this.containerEl;
+    container.empty();
+    container.addClass("math-vector-scatter-container");
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.height = "100%";
+    container.style.width = "100%";
+    container.style.background = "var(--background-primary)";
+    container.style.position = "relative";
+    container.style.overflow = "hidden";
+
+    // 1. Canvas Container (Flex 1, 100% space) — comes FIRST, no toolbar taking space
+    const canvasWrap = container.createEl("div");
+    canvasWrap.style.flex = "1";
+    canvasWrap.style.position = "relative";
+    canvasWrap.style.width = "100%";
+    canvasWrap.style.height = "100%";
+    canvasWrap.style.overflow = "hidden";
+
+    const canvas = canvasWrap.createEl("canvas");
+    canvas.style.width = "100%";
+    canvas.style.height = "100%";
+    canvas.style.display = "block";
+    canvas.style.cursor = "grab";
+
+    const ctx = canvas.getContext("2d");
+
+    // 2. Floating Panel — right-aligned, absolutely positioned INSIDE canvasWrap
+    const toolbar = canvasWrap.createEl("div");
+    toolbar.style.position = "absolute";
+    toolbar.style.top = "12px";
+    toolbar.style.right = "12px";
+    toolbar.style.zIndex = "20";
+    toolbar.style.display = "flex";
+    toolbar.style.flexDirection = "column";
+    toolbar.style.width = "220px";
+    toolbar.style.borderRadius = "12px";
+    toolbar.style.background = "var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)))";
+    toolbar.style.backdropFilter = "blur(20px)";
+    toolbar.style.webkitBackdropFilter = "blur(20px)";
+    toolbar.style.border = "1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)))";
+    toolbar.style.boxShadow = "0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3))";
+    toolbar.style.overflow = "hidden";
+    toolbar.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+    toolbar.style.userSelect = "none";
+
+    // Native View Header Action Button — toggles floating panel
+    this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
+      const isVisible = toolbar.style.opacity !== "0";
+      toolbar.style.opacity = isVisible ? "0" : "1";
+      toolbar.style.pointerEvents = isVisible ? "none" : "auto";
+      toolbar.style.transform = isVisible ? "translateY(-6px) scale(0.97)" : "translateY(0) scale(1)";
+    });
+
+    // ── Helper: CSS toggle switch ─────────────────────────────────────────
+    const createToggle = (parent, label, initialOn, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:7px 12px; cursor:pointer;";
+
+      const lbl = row.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.82em; color:var(--text-normal, #cbd5e1); flex:1;";
+
+      // Track element
+      let on = initialOn;
+      const track = row.createEl("div");
+      track.style.cssText = `
+        width:32px; height:17px; border-radius:9px; position:relative; flex-shrink:0;
+        background:${on ? "#06b6d4" : "var(--background-modifier-border, rgba(100,116,139,0.5))"};
+        transition: background 0.2s ease; cursor:pointer;
+        border: 1px solid ${on ? "rgba(6,182,212,0.4)" : "var(--background-modifier-border, rgba(255,255,255,0.08))"};
+      `;
+      const thumb = track.createEl("div");
+      thumb.style.cssText = `
+        width:11px; height:11px; border-radius:50%; background:#fff;
+        position:absolute; top:2px; left:${on ? "17px" : "2px"};
+        transition: left 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      `;
+
+      const setState = (newOn) => {
+        on = newOn;
+        track.style.background = on ? "#06b6d4" : "var(--background-modifier-border, rgba(100,116,139,0.5))";
+        track.style.borderColor = on ? "rgba(6,182,212,0.4)" : "var(--background-modifier-border, rgba(255,255,255,0.08))";
+        thumb.style.left = on ? "17px" : "2px";
+      };
+
+      row.onclick = () => {
+        on = !on;
+        setState(on);
+        onChange(on);
+      };
+      return row;
+    };
+
+    // ── Helper: Accordion Section ──────────────────────────────────────────
+    const createSection = (parent, title, defaultOpen = true) => {
+      const header = parent.createEl("div");
+      header.style.cssText = `
+        display:flex; align-items:center; justify-content:space-between;
+        padding:8px 12px; cursor:pointer;
+        border-bottom:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));
+        background:var(--background-secondary, rgba(30,41,59,0.5));
+      `;
+      const lbl = header.createEl("span", { text: title });
+      lbl.style.cssText = "font-size:0.75em; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-muted, #94a3b8);";
+      const chevron = header.createEl("span", { text: defaultOpen ? "▾" : "▸" });
+      chevron.style.cssText = "font-size:0.8em; color:var(--text-muted, #64748b);";
+
+      const body = parent.createEl("div");
+      body.style.cssText = `display:${defaultOpen ? "block" : "none"}; border-bottom:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));`;
+
+      header.onclick = () => {
+        const isOpen = body.style.display !== "none";
+        body.style.display = isOpen ? "none" : "block";
+        chevron.setText(isOpen ? "▸" : "▾");
+      };
+      return body;
+    };
+
+    const lang = this.plugin.settings.language || "de";
+    const t = getTranslation(lang);
+
+    // ── Panel Header ───────────────────────────────────────────────────────
+    const panelHeader = toolbar.createEl("div");
+    panelHeader.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-bottom:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));";
+    const headerLeft = panelHeader.createEl("div");
+    headerLeft.style.cssText = "display:flex; align-items:center; gap:8px;";
+    const titleDot = headerLeft.createEl("div");
+    titleDot.style.cssText = "width:7px; height:7px; border-radius:50%; background:#06b6d4; box-shadow:0 0 8px #06b6d4; flex-shrink:0;";
+    const statusText = panelHeader.createEl("span", { text: "–" });
+    statusText.style.cssText = "font-family:var(--font-monospace); font-size:0.75em; color:var(--text-muted, #94a3b8); font-weight:600;";
+
+    // ── Section: Filter ────────────────────────────────────────────────────
+    const filterBody = createSection(toolbar, t.secFilter, true);
+
+    const filterInput = filterBody.createEl("input", {
+      type: "text",
+      placeholder: "-path:schema -file:index...",
+      value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
+    });
+    filterInput.style.cssText = `
+      display:block; width:calc(100% - 24px); margin:4px 12px 8px;
+      box-sizing:border-box; font-size:0.76em; padding:5px 9px;
+      border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.09));
+      background:var(--background-primary, rgba(15,23,42,0.7)); color:var(--text-normal, #f8fafc); outline:none;
+    `;
+
+    // ── Section: Ansicht ───────────────────────────────────────────────────
+    const ansichtBody = createSection(toolbar, t.secView, true);
+
+    const createDropdown = (parent, label, options, initialValue, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:6px 12px;";
+
+      const lbl = row.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.8em; color:var(--text-muted, #94a3b8); flex:1;";
+
+      const select = row.createEl("select");
+      select.style.cssText = `
+        font-size:0.75em; padding:3px 6px; border-radius:6px;
+        background:var(--background-primary, rgba(15,23,42,0.8));
+        color:var(--text-normal, #f8fafc); border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1));
+        outline:none; cursor:pointer;
+      `;
+      options.forEach((opt) => {
+        const option = select.createEl("option", { text: opt.label, value: opt.id });
+        if (opt.id === initialValue) option.selected = true;
+      });
+
+      select.onchange = () => onChange(select.value);
+      return select;
+    };
+
+    const projDropdown = createDropdown(ansichtBody, t.lblProjection, [
+      { id: "cloud", label: t.projClouds },
+      { id: "flow", label: t.projFlow },
+      { id: "graph", label: t.projGraph }
+    ], this.projectionMode || "cloud", (newMode) => {
+      this.projectionMode = newMode;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const createSlider = (parent, label, min, max, step, initialValue, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; flex-direction:column; padding:5px 12px; gap:2px;";
+
+      const header = row.createEl("div");
+      header.style.cssText = "display:flex; align-items:center; justify-content:space-between;";
+
+      const lbl = header.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.78em; color:var(--text-muted, #94a3b8);";
+
+      const valText = header.createEl("span", { text: `${initialValue}px` });
+      valText.style.cssText = "font-size:0.75em; font-family:var(--font-monospace); color:var(--text-normal, #f8fafc); font-weight:600;";
+
+      const input = row.createEl("input", { type: "range" });
+      input.min = String(min);
+      input.max = String(max);
+      input.step = String(step);
+      input.value = String(initialValue);
+      input.style.cssText = "width:100%; cursor:pointer; accent-color:#06b6d4; height:4px;";
+
+      input.oninput = () => {
+        const val = Number(input.value);
+        valText.setText(`${val}px`);
+        onChange(val);
+      };
+
+      return input;
+    };
+
+    createSlider(ansichtBody, t.lblNodeDist, 50, 300, 10, this.nodeSpacing, (newVal) => {
+      this.nodeSpacing = newVal;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    createSlider(ansichtBody, t.lblCloudDist, 150, 600, 20, this.cloudSpacing, (newVal) => {
+      this.cloudSpacing = newVal;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const edgeToggle = createToggle(ansichtBody, t.lblShowEdges, this.showEdges, async (on) => {
+      this.showEdges = on;
+      if (on) await this.loadRelationEdges();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const lassoToggle = createToggle(ansichtBody, t.lblLasso, this.lassoSelectMode, (on) => {
+      this.lassoSelectMode = on;
+      canvas.style.cursor = on ? "crosshair" : "grab";
+    });
+
+    // ── Section: Actions ───────────────────────────────────────────────────
+    const aktionenBody = createSection(toolbar, t.secActions, true);
+
+    const setActionBtnEnabled = (btn, enabled) => {
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.45";
+      btn.style.cursor = enabled ? "pointer" : "not-allowed";
+    };
+
+    const createActionBtn = (parent, text, onClick) => {
+      const btn = parent.createEl("button");
+      btn.style.cssText = `
+        display:block; width:calc(100% - 24px); margin:4px 12px 6px;
+        box-sizing:border-box; font-size:0.77em; font-weight:600; padding:6px 10px;
+        border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1));
+        background:var(--background-secondary, rgba(30,41,59,0.7)); color:var(--text-normal, #f8fafc);
+        cursor:pointer; transition: background 0.15s ease, opacity 0.15s ease;
+      `;
+      btn.textContent = text;
+      btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = "var(--background-modifier-hover, rgba(51,65,85,0.9))"; };
+      btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = "var(--background-secondary, rgba(30,41,59,0.7))"; };
+      btn.onclick = onClick;
+      return btn;
+    };
+
+    const refreshBtn = createActionBtn(aktionenBody, t.btnScanVault, async () => {});
+    const calcVectorsBtn = createActionBtn(aktionenBody, t.btnCalcVectors, async () => {});
+
+    const rawModel = this.plugin.settings?.modelName || "LLM";
+    const shortModel = getShortModelName(rawModel);
+    const synthesizeBtn = createActionBtn(aktionenBody, `${shortModel} Synthese (0)`, () => {});
+    synthesizeBtn.title = `Modell: ${rawModel}`;
+    setActionBtnEnabled(synthesizeBtn, false);
+
+    const createRelBtn = createActionBtn(aktionenBody, `${t.btnCreateRel} (≥2)`, () => {});
+    setActionBtnEnabled(createRelBtn, false);
+
+    const clearSelBtn = createActionBtn(aktionenBody, t.btnClearSel, () => {});
+    setActionBtnEnabled(clearSelBtn, false);
+
+    // Hover tooltip bar inside floating panel footer
+    const hoverBar = toolbar.createEl("div");
+    hoverBar.style.cssText = "padding:7px 12px; font-size:0.73em; color:var(--text-muted, #94a3b8); border-top:1px solid var(--background-modifier-border, rgba(255,255,255,0.05)); line-height:1.4;";
+    hoverBar.setText(t.hoverHint);
+
+    let isDebouncingFilter = false;
+    filterInput.oninput = () => {
+      if (isDebouncingFilter) return;
+      isDebouncingFilter = true;
+      setTimeout(async () => {
+        isDebouncingFilter = false;
+        await this.scanVaultNotes(filterInput.value.trim());
+        updateSelectionUI();
+      }, 450);
+    };
+
+    const updateSelectionUI = () => {
+      const count = this.selectedNodeIds.size;
+      const rawModel = this.plugin.settings?.modelName || "LLM";
+      const shortModel = getShortModelName(rawModel);
+
+      setActionBtnEnabled(synthesizeBtn, count > 0);
+      synthesizeBtn.setText(`${shortModel} Synthese (${count})`);
+      synthesizeBtn.title = `Modell: ${rawModel}`;
+
+      setActionBtnEnabled(createRelBtn, count >= 2);
+      createRelBtn.setText(count >= 2 ? `${t.btnCreateRel} (${count})` : `${t.btnCreateRel} (≥2)`);
+
+      setActionBtnEnabled(clearSelBtn, count > 0);
+
+      statusText.setText(`${this.nodes.length} | ${count} gew.`);
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
+
+    clearSelBtn.onclick = () => {
+      this.selectedNodeIds.clear();
+      updateSelectionUI();
+    };
+
+    refreshBtn.onclick = async () => {
+      statusText.setText("Scanne Vault Notizen...");
+      hoverBar.style.color = "var(--text-muted)";
+      hoverBar.setText("Scanne Vault-Notizen...");
+      await this.scanVaultNotes();
+      statusText.setText(`${this.nodes.length}`);
+      hoverBar.setText(`${this.nodes.length} Notizen erfolgreich im Vault gescannt.`);
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
+
+    calcVectorsBtn.onclick = async () => {
+      const embedModel = this.plugin.settings?.embeddingModel || "bge-m3";
+      const apiBase = this.plugin.settings?.embeddingApiBaseUrl || "http://localhost:11434/v1";
+      const apiKey = this.plugin.settings?.embeddingApiKey || "ollama";
+
+      if (!this.nodes || this.nodes.length === 0) {
+        await this.scanVaultNotes();
+      }
+
+      const total = this.nodes.length;
+      if (total === 0) {
+        hoverBar.style.color = "var(--text-warning, #f59e0b)";
+        hoverBar.setText("⚠️ Keine Notizen im Vault zum Berechnen von Vektoren gefunden.");
+        return;
+      }
+
+      calcVectorsBtn.disabled = true;
+      calcVectorsBtn.style.opacity = "0.5";
+      statusText.setText(`Vektoren 0/${total}...`);
+
+      let successCount = 0;
+      let lastError = null;
+
+      for (let i = 0; i < total; i++) {
+        const node = this.nodes[i];
+        hoverBar.style.color = "var(--text-muted)";
+        hoverBar.setText(`⚙️ Berechne Embedding mit '${embedModel}' (${i + 1}/${total}): ${node.title}...`);
+        statusText.setText(`Vektoren ${i + 1}/${total}...`);
+
+        const res = await fetchEmbedding(node.content || node.title, apiBase, apiKey, embedModel);
+        if (res.embedding) {
+          node.embedding = res.embedding;
+          successCount++;
+        } else {
+          lastError = res.error;
+          console.warn(`[MemVector] Embedding Fehler bei Notiz '${node.title}':`, res.error);
+        }
+      }
+
+      calcVectorsBtn.disabled = false;
+      calcVectorsBtn.style.opacity = "1";
+
+      if (successCount === total) {
+        this.applyVectorLayout();
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+        hoverBar.style.color = "var(--text-muted)";
+        hoverBar.setText(`✅ ${successCount}/${total} Vektoren erfolgreich mit '${embedModel}' berechnet.`);
+        statusText.setText(`${total} | Vektoren OK`);
+        new import_obsidian4.Notice(`✅ ${successCount} Notiz-Vektoren mit '${embedModel}' berechnet.`);
+      } else if (lastError) {
+        statusText.setText(`Fehler (${successCount}/${total})`);
+        hoverBar.style.color = "var(--text-error, #ef4444)";
+        hoverBar.setText(`❌ Embedding abgebrochen (${successCount}/${total}): ${lastError}`);
+        new import_obsidian4.Notice(`❌ Embedding Fehler: ${lastError}`, 8000);
+      }
+    };
+
+    synthesizeBtn.onclick = () => this.runDeepSeekSynthesis(hoverBar);
+
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
+          const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+          const newZoom = Math.max(0.2, Math.min(8, this.zoom * zoomFactor));
+
+          this.pan.x = mouseX - (mouseX - this.pan.x) * (newZoom / this.zoom);
+          this.pan.y = mouseY - (mouseY - this.pan.y) * (newZoom / this.zoom);
+          this.zoom = newZoom;
+        } else {
+          this.pan.x -= e.deltaX * 0.9;
+          this.pan.y -= e.deltaY * 0.9;
+        }
+
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      },
+      { passive: false }
+    );
+
+    canvas.addEventListener("mousedown", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (this.lassoSelectMode || e.shiftKey || e.metaKey || e.ctrlKey) {
+        this.isDraggingLasso = true;
+        this.lassoPath = [{ x: mouseX, y: mouseY }];
+      } else {
+        this.isDraggingPan = true;
+        this.dragStart = { x: e.clientX - this.pan.x, y: e.clientY - this.pan.y };
+        canvas.style.cursor = "grabbing";
+      }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!this.containerEl.contains(canvas)) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      if (this.isDraggingPan) {
+        this.pan.x = e.clientX - this.dragStart.x;
+        this.pan.y = e.clientY - this.dragStart.y;
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      } else if (this.isDraggingLasso) {
+        this.lassoPath.push({ x: mouseX, y: mouseY });
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      } else {
+        const hovered = this.hitTest(mouseX, mouseY);
+        if (hovered !== this.hoveredNode) {
+          this.hoveredNode = hovered;
+          canvas.style.cursor = hovered ? "pointer" : this.lassoSelectMode ? "crosshair" : "grab";
+          if (hovered) {
+            const cloudName = hovered.cloudLabel ? ` [☁️ ${hovered.cloudLabel}]` : "";
+            hoverBar.style.color = "var(--text-normal)";
+            hoverBar.setText(`📍 ${hovered.title}${cloudName} (${hovered.type}) — Klicken zum Auswählen`);
+          } else {
+            hoverBar.style.color = "var(--text-muted)";
+            hoverBar.setText(t.hoverHint);
+          }
+          this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+        }
+      }
+    });
+
+    window.addEventListener("mouseup", (e) => {
+      if (this.isDraggingPan) {
+        this.isDraggingPan = false;
+        canvas.style.cursor = this.lassoSelectMode ? "crosshair" : "grab";
+      }
+
+      if (this.isDraggingLasso) {
+        this.isDraggingLasso = false;
+        if (this.lassoPath.length > 2) {
+          this.nodes.forEach((node) => {
+            const pos = this.worldToScreen(node.x, node.y);
+            if (this.pointInPolygon(pos, this.lassoPath)) {
+              this.selectedNodeIds.add(node.id);
+            }
+          });
+          updateSelectionUI();
+        }
+        this.lassoPath = [];
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      }
+    });
+
+    canvas.addEventListener("click", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const clickedNode = this.hitTest(mouseX, mouseY);
+      if (clickedNode) {
+        if (e.shiftKey || e.metaKey || e.ctrlKey || this.lassoSelectMode) {
+          if (this.selectedNodeIds.has(clickedNode.id)) {
+            this.selectedNodeIds.delete(clickedNode.id);
+          } else {
+            this.selectedNodeIds.add(clickedNode.id);
+          }
+        } else {
+          const activeLeaf = this.app.workspace.getActiveViewOfType(import_obsidian4.View);
+          if (activeLeaf && activeLeaf.getViewType() === "markdown") {
+            const editor = activeLeaf.editor;
+            if (editor) {
+              const currentText = editor.getValue();
+              if (currentText.includes(clickedNode.id)) {
+                new import_obsidian4.Notice(`ℹ️ Link [[${clickedNode.id}]] existiert bereits in der aktiven Notiz.`);
+                return;
+              }
+              const link = `\n- [[${clickedNode.id}]]\n`;
+              editor.replaceRange(link, editor.getCursor());
+              new import_obsidian4.Notice(`✅ Link [[${clickedNode.id}]] eingefügt.`);
+            }
+          } else {
+            const targetFile = this.app.vault.getMarkdownFiles().find((f) => f.basename.toLowerCase() === clickedNode.id.toLowerCase());
+            if (targetFile) {
+              this.app.workspace.getLeaf(false).openFile(targetFile);
+            }
+          }
+        }
+        updateSelectionUI();
+      }
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (canvasWrap.clientWidth > 0 && canvasWrap.clientHeight > 0) {
+        canvas.width = canvasWrap.clientWidth * window.devicePixelRatio;
+        canvas.height = canvasWrap.clientHeight * window.devicePixelRatio;
+        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      }
+    });
+    resizeObserver.observe(canvasWrap);
+
+    await this.scanVaultNotes();
+    updateSelectionUI();
+  }
+
+  pointInPolygon(point, polygon) {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const xi = polygon[i].x, yi = polygon[i].y;
+      const xj = polygon[j].x, yj = polygon[j].y;
+      const intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  shouldIncludeFile(file, filterQuery) {
+    if (!filterQuery) return true;
+    const tokens = filterQuery.trim().split(/\s+/);
+    const filePath = file.path.toLowerCase();
+    const fileName = file.basename.toLowerCase();
+
+    for (const token of tokens) {
+      if (token.startsWith("-path:")) {
+        const val = token.slice(6).toLowerCase();
+        if (val && filePath.includes(val)) return false;
+      } else if (token.startsWith("-file:")) {
+        const val = token.slice(6).toLowerCase();
+        if (val && fileName.includes(val)) return false;
+      }
+    }
+    return true;
+  }
+
+  async scanVaultNotes(filterQueryOverride) {
+    const filterQuery = filterQueryOverride !== undefined
+      ? filterQueryOverride
+      : (this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks");
+
+    const files = this.plugin.app.vault.getMarkdownFiles();
+    const nodes = [];
+
+    for (const file of files) {
+      if (!this.shouldIncludeFile(file, filterQuery)) {
+        continue;
+      }
+      const content = await this.plugin.app.vault.read(file);
+      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      let type = "concept";
+      let title = file.basename;
+
+      if (frontmatterMatch) {
+        const yaml = frontmatterMatch[1];
+        const typeMatch = yaml.match(/^type:\s*(.+)$/m);
+        if (typeMatch) type = typeMatch[1].trim().toLowerCase();
+        const titleMatch = yaml.match(/^title:\s*(.+)$/m);
+        if (titleMatch) title = titleMatch[1].trim().replace(/^['"]|['"]$/g, "");
+      }
+
+      const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());
+      const linkMatches = [...content.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)].map((m) => m[1].trim().toLowerCase());
+
+      const hashStr = title + content.slice(0, 500) + latexMatches.join("");
+      let hash = 0;
+      for (let i = 0; i < hashStr.length; i++) {
+        hash = (hash << 5) - hash + hashStr.charCodeAt(i);
+        hash |= 0;
+      }
+
+      const typeOffsets = {
+        definition: { x: -250, y: -150 },
+        theorem: { x: 200, y: -150 },
+        concept: { x: 0, y: 150 },
+        relation: { x: -200, y: 150 },
+        synthesis: { x: 250, y: 150 },
+        course: { x: 0, y: -250 },
+        question: { x: -300, y: 0 },
+        source: { x: 300, y: 0 }
+      };
+
+      const baseOffset = typeOffsets[type] || { x: 0, y: 0 };
+      const rawX = baseOffset.x + (Math.abs(hash) % 300 - 150);
+      const rawY = baseOffset.y + (Math.abs(hash >> 3) % 300 - 150);
+
+      nodes.push({
+        id: file.basename,
+        title,
+        type,
+        path: file.path,
+        x: rawX,
+        y: rawY,
+        latexFormulas: latexMatches,
+        links: linkMatches,
+        content: content.slice(0, 800)
+      });
+    }
+
     this.nodes = nodes;
     this.applyVectorLayout();
     await this.loadRelationEdges();
@@ -1859,7 +2641,18 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const mode = this.projectionMode || "cloud";
     const n = this.nodes.length;
 
-    // Helper: calculate hybrid similarity matrix S(i, j)
+    const wVec = (this.plugin.settings?.weightVector ?? 50) / 100;
+    const wLink = (this.plugin.settings?.weightWikiLinks ?? 30) / 100;
+    const wFolder = (this.plugin.settings?.weightFolder ?? 10) / 100;
+    const wSem = (this.plugin.settings?.weightSemantics ?? 10) / 100;
+    const totalWeight = (wVec + wLink + wFolder + wSem) || 1;
+
+    const normWVec = wVec / totalWeight;
+    const normWLink = wLink / totalWeight;
+    const normWFolder = wFolder / totalWeight;
+    const normWSem = wSem / totalWeight;
+
+    // Helper: calculate hybrid similarity matrix S(i, j) using user-defined weights
     const calcSimilarity = (a, b) => {
       let vecSim = 0;
       if (a.embedding && b.embedding && a.embedding.length === b.embedding.length) {
@@ -1888,20 +2681,20 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const formSim = formsA.size + formsB.size > 0 ? formIntersect / Math.max(1, Math.min(formsA.size, formsB.size)) : 0;
 
       const isWikiLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
-      const linkSim = isWikiLinked ? 0.7 : 0;
+      const linkSim = isWikiLinked ? 0.75 : 0;
 
       const folderA = a.path.split("/").slice(0, -1).join("/");
       const folderB = b.path.split("/").slice(0, -1).join("/");
-      const folderSim = (folderA && folderA === folderB) ? 0.3 : 0;
+      const folderSim = (folderA && folderA === folderB) ? 0.40 : 0;
+
+      const semSim = isMath ? formSim : wordSim;
 
       if (a.embedding && b.embedding) {
-        return vecSim * 0.50 + linkSim * 0.30 + folderSim * 0.10 + (isMath ? formSim : wordSim) * 0.10;
-      }
-
-      if (isMath) {
-        return Math.min(1.0, wordSim * 0.15 + formSim * 0.50 + linkSim * 0.25 + folderSim * 0.10);
+        return Math.min(1.0, vecSim * normWVec + linkSim * normWLink + folderSim * normWFolder + semSim * normWSem);
       } else {
-        return Math.min(1.0, wordSim * 0.50 + formSim * 0.05 + linkSim * 0.30 + folderSim * 0.15);
+        const adjustedSemWeight = normWSem + normWVec * 0.5;
+        const adjustedLinkWeight = normWLink + normWVec * 0.5;
+        return Math.min(1.0, semSim * adjustedSemWeight + linkSim * adjustedLinkWeight + folderSim * normWFolder);
       }
     };
 
@@ -1939,7 +2732,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     if (mode === "cloud") {
       // MODE 1: Topic Clouds (Centroid-based Universal Logical Clusters)
       const cloudAngleStep = (Math.PI * 2) / numClouds;
-      const cloudRadius = 320;
+      const cloudRadius = this.cloudSpacing || 320;
+      const targetNodeSpacing = this.nodeSpacing || 160;
 
       this.nodes.forEach((node, i) => {
         const cAngle = node.cloudId * cloudAngleStep;
@@ -1950,13 +2744,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         let hash = 0;
         for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
 
-        node.anchorX = cX + ((Math.abs(hash) % 160) - 80);
-        node.anchorY = cY + ((Math.abs(hash >> 3) % 160) - 80);
+        node.anchorX = cX + ((Math.abs(hash) % (targetNodeSpacing * 0.9)) - targetNodeSpacing * 0.45);
+        node.anchorY = cY + ((Math.abs(hash >> 3) % (targetNodeSpacing * 0.9)) - targetNodeSpacing * 0.45);
         node.x = node.anchorX;
         node.y = node.anchorY;
       });
 
-      const iterations = 30;
+      const iterations = 35;
       for (let iter = 0; iter < iterations; iter++) {
         const alpha = 0.5 * (1 - iter / iterations);
 
@@ -1975,14 +2769,14 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
             const dist = Math.hypot(dx, dy) || 1;
 
             const sim = matrix[i][j];
-            if (sim > 0.1) {
-              const idealDist = 160 * (1 - sim * 0.75);
+            if (sim > 0.08) {
+              const idealDist = targetNodeSpacing * (1 - sim * 0.75);
               const delta = dist - idealDist;
               fx -= (dx / dist) * delta * sim * 0.22;
               fy -= (dy / dist) * delta * sim * 0.22;
-            } else if (dist < 75) {
-              fx += (dx / dist) * 14;
-              fy += (dy / dist) * 14;
+            } else if (dist < targetNodeSpacing * 0.5) {
+              fx += (dx / dist) * 16;
+              fy += (dy / dist) * 16;
             }
           }
 
@@ -2034,10 +2828,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
             const dist = Math.hypot(dx, dy) || 1;
             const sim = matrix[i][j];
             if (sim > 0.2) {
-              const delta = dist - 120;
+              const delta = dist - (this.nodeSpacing || 120);
               fx -= (dx / dist) * delta * sim * 0.3;
               fy -= (dy / dist) * delta * sim * 0.3;
-            } else if (dist < 90) {
+            } else if (dist < (this.nodeSpacing || 120) * 0.6) {
               fx += (dx / dist) * 16;
               fy += (dy / dist) * 16;
             }
@@ -2252,27 +3046,30 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         }
       });
 
-      cloudCenters.forEach((c) => {
+      cloudCenters.forEach((c, cloudId) => {
         if (c.count > 0) {
           const avgX = c.sumX / c.count;
           const avgY = c.sumY / c.count;
           const pos = this.worldToScreen(avgX, avgY);
 
+          const cloudIdx = cloudId % CLOUD_PALETTES.length;
+          const palette = CLOUD_PALETTES[cloudIdx];
+
           ctx.save();
-          ctx.font = "600 11px var(--font-interface, sans-serif)";
-          ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+          ctx.font = "600 12px var(--font-interface, sans-serif)";
+          ctx.fillStyle = palette.labelColor;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText(`☁️ ${c.label} (${c.count})`, pos.x, pos.y - 35 * this.zoom);
+          ctx.fillText(`☁️ ${c.label} (${c.count})`, pos.x, pos.y - 40 * this.zoom);
           ctx.restore();
         }
       });
     }
 
-    // 2D Kernel Density Field Heatmap Layer (Glowing Cluster Density)
+    // 2D Kernel Density Field Heatmap Layer (Distinct Colorful Aura Glow per Cloud)
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    const heatmapRadius = 80 * this.zoom;
+    const heatmapRadius = 90 * this.zoom;
     this.nodes.forEach((node) => {
       const pos = this.worldToScreen(node.x, node.y);
       if (
@@ -2281,9 +3078,11 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         pos.y >= -heatmapRadius &&
         pos.y <= height + heatmapRadius
       ) {
+        const cloudIdx = node.cloudId !== undefined ? (node.cloudId % CLOUD_PALETTES.length) : 0;
+        const palette = CLOUD_PALETTES[cloudIdx];
         const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, heatmapRadius);
-        grad.addColorStop(0, "rgba(59, 130, 246, 0.14)");
-        grad.addColorStop(0.5, "rgba(139, 92, 246, 0.05)");
+        grad.addColorStop(0, palette.inner);
+        grad.addColorStop(0.6, palette.outer);
         grad.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx.fillStyle = grad;
         ctx.beginPath();
