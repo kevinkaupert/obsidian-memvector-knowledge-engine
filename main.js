@@ -1670,18 +1670,49 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
             });
 
             const fullCypher = cypherQueries.join("\n");
-            
+            let httpSynced = false;
+
+            // Try direct HTTP Cypher Execution on Memgraph HTTP endpoint
+            try {
+              let httpUrl = (this.plugin.settings.memgraphUrl || "http://localhost:7687").replace(/:7687/, ":7474").replace(/\/+$/, "");
+              let res = await (0, import_obsidian3.requestUrl)({
+                url: `${httpUrl}/db/data/cypher`,
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: fullCypher }),
+                throwOnError: false
+              });
+              if (res.status === 200) {
+                httpSynced = true;
+              } else {
+                // Try port 7070 (Memgraph bridge port)
+                const bridgeUrl = httpUrl.replace(/:7474/, ":7070");
+                res = await (0, import_obsidian3.requestUrl)({
+                  url: `${bridgeUrl}/db/data/cypher`,
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ query: fullCypher }),
+                  throwOnError: false
+                });
+                if (res.status === 200) {
+                  httpSynced = true;
+                }
+              }
+            } catch (e) {}
+
             try {
               if (navigator.clipboard) {
                 await navigator.clipboard.writeText(fullCypher);
               }
-              new import_obsidian3.Notice(`📋 ${nodeMap.size} Knoten & ${edgeList.length} Kanten als Cypher in deine Zwischenablage kopiert! Füge es in Memgraph Lab (Run Query) ein.`);
-            } catch (e) {
-              console.log("Cypher Output:", fullCypher);
-              new import_obsidian3.Notice(`📋 Cypher generiert (${nodeMap.size} Knoten, ${edgeList.length} Kanten).`);
-            }
+            } catch (e) {}
 
-            btn.setButtonText("✅ Cypher Kopiert!");
+            if (httpSynced) {
+              btn.setButtonText("✅ Synchronisiert!");
+              new import_obsidian3.Notice(`✅ Vault-Graph (${nodeMap.size} Knoten, ${edgeList.length} Kanten) erfolgreich direkt in Memgraph importiert!`);
+            } else {
+              btn.setButtonText("✅ Cypher Kopiert!");
+              new import_obsidian3.Notice(`📋 ${nodeMap.size} Knoten & ${edgeList.length} Kanten als Cypher in deine Zwischenablage kopiert! (Memgraph Lab: Run Query)`);
+            }
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new import_obsidian3.Notice(`❌ Memgraph Sync-Fehler: ${err.message}`);
