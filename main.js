@@ -1356,14 +1356,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
   async onOpen() {
     this.containerEl.style.position = "relative";
 
-    // 1. Native View Header Action Button (Top-Right Sliders Icon to toggle top toolbar)
-    this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
-      if (toolbar) {
-        const isVisible = toolbar.style.display !== "none";
-        toolbar.style.display = isVisible ? "none" : "flex";
-      }
-    });
-
     const container = this.containerEl.children[1] || this.containerEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
@@ -1375,100 +1367,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     container.style.position = "relative";
     container.style.overflow = "hidden";
 
-    // 2. Executive Top Glassmorphism Toolbar (Collapsible via Sliders Button)
-    const toolbar = container.createEl("div");
-    toolbar.style.display = "flex";
-    toolbar.style.alignItems = "center";
-    toolbar.style.flexWrap = "wrap";
-    toolbar.style.gap = "10px";
-    toolbar.style.padding = "8px 16px";
-    toolbar.style.borderBottom = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08))";
-    toolbar.style.background = "var(--background-secondary, rgba(15, 23, 42, 0.85))";
-    toolbar.style.backdropFilter = "blur(12px)";
-    toolbar.style.zIndex = "10";
-    toolbar.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.25)";
-
-    const titleBadge = toolbar.createEl("div", {
-      style: "display: flex; align-items: center; gap: 8px; margin-right: 8px;"
-    });
-    titleBadge.createEl("div", {
-      style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4;"
-    });
-    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
-
-    titleBadge.createEl("span", {
-      text: isMathDomain ? "2D MATH VECTOR SPACE" : "2D KNOWLEDGE VECTOR SPACE",
-      style: "font-family: monospace; font-size: 0.82em; font-weight: 700; letter-spacing: 0.08em; color: var(--text-normal, #f1f5f9);"
-    });
-
-    const filterInput = toolbar.createEl("input", {
-      type: "text",
-      placeholder: "Filter (z.B. path:wiki -file:index)...",
-      value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
-    });
-    filterInput.style.flex = "1";
-    filterInput.style.minWidth = "220px";
-    filterInput.style.maxWidth = "400px";
-    filterInput.style.fontSize = "0.82em";
-    filterInput.style.padding = "5px 12px";
-    filterInput.style.borderRadius = "20px";
-    filterInput.style.border = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.12))";
-    filterInput.style.background = "var(--background-primary, rgba(30, 41, 59, 0.7))";
-    filterInput.style.color = "var(--text-normal, #f8fafc)";
-    filterInput.style.outline = "none";
-
-    const btnGroup = toolbar.createEl("div", {
-      style: "display: flex; align-items: center; gap: 6px;"
-    });
-
-    const styleButton = (btn, bg, hoverBg) => {
-      btn.style.fontSize = "0.78em";
-      btn.style.fontWeight = "600";
-      btn.style.padding = "5px 12px";
-      btn.style.borderRadius = "6px";
-      btn.style.cursor = "pointer";
-      btn.style.border = "1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1))";
-      btn.style.background = bg;
-      btn.style.color = "var(--text-normal, #f8fafc)";
-      btn.style.transition = "all 0.15s ease";
-      btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = hoverBg; };
-      btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = bg; };
-    };
-
-    const refreshBtn = btnGroup.createEl("button", { text: "Scannen" });
-    styleButton(refreshBtn, "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "var(--interactive-hover, rgba(51, 65, 85, 0.9))");
-
-    const calcVectorsBtn = btnGroup.createEl("button", { text: "BGE-M3 Vektoren" });
-    styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
-
-    const showEdgesToggleBtn = btnGroup.createEl("button", { text: this.showEdges ? "Kanten [ON]" : "Kanten [OFF]" });
-    styleButton(showEdgesToggleBtn, this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "rgba(51, 65, 85, 0.9)");
-
-    const lassoToggleBtn = btnGroup.createEl("button", { text: this.lassoSelectMode ? "Lasso-Select [ON]" : "Lasso-Select [OFF]" });
-    styleButton(lassoToggleBtn, this.lassoSelectMode ? "var(--interactive-accent, #38bdf8)" : "var(--interactive-normal, rgba(30, 41, 59, 0.8))", "rgba(51, 65, 85, 0.9)");
-
-    const createRelBtn = btnGroup.createEl("button", { text: "Beziehung (≥2 wählen)" });
-    styleButton(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
-    createRelBtn.disabled = true;
-    createRelBtn.style.opacity = "0.5";
-
-    const synthesizeBtn = btnGroup.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
-    styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
-    synthesizeBtn.disabled = true;
-    synthesizeBtn.style.opacity = "0.5";
-
-    const clearSelBtn = btnGroup.createEl("button", { text: "Leeren" });
-    styleButton(clearSelBtn, "rgba(239, 68, 68, 0.15)", "rgba(239, 68, 68, 0.3)");
-
-    const statusBadge = toolbar.createEl("div", {
-      style: "margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: monospace; font-size: 0.78em; color: var(--text-muted, #94a3b8); padding: 4px 10px; background: var(--background-primary, rgba(30, 41, 59, 0.5)); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.05));"
-    });
-    statusBadge.createEl("div", {
-      style: "width: 6px; height: 6px; border-radius: 50%; background: #10b981;"
-    });
-    const statusText = statusBadge.createEl("span", { text: "Lade Vault..." });
-
-    // 3. Canvas Container (Flex 1, 100% space)
+    // 1. Canvas Container (Flex 1, 100% space) — comes FIRST, no toolbar taking space
     const canvasWrap = container.createEl("div");
     canvasWrap.style.flex = "1";
     canvasWrap.style.position = "relative";
@@ -1484,7 +1383,120 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const ctx = canvas.getContext("2d");
 
-    // 4. Hover Bar at Bottom
+    // 2. Floating Panel — absolutely positioned INSIDE canvasWrap (no flex disruption)
+    const toolbar = canvasWrap.createEl("div");
+    toolbar.style.position = "absolute";
+    toolbar.style.top = "12px";
+    toolbar.style.left = "12px";
+    toolbar.style.zIndex = "20";
+    toolbar.style.display = "flex";
+    toolbar.style.flexDirection = "column";
+    toolbar.style.gap = "8px";
+    toolbar.style.padding = "12px 14px";
+    toolbar.style.borderRadius = "16px";
+    toolbar.style.background = "rgba(10, 17, 30, 0.75)";
+    toolbar.style.backdropFilter = "blur(18px)";
+    toolbar.style.webkitBackdropFilter = "blur(18px)";
+    toolbar.style.border = "1px solid rgba(6, 182, 212, 0.25)";
+    toolbar.style.boxShadow = "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)";
+    toolbar.style.minWidth = "260px";
+    toolbar.style.maxWidth = "480px";
+    toolbar.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+
+    // 1. Native View Header Action Button (Sliders Icon toggles floating panel)
+    this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
+      if (toolbar) {
+        const isVisible = toolbar.style.opacity !== "0";
+        toolbar.style.opacity = isVisible ? "0" : "1";
+        toolbar.style.pointerEvents = isVisible ? "none" : "auto";
+        toolbar.style.transform = isVisible ? "translateY(-8px) scale(0.96)" : "translateY(0) scale(1)";
+      }
+    });
+
+    // Panel header row: title badge + status
+    const panelHeaderRow = toolbar.createEl("div", {
+      style: "display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"
+    });
+    const titleDot = panelHeaderRow.createEl("div", {
+      style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4; flex-shrink: 0;"
+    });
+    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
+    panelHeaderRow.createEl("span", {
+      text: isMathDomain ? "2D MATH VECTOR SPACE" : "2D KNOWLEDGE VECTOR SPACE",
+      style: "font-family: monospace; font-size: 0.78em; font-weight: 700; letter-spacing: 0.08em; color: #f1f5f9; flex: 1;"
+    });
+    const statusBadge = panelHeaderRow.createEl("div", {
+      style: "display: flex; align-items: center; gap: 5px; font-family: monospace; font-size: 0.72em; color: #94a3b8; padding: 3px 8px; background: rgba(30,41,59,0.6); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);"
+    });
+    statusBadge.createEl("div", {
+      style: "width: 5px; height: 5px; border-radius: 50%; background: #10b981;"
+    });
+    const statusText = statusBadge.createEl("span", { text: "Lade..." });
+
+    // Filter input row
+    const filterInput = toolbar.createEl("input", {
+      type: "text",
+      placeholder: "Filter (z.B. path:wiki -file:index)...",
+      value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
+    });
+    filterInput.style.width = "100%";
+    filterInput.style.boxSizing = "border-box";
+    filterInput.style.fontSize = "0.78em";
+    filterInput.style.padding = "5px 12px";
+    filterInput.style.borderRadius = "10px";
+    filterInput.style.border = "1px solid rgba(255,255,255,0.10)";
+    filterInput.style.background = "rgba(15,23,42,0.6)";
+    filterInput.style.color = "#f8fafc";
+    filterInput.style.outline = "none";
+
+    // Button rows
+    const btnRow1 = toolbar.createEl("div", {
+      style: "display: flex; gap: 6px; flex-wrap: wrap;"
+    });
+    const btnRow2 = toolbar.createEl("div", {
+      style: "display: flex; gap: 6px; flex-wrap: wrap;"
+    });
+
+    const styleButton = (btn, bg, hoverBg) => {
+      btn.style.fontSize = "0.75em";
+      btn.style.fontWeight = "600";
+      btn.style.padding = "5px 11px";
+      btn.style.borderRadius = "8px";
+      btn.style.cursor = "pointer";
+      btn.style.border = "1px solid rgba(255,255,255,0.10)";
+      btn.style.background = bg;
+      btn.style.color = "#f8fafc";
+      btn.style.transition = "all 0.15s ease";
+      btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = hoverBg; };
+      btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = bg; };
+    };
+
+    const refreshBtn = btnRow1.createEl("button", { text: "Scannen" });
+    styleButton(refreshBtn, "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+
+    const calcVectorsBtn = btnRow1.createEl("button", { text: "BGE-M3 Vektoren" });
+    styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
+
+    const showEdgesToggleBtn = btnRow1.createEl("button", { text: this.showEdges ? "Kanten [ON]" : "Kanten [OFF]" });
+    styleButton(showEdgesToggleBtn, this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+
+    const lassoToggleBtn = btnRow2.createEl("button", { text: this.lassoSelectMode ? "Lasso [ON]" : "Lasso [OFF]" });
+    styleButton(lassoToggleBtn, this.lassoSelectMode ? "rgba(56,189,248,0.35)" : "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+
+    const createRelBtn = btnRow2.createEl("button", { text: "Beziehung (≥2)" });
+    styleButton(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
+    createRelBtn.disabled = true;
+    createRelBtn.style.opacity = "0.45";
+
+    const synthesizeBtn = btnRow2.createEl("button", { text: "Synthese (0)" });
+    styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
+    synthesizeBtn.disabled = true;
+    synthesizeBtn.style.opacity = "0.45";
+
+    const clearSelBtn = btnRow2.createEl("button", { text: "Leeren" });
+    styleButton(clearSelBtn, "rgba(239,68,68,0.15)", "rgba(239,68,68,0.30)");
+
+    // 3. Hover Bar at Bottom of container (static, not floating)
     const hoverBar = container.createEl("div");
     hoverBar.style.padding = "6px 12px";
     hoverBar.style.borderTop = "1px solid var(--border-color, rgba(255, 255, 255, 0.08))";
