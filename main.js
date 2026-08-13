@@ -340,8 +340,8 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
     radarWrap.style.width = "100%";
     radarWrap.style.height = "260px";
     radarWrap.style.borderRadius = "10px";
-    radarWrap.style.background = "#0f1015";
-    radarWrap.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+    radarWrap.style.background = "var(--background-primary-alt, var(--background-secondary))";
+    radarWrap.style.border = "1px solid var(--background-modifier-border, var(--border-color, rgba(255, 255, 255, 0.1)))";
     radarWrap.style.overflow = "hidden";
     radarWrap.style.marginBottom = "10px";
 
@@ -354,7 +354,7 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
     const ctx = canvas.getContext("2d");
 
     const radarTooltip = radarWrap.createEl("div", {
-      style: "position: absolute; display: none; pointer-events: none; padding: 3px 7px; border-radius: 4px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(255, 255, 255, 0.2); color: #f1f5f9; font-size: 0.78em; font-weight: 500; font-family: sans-serif; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.5); whitespace: nowrap;"
+      style: "position: absolute; display: none; pointer-events: none; padding: 4px 8px; border-radius: 6px; background: var(--background-secondary, #0f172a); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.2)); color: var(--text-normal, #f1f5f9); font-size: 0.78em; font-weight: 500; font-family: var(--font-interface, sans-serif); z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.35); white-space: nowrap;"
     });
 
     try {
