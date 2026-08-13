@@ -77,6 +77,21 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       }
       return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
     } else {
+      let errMsg = response.text;
+      try {
+        const errJson = response.json;
+        if (errJson?.error?.message) errMsg = errJson.error.message;
+      } catch (e) {}
+
+      if (response.status === 402) {
+        throw new Error(`HTTP 402 Payment Required (Guthaben aufgebraucht): ${errMsg || "Bitte Lade Guthaben auf platform.deepseek.com auf oder schalte in den Einstellungen auf lokales Ollama um."}`);
+      } else if (response.status === 401) {
+        throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${cleanBase}`);
+      } else if (response.status === 404) {
+        throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${cleanBase}`);
+      } else {
+        throw new Error(`HTTP ${response.status}: ${errMsg || "LLM-Anfrage fehlgeschlagen"}`);
+      }
     }
   } catch (err) {
     return `LLM Verbindungsfehler zu '${apiBase}': ${err.message || String(err)}`;
