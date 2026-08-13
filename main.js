@@ -1554,26 +1554,35 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const calcVectorsBtn = createActionBtn(aktionenBody, "BGE-M3 Vektoren berechnen", null);
 
-    const createRelBtn = aktionenBody.createEl("button", { text: "Beziehung erstellen (≥2 wählen)" });
-    createRelBtn.style.cssText = `
-      width:100%; text-align:left; padding:8px 14px; background:transparent;
-      border:none; border-top:1px solid rgba(255,255,255,0.05);
-      color:#334155; font-size:0.8em; cursor:not-allowed;
-      transition: color 0.15s ease, background 0.15s ease;
-    `;
+    const createRelBtn = createActionBtn(aktionenBody, "Beziehung erstellen (≥2 wählen)", null);
     createRelBtn.disabled = true;
+    createRelBtn.style.opacity = "0.35";
+    createRelBtn.style.cursor = "not-allowed";
+    createRelBtn.onmouseenter = null;
+    createRelBtn.onmouseleave = null;
 
-    const synthesizeBtn = aktionenBody.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
-    synthesizeBtn.style.cssText = `
-      width:100%; text-align:left; padding:8px 14px; background:transparent;
-      border:none; border-top:1px solid rgba(255,255,255,0.05);
-      color:#334155; font-size:0.8em; cursor:not-allowed;
-      transition: color 0.15s ease, background 0.15s ease;
-    `;
+    const synthesizeBtn = createActionBtn(aktionenBody, "DeepSeek-R1 Synthese (0)", null);
     synthesizeBtn.disabled = true;
+    synthesizeBtn.style.opacity = "0.35";
+    synthesizeBtn.style.cursor = "not-allowed";
+    synthesizeBtn.onmouseenter = null;
+    synthesizeBtn.onmouseleave = null;
 
     const clearSelBtn = createActionBtn(aktionenBody, "Auswahl leeren", null);
-    clearSelBtn.style.color = "#475569";
+
+    // Helper to enable/disable action buttons with consistent appearance
+    const setActionBtnEnabled = (btn, enabled) => {
+      btn.disabled = !enabled;
+      btn.style.opacity = enabled ? "1" : "0.35";
+      btn.style.cursor = enabled ? "pointer" : "not-allowed";
+      if (enabled) {
+        btn.onmouseenter = () => { btn.style.background = "rgba(255,255,255,0.04)"; btn.style.color = "#f1f5f9"; };
+        btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "#94a3b8"; };
+      } else {
+        btn.onmouseenter = null;
+        btn.onmouseleave = null;
+      }
+    };
 
     // Aliases for compat with event handlers below
     const showEdgesToggleBtn = { onclick: null };
@@ -1629,15 +1638,16 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
-      synthesizeBtn.disabled = count === 0;
-      synthesizeBtn.style.opacity = count === 0 ? "0.5" : "1.0";
+
+      setActionBtnEnabled(synthesizeBtn, count > 0);
       synthesizeBtn.setText(`DeepSeek-R1 Synthese (${count})`);
 
-      createRelBtn.disabled = count < 2;
-      createRelBtn.style.opacity = count >= 2 ? "1.0" : "0.5";
+      setActionBtnEnabled(createRelBtn, count >= 2);
       createRelBtn.setText(count >= 2 ? `Beziehung erstellen (${count})` : "Beziehung (≥2 wählen)");
 
-      statusText.setText(`${this.nodes.length} Notizen | ${count} ausgewählt`);
+      setActionBtnEnabled(clearSelBtn, count > 0);
+
+      statusText.setText(`${this.nodes.length} | ${count} gew.`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     };
 

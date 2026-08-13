@@ -1,7 +1,7 @@
 {
   "id": "obsidian-memvector-knowledge-engine",
   "name": "MemVector Knowledge Engine",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "minAppVersion": "1.0.0",
   "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
   "author": "Kevin Mike Kaupert",
