@@ -33,19 +33,35 @@ var import_obsidian2 = require("obsidian");
 async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.") {
   try {
     const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
-    const url = `${cleanBase}/chat/completions`;
+    const isAnthropic = cleanBase.includes("anthropic.com");
+    let url = isAnthropic ? `${cleanBase}/messages` : `${cleanBase}/chat/completions`;
     const headers = { "Content-Type": "application/json" };
-    if (apiKey && apiKey !== "ollama") {
-      headers["Authorization"] = `Bearer ${apiKey}`;
+    let payload;
+
+    if (isAnthropic) {
+      if (apiKey) headers["x-api-key"] = apiKey;
+      headers["anthropic-version"] = "2023-06-01";
+      payload = {
+        model: modelName || "claude-3-5-sonnet-20241022",
+        max_tokens: 2048,
+        system: systemPrompt,
+        messages: [{ role: "user", content: prompt }],
+        temperature: temperature ?? 0.1
+      };
+    } else {
+      if (apiKey && apiKey !== "ollama") {
+        headers["Authorization"] = `Bearer ${apiKey}`;
+      }
+      payload = {
+        model: modelName || "deepseek-r1:7b",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt }
+        ],
+        temperature: temperature ?? 0.1
+      };
     }
-    const payload = {
-      model: modelName || "deepseek-r1:7b",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: prompt }
-      ],
-      temperature: temperature ?? 0.1
-    };
+
     const response = await (0, import_obsidian2.requestUrl)({
       url,
       method: "POST",
@@ -53,9 +69,13 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       body: JSON.stringify(payload),
       throwOnError: false
     });
+
     if (response.status === 200) {
       const data = response.json;
-      return data.choices[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
+      if (isAnthropic) {
+        return data.content?.[0]?.text || "Keine Antwort von Claude erhalten.";
+      }
+      return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
     } else {
       return `LLM API Fehler (${response.status}): ${response.text || "Verbindung abgebrochen."}`;
     }
@@ -65,128 +85,115 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
 }
 
 // src/i18n.ts
+// src/i18n.ts
 var translations = {
   de: {
-    // Sidebar View
     sidebarTitle: "MemVector Co-Pilot",
-    selectSubExprHint: "Markiere eine Formel oder einen Teilausdruck im Editor mit der Maus...",
-    selectedSubExpr: "Markierter Teilausdruck:",
-    contextFullExpr: "Kontext (Gesamtformel):",
-    calculating: "Berechne Umformungen...",
-    transformationSuggestions: "Umformungs-Vorschl\xE4ge",
-    expandedForm: "Ausmultipliziert: ",
-    factoredForm: "Faktorisiert: ",
-    replaceInEditor: "Im Editor ersetzen",
-    noSuggestions: "Keine direkten Regelumformungen f\xFCr diesen Ausdruck.",
-    newFullEquation: "Neue Gesamtgleichung: ",
-    replacedNotice: "Teilausdruck ersetzt durch: ",
-    pythonServerOffline: "Python Server nicht erreichbar.",
-    // Settings Tab
     settingsTitle: "MemVector Knowledge Engine Einstellungen",
-    settingsDesc: "Passen Sie Einstellungen f\xFCr Sprache, Ausl\xF6se-Modus, Qdrant, Memgraph und DeepSeek-R1 LLM an.",
-    languageSettingName: "Sprache (Language)",
-    languageSettingDesc: "W\xE4hlen Sie die Benutzeroberfl\xE4chen-Sprache f\xFCr das Plugin.",
-    triggerModeName: "Ausl\xF6se-Modus (Trigger Mode)",
-    triggerModeDesc: "W\xE4hlen Sie, wie MemVector Co-Pilot gestartet wird.",
-    triggerModeButton: "Per Button oben rechts im Editor & Rechtsklick",
-    triggerModeAuto: "Automatisch bei jeder Maus-Markierung",
-    executionModeName: "Ausf\xFChrungs-Engine Modus",
-    executionModeDesc: "W\xE4hlen Sie, ob Berechnungen rein lokal im Browser (Standalone) oder \xFCber den Python SymPy Server ausgef\xFChrt werden.",
-    autoDetectMode: "Auto-Detect (Python Server bevorzugen, sonst Standalone Engine)",
-    standaloneMode: "Reiner Standalone-Modus (100% Obsidian JS Engine - Kein Python Server)",
-    pythonMode: "Erzwinge Python SymPy Server",
-    pythonServerUrlName: "Python REST Server URL",
-    pythonServerUrlDesc: "Adresse des lokalen Python-Servers (gestartet mit 'python3 -m llm_wiki_tools.cli serve').",
-    testServerBtn: "Server-Verbindung testen",
-    serverOnlineNotice: "Verbindung erfolgreich! SymPy Server ist ONLINE.",
-    serverOfflineNotice: "Server nicht erreichbar. Hast du 'llm-wiki-math serve' gestartet?",
-    llmProviderName: "LLM Provider",
-    llmProviderDesc: "W\xE4hlen Sie Ihren LLM-Provider aus.",
+    settingsDesc: "Konfigurieren Sie Ihr LLM, Vektordatenbank (Qdrant), Graph-Datenbank (Memgraph) und Benutzeroberfl\xE4che.",
+    
+    // Section 1: General
+    secGeneral: "1. Allgemein",
+    langName: "Sprache / Language",
+    langDesc: "W\xE4hlen Sie die Sprache f\xFCr Benachrichtigungen und UI-Texte.",
+
+    // Section 2: LLM Provider
+    secLLM: "2. LLM Provider (f\xFCr KI-Synthese & Co-Pilot)",
+    llmProvName: "LLM Provider",
+    llmProvDesc: "W\xE4hlen Sie den Anbieter f\xFCr Ihr LLM aus. Unterst\xFCtzt jede OpenAI-kompatible REST-API (Ollama, Anthropic Claude, DeepSeek Cloud, OpenAI, OpenRouter, etc.).",
     apiBaseUrlName: "API Base Endpoint URL",
-    apiBaseUrlDesc: "Basis-URL der LLM API (z.B. http://localhost:11434/v1 f\xFCr Ollama oder https://api.deepseek.com/v1).",
-    apiKeyName: "API Key (Nur f\xFCr Cloud APIs)",
-    apiKeyDesc: "F\xFCr Ollama leer lassen oder 'ollama' eintragen. F\xFCr DeepSeek Cloud Ihren sk-... Key eintragen.",
+    apiBaseUrlDesc: "Basis-URL des API Endpoints (z. B. http://localhost:11434/v1 f\xFCr Ollama, https://api.anthropic.com/v1 f\xFCr Claude, https://api.deepseek.com/v1 f\xFCr DeepSeek).",
+    apiKeyName: "API Key",
+    apiKeyDesc: "API-Schl\xFCssel f\xFCr Cloud-APIs (f\xFCr Ollama leer lassen oder 'ollama' eintragen).",
     modelNameTitle: "Modellname (Model Name)",
-    modelNameDesc: "Name des Modells in Ollama/DeepSeek (z.B. 'deepseek-r1', 'deepseek-r1:8b', 'deepseek-reasoner').",
-    temperatureTitle: "Temperatur (Temperature)",
-    temperatureDesc: "Niedrigere Werte (0.0 - 0.2) liefern pr\xE4zisere mathematische Antworten.",
-    level1Name: "Level 1: Exakte SymPy Algebra aktivieren",
-    level1Desc: "Pr\xFCft exakte algebraische Gleichheit bei identischen Variablennamen ($a,b$).",
-    level2Name: "Level 2: Alpha-\xC4quivalenz (Variablen-Umbennung) aktivieren",
-    level2Desc: "Normalisiert freie Variablen, um (a+b)^2 und x^2+2xy+y^2 als strukturell identisch zu erkennen.",
-    level3Name: "Level 3: DeepSeek-R1 LLM Reasoning aktivieren",
-    level3Desc: "Nutzt das LLM f\xFCr nicht-triviale, konzeptionelle oder physikalische Herleitungen.",
-    autoUpdateName: "Automatische Seitenleisten-Aktualisierung",
-    autoUpdateDesc: "Aktualisiert die Seitenleiste automatisch, sobald Sie einen Teilausdruck im Editor mit der Maus markieren.",
-    replaceModeName: "Ersetzungs-Modus im Editor",
-    replaceModeDesc: "Bestimmt, wie die gew\xE4hlte Umformung beim Klick auf 'Ersetzen' in Ihre Notiz eingef\xFCgt wird.",
-    replaceModeDirect: "Markierten Text direkt durch Umformung ersetzen",
-    replaceModeNewLine: "Umformung in neuer Zeile unter dem Original einf\xFCgen (= ...)",
-    // Commands & Notices
-    scanVaultCmd: "Vault nach \xE4quivalenten Formeln durchsuchen",
-    scanVaultNoticeStart: "Durchsuche Vault nach Formel-\xC4quivalenzen...",
-    scanVaultNoticeComplete: "Scan komplett! \xC4quivalente Formeln im Vault gefunden: "
+    modelNameDesc: "Exakter Name des LLM-Modells (z. B. 'deepseek-r1:7b', 'claude-3-5-sonnet-20241022', 'gpt-4o', 'anthropic/claude-3.5-sonnet').",
+    temperatureTitle: "Temperatur",
+    temperatureDesc: "Niedrigere Werte (0.0 - 0.2) liefern deterministische, strukturierte Antworten; h\xF6here Werte erlauben kreativere Antworten.",
+
+    // Section 3: Knowledge Domain & Vector Filter
+    secVector: "3. Wissensdom\xE4ne & Vektorraum-Filter",
+    domainName: "Wissensdom\xE4ne / Fachbereich",
+    domainDesc: "Bestimmt die Merkmalsgewichtung im 2D-Vektorraum: 'Universelles Notizbuch' fokussiert Begriffsh\xE4ufigkeiten & Semantik (ideal f\xFCr PKM, Code, Forschung). 'Mathematik' gewichtet LaTeX-Formeln st\xE4rker, um mathematische Definitionen & S\xE4tze strukturell zu clustern.",
+    domainGeneral: "Universelles Notizbuch (PKM, Code, Allgemeines Wissen, Forschung)",
+    domainMath: "Mathematik & Formalwissenschaften (LaTeX-Formeln & Beweise)",
+    exclusionsName: "Pfad- & Datei-Ausschlie\xDFungen",
+    exclusionsDesc: "Schlie\xDFe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
+    radarCountName: "Mini-Radar Notizen-Anzahl (X)",
+    radarCountDesc: "Anzahl der nahesten Vektor-Notizen (X), auf die der Mini-Radar in der Seitenleiste beim \xD6ffnen automatisch skaliert.",
+
+    // Section 4: Qdrant
+    secQdrant: "4. Qdrant Vektor-Datenbank Anbindung",
+    qdrantUrlName: "Qdrant Server URL",
+    qdrantUrlDesc: "HTTP-URL deiner Qdrant-Instanz (z. B. http://localhost:6333 oder Cloud-URL).",
+    qdrantCollName: "Qdrant Collection Name",
+    qdrantCollDesc: "Name der Vektor-Collection f\xFCr bge-m3 Notiz-Embeddings.",
+    qdrantKeyName: "Qdrant API Key (Optional)",
+    qdrantKeyDesc: "API-Schl\xFCssel f\xFCr Qdrant Cloud oder gesch\xFCtzte Server.",
+
+    // Section 5: Memgraph
+    secMemgraph: "5. Memgraph Graph-Datenbank Anbindung",
+    memgraphUrlName: "Memgraph Cypher HTTP Server URL",
+    memgraphUrlDesc: "HTTP Cypher Endpoint deiner Memgraph-Instanz (z. B. http://localhost:7000).",
+    memgraphUserName: "Memgraph Benutzername",
+    memgraphUserDesc: "Benutzername f\xFCr Memgraph Authentifizierung (Standard: leer).",
+    memgraphPassName: "Memgraph Passwort",
+    memgraphPassDesc: "Passwort f\xFCr Memgraph Authentifizierung.",
+    memgraphAutoSyncName: "Automatische Cypher-Ausf\xFChrung",
+    memgraphAutoSyncDesc: "F\xFChre erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus."
   },
   en: {
-    // Sidebar View
     sidebarTitle: "MemVector Co-Pilot",
-    selectSubExprHint: "Highlight a formula or sub-expression in the editor with your mouse...",
-    selectedSubExpr: "Selected Sub-expression:",
-    contextFullExpr: "Context (Full Formula):",
-    calculating: "Calculating transformations...",
-    transformationSuggestions: "Transformation Suggestions",
-    expandedForm: "Expanded: ",
-    factoredForm: "Factored: ",
-    replaceInEditor: "Replace in Editor",
-    noSuggestions: "No direct rule transformations for this expression.",
-    newFullEquation: "New Full Equation: ",
-    replacedNotice: "Sub-expression replaced with: ",
-    pythonServerOffline: "Python Server unreachable.",
-    // Settings Tab
     settingsTitle: "MemVector Knowledge Engine Settings",
-    settingsDesc: "Configure settings for language, trigger mode, SymPy backend, Qdrant, Memgraph and LLM.",
-    languageSettingName: "Language",
-    languageSettingDesc: "Select user interface language for the plugin.",
-    triggerModeName: "Trigger Mode",
-    triggerModeDesc: "Select how MemVector Co-Pilot is triggered.",
-    triggerModeButton: "Via top-right editor button & right-click",
-    triggerModeAuto: "Automatically on mouse highlight",
-    executionModeName: "Execution Engine Mode",
-    executionModeDesc: "Choose whether calculations run locally in browser (Standalone) or via Python SymPy Server.",
-    autoDetectMode: "Auto-Detect (Prefer Python Server, fallback to Standalone Engine)",
-    standaloneMode: "Pure Standalone Mode (100% Obsidian JS Engine - No Python Server)",
-    pythonMode: "Force Python SymPy Server",
-    pythonServerUrlName: "Python REST Server URL",
-    pythonServerUrlDesc: "Address of the local Python server (started with 'python3 -m llm_wiki_tools.cli serve').",
-    testServerBtn: "Test Server Connection",
-    serverOnlineNotice: "Connection successful! SymPy Server is ONLINE.",
-    serverOfflineNotice: "Server unreachable. Have you started 'llm-wiki-math serve'?",
-    llmProviderName: "LLM Provider",
-    llmProviderDesc: "Select your LLM provider.",
+    settingsDesc: "Configure your LLM, Vector Database (Qdrant), Graph Database (Memgraph), and UI options.",
+
+    // Section 1: General
+    secGeneral: "1. General",
+    langName: "Language",
+    langDesc: "Select language for notices and UI text.",
+
+    // Section 2: LLM Provider
+    secLLM: "2. LLM Provider (for AI Synthesis & Co-Pilot)",
+    llmProvName: "LLM Provider",
+    llmProvDesc: "Select your LLM provider. Supports any OpenAI-compatible REST API (Ollama, Anthropic Claude, DeepSeek Cloud, OpenAI, OpenRouter, etc.).",
     apiBaseUrlName: "API Base Endpoint URL",
-    apiBaseUrlDesc: "Base URL of LLM API (e.g. http://localhost:11434/v1 for Ollama or https://api.deepseek.com/v1).",
-    apiKeyName: "API Key (Cloud APIs Only)",
-    apiKeyDesc: "Leave blank or type 'ollama' for Ollama. Enter your sk-... key for DeepSeek Cloud.",
+    apiBaseUrlDesc: "Base URL of API endpoint (e.g., http://localhost:11434/v1 for Ollama, https://api.anthropic.com/v1 for Claude, https://api.deepseek.com/v1 for DeepSeek).",
+    apiKeyName: "API Key",
+    apiKeyDesc: "API key for cloud APIs (leave blank or type 'ollama' for Ollama).",
     modelNameTitle: "Model Name",
-    modelNameDesc: "Name of model in Ollama/DeepSeek (e.g. 'deepseek-r1', 'deepseek-r1:8b', 'deepseek-reasoner').",
+    modelNameDesc: "Exact name of the LLM model (e.g., 'deepseek-r1:7b', 'claude-3-5-sonnet-20241022', 'gpt-4o', 'anthropic/claude-3.5-sonnet').",
     temperatureTitle: "Temperature",
-    temperatureDesc: "Lower values (0.0 - 0.2) produce more precise mathematical answers.",
-    level1Name: "Enable Level 1: Exact SymPy Algebra",
-    level1Desc: "Checks exact algebraic equality for identical variable names ($a,b$).",
-    level2Name: "Enable Level 2: Alpha-Equivalence (Variable Renaming)",
-    level2Desc: "Normalizes free variables to recognize (a+b)^2 and x^2+2xy+y^2 as structurally identical.",
-    level3Name: "Enable Level 3: DeepSeek-R1 LLM Reasoning",
-    level3Desc: "Uses LLM for non-trivial, conceptual, or physical derivations.",
-    autoUpdateName: "Automatic Sidebar Update",
-    autoUpdateDesc: "Automatically updates sidebar whenever a sub-expression is highlighted in the editor.",
-    replaceModeName: "Editor Replace Mode",
-    replaceModeDesc: "Determines how chosen transformation is inserted into your note when clicking 'Replace'.",
-    replaceModeDirect: "Replace selected text directly with transformation",
-    replaceModeNewLine: "Insert transformation on new line below original (= ...)",
-    // Commands & Notices
-    scanVaultCmd: "Scan Vault for Equivalent Formulas",
-    scanVaultNoticeStart: "Scanning vault for formula equivalences...",
-    scanVaultNoticeComplete: "Scan complete! Equivalent formulas found in vault: "
+    temperatureDesc: "Lower values (0.0 - 0.2) produce deterministic, structured answers; higher values allow for more creative responses.",
+
+    // Section 3: Knowledge Domain & Vector Filter
+    secVector: "3. Knowledge Domain & Vector Space Filter",
+    domainName: "Knowledge Domain",
+    domainDesc: "Controls feature weighting in 2D vector space clustering: 'Universal Notebook' focuses on word frequencies & semantics (ideal for PKM, code, research). 'Mathematics' heavily weights LaTeX formulas to structurally link definitions & theorems.",
+    domainGeneral: "Universal Notebook (PKM, Code, General Knowledge, Research)",
+    domainMath: "Mathematics & Formal Sciences (LaTeX Formulas & Proofs)",
+    exclusionsName: "Path & File Exclusions",
+    exclusionsDesc: "Exclude paths and files from 2D Scatterplot (e.g. -path: schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
+    radarCountName: "Mini-Radar Note Count (X)",
+    radarCountDesc: "Number of nearest vector notes (X) that the mini-radar automatically scales to when opened.",
+
+    // Section 4: Qdrant
+    secQdrant: "4. Qdrant Vector Database Connection",
+    qdrantUrlName: "Qdrant Server URL",
+    qdrantUrlDesc: "HTTP URL of your Qdrant instance (e.g., http://localhost:6333 or cloud URL).",
+    qdrantCollName: "Qdrant Collection Name",
+    qdrantCollDesc: "Name of the vector collection for bge-m3 note embeddings.",
+    qdrantKeyName: "Qdrant API Key (Optional)",
+    qdrantKeyDesc: "API key for Qdrant Cloud or protected servers.",
+
+    // Section 5: Memgraph
+    secMemgraph: "5. Memgraph Graph Database Connection",
+    memgraphUrlName: "Memgraph Cypher HTTP Server URL",
+    memgraphUrlDesc: "HTTP Cypher endpoint of your Memgraph instance (e.g., http://localhost:7000).",
+    memgraphUserName: "Memgraph Username",
+    memgraphUserDesc: "Username for Memgraph authentication (default: empty).",
+    memgraphPassName: "Memgraph Password",
+    memgraphPassDesc: "Password for Memgraph authentication.",
+    memgraphAutoSyncName: "Automatic Cypher Execution",
+    memgraphAutoSyncDesc: "Execute created Cypher edges directly on the Memgraph server when saving."
   }
 };
 function getTranslation(lang) {
@@ -657,22 +664,24 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    const t = getTranslation(this.plugin.settings.language || "de");
-    containerEl.createEl("h2", { text: "MemVector Knowledge Engine Einstellungen" });
+    const lang = this.plugin.settings.language || "de";
+    const t = getTranslation(lang);
+
+    containerEl.createEl("h2", { text: t.settingsTitle });
     containerEl.createEl("p", {
-      text: "Konfigurieren Sie Ihr LLM, Vektordatenbank (Qdrant), Graph-Datenbank (Memgraph) und Benutzeroberfläche.",
+      text: t.settingsDesc,
       cls: "setting-item-description"
     });
 
     // 1. Allgemein
-    containerEl.createEl("h3", { text: "1. Allgemein" });
+    containerEl.createEl("h3", { text: t.secGeneral });
     new import_obsidian3.Setting(containerEl)
-      .setName("Sprache / Language")
-      .setDesc("Wählen Sie die Sprache für Benachrichtigungen und UI-Texte.")
+      .setName(t.langName)
+      .setDesc(t.langDesc)
       .addDropdown((dropdown) => dropdown
         .addOption("de", "Deutsch")
         .addOption("en", "English")
-        .setValue(this.plugin.settings.language || "de")
+        .setValue(lang)
         .onChange(async (value) => {
           this.plugin.settings.language = value;
           await this.plugin.saveSettings();
@@ -681,15 +690,17 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     // 2. LLM Provider
-    containerEl.createEl("h3", { text: "2. LLM Provider (für KI-Synthese & Co-Pilot)" });
+    containerEl.createEl("h3", { text: t.secLLM });
     new import_obsidian3.Setting(containerEl)
-      .setName("LLM Provider")
-      .setDesc("Wählen Sie den Anbieter für Ihr LLM aus. Sie können jede OpenAI-kompatible API (Ollama, DeepSeek Cloud, OpenAI, LM Studio, etc.) nutzen.")
+      .setName(t.llmProvName)
+      .setDesc(t.llmProvDesc)
       .addDropdown((dropdown) => dropdown
-        .addOption("ollama", "Ollama (Lokal - kein API-Key erforderlich)")
+        .addOption("ollama", "Ollama (Lokal - kein API-Key)")
+        .addOption("claude", "Anthropic Claude API (api.anthropic.com)")
         .addOption("deepseek", "DeepSeek Cloud API (api.deepseek.com)")
-        .addOption("openai", "OpenAI API (GPT-4o, etc.)")
-        .addOption("custom", "Benutzerdefinierter API Endpoint")
+        .addOption("openai", "OpenAI API (api.openai.com)")
+        .addOption("openrouter", "OpenRouter API (openrouter.ai)")
+        .addOption("custom", "Benutzerdefinierter REST Endpoint")
         .setValue(this.plugin.settings.llmProvider || "ollama")
         .onChange(async (value) => {
           this.plugin.settings.llmProvider = value;
@@ -697,12 +708,26 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
             this.plugin.settings.apiBaseUrl = "http://localhost:11434/v1";
             this.plugin.settings.modelName = "deepseek-r1:7b";
             this.plugin.settings.deepseekApiKey = "ollama";
+          } else if (value === "claude") {
+            this.plugin.settings.apiBaseUrl = "https://api.anthropic.com/v1";
+            this.plugin.settings.modelName = "claude-3-5-sonnet-20241022";
+            this.plugin.settings.deepseekApiKey = "";
           } else if (value === "deepseek") {
             this.plugin.settings.apiBaseUrl = "https://api.deepseek.com/v1";
             this.plugin.settings.modelName = "deepseek-reasoner";
+            this.plugin.settings.deepseekApiKey = "";
           } else if (value === "openai") {
             this.plugin.settings.apiBaseUrl = "https://api.openai.com/v1";
             this.plugin.settings.modelName = "gpt-4o";
+            this.plugin.settings.deepseekApiKey = "";
+          } else if (value === "openrouter") {
+            this.plugin.settings.apiBaseUrl = "https://openrouter.ai/api/v1";
+            this.plugin.settings.modelName = "anthropic/claude-3.5-sonnet";
+            this.plugin.settings.deepseekApiKey = "";
+          } else if (value === "custom") {
+            this.plugin.settings.apiBaseUrl = "http://localhost:8000/v1";
+            this.plugin.settings.modelName = "custom-model";
+            this.plugin.settings.deepseekApiKey = "";
           }
           await this.plugin.saveSettings();
           this.display();
@@ -710,8 +735,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("API Base Endpoint URL")
-      .setDesc("Basis-URL des OpenAI-kompatiblen API Endpoints (z. B. http://localhost:11434/v1 für Ollama oder https://api.deepseek.com/v1).")
+      .setName(t.apiBaseUrlName)
+      .setDesc(t.apiBaseUrlDesc)
       .addText((text) => text
         .setPlaceholder("http://localhost:11434/v1")
         .setValue(this.plugin.settings.apiBaseUrl || "http://localhost:11434/v1")
@@ -722,11 +747,11 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("API Key")
-      .setDesc("API-Schlüssel für Cloud-APIs (für Ollama leer lassen oder 'ollama' eintragen).")
+      .setName(t.apiKeyName)
+      .setDesc(t.apiKeyDesc)
       .addText((text) => text
         .setPlaceholder("sk-...")
-        .setValue(this.plugin.settings.deepseekApiKey || "ollama")
+        .setValue(this.plugin.settings.deepseekApiKey || "")
         .onChange(async (value) => {
           this.plugin.settings.deepseekApiKey = value.trim();
           await this.plugin.saveSettings();
@@ -734,11 +759,11 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Modellname (Model Name)")
-      .setDesc("Exakter Name des LLM-Modells (z. B. 'deepseek-r1:7b', 'deepseek-reasoner', 'gpt-4o', 'llama3').")
+      .setName(t.modelNameTitle)
+      .setDesc(t.modelNameDesc)
       .addText((text) => text
-        .setPlaceholder("deepseek-r1:7b")
-        .setValue(this.plugin.settings.modelName || "deepseek-r1:7b")
+        .setPlaceholder("model-name")
+        .setValue(this.plugin.settings.modelName || "")
         .onChange(async (value) => {
           this.plugin.settings.modelName = value.trim();
           await this.plugin.saveSettings();
@@ -746,8 +771,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Temperatur")
-      .setDesc("Niedrigere Werte (0.0 - 0.2) liefern deterministische, strukturiere Antworten; höhere Werte erlauben kreativierende Antworten.")
+      .setName(t.temperatureTitle)
+      .setDesc(t.temperatureDesc)
       .addSlider((slider) => slider
         .setLimits(0, 1, 0.05)
         .setValue(this.plugin.settings.temperature ?? 0.1)
@@ -759,13 +784,13 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     // 3. Wissensdomäne & Vektorraum-Filter
-    containerEl.createEl("h3", { text: "3. Wissensdomäne & Vektorraum-Filter" });
+    containerEl.createEl("h3", { text: t.secVector });
     new import_obsidian3.Setting(containerEl)
-      .setName("Wissensdomäne / Fachbereich")
-      .setDesc("Wähle zwischen universellen Notizbüchern (Allgemeines Wissen, Code, Forschung, PKM) oder spezialisierter Mathematik (LaTeX-Beweise & Formeln).")
+      .setName(t.domainName)
+      .setDesc(t.domainDesc)
       .addDropdown((dropdown) => dropdown
-        .addOption("general", "Universelles Notizbuch (Allgemeines Wissen, Code, Forschung, PKM)")
-        .addOption("math", "Mathematik & Formalwissenschaften (LaTeX-Formeln & Beweise)")
+        .addOption("general", t.domainGeneral)
+        .addOption("math", t.domainMath)
         .setValue(this.plugin.settings.knowledgeDomain || "general")
         .onChange(async (value) => {
           this.plugin.settings.knowledgeDomain = value;
@@ -774,10 +799,10 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Pfad- & Datei-Ausschlüsse")
-      .setDesc("Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks). Syntax wie im Obsidian Graph View.")
+      .setName(t.exclusionsName)
+      .setDesc(t.exclusionsDesc)
       .addText((text) => text
-        .setPlaceholder("-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks")
+        .setPlaceholder("-path: schema -file:index -file:log -file:README")
         .setValue(this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks")
         .onChange(async (value) => {
           this.plugin.settings.vectorSearchExclusions = value;
@@ -786,8 +811,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Mini-Radar Notizen-Anzahl (X)")
-      .setDesc("Anzahl der nahesten Vektor-Notizen (X), auf die der Mini-Radar in der Seitenleiste beim Öffnen automatisch skaliert.")
+      .setName(t.radarCountName)
+      .setDesc(t.radarCountDesc)
       .addText((text) => text
         .setPlaceholder("10")
         .setValue(String(this.plugin.settings.radarNoteCount || 10))
@@ -801,10 +826,10 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     // 4. Qdrant
-    containerEl.createEl("h3", { text: "4. Qdrant Vektor-Datenbank Anbindung" });
+    containerEl.createEl("h3", { text: t.secQdrant });
     new import_obsidian3.Setting(containerEl)
-      .setName("Qdrant Server URL")
-      .setDesc("HTTP-URL deiner Qdrant-Instanz (z. B. http://localhost:6333 oder Cloud-URL).")
+      .setName(t.qdrantUrlName)
+      .setDesc(t.qdrantUrlDesc)
       .addText((text) => text
         .setPlaceholder("http://localhost:6333")
         .setValue(this.plugin.settings.qdrantUrl || "http://localhost:6333")
@@ -815,8 +840,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Qdrant Collection Name")
-      .setDesc("Name der Vektor-Collection für bge-m3 Notiz-Embeddings.")
+      .setName(t.qdrantCollName)
+      .setDesc(t.qdrantCollDesc)
       .addText((text) => text
         .setPlaceholder("obsidian_wiki_vectors")
         .setValue(this.plugin.settings.qdrantCollection || "obsidian_wiki_vectors")
@@ -827,8 +852,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Qdrant API Key (Optional)")
-      .setDesc("API-Schlüssel für Qdrant Cloud oder geschützte Server.")
+      .setName(t.qdrantKeyName)
+      .setDesc(t.qdrantKeyDesc)
       .addText((text) => text
         .setPlaceholder("Optional Key...")
         .setValue(this.plugin.settings.qdrantApiKey || "")
@@ -839,10 +864,10 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     // 5. Memgraph
-    containerEl.createEl("h3", { text: "5. Memgraph Graph-Datenbank Anbindung" });
+    containerEl.createEl("h3", { text: t.secMemgraph });
     new import_obsidian3.Setting(containerEl)
-      .setName("Memgraph Cypher HTTP Server URL")
-      .setDesc("HTTP Cypher Endpoint deiner Memgraph-Instanz (z. B. http://localhost:7000).")
+      .setName(t.memgraphUrlName)
+      .setDesc(t.memgraphUrlDesc)
       .addText((text) => text
         .setPlaceholder("http://localhost:7000")
         .setValue(this.plugin.settings.memgraphUrl || "http://localhost:7000")
@@ -853,8 +878,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Memgraph Benutzername")
-      .setDesc("Benutzername für Memgraph Authentifizierung (Standard: leer).")
+      .setName(t.memgraphUserName)
+      .setDesc(t.memgraphUserDesc)
       .addText((text) => text
         .setPlaceholder("Benutzername...")
         .setValue(this.plugin.settings.memgraphUser || "")
@@ -865,8 +890,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Memgraph Passwort")
-      .setDesc("Passwort für Memgraph Authentifizierung.")
+      .setName(t.memgraphPassName)
+      .setDesc(t.memgraphPassDesc)
       .addText((text) => text
         .setPlaceholder("Passwort...")
         .setValue(this.plugin.settings.memgraphPassword || "")
@@ -877,8 +902,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
-      .setName("Automatische Cypher-Ausführung")
-      .setDesc("Führe erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus.")
+      .setName(t.memgraphAutoSyncName)
+      .setDesc(t.memgraphAutoSyncDesc)
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.autoSyncMemgraph || false)
         .onChange(async (value) => {
