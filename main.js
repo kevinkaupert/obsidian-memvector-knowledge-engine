@@ -77,11 +77,25 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       }
       return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
     } else {
-      return `LLM API Fehler (${response.status}): ${response.text || "Verbindung abgebrochen."}`;
     }
   } catch (err) {
     return `LLM Verbindungsfehler zu '${apiBase}': ${err.message || String(err)}`;
   }
+}
+
+function getShortModelName(model) {
+  if (!model) return "KI";
+  const clean = model.trim();
+  const lower = clean.toLowerCase();
+  if (lower.includes("claude")) return "Claude";
+  if (lower.includes("deepseek")) return "DeepSeek";
+  if (lower.includes("gpt-4o")) return "GPT-4o";
+  if (lower.includes("gpt-4")) return "GPT-4";
+  if (lower.includes("llama")) return "Llama";
+  if (lower.includes("mistral")) return "Mistral";
+  const parts = clean.split("/");
+  const baseName = parts[parts.length - 1].split(":")[0];
+  return baseName.length > 12 ? baseName.slice(0, 10) + "\u2026" : baseName;
 }
 
 // src/i18n.ts
@@ -1043,13 +1057,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     toolbar.style.zIndex = "20";
     toolbar.style.display = "flex";
     toolbar.style.flexDirection = "column";
-    toolbar.style.width = "240px";
-    toolbar.style.borderRadius = "14px";
-    toolbar.style.background = "rgba(10, 17, 30, 0.82)";
+    toolbar.style.width = "220px";
+    toolbar.style.borderRadius = "12px";
+    toolbar.style.background = "var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)))";
     toolbar.style.backdropFilter = "blur(20px)";
     toolbar.style.webkitBackdropFilter = "blur(20px)";
-    toolbar.style.border = "1px solid rgba(255,255,255,0.08)";
-    toolbar.style.boxShadow = "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)";
+    toolbar.style.border = "1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)))";
+    toolbar.style.boxShadow = "0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3))";
     toolbar.style.overflow = "hidden";
     toolbar.style.transition = "opacity 0.2s ease, transform 0.2s ease";
     toolbar.style.userSelect = "none";
@@ -1065,32 +1079,32 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     // ── Helper: CSS toggle switch ─────────────────────────────────────────
     const createToggle = (parent, label, initialOn, onChange) => {
       const row = parent.createEl("div");
-      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 14px; cursor:pointer;";
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:7px 12px; cursor:pointer;";
 
       const lbl = row.createEl("span", { text: label });
-      lbl.style.cssText = "font-size:0.82em; color:#cbd5e1; flex:1;";
+      lbl.style.cssText = "font-size:0.82em; color:var(--text-normal, #cbd5e1); flex:1;";
 
       // Track element
       let on = initialOn;
       const track = row.createEl("div");
       track.style.cssText = `
-        width:34px; height:18px; border-radius:9px; position:relative; flex-shrink:0;
-        background:${on ? "#06b6d4" : "rgba(100,116,139,0.5)"};
+        width:32px; height:17px; border-radius:9px; position:relative; flex-shrink:0;
+        background:${on ? "#06b6d4" : "var(--background-modifier-border, rgba(100,116,139,0.5))"};
         transition: background 0.2s ease; cursor:pointer;
-        border: 1px solid ${on ? "rgba(6,182,212,0.4)" : "rgba(255,255,255,0.08)"};
+        border: 1px solid ${on ? "rgba(6,182,212,0.4)" : "var(--background-modifier-border, rgba(255,255,255,0.08))"};
       `;
       const thumb = track.createEl("div");
       thumb.style.cssText = `
-        width:12px; height:12px; border-radius:50%; background:#fff;
-        position:absolute; top:2px; left:${on ? "18px" : "2px"};
+        width:11px; height:11px; border-radius:50%; background:#fff;
+        position:absolute; top:2px; left:${on ? "17px" : "2px"};
         transition: left 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
       `;
 
       const setState = (newOn) => {
         on = newOn;
-        track.style.background = on ? "#06b6d4" : "rgba(100,116,139,0.5)";
-        track.style.borderColor = on ? "rgba(6,182,212,0.4)" : "rgba(255,255,255,0.08)";
-        thumb.style.left = on ? "18px" : "2px";
+        track.style.background = on ? "#06b6d4" : "var(--background-modifier-border, rgba(100,116,139,0.5))";
+        track.style.borderColor = on ? "rgba(6,182,212,0.4)" : "var(--background-modifier-border, rgba(255,255,255,0.08))";
+        thumb.style.left = on ? "17px" : "2px";
       };
 
       row.onclick = () => {
@@ -1098,7 +1112,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         onChange(on);
       };
 
-      row.onmouseenter = () => { row.style.background = "rgba(255,255,255,0.04)"; };
+      row.onmouseenter = () => { row.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))"; };
       row.onmouseleave = () => { row.style.background = "transparent"; };
 
       return { setOn: setState };
@@ -1108,13 +1122,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const createActionBtn = (parent, label, onClick) => {
       const btn = parent.createEl("button", { text: label });
       btn.style.cssText = `
-        width:100%; text-align:left; padding:8px 14px; background:transparent;
-        border:none; border-top:1px solid rgba(255,255,255,0.05);
-        color:#94a3b8; font-size:0.8em; cursor:pointer;
+        width:100%; text-align:left; padding:7px 12px; background:transparent;
+        border:none; border-top:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));
+        color:var(--text-muted, #94a3b8); font-size:0.8em; cursor:pointer;
         transition: color 0.15s ease, background 0.15s ease;
       `;
-      btn.onmouseenter = () => { btn.style.background = "rgba(255,255,255,0.04)"; btn.style.color = "#f1f5f9"; };
-      btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "#94a3b8"; };
+      btn.onmouseenter = () => { btn.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))"; btn.style.color = "var(--text-normal, #f1f5f9)"; };
+      btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "var(--text-muted, #94a3b8)"; };
       btn.onclick = onClick;
       return btn;
     };
@@ -1122,19 +1136,19 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     // ── Helper: collapsible section ───────────────────────────────────────
     const createSection = (parentEl, title, defaultOpen = true) => {
       const section = parentEl.createEl("div");
-      section.style.cssText = "border-top:1px solid rgba(255,255,255,0.06);";
+      section.style.cssText = "border-top:1px solid var(--background-modifier-border, rgba(255,255,255,0.06));";
 
       const header = section.createEl("div");
       header.style.cssText = `
         display:flex; align-items:center; justify-content:space-between;
-        padding:9px 14px; cursor:pointer;
+        padding:7px 12px; cursor:pointer;
         transition: background 0.15s ease;
       `;
       const titleEl = header.createEl("span", { text: title });
-      titleEl.style.cssText = "font-size:0.78em; font-weight:600; letter-spacing:0.04em; color:#94a3b8; text-transform:uppercase;";
+      titleEl.style.cssText = "font-size:0.75em; font-weight:600; letter-spacing:0.04em; color:var(--text-muted, #94a3b8); text-transform:uppercase;";
 
       const chevron = header.createEl("span", { text: defaultOpen ? "⌃" : "⌄" });
-      chevron.style.cssText = "font-size:0.72em; color:#475569; transition: transform 0.2s ease;";
+      chevron.style.cssText = "font-size:0.72em; color:var(--text-faint, #475569); transition: transform 0.2s ease;";
       if (defaultOpen) chevron.style.transform = "rotate(0deg)";
 
       const body = section.createEl("div");
@@ -1146,7 +1160,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         body.style.display = open ? "block" : "none";
         chevron.textContent = open ? "⌃" : "⌄";
       };
-      header.onmouseenter = () => { header.style.background = "rgba(255,255,255,0.03)"; };
+      header.onmouseenter = () => { header.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.03))"; };
       header.onmouseleave = () => { header.style.background = "transparent"; };
 
       return body;
@@ -1157,13 +1171,13 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     // ── Panel Header ───────────────────────────────────────────────────────
     const panelHeader = toolbar.createEl("div");
-    panelHeader.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.05);";
+    panelHeader.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-bottom:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));";
     const headerLeft = panelHeader.createEl("div");
     headerLeft.style.cssText = "display:flex; align-items:center; gap:8px;";
     const titleDot = headerLeft.createEl("div");
     titleDot.style.cssText = "width:7px; height:7px; border-radius:50%; background:#06b6d4; box-shadow:0 0 8px #06b6d4; flex-shrink:0;";
     const statusText = panelHeader.createEl("span", { text: "–" });
-    statusText.style.cssText = "font-family:monospace; font-size:0.75em; color:#94a3b8; font-weight:600;";
+    statusText.style.cssText = "font-family:var(--font-monospace); font-size:0.75em; color:var(--text-muted, #94a3b8); font-weight:600;";
 
     // ── Section: Filter ────────────────────────────────────────────────────
     const filterBody = createSection(toolbar, t.secFilter, true);
@@ -1174,10 +1188,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
     });
     filterInput.style.cssText = `
-      display:block; width:calc(100% - 28px); margin:4px 14px 10px;
-      box-sizing:border-box; font-size:0.76em; padding:5px 10px;
-      border-radius:8px; border:1px solid rgba(255,255,255,0.09);
-      background:rgba(15,23,42,0.7); color:#f8fafc; outline:none;
+      display:block; width:calc(100% - 24px); margin:4px 12px 8px;
+      box-sizing:border-box; font-size:0.76em; padding:5px 9px;
+      border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.09));
+      background:var(--background-primary, rgba(15,23,42,0.7)); color:var(--text-normal, #f8fafc); outline:none;
     `;
 
     // ── Section: Ansicht ───────────────────────────────────────────────────
@@ -1205,7 +1219,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     });
 
     const embedModelLabel = this.plugin.settings?.embeddingModel || "bge-m3";
-    const calcVectorsBtn = createActionBtn(aktionenBody, `${t.btnCalcVectors} (${embedModelLabel})`, null);
+    const calcVectorsBtn = createActionBtn(aktionenBody, t.btnCalcVectors, null);
+    calcVectorsBtn.title = `Embedding Model: ${embedModelLabel}`;
 
     const createRelBtn = createActionBtn(aktionenBody, `${t.btnCreateRel} (≥2)`, null);
     createRelBtn.disabled = true;
@@ -1214,8 +1229,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     createRelBtn.onmouseenter = null;
     createRelBtn.onmouseleave = null;
 
-    const modelLabel = this.plugin.settings?.modelName || "LLM";
-    const synthesizeBtn = createActionBtn(aktionenBody, `${modelLabel} Synthese (0)`, null);
+    const fullModelName = this.plugin.settings?.modelName || "LLM";
+    const shortModelName = getShortModelName(fullModelName);
+    const synthesizeBtn = createActionBtn(aktionenBody, `${shortModelName} Synthese (0)`, null);
+    synthesizeBtn.title = `LLM Model: ${fullModelName}`;
     synthesizeBtn.disabled = true;
     synthesizeBtn.style.opacity = "0.35";
     synthesizeBtn.style.cursor = "not-allowed";
@@ -1230,8 +1247,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       btn.style.opacity = enabled ? "1" : "0.35";
       btn.style.cursor = enabled ? "pointer" : "not-allowed";
       if (enabled) {
-        btn.onmouseenter = () => { btn.style.background = "rgba(255,255,255,0.04)"; btn.style.color = "#f1f5f9"; };
-        btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "#94a3b8"; };
+        btn.onmouseenter = () => { btn.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))"; btn.style.color = "var(--text-normal, #f1f5f9)"; };
+        btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "var(--text-muted, #94a3b8)"; };
       } else {
         btn.onmouseenter = null;
         btn.onmouseleave = null;
@@ -1292,13 +1309,15 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
-      const currentModel = this.plugin.settings?.modelName || "KI";
+      const rawModel = this.plugin.settings?.modelName || "LLM";
+      const shortModel = getShortModelName(rawModel);
 
       setActionBtnEnabled(synthesizeBtn, count > 0);
-      synthesizeBtn.setText(`${currentModel} Synthese (${count})`);
+      synthesizeBtn.setText(`${shortModel} Synthese (${count})`);
+      synthesizeBtn.title = `Modell: ${rawModel}`;
 
       setActionBtnEnabled(createRelBtn, count >= 2);
-      createRelBtn.setText(count >= 2 ? `Beziehung erstellen (${count})` : "Beziehung (≥2 wählen)");
+      createRelBtn.setText(count >= 2 ? `${t.btnCreateRel} (${count})` : `${t.btnCreateRel} (≥2)`);
 
       setActionBtnEnabled(clearSelBtn, count > 0);
 
