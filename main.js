@@ -1383,118 +1383,201 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const ctx = canvas.getContext("2d");
 
-    // 2. Floating Panel — absolutely positioned INSIDE canvasWrap (no flex disruption)
+    // 2. Floating Panel — right-aligned, absolutely positioned INSIDE canvasWrap
     const toolbar = canvasWrap.createEl("div");
     toolbar.style.position = "absolute";
     toolbar.style.top = "12px";
-    toolbar.style.left = "12px";
+    toolbar.style.right = "12px";
     toolbar.style.zIndex = "20";
     toolbar.style.display = "flex";
     toolbar.style.flexDirection = "column";
-    toolbar.style.gap = "8px";
-    toolbar.style.padding = "12px 14px";
-    toolbar.style.borderRadius = "16px";
-    toolbar.style.background = "rgba(10, 17, 30, 0.75)";
-    toolbar.style.backdropFilter = "blur(18px)";
-    toolbar.style.webkitBackdropFilter = "blur(18px)";
-    toolbar.style.border = "1px solid rgba(6, 182, 212, 0.25)";
-    toolbar.style.boxShadow = "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)";
-    toolbar.style.minWidth = "260px";
-    toolbar.style.maxWidth = "480px";
+    toolbar.style.width = "240px";
+    toolbar.style.borderRadius = "14px";
+    toolbar.style.background = "rgba(10, 17, 30, 0.82)";
+    toolbar.style.backdropFilter = "blur(20px)";
+    toolbar.style.webkitBackdropFilter = "blur(20px)";
+    toolbar.style.border = "1px solid rgba(255,255,255,0.08)";
+    toolbar.style.boxShadow = "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)";
+    toolbar.style.overflow = "hidden";
     toolbar.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+    toolbar.style.userSelect = "none";
 
-    // 1. Native View Header Action Button (Sliders Icon toggles floating panel)
+    // Native View Header Action Button — toggles floating panel
     this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
-      if (toolbar) {
-        const isVisible = toolbar.style.opacity !== "0";
-        toolbar.style.opacity = isVisible ? "0" : "1";
-        toolbar.style.pointerEvents = isVisible ? "none" : "auto";
-        toolbar.style.transform = isVisible ? "translateY(-8px) scale(0.96)" : "translateY(0) scale(1)";
-      }
+      const isVisible = toolbar.style.opacity !== "0";
+      toolbar.style.opacity = isVisible ? "0" : "1";
+      toolbar.style.pointerEvents = isVisible ? "none" : "auto";
+      toolbar.style.transform = isVisible ? "translateY(-6px) scale(0.97)" : "translateY(0) scale(1)";
     });
 
-    // Panel header row: title badge + status
-    const panelHeaderRow = toolbar.createEl("div", {
-      style: "display: flex; align-items: center; gap: 8px; margin-bottom: 4px;"
-    });
-    const titleDot = panelHeaderRow.createEl("div", {
-      style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 10px #06b6d4; flex-shrink: 0;"
-    });
-    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
-    panelHeaderRow.createEl("span", {
-      text: isMathDomain ? "2D MATH VECTOR SPACE" : "2D KNOWLEDGE VECTOR SPACE",
-      style: "font-family: monospace; font-size: 0.78em; font-weight: 700; letter-spacing: 0.08em; color: #f1f5f9; flex: 1;"
-    });
-    const statusBadge = panelHeaderRow.createEl("div", {
-      style: "display: flex; align-items: center; gap: 5px; font-family: monospace; font-size: 0.72em; color: #94a3b8; padding: 3px 8px; background: rgba(30,41,59,0.6); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);"
-    });
-    statusBadge.createEl("div", {
-      style: "width: 5px; height: 5px; border-radius: 50%; background: #10b981;"
-    });
-    const statusText = statusBadge.createEl("span", { text: "Lade..." });
+    // ── Helper: CSS toggle switch ─────────────────────────────────────────
+    const createToggle = (parent, label, initialOn, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:8px 14px; cursor:pointer;";
 
-    // Filter input row
-    const filterInput = toolbar.createEl("input", {
-      type: "text",
-      placeholder: "Filter (z.B. path:wiki -file:index)...",
-      value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
-    });
-    filterInput.style.width = "100%";
-    filterInput.style.boxSizing = "border-box";
-    filterInput.style.fontSize = "0.78em";
-    filterInput.style.padding = "5px 12px";
-    filterInput.style.borderRadius = "10px";
-    filterInput.style.border = "1px solid rgba(255,255,255,0.10)";
-    filterInput.style.background = "rgba(15,23,42,0.6)";
-    filterInput.style.color = "#f8fafc";
-    filterInput.style.outline = "none";
+      const lbl = row.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.82em; color:#cbd5e1; flex:1;";
 
-    // Button rows
-    const btnRow1 = toolbar.createEl("div", {
-      style: "display: flex; gap: 6px; flex-wrap: wrap;"
-    });
-    const btnRow2 = toolbar.createEl("div", {
-      style: "display: flex; gap: 6px; flex-wrap: wrap;"
-    });
+      // Track element
+      let on = initialOn;
+      const track = row.createEl("div");
+      track.style.cssText = `
+        width:34px; height:18px; border-radius:9px; position:relative; flex-shrink:0;
+        background:${on ? "#06b6d4" : "rgba(100,116,139,0.5)"};
+        transition: background 0.2s ease; cursor:pointer;
+        border: 1px solid ${on ? "rgba(6,182,212,0.4)" : "rgba(255,255,255,0.08)"};
+      `;
+      const thumb = track.createEl("div");
+      thumb.style.cssText = `
+        width:12px; height:12px; border-radius:50%; background:#fff;
+        position:absolute; top:2px; left:${on ? "18px" : "2px"};
+        transition: left 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      `;
 
-    const styleButton = (btn, bg, hoverBg) => {
-      btn.style.fontSize = "0.75em";
-      btn.style.fontWeight = "600";
-      btn.style.padding = "5px 11px";
-      btn.style.borderRadius = "8px";
-      btn.style.cursor = "pointer";
-      btn.style.border = "1px solid rgba(255,255,255,0.10)";
-      btn.style.background = bg;
-      btn.style.color = "#f8fafc";
-      btn.style.transition = "all 0.15s ease";
-      btn.onmouseenter = () => { if (!btn.disabled) btn.style.background = hoverBg; };
-      btn.onmouseleave = () => { if (!btn.disabled) btn.style.background = bg; };
+      const setState = (newOn) => {
+        on = newOn;
+        track.style.background = on ? "#06b6d4" : "rgba(100,116,139,0.5)";
+        track.style.borderColor = on ? "rgba(6,182,212,0.4)" : "rgba(255,255,255,0.08)";
+        thumb.style.left = on ? "18px" : "2px";
+      };
+
+      row.onclick = () => {
+        setState(!on);
+        onChange(on);
+      };
+
+      row.onmouseenter = () => { row.style.background = "rgba(255,255,255,0.04)"; };
+      row.onmouseleave = () => { row.style.background = "transparent"; };
+
+      return { setOn: setState };
     };
 
-    const refreshBtn = btnRow1.createEl("button", { text: "Scannen" });
-    styleButton(refreshBtn, "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+    // ── Helper: action button (only for real actions) ─────────────────────
+    const createActionBtn = (parent, label, onClick) => {
+      const btn = parent.createEl("button", { text: label });
+      btn.style.cssText = `
+        width:100%; text-align:left; padding:8px 14px; background:transparent;
+        border:none; border-top:1px solid rgba(255,255,255,0.05);
+        color:#94a3b8; font-size:0.8em; cursor:pointer;
+        transition: color 0.15s ease, background 0.15s ease;
+      `;
+      btn.onmouseenter = () => { btn.style.background = "rgba(255,255,255,0.04)"; btn.style.color = "#f1f5f9"; };
+      btn.onmouseleave = () => { btn.style.background = "transparent"; btn.style.color = "#94a3b8"; };
+      btn.onclick = onClick;
+      return btn;
+    };
 
-    const calcVectorsBtn = btnRow1.createEl("button", { text: "BGE-M3 Vektoren" });
-    styleButton(calcVectorsBtn, "linear-gradient(135deg, #06b6d4, #3b82f6)", "linear-gradient(135deg, #0891b2, #2563eb)");
+    // ── Helper: collapsible section ───────────────────────────────────────
+    const createSection = (parentEl, title, defaultOpen = true) => {
+      const section = parentEl.createEl("div");
+      section.style.cssText = "border-top:1px solid rgba(255,255,255,0.06);";
 
-    const showEdgesToggleBtn = btnRow1.createEl("button", { text: this.showEdges ? "Kanten [ON]" : "Kanten [OFF]" });
-    styleButton(showEdgesToggleBtn, this.showEdges ? "linear-gradient(135deg, #06b6d4, #3b82f6)" : "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+      const header = section.createEl("div");
+      header.style.cssText = `
+        display:flex; align-items:center; justify-content:space-between;
+        padding:9px 14px; cursor:pointer;
+        transition: background 0.15s ease;
+      `;
+      const titleEl = header.createEl("span", { text: title });
+      titleEl.style.cssText = "font-size:0.78em; font-weight:600; letter-spacing:0.04em; color:#94a3b8; text-transform:uppercase;";
 
-    const lassoToggleBtn = btnRow2.createEl("button", { text: this.lassoSelectMode ? "Lasso [ON]" : "Lasso [OFF]" });
-    styleButton(lassoToggleBtn, this.lassoSelectMode ? "rgba(56,189,248,0.35)" : "rgba(30,41,59,0.8)", "rgba(51,65,85,0.9)");
+      const chevron = header.createEl("span", { text: defaultOpen ? "⌃" : "⌄" });
+      chevron.style.cssText = "font-size:0.72em; color:#475569; transition: transform 0.2s ease;";
+      if (defaultOpen) chevron.style.transform = "rotate(0deg)";
 
-    const createRelBtn = btnRow2.createEl("button", { text: "Beziehung (≥2)" });
-    styleButton(createRelBtn, "linear-gradient(135deg, #10b981, #06b6d4)", "linear-gradient(135deg, #059669, #0891b2)");
+      const body = section.createEl("div");
+      body.style.cssText = `display:${defaultOpen ? "block" : "none"};`;
+
+      let open = defaultOpen;
+      header.onclick = () => {
+        open = !open;
+        body.style.display = open ? "block" : "none";
+        chevron.textContent = open ? "⌃" : "⌄";
+      };
+      header.onmouseenter = () => { header.style.background = "rgba(255,255,255,0.03)"; };
+      header.onmouseleave = () => { header.style.background = "transparent"; };
+
+      return body;
+    };
+
+    // ── Panel Header ───────────────────────────────────────────────────────
+    const panelHeader = toolbar.createEl("div");
+    panelHeader.style.cssText = "display:flex; align-items:center; gap:8px; padding:11px 14px;";
+    const titleDot = panelHeader.createEl("div");
+    titleDot.style.cssText = "width:7px; height:7px; border-radius:50%; background:#06b6d4; box-shadow:0 0 8px #06b6d4; flex-shrink:0;";
+    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
+    panelHeader.createEl("span", {
+      text: isMathDomain ? "VEKTORRAUM" : "WISSENSRAUM",
+      style: "font-family:monospace; font-size:0.72em; font-weight:700; letter-spacing:0.1em; color:#f1f5f9; flex:1;"
+    });
+    const statusText = panelHeader.createEl("span", { text: "–" });
+    statusText.style.cssText = "font-family:monospace; font-size:0.68em; color:#475569;";
+
+    // ── Section: Filter ────────────────────────────────────────────────────
+    const filterBody = createSection(toolbar, "Filter", true);
+
+    const filterInput = filterBody.createEl("input", {
+      type: "text",
+      placeholder: "-path:schema -file:index...",
+      value: this.plugin.settings.vectorSearchExclusions || "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks"
+    });
+    filterInput.style.cssText = `
+      display:block; width:calc(100% - 28px); margin:4px 14px 10px;
+      box-sizing:border-box; font-size:0.76em; padding:5px 10px;
+      border-radius:8px; border:1px solid rgba(255,255,255,0.09);
+      background:rgba(15,23,42,0.7); color:#f8fafc; outline:none;
+    `;
+
+    // ── Section: Ansicht ───────────────────────────────────────────────────
+    const ansichtBody = createSection(toolbar, "Ansicht", true);
+
+    const edgeToggle = createToggle(ansichtBody, "Kanten anzeigen", this.showEdges, async (on) => {
+      this.showEdges = on;
+      if (on) await this.loadRelationEdges();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const lassoToggle = createToggle(ansichtBody, "Lasso-Auswahl", this.lassoSelectMode, (on) => {
+      this.lassoSelectMode = on;
+      canvas.style.cursor = on ? "crosshair" : "grab";
+    });
+
+    // ── Section: Aktionen ──────────────────────────────────────────────────
+    const aktionenBody = createSection(toolbar, "Aktionen", true);
+
+    const refreshBtn = createActionBtn(aktionenBody, "Vault scannen", async () => {
+      statusText.setText("Scanne...");
+      await this.scanVaultNotes();
+      statusText.setText(`${this.nodes.length}`);
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
+    const calcVectorsBtn = createActionBtn(aktionenBody, "BGE-M3 Vektoren berechnen", null);
+
+    const createRelBtn = aktionenBody.createEl("button", { text: "Beziehung erstellen (≥2 wählen)" });
+    createRelBtn.style.cssText = `
+      width:100%; text-align:left; padding:8px 14px; background:transparent;
+      border:none; border-top:1px solid rgba(255,255,255,0.05);
+      color:#334155; font-size:0.8em; cursor:not-allowed;
+      transition: color 0.15s ease, background 0.15s ease;
+    `;
     createRelBtn.disabled = true;
-    createRelBtn.style.opacity = "0.45";
 
-    const synthesizeBtn = btnRow2.createEl("button", { text: "Synthese (0)" });
-    styleButton(synthesizeBtn, "linear-gradient(135deg, #ec4899, #8b5cf6)", "linear-gradient(135deg, #db2777, #7c3aed)");
+    const synthesizeBtn = aktionenBody.createEl("button", { text: "DeepSeek-R1 Synthese (0)" });
+    synthesizeBtn.style.cssText = `
+      width:100%; text-align:left; padding:8px 14px; background:transparent;
+      border:none; border-top:1px solid rgba(255,255,255,0.05);
+      color:#334155; font-size:0.8em; cursor:not-allowed;
+      transition: color 0.15s ease, background 0.15s ease;
+    `;
     synthesizeBtn.disabled = true;
-    synthesizeBtn.style.opacity = "0.45";
 
-    const clearSelBtn = btnRow2.createEl("button", { text: "Leeren" });
-    styleButton(clearSelBtn, "rgba(239,68,68,0.15)", "rgba(239,68,68,0.30)");
+    const clearSelBtn = createActionBtn(aktionenBody, "Auswahl leeren", null);
+    clearSelBtn.style.color = "#475569";
+
+    // Aliases for compat with event handlers below
+    const showEdgesToggleBtn = { onclick: null };
+    const lassoToggleBtn = { onclick: null };
 
     // 3. Hover Bar at Bottom of container (static, not floating)
     const hoverBar = container.createEl("div");
@@ -1690,6 +1773,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           this.pan.y = canvasWrap.clientHeight / 2 - clicked.y * this.zoom;
           this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
           this.plugin.app.workspace.openLinkText(clicked.id, clicked.path, true);
+        }
+      } else {
+        // Click on empty canvas area → clear selection
+        if (this.selectedNodeIds.size > 0) {
+          this.selectedNodeIds.clear();
+          updateSelectionUI();
         }
       }
     });
