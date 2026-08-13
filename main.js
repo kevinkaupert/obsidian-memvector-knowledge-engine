@@ -356,7 +356,7 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
     return MATH_WIKI_VIEW_TYPE;
   }
   getDisplayText() {
-    return "Math Wiki Co-Pilot";
+    return "MemVector Co-Pilot";
   }
   getIcon() {
     return "function-square";
@@ -1348,7 +1348,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     return MATH_VECTOR_SCATTER_VIEW_TYPE;
   }
   getDisplayText() {
-    return "2D Math Vector Scatterplot";
+    return "MemVector 2D Vektorraum";
   }
   getIcon() {
     return "dot-network";
