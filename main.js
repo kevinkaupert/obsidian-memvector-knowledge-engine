@@ -1499,6 +1499,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       calcVectorsBtn.style.opacity = "1";
 
       if (successCount === total) {
+        this.applyVectorLayout();
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
         hoverBar.style.color = "var(--text-muted)";
         hoverBar.setText(`✅ ${successCount}/${total} Vektoren erfolgreich mit '${embedModel}' berechnet.`);
         statusText.setText(`${total} | Vektoren OK`);
@@ -1805,7 +1807,113 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     }
 
     this.nodes = nodes;
+    this.applyVectorLayout();
     await this.loadRelationEdges();
+  }
+
+  applyVectorLayout() {
+    if (!this.nodes || this.nodes.length === 0) return;
+
+    const isMath = this.plugin.settings?.knowledgeDomain === "math";
+    const n = this.nodes.length;
+
+    const calcSimilarity = (a, b) => {
+      if (a.embedding && b.embedding && a.embedding.length === b.embedding.length) {
+        let dot = 0, normA = 0, normB = 0;
+        for (let k = 0; k < a.embedding.length; k++) {
+          dot += a.embedding[k] * b.embedding[k];
+          normA += a.embedding[k] * a.embedding[k];
+          normB += b.embedding[k] * b.embedding[k];
+        }
+        if (normA > 0 && normB > 0) {
+          return Math.max(0, Math.min(1, (dot / (Math.sqrt(normA) * Math.sqrt(normB)) + 1) / 2));
+        }
+      }
+
+      const wordsA = new Set((a.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
+      const wordsB = new Set((b.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
+      let wordIntersect = 0;
+      wordsA.forEach((w) => { if (wordsB.has(w)) wordIntersect++; });
+      const wordUnion = Math.max(1, wordsA.size + wordsB.size - wordIntersect);
+      const wordSim = wordIntersect / wordUnion;
+
+      const formsA = new Set(a.latexFormulas || []);
+      const formsB = new Set(b.latexFormulas || []);
+      let formIntersect = 0;
+      formsA.forEach((f) => { if (formsB.has(f)) formIntersect++; });
+      const formSim = formsA.size + formsB.size > 0 ? formIntersect / Math.max(1, Math.min(formsA.size, formsB.size)) : 0;
+
+      const linkSim = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase())) ? 0.4 : 0;
+
+      if (isMath) {
+        return Math.min(1.0, wordSim * 0.15 + formSim * 0.70 + linkSim * 0.15);
+      } else {
+        return Math.min(1.0, wordSim * 0.75 + formSim * 0.10 + linkSim * 0.15);
+      }
+    };
+
+    const matrix = [];
+    for (let i = 0; i < n; i++) {
+      matrix[i] = [];
+      for (let j = 0; j < n; j++) {
+        if (i === j) matrix[i][j] = 1.0;
+        else if (j < i) matrix[i][j] = matrix[j][i];
+        else matrix[i][j] = calcSimilarity(this.nodes[i], this.nodes[j]);
+      }
+    }
+
+    const typeAngles = {
+      definition: -Math.PI * 0.65,
+      theorem: -Math.PI * 0.15,
+      concept: Math.PI * 0.25,
+      relation: Math.PI * 0.65,
+      synthesis: Math.PI * 0.85,
+      course: -Math.PI * 0.85,
+      question: -Math.PI * 0.45,
+      source: Math.PI * 0.45
+    };
+
+    for (let i = 0; i < n; i++) {
+      const node = this.nodes[i];
+      const baseAngle = (typeAngles[node.type] || 0) + (i * 0.25);
+      const hashStr = node.id + (node.content || "");
+      let hash = 0;
+      for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
+
+      const r = (isMath ? 180 : 120) + (Math.abs(hash) % 180);
+      node.x = Math.cos(baseAngle) * r + ((Math.abs(hash >> 3) % 120) - 60);
+      node.y = Math.sin(baseAngle) * r + ((Math.abs(hash >> 7) % 120) - 60);
+    }
+
+    const iterations = 35;
+    const targetDistBase = isMath ? 450 : 360;
+
+    for (let iter = 0; iter < iterations; iter++) {
+      const alpha = 0.85 * (1 - iter / iterations);
+
+      for (let i = 0; i < n; i++) {
+        const nodeA = this.nodes[i];
+        let fx = 0, fy = 0;
+
+        for (let j = 0; j < n; j++) {
+          if (i === j) continue;
+          const nodeB = this.nodes[j];
+          const dx = nodeA.x - nodeB.x;
+          const dy = nodeA.y - nodeB.y;
+          const dist = Math.hypot(dx, dy) || 1;
+
+          const sim = matrix[i][j];
+          const idealDist = targetDistBase * (1 - sim * 0.85);
+          const delta = dist - idealDist;
+
+          fx -= (dx / dist) * delta * 0.15;
+          fy -= (dy / dist) * delta * 0.15;
+        }
+
+        nodeA.x += fx * alpha;
+        nodeA.y += fy * alpha;
+      }
+    }
   }
 
   async loadRelationEdges() {

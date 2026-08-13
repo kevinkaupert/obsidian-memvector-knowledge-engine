@@ -8,7 +8,7 @@ The settings menu is organized into 5 clean sections:
 
 1. **General**
 2. **LLM Provider (for AI Synthesis & Co-Pilot)**
-3. **Knowledge Domain & Vector Space Filter**
+3. **Knowledge Domain & Vector Space Filter (Embedding Provider Setup)**
 4. **Qdrant Vector Database Connection**
 5. **Memgraph Graph Database Connection**
 
@@ -21,13 +21,9 @@ The settings menu is organized into 5 clean sections:
 
 ---
 
-### Section 2: LLM Provider Setup
+### Section 2: LLM Provider Setup (for AI Synthesis)
 
-MemVector supports **any OpenAI-compatible REST API** as well as **native Anthropic Claude API**.
-
-#### Provider Presets & Default Configurations
-
-When selecting a preset in the **LLM Provider** dropdown, fields are automatically reset to sensible defaults:
+Configures the Large Language Model used for **selection-based synthesis** and reasoning notes.
 
 | Provider | Base URL | API Key | Default Model |
 |---|---|---|---|
@@ -38,65 +34,36 @@ When selecting a preset in the **LLM Provider** dropdown, fields are automatical
 | **OpenRouter** | `https://openrouter.ai/api/v1` | Your `sk-or-...` Key | `anthropic/claude-3.5-sonnet` |
 | **Custom Endpoint** | `http://localhost:8000/v1` | (Optional) | `custom-model` |
 
-- **Temperature:** Controls AI determinism (`0.0` – `0.2` for precise analytical synthesis; higher values for creative writing).
-- **Dynamic Model Name Branding:** Synthesis action buttons, status bars, synthesis modal headers, and Markdown frontmatter metadata (`generated.by`) automatically mirror your configured model name.
-
 ---
 
-### Section 3: Knowledge Domain & Vector Space Filter
+### Section 3: Knowledge Domain & Embedding Provider Setup
 
 > [!IMPORTANT]
-> **Understanding the Knowledge Domain (`knowledgeDomain`) Feature**
+> **Independent Embedding Provider & LLM Synthesis Provider**
+> You can now use local Ollama (`bge-m3`) for dense 2D embeddings **while simultaneously using Anthropic Claude API or OpenAI GPT-4o for synthesis**!
 
-#### Why does the Knowledge Domain exist?
+#### Dedicated Embedding Settings
 
-In Obsidian knowledge vaults, notes fall into different structural archetypes:
+- **Embedding Provider (`embeddingProvider`):**
+  - **Ollama (Local):** `http://localhost:11434/v1`, Model: `bge-m3`
+  - **OpenAI Embeddings:** `https://api.openai.com/v1`, Model: `text-embedding-3-small`
+  - **Custom REST Endpoint:** `http://localhost:8000/v1`
+- **Embedding API Base URL (`embeddingApiBaseUrl`):** Separate endpoint URL for vector embeddings.
+- **Embedding API Key (`embeddingApiKey`):** Separate API key for vector embeddings (type `ollama` for local Ollama).
+- **Embedding Model Name (`embeddingModel`):** Exact model name (e.g. `bge-m3`, `nomic-embed-text`, `text-embedding-3-small`).
 
-1. **General Notes (PKM, Coding, Research, Literature):**
-   - Notes are primarily text-heavy paragraphs, bulleted outlines, or code blocks.
-   - Clustering relies heavily on **word frequencies, term co-occurrences, and semantic NLP embeddings**.
+#### Knowledge Domain Modes
 
-2. **Mathematical & Formal Science Notes (LaTeX Formulas & Proofs):**
-   - Notes are often concise in prose, but contain dense inline or block LaTeX formulas (`$x \in A$`, `$$\sum_{i=1}^n ...$$`, `\forall \epsilon > 0`).
-   - Standard NLP text embeddings often misclassify mathematical notes because identical LaTeX formulas are treated as plain ASCII strings, while prose descriptions may vary wildly between authors.
+- **`general` (Universal Notebook):** Term frequency + semantic clustering for PKM, research, and code.
+- **`math` (Mathematics & Formal Sciences):** LaTeX formula extraction & 15x feature weighting for formal definitions, theorems, and proofs.
 
-#### How the Knowledge Domain Modes Work
+#### Vault Exclusions & Mini-Radar Count
 
-- **`general` (Universal Notebook):**
-  - Standard term-frequency + semantic clustering.
-  - Ideal for general PKM, personal journals, software engineering notes, and research summaries.
-  
-- **`math` (Mathematics & Formal Sciences):**
-  - **LaTeX Formula Extraction:** Automatically extracts all LaTeX expressions (`$...$` and `$$...$$`) from notes.
-  - **Heuristic Formula Matching:** Identical LaTeX sub-expressions receive a 15x feature boost (5x base score × 3 multiplier) during similarity scoring.
-  - **Type-Based Spatial Offsetting:** Grouping clusters according to note frontmatter types (`type: definition`, `type: theorem`, `type: concept`, `type: relation`, `type: synthesis`).
-
-#### Customizing Vault Exclusions & Mini-Radar Count
-
-- **Path & File Exclusions (`vectorSearchExclusions`):**
-  Filter out non-content files, index pages, logs, and schemas using Obsidian Graph View search syntax:
-  ```text
-  -path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks
-  ```
-- **Mini-Radar Note Count ($X$):**
-  Determines how many top nearest vector neighbors ($X$) are framed inside the active note sidebar mini-radar canvas upon opening a file (Default: `10`).
+- **Path & File Exclusions (`vectorSearchExclusions`):** `-path: schema -file:index -file:log -file:README`
+- **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in sidebar (Default: `10`).
 
 ---
 
-### Section 4: Qdrant Vector Database Integration (Optional)
-
-Connect to a local or remote **Qdrant** instance for high-dimensional vector search across devices.
-
-- **Server URL:** `http://localhost:6333`
-- **Collection Name:** `obsidian_wiki_vectors`
-- **API Key:** Optional key for Qdrant Cloud.
-
----
-
-### Section 5: Memgraph Cypher Graph Database Integration (Optional)
-
-Connect to a **Memgraph** graph database via HTTP Cypher endpoint.
-
-- **Server URL:** `http://localhost:7000` (Memgraph Cypher HTTP API)
-- **Username / Password:** Credentials for authenticated Memgraph instances.
-- **Automatic Cypher Execution:** Automatically syncs relation edges (`wiki/relations/`) directly to Memgraph upon saving.
+### Section 4 & 5: Qdrant & Memgraph Connections
+- **Qdrant Vector DB:** Syncs embeddings to Qdrant collection.
+- **Memgraph Graph DB:** Syncs relation edges (`wiki/relations/`) via HTTP Cypher.
