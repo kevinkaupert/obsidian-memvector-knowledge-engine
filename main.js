@@ -1545,7 +1545,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
 
     new import_obsidian3.Setting(containerEl)
       .setName("Memgraph-Verbindung testen")
-      .setDesc("Prüft die Erreichbarkeit der Memgraph Graph-Datenbank.")
+      .setDesc("Prüft die Erreichbarkeit der Memgraph Graph-Datenbank (Bolt/Lab).")
       .addButton((btn) => btn
         .setButtonText("Memgraph Verbindung testen")
         .setCta()
@@ -1553,7 +1553,10 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            let baseUrl = (this.plugin.settings.memgraphUrl || "http://localhost:7000").replace(/\/+$/, "");
+            let baseUrl = (this.plugin.settings.memgraphUrl || "http://localhost:7687").replace(/\/+$/, "");
+            if (baseUrl.includes(":7687")) {
+              baseUrl = baseUrl.replace(":7687", ":3005");
+            }
             const res = await (0, import_obsidian3.requestUrl)({
               url: baseUrl,
               method: "GET",
@@ -1561,13 +1564,19 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
             });
             if (res.status === 200 || res.status === 405 || res.status === 401 || res.status === 400) {
               btn.setButtonText("✅ Erfolgreich!");
-              new import_obsidian3.Notice("✅ Memgraph-Server ist erreichbar!");
+              new import_obsidian3.Notice("✅ Memgraph-Server & Lab sind erreichbar!");
             } else {
               throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung abgelehnt"}`);
             }
           } catch (err) {
-            btn.setButtonText("❌ Fehlgeschlagen");
-            new import_obsidian3.Notice(`❌ Memgraph-Verbindung fehlgeschlagen: ${err.message}`);
+            const errStr = (err.message || "").toLowerCase();
+            if (errStr.includes("invalid response") || errStr.includes("http/0.9") || errStr.includes("net::err_invalid_http_response")) {
+              btn.setButtonText("✅ Erfolgreich (Bolt)!");
+              new import_obsidian3.Notice("✅ Memgraph Bolt-Server antwortet auf Port 7687!");
+            } else {
+              btn.setButtonText("❌ Fehlgeschlagen");
+              new import_obsidian3.Notice(`❌ Memgraph-Verbindung fehlgeschlagen: ${err.message}`);
+            }
           } finally {
             setTimeout(() => {
               btn.setButtonText("Memgraph Verbindung testen");
