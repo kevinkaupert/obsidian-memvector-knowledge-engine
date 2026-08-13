@@ -68,8 +68,7 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       payload = {
         model: cleanModel,
         max_tokens: 4096,
-        messages: [{ role: "user", content: prompt || "Hallo" }],
-        temperature: Math.max(0, Math.min(1, temperature ?? 0.1))
+        messages: [{ role: "user", content: prompt || "Hallo" }]
       };
       if (systemPrompt && systemPrompt.trim()) {
         payload.system = systemPrompt.trim();
