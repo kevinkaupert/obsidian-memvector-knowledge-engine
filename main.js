@@ -58,11 +58,14 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
 
     if (isAnthropic) {
       let rawModel = (modelName || "").toLowerCase().trim();
-      let cleanModel = "claude-3-5-sonnet-20241022";
-      if (rawModel.includes("haiku")) {
-        cleanModel = "claude-3-5-haiku-20241022";
-      } else if (rawModel.includes("opus")) {
-        cleanModel = "claude-3-opus-20240229";
+      let cleanModel = (modelName || "").trim();
+      if (!cleanModel || !cleanModel.startsWith("claude-")) {
+        cleanModel = "claude-sonnet-5";
+        if (rawModel.includes("haiku")) {
+          cleanModel = "claude-haiku-4-5";
+        } else if (rawModel.includes("opus")) {
+          cleanModel = "claude-opus-4-8";
+        }
       }
 
       if (cleanKey) headers["x-api-key"] = cleanKey;
@@ -115,9 +118,9 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       } else if (response.status === 402) {
         throw new Error(`HTTP 402 Payment Required (Guthaben aufgebraucht): ${errMsg || "Bitte lade Guthaben auf platform.deepseek.com auf oder schalte auf lokales Ollama um."}`);
       } else if (response.status === 401) {
-        throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${cleanBase}`);
+        throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${url}`);
       } else if (response.status === 404) {
-        throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${cleanBase}`);
+        throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${url}`);
       } else {
         throw new Error(`HTTP ${response.status}: ${errMsg || "LLM-Anfrage fehlgeschlagen"}`);
       }
@@ -208,7 +211,7 @@ var translations = {
     apiKeyName: "API Key",
     apiKeyDesc: "API-Schl\xFCssel f\xFCr Cloud-APIs (f\xFCr Ollama leer lassen oder 'ollama' eintragen).",
     modelNameTitle: "Modellname (Model Name)",
-    modelNameDesc: "Exakter Name des LLM-Modells (z. B. 'deepseek-r1:7b', 'claude-3-5-sonnet-20241022', 'gpt-4o', 'anthropic/claude-3.5-sonnet').",
+    modelNameDesc: "Exakter Name des LLM-Modells (z. B. 'deepseek-r1:7b', 'claude-sonnet-5', 'gpt-4o', 'anthropic/claude-sonnet-5').",
     temperatureTitle: "Temperatur",
     temperatureDesc: "Niedrigere Werte (0.0 - 0.2) liefern deterministische, strukturierte Antworten; h\xF6here Werte erlauben kreativere Antworten.",
 
@@ -371,7 +374,7 @@ var translations = {
     apiKeyName: "API Key",
     apiKeyDesc: "API key for cloud APIs (leave blank or type 'ollama' for Ollama).",
     modelNameTitle: "Model Name",
-    modelNameDesc: "Exact name of the LLM model (e.g., 'deepseek-r1:7b', 'claude-3-5-sonnet-20241022', 'gpt-4o', 'anthropic/claude-3.5-sonnet').",
+    modelNameDesc: "Exact name of the LLM model (e.g., 'deepseek-r1:7b', 'claude-sonnet-5', 'gpt-4o', 'anthropic/claude-sonnet-5').",
     temperatureTitle: "Temperature",
     temperatureDesc: "Lower values (0.0 - 0.2) produce deterministic, structured answers; higher values allow for more creative responses.",
 
@@ -979,42 +982,45 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 async function fetchProviderModels(apiBaseUrl, apiKey) {
   const rawBase = (apiBaseUrl || "").toLowerCase().trim();
   const cleanKey = (apiKey || "").trim();
-  const isAnthropic = rawBase.includes("anthropic.com");
-
-  if (isAnthropic) {
-    return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"];
-  }
+  const isAnthropic = rawBase.includes("anthropic");
 
   let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
   cleanUrl = cleanUrl.replace(/\/(messages|chat\/completions|models)$/i, "");
   const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
 
   const headers = { "Content-Type": "application/json" };
-  if (cleanKey && cleanKey !== "ollama") {
+  if (isAnthropic) {
+    if (cleanKey) headers["x-api-key"] = cleanKey;
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
+  } else if (cleanKey && cleanKey !== "ollama") {
     headers["Authorization"] = `Bearer ${cleanKey}`;
   }
 
-  try {
-    const res = await (0, import_obsidian3.requestUrl)({
-      url: targetUrl,
-      method: "GET",
-      headers,
-      throwOnError: false
-    });
+  const res = await (0, import_obsidian3.requestUrl)({
+    url: targetUrl,
+    method: "GET",
+    headers,
+    throwOnError: false
+  });
 
-    if (res.status === 200) {
-      const data = JSON.parse(res.text || "{}");
-      const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
-      const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
-      if (models.length > 0) return models;
-    }
-  } catch (err) {}
-
-  if (isAnthropic) {
-    return ["claude-3-5-sonnet-20241022", "claude-3-5-haiku-20241022", "claude-3-opus-20240229"];
+  if (res.status === 200) {
+    const data = JSON.parse(res.text || "{}");
+    const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
+    const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
+    if (models.length > 0) return models;
+    throw new Error(`Keine Modelle vom Provider erhalten (Antwort leer).`);
   }
 
-  throw new Error(`HTTP Verbindungsfehler: Bitte prüfe den API-Key und die Endpoint-URL.`);
+  let errMsg = res.text;
+  try {
+    const errJson = JSON.parse(res.text || "{}");
+    if (errJson?.error?.message) errMsg = errJson.error.message;
+  } catch (e) {}
+  if (res.status === 401) {
+    throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${targetUrl}`);
+  }
+  throw new Error(`HTTP ${res.status}: ${errMsg || "Modell-Abfrage fehlgeschlagen"} (${targetUrl})`);
 }
 
 // src/MathWikiSettingTab.ts
@@ -1074,7 +1080,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           } else if (value === "claude") {
             this.plugin.settings.apiBaseUrl = "https://api.anthropic.com/v1";
             this.plugin.settings.deepseekApiKey = "";
-            this.plugin.settings.modelName = "claude-3-5-sonnet-20241022";
+            this.plugin.settings.modelName = "claude-sonnet-5";
           } else if (value === "deepseek") {
             this.plugin.settings.apiBaseUrl = "https://api.deepseek.com/v1";
             this.plugin.settings.deepseekApiKey = "";
