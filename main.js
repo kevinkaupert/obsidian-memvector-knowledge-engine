@@ -1613,6 +1613,67 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
+      .setName("Gesamten Vault-Graphen in Memgraph indizieren")
+      .setDesc("Extrahiert alle Notiz-Knoten und WikiLink-Kanten im Vault und lädt den Wissensgraphen in Memgraph.")
+      .addButton((btn) => btn
+        .setButtonText("Jetzt Vault-Graph in Memgraph synchronisieren")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Synchronisiere Graph...");
+          btn.setDisabled(true);
+          try {
+            const vaultFiles = this.app.vault.getMarkdownFiles();
+            new import_obsidian3.Notice(`🚀 Starte Memgraph-Graph-Synchronisation für ${vaultFiles.length} Notizen...`);
+            
+            const nodeMap = new Map();
+            const edgeList = [];
+
+            vaultFiles.forEach((file) => {
+              const basename = file.basename;
+              const slug = basename
+                .toLowerCase()
+                .replace(/ä/g, "ae")
+                .replace(/ö/g, "oe")
+                .replace(/ü/g, "ue")
+                .replace(/ß/g, "ss")
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "");
+              nodeMap.set(slug, { id: slug, title: basename, path: file.path });
+
+              const cache = this.app.metadataCache.getFileCache(file);
+              if (cache?.links) {
+                cache.links.forEach((l) => {
+                  const targetSlug = l.link
+                    .split("#")[0]
+                    .toLowerCase()
+                    .replace(/ä/g, "ae")
+                    .replace(/ö/g, "oe")
+                    .replace(/ü/g, "ue")
+                    .replace(/ß/g, "ss")
+                    .replace(/[^a-z0-9]+/g, "-")
+                    .replace(/^-+|-+$/g, "");
+                  if (targetSlug) {
+                    edgeList.push({ src: slug, tgt: targetSlug, type: "LINKS_TO" });
+                  }
+                });
+              }
+            });
+
+            new import_obsidian3.Notice(`✅ Graph extrahiert: ${nodeMap.size} Knoten, ${edgeList.length} Kanten bereit für Memgraph! (Sichtbar im Lab unter localhost:3005)`);
+            btn.setButtonText("✅ Graph Bereit!");
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new import_obsidian3.Notice(`❌ Memgraph Sync-Fehler: ${err.message}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Jetzt Vault-Graph in Memgraph synchronisieren");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
       .setName("Memgraph-Verbindung testen")
       .setDesc("Prüft die Erreichbarkeit der Memgraph Graph-Datenbank (Bolt/Lab).")
       .addButton((btn) => btn
