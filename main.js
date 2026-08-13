@@ -98,6 +98,15 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
     if (response.status === 200) {
       const data = response.json;
       if (isDirectAnthropic) {
+        if (Array.isArray(data.content)) {
+          const textBlocks = data.content
+            .filter((b) => b.type === "text" || (b.text && b.type !== "thinking"))
+            .map((b) => b.text)
+            .filter(Boolean);
+          if (textBlocks.length > 0) {
+            return textBlocks.join("\n\n");
+          }
+        }
         return data.content?.[0]?.text || "Keine Antwort von Claude erhalten.";
       }
       return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
