@@ -3217,38 +3217,97 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.style.maxHeight = "85vh";
+    contentEl.style.maxHeight = "88vh";
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "20px";
 
     const count = this.selectedNodes.length;
 
-    // Header Badge
+    // Header
     const headerRow = contentEl.createEl("div", {
-      style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 12px;"
+      style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08)); padding-bottom: 12px;"
     });
 
     const headerLeft = headerRow.createEl("div", { style: "display: flex; align-items: center; gap: 10px;" });
-    headerLeft.createEl("div", { style: "width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 10px #10b981;" });
-    headerLeft.createEl("h3", { text: "Beziehung & Graph-Kante erstellen", style: "margin: 0; font-size: 1.1em; font-weight: 700;" });
+    headerLeft.createEl("div", { style: "width: 8px; height: 8px; border-radius: 50%; background: #06b6d4; box-shadow: 0 0 8px #06b6d4;" });
+    headerLeft.createEl("h3", { text: "Beziehung & Graph-Kante erstellen", style: "margin: 0; font-size: 1.05em; font-weight: 700; color: var(--text-normal);" });
 
     headerRow.createEl("span", {
       text: `${count} Notizen gewählt`,
-      style: "font-family: monospace; font-size: 0.8em; padding: 4px 10px; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border-radius: 12px; border: 1px solid rgba(96, 165, 250, 0.3);"
+      style: "font-family: var(--font-monospace); font-size: 0.78em; padding: 4px 10px; background: var(--background-primary-alt, rgba(255, 255, 255, 0.05)); color: var(--text-muted); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));"
     });
 
-    // STEP 1: Topology Selection Card
+    // ── TOP CARD: Live Graph-Fluss & Richtungsvorschau ─────────────────────
+    const flowCard = contentEl.createEl("div", {
+      style: "background: var(--background-secondary-alt, rgba(15, 23, 42, 0.7)); padding: 14px 16px; border-radius: 8px; border: 1px solid var(--interactive-accent, #38bdf8); margin-bottom: 16px;"
+    });
+
+    const flowHeader = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;" });
+    flowHeader.createEl("span", { text: "GRAPH-FLUSS & RICHTUNGSVORSCHAU", style: "font-size: 0.75em; font-weight: 700; color: var(--interactive-accent, #38bdf8); letter-spacing: 0.06em;" });
+
+    const swapBtn = flowHeader.createEl("button", { text: "⇄ Richtung umkehren", style: "font-size: 0.75em; padding: 3px 10px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border);" });
+
+    const flowBody = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 0;" });
+
+    const updateFlowPreview = () => {
+      flowBody.empty();
+      const edges = generateEdges();
+
+      if (count === 2) {
+        const edge = edges[0];
+        const srcNode = edge ? edge.src : this.selectedNodes[0];
+        const tgtNode = edge ? edge.tgt : this.selectedNodes[1];
+
+        // Source Box
+        const srcBox = flowBody.createEl("div", { style: "flex: 1; min-width: 140px; background: var(--background-primary); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
+        srcBox.createEl("div", { text: "🔷 QUELLE (A)", style: "font-size: 0.68em; font-weight: 700; color: #06b6d4; margin-bottom: 2px;" });
+        srcBox.createEl("div", { text: srcNode.title, style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal);" });
+
+        // Relation Arrow Badge
+        const arrowBadge = flowBody.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 10px;" });
+        arrowBadge.createEl("span", { text: `─── [ ${this.relType} ] ───►`, style: "font-family: var(--font-monospace); font-size: 0.8em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
+
+        // Target Box
+        const tgtBox = flowBody.createEl("div", { style: "flex: 1; min-width: 140px; background: var(--background-primary); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
+        tgtBox.createEl("div", { text: "🎯 ZIEL (B)", style: "font-size: 0.68em; font-weight: 700; color: #10b981; margin-bottom: 2px;" });
+        tgtBox.createEl("div", { text: tgtNode.title, style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal);" });
+      } else {
+        // Multi-Node Flow
+        edges.forEach((e, idx) => {
+          if (idx > 0) flowBody.createEl("span", { text: "  |  ", style: "color: var(--text-muted);" });
+          const pill = flowBody.createEl("div", { style: "background: var(--background-primary); padding: 6px 10px; border-radius: 6px; font-size: 0.8em; border: 1px solid var(--background-modifier-border);" });
+          pill.createEl("span", { text: `${e.src.title} `, style: "font-weight: 600;" });
+          pill.createEl("span", { text: `──[${this.relType}]──► `, style: "color: var(--interactive-accent); font-family: var(--font-monospace);" });
+          pill.createEl("span", { text: e.tgt.title, style: "font-weight: 600;" });
+        });
+      }
+    };
+
+    swapBtn.onclick = () => {
+      if (this.topology === "FOCAL_TO_REST") {
+        this.topology = "REST_TO_FOCAL";
+      } else if (this.topology === "REST_TO_FOCAL") {
+        this.topology = "FOCAL_TO_REST";
+      } else {
+        this.selectedNodes.reverse();
+      }
+      topolBtns.forEach((b) => b.update());
+      updateFlowPreview();
+      updateCypherPreview();
+    };
+
+    // STEP 1: Topology Selection
     const step1 = contentEl.createEl("div", {
-      style: "background: rgba(30, 41, 59, 0.5); padding: 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px;"
+      style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
     });
 
-    step1.createEl("div", { text: "1. Kanten-Topologie & Richtung", style: "font-size: 0.85em; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;" });
+    step1.createEl("div", { text: "1. Kanten-Topologie & Hauptnotiz", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;" });
 
     const topolRow = step1.createEl("div", { style: "display: flex; gap: 8px; margin-bottom: 10px;" });
 
     const topologies = [
-      { id: "FOCAL_TO_REST", label: "Stern (A ➔ Rest)" },
-      { id: "REST_TO_FOCAL", label: "Fokus (Rest ➔ A)" },
+      { id: "FOCAL_TO_REST", label: "Quelle ➔ Ziel (A ➔ B / Rest)" },
+      { id: "REST_TO_FOCAL", label: "Quellen ➔ Ziel (Rest ➔ A)" },
       { id: "CHAIN", label: "Kette (1 ➔ 2 ➔ 3)" }
     ];
 
@@ -3256,7 +3315,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     topologies.forEach((t) => {
       const btn = topolRow.createEl("button", { text: t.label });
       btn.style.flex = "1";
-      btn.style.fontSize = "0.8em";
+      btn.style.fontSize = "0.78em";
       btn.style.padding = "6px 8px";
       btn.style.borderRadius = "6px";
       btn.style.cursor = "pointer";
@@ -3264,15 +3323,16 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
       const updateTopolStyle = () => {
         const isActive = this.topology === t.id;
-        btn.style.background = isActive ? "#3b82f6" : "rgba(15, 23, 42, 0.6)";
-        btn.style.color = isActive ? "#ffffff" : "#94a3b8";
-        btn.style.border = isActive ? "1px solid #60a5fa" : "1px solid rgba(255, 255, 255, 0.08)";
+        btn.style.background = isActive ? "var(--interactive-accent, #38bdf8)" : "var(--background-primary)";
+        btn.style.color = isActive ? "#ffffff" : "var(--text-muted)";
+        btn.style.border = isActive ? "1px solid var(--interactive-accent)" : "1px solid var(--background-modifier-border)";
       };
 
       btn.onclick = () => {
         this.topology = t.id;
         topolBtns.forEach((b) => b.update());
-        if (focalWrap) focalWrap.style.display = this.topology === "CHAIN" ? "none" : "block";
+        if (focalWrap) focalWrap.style.display = this.topology === "CHAIN" ? "none" : "flex";
+        updateFlowPreview();
         updateCypherPreview();
       };
 
@@ -3282,10 +3342,10 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     });
 
     const focalWrap = step1.createEl("div", { style: "margin-top: 10px; display: flex; align-items: center; gap: 10px;" });
-    focalWrap.createEl("span", { text: "Haupt-Knoten (A):", style: "font-size: 0.85em; font-weight: 600; color: #cbd5e1; white-space: nowrap;" });
+    focalWrap.createEl("span", { text: "Hauptnotiz (A):", style: "font-size: 0.82em; font-weight: 600; color: var(--text-normal); white-space: nowrap;" });
 
     const focalSelect = focalWrap.createEl("select", {
-      style: "flex: 1; padding: 5px 10px; font-size: 0.85em; border-radius: 6px; background: rgba(15, 23, 42, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.12);"
+      style: "flex: 1; padding: 5px 10px; font-size: 0.82em; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border);"
     });
     this.selectedNodes.forEach((n, idx) => {
       const opt = focalSelect.createEl("option", { text: `[${n.type.toUpperCase()}] ${n.title}`, value: String(idx) });
@@ -3293,86 +3353,136 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     });
     focalSelect.onchange = () => {
       this.focalIndex = parseInt(focalSelect.value, 10) || 0;
+      updateFlowPreview();
       updateCypherPreview();
     };
 
     if (this.topology === "CHAIN") focalWrap.style.display = "none";
 
-    // STEP 2: Relationship Type Chip Badges
+    // STEP 2: Mathematical Relationship Types (Grouped by Academic Category)
     const step2 = contentEl.createEl("div", {
-      style: "background: rgba(30, 41, 59, 0.5); padding: 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px;"
+      style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
     });
 
-    step2.createEl("div", { text: "2. Beziehungs-Typ (Label)", style: "font-size: 0.85em; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;" });
+    step2.createEl("div", { text: "2. Mathematischer Beziehungs-Typ (Label)", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;" });
 
-    const chipWrap = step2.createEl("div", { style: "display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;" });
-
-    const typeChips = [
-      { val: "REQUIRES", label: "REQUIRES (Benötigt)", color: "#3b82f6" },
-      { val: "PROVES", label: "PROVES (Beweist)", color: "#10b981" },
-      { val: "IMPLIES", label: "IMPLIES (Impliziert)", color: "#8b5cf6" },
-      { val: "DEFINES", label: "DEFINES (Definiert)", color: "#06b6d4" },
-      { val: "EXTENDS", label: "EXTENDS (Erweitert)", color: "#6366f1" },
-      { val: "CONTRADICTS", label: "CONTRADICTS (Widerspricht)", color: "#ef4444" },
-      { val: "USES", label: "USES (Nutzt)", color: "#f59e0b" },
-      { val: "CUSTOM", label: "Frei...", color: "#ec4899" }
+    const categories = [
+      {
+        name: "Logik & Implikation",
+        items: [
+          { val: "IMPLIES", label: "impliziert" },
+          { val: "EQUIVALENT_TO", label: "äquivalent zu" },
+          { val: "NECESSARY_CONDITION_FOR", label: "ist notwendige Bedingung für" },
+          { val: "SUFFICIENT_CONDITION_FOR", label: "ist hinreichende Bedingung für" },
+          { val: "CONTRADICTS", label: "widerspricht" },
+          { val: "IS_INDEPENDENT_OF", label: "ist unabhängig von" }
+        ]
+      },
+      {
+        name: "Beweisführung & Korollare",
+        items: [
+          { val: "PROVES", label: "beweist" },
+          { val: "REFUTES", label: "widerlegt" },
+          { val: "FOLLOWS_FROM", label: "folgt aus" },
+          { val: "BASED_ON", label: "basiert auf" },
+          { val: "COROLLARY_OF", label: "ist Korollar von" },
+          { val: "LEMMA_FOR", label: "ist Lemma für" }
+        ]
+      },
+      {
+        name: "Definitionen & Abstraktion",
+        items: [
+          { val: "DEFINES", label: "definiert" },
+          { val: "EQUIVALENT_DEFINITION_FOR", label: "ist äquivalente Definition zu" },
+          { val: "SPECIAL_CASE_OF", label: "ist Spezialfall von" },
+          { val: "GENERALIZES", label: "verallgemeinert" },
+          { val: "EXTENDS", label: "erweitert" }
+        ]
+      },
+      {
+        name: "Struktur & Isomorphie",
+        items: [
+          { val: "ISOMORPHIC_TO", label: "ist isomorph zu" },
+          { val: "EMBEDDED_IN", label: "ist eingebettet in" },
+          { val: "DUAL_TO", label: "ist dual zu" },
+          { val: "ANALOGOUS_TO", label: "ist analog zu" }
+        ]
+      },
+      {
+        name: "Beispiele & Gegenbeispiele",
+        items: [
+          { val: "EXAMPLE_FOR", label: "ist Beispiel für" },
+          { val: "COUNTEREXAMPLE_FOR", label: "ist Gegenbeispiel für" },
+          { val: "CUSTOM", label: "Frei..." }
+        ]
+      }
     ];
 
     const customInput = step2.createEl("input", {
       type: "text",
       placeholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
-      style: "width: 100%; font-size: 0.85em; padding: 6px 10px; border-radius: 6px; background: rgba(15, 23, 42, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.15); display: none;"
+      style: "width: 100%; font-size: 0.82em; padding: 6px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); margin-top: 10px; display: none;"
     });
 
     const chipBtns = [];
-    typeChips.forEach((chip) => {
-      const btn = chipWrap.createEl("button", { text: chip.label });
-      btn.style.fontSize = "0.78em";
-      btn.style.fontWeight = "600";
-      btn.style.padding = "4px 10px";
-      btn.style.borderRadius = "14px";
-      btn.style.cursor = "pointer";
-      btn.style.transition = "all 0.15s ease";
 
-      const updateChipStyle = () => {
-        const isActive = this.relType === chip.val || (chip.val === "CUSTOM" && !typeChips.some((t) => t.val === this.relType));
-        btn.style.background = isActive ? chip.color : "rgba(15, 23, 42, 0.5)";
-        btn.style.color = isActive ? "#ffffff" : "#94a3b8";
-        btn.style.border = isActive ? `1px solid ${chip.color}` : "1px solid rgba(255, 255, 255, 0.08)";
-      };
+    categories.forEach((cat) => {
+      const catGroup = step2.createEl("div", { style: "margin-bottom: 10px;" });
+      catGroup.createEl("div", { text: cat.name, style: "font-size: 0.72em; font-weight: 600; color: var(--interactive-accent, #38bdf8); margin-bottom: 4px;" });
 
-      btn.onclick = () => {
-        if (chip.val === "CUSTOM") {
-          customInput.style.display = "block";
-          this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
-        } else {
-          customInput.style.display = "none";
-          this.relType = chip.val;
-        }
-        chipBtns.forEach((b) => b.update());
-        updateCypherPreview();
-      };
+      const wrap = catGroup.createEl("div", { style: "display: flex; flex-wrap: wrap; gap: 5px;" });
 
-      btn.update = updateChipStyle;
-      updateChipStyle();
-      chipBtns.push(btn);
+      cat.items.forEach((chip) => {
+        const btn = wrap.createEl("button", { text: `${chip.val} (${chip.label})` });
+        btn.style.fontSize = "0.75em";
+        btn.style.fontWeight = "500";
+        btn.style.padding = "4px 9px";
+        btn.style.borderRadius = "6px";
+        btn.style.cursor = "pointer";
+        btn.style.transition = "all 0.15s ease";
+
+        const updateChipStyle = () => {
+          const isActive = this.relType === chip.val || (chip.val === "CUSTOM" && !categories.some(c => c.items.some(i => i.val === this.relType)));
+          btn.style.background = isActive ? "var(--interactive-accent, #38bdf8)" : "var(--background-primary)";
+          btn.style.color = isActive ? "#ffffff" : "var(--text-normal)";
+          btn.style.border = isActive ? "1px solid var(--interactive-accent)" : "1px solid var(--background-modifier-border)";
+        };
+
+        btn.onclick = () => {
+          if (chip.val === "CUSTOM") {
+            customInput.style.display = "block";
+            this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+          } else {
+            customInput.style.display = "none";
+            this.relType = chip.val;
+          }
+          chipBtns.forEach((b) => b.update());
+          updateFlowPreview();
+          updateCypherPreview();
+        };
+
+        btn.update = updateChipStyle;
+        updateChipStyle();
+        chipBtns.push(btn);
+      });
     });
 
     customInput.oninput = () => {
       this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+      updateFlowPreview();
       updateCypherPreview();
     };
 
     // STEP 3: Description Textarea
     const step3 = contentEl.createEl("div", {
-      style: "background: rgba(30, 41, 59, 0.5); padding: 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px;"
+      style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
     });
 
-    step3.createEl("div", { text: "3. Warum sind diese Notizen verbunden? (Beschreibung)", style: "font-size: 0.85em; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;" });
+    step3.createEl("div", { text: "3. Warum sind diese Notizen verbunden? (Beschreibung)", style: "font-size: 0.8em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;" });
 
     const descArea = step3.createEl("textarea", {
       placeholder: "Beschreibe den fachlichen/didaktischen Grund der Verbindung...",
-      style: "width: 100%; height: 64px; font-size: 0.85em; padding: 8px 10px; border-radius: 6px; background: rgba(15, 23, 42, 0.8); color: #f8fafc; border: 1px solid rgba(255, 255, 255, 0.12); resize: vertical;"
+      style: "width: 100%; height: 60px; font-size: 0.82em; padding: 8px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;"
     });
     descArea.oninput = () => {
       this.relDesc = descArea.value;
@@ -3381,16 +3491,16 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     // STEP 4: Collapsible Cypher Code Details Box
     const details = contentEl.createEl("details", {
-      style: "background: rgba(15, 23, 42, 0.6); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); margin-bottom: 16px; font-size: 0.85em;"
+      style: "background: var(--background-secondary); padding: 10px 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border); margin-bottom: 16px; font-size: 0.8em;"
     });
 
-    const summary = details.createEl("summary", {
+    details.createEl("summary", {
       text: "▶ Memgraph Cypher Code Vorschau anzeigen",
-      style: "cursor: pointer; font-weight: 600; color: #38bdf8;"
+      style: "cursor: pointer; font-weight: 600; color: var(--interactive-accent);"
     });
 
     const cypherBox = details.createEl("pre", {
-      style: "background: #0f172a; color: #38bdf8; padding: 10px; border-radius: 6px; font-family: var(--font-monospace); font-size: 0.8em; overflow-x: auto; white-space: pre-wrap; margin-top: 8px; border: 1px solid rgba(56, 189, 248, 0.2);"
+      style: "background: var(--background-primary); color: var(--interactive-accent); padding: 10px; border-radius: 6px; font-family: var(--font-monospace); font-size: 0.78em; overflow-x: auto; white-space: pre-wrap; margin-top: 8px; border: 1px solid var(--background-modifier-border);"
     });
 
     const generateEdges = () => {
@@ -3454,112 +3564,73 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       cypherBox.setText(lines.join("\n"));
     };
 
+    updateFlowPreview();
     updateCypherPreview();
 
     // Action Footer
     const btnRow = contentEl.createEl("div", { style: "display: flex; gap: 10px; justify-content: flex-end; align-items: center;" });
 
-    const copyCypherBtn = btnRow.createEl("button", { text: "Cypher kopieren" });
-    copyCypherBtn.style.fontSize = "0.82em";
-    copyCypherBtn.style.padding = "6px 12px";
-    copyCypherBtn.style.borderRadius = "6px";
-    copyCypherBtn.style.cursor = "pointer";
-    copyCypherBtn.style.background = "rgba(30, 41, 59, 0.8)";
-    copyCypherBtn.style.color = "#f8fafc";
-    copyCypherBtn.style.border = "1px solid rgba(255, 255, 255, 0.1)";
+    const cancelBtn = btnRow.createEl("button", { text: "Abbrechen" });
+    cancelBtn.onclick = () => this.close();
 
-    const saveVaultBtn = btnRow.createEl("button", { text: "In Obsidian & Cypher speichern" });
-    saveVaultBtn.style.fontSize = "0.82em";
-    saveVaultBtn.style.fontWeight = "700";
-    saveVaultBtn.style.padding = "6px 14px";
-    saveVaultBtn.style.borderRadius = "6px";
-    saveVaultBtn.style.cursor = "pointer";
-    saveVaultBtn.style.background = "linear-gradient(135deg, #10b981, #06b6d4)";
-    saveVaultBtn.style.color = "#ffffff";
-    saveVaultBtn.style.border = "none";
-    saveVaultBtn.style.boxShadow = "0 2px 10px rgba(16, 185, 129, 0.3)";
+    const saveBtn = btnRow.createEl("button", {
+      text: "⚡ Beziehung & Kanten speichern",
+      style: "background: var(--interactive-accent, #38bdf8); color: #ffffff; font-weight: 600; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;"
+    });
 
-    const closeBtn = btnRow.createEl("button", { text: "Schließen" });
-    closeBtn.style.fontSize = "0.82em";
-    closeBtn.style.padding = "6px 12px";
-    closeBtn.style.borderRadius = "6px";
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      saveBtn.setText("Speichere Kanten...");
 
-    closeBtn.onclick = () => this.close();
-
-    copyCypherBtn.onclick = () => {
-      navigator.clipboard.writeText(cypherBox.innerText);
-      copyCypherBtn.setText("Kopiert!");
-      setTimeout(() => copyCypherBtn.setText("Cypher kopieren"), 2000);
-    };
-
-    saveVaultBtn.onclick = async () => {
-      saveVaultBtn.disabled = true;
-      saveVaultBtn.setText("Speichere...");
-      const typeStr = this.relType || "REQUIRES";
       const edges = generateEdges();
+      let createdCount = 0;
 
-      let savedCount = 0;
       for (const e of edges) {
-        const slugA = e.src.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
-        const slugB = e.tgt.id.toLowerCase().replace(/[^a-z0-9]/g, "-");
-        const relFileName = `wiki/relations/rel-${slugA}-to-${slugB}.md`;
+        const relFileName = `rel-${e.src.id}-to-${e.tgt.id}.md`;
+        const relPath = `wiki/relations/${relFileName}`;
+        const descText = this.relDesc ? this.relDesc : `Beziehung vom Typ ${this.relType} zwischen [[${e.src.id}|${e.src.title}]] und [[${e.tgt.id}|${e.tgt.title}]].`;
 
-        const relContent = `---
+        const fileContent = `---
 type: relation
-title: "${e.src.title} -> ${e.tgt.title}"
-relation_type: "${typeStr}"
-source_note: "[[${e.src.id}]]"
-target_note: "[[${e.tgt.id}]]"
+title: "${e.src.title} ➔ ${e.tgt.title} (${this.relType})"
+description: "${descText.replace(/"/g, '\\"')}"
+status: draft
+sources:
+  - "${e.src.path}"
+  - "${e.tgt.path}"
 generated:
-  by: "LLM Wiki Co-Pilot 2D Graph Engine"
+  by: "MemVector Co-Pilot"
   at: "${new Date().toISOString()}"
+verified: null
+relation_type: "${this.relType}"
+source_note: "[[${e.src.id}|${e.src.title}]]"
+target_note: "[[${e.tgt.id}|${e.tgt.title}]]"
 ---
 
-# relation: [[${e.src.id}|${e.src.title}]] -[${typeStr}]-> [[${e.tgt.id}|${e.tgt.title}]]
+# Beziehung: [[${e.src.id}|${e.src.title}]] ➔ [[${e.tgt.id}|${e.tgt.title}]]
+
+- **Typ:** \`${this.relType}\`
+- **Quelle (Startnotiz):** [[${e.src.id}|${e.src.title}]]
+- **Ziel (Zielnotiz):** [[${e.tgt.id}|${e.tgt.title}]]
 
 ## Didaktischer / Fachlicher Grund
-${this.relDesc || "Keine zusätzliche Beschreibung angegeben."}
-
-## Memgraph Cypher
-\`\`\`cypher
-MATCH (a:Note {id: "${e.src.id}"}), (b:Note {id: "${e.tgt.id}"})
-MERGE (a)-[r:${typeStr} { description: "${(this.relDesc || "").replace(/"/g, '\\"')}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(b)
-RETURN r;
-\`\`\`
+${descText}
 `;
+
         try {
-          const existing = this.app.vault.getAbstractFileByPath(relFileName);
+          const existing = this.plugin.app.vault.getAbstractFileByPath(relPath);
           if (existing) {
-            await this.app.vault.modify(existing, relContent);
+            await this.plugin.app.vault.modify(existing, fileContent);
           } else {
-            await this.app.vault.create(relFileName, relContent);
+            await this.plugin.app.vault.create(relPath, fileContent);
           }
-          savedCount++;
+          createdCount++;
         } catch (err) {
-          console.log("Vault relation file append fallback:", err);
+          console.error(`Fehler beim Speichern der Beziehungsnotiz ${relPath}:`, err);
         }
       }
 
-      new import_obsidian4.Notice(`${savedCount} Beziehungs-Notizen erfolgreich in 'wiki/relations/' gespeichert!`);
-
-      // Instant seamless real-time update of active 2D Scatterplot Views
-      try {
-        const scatterLeaves = this.app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE);
-        for (const leaf of scatterLeaves) {
-          if (leaf.view && typeof leaf.view.scanVaultNotes === "function") {
-            leaf.view.showEdges = true;
-            await leaf.view.scanVaultNotes();
-            const canvas = leaf.view.containerEl.querySelector("canvas");
-            if (canvas) {
-              const ctx = canvas.getContext("2d");
-              leaf.view.draw(ctx, canvas.clientWidth, canvas.clientHeight);
-            }
-          }
-        }
-      } catch (err) {
-        console.log("Real-time scatterplot refresh fallback:", err);
-      }
-
+      new import_obsidian4.Notice(`⚡ ${createdCount} Beziehungs-Kanten (wiki/relations/) erfolgreich gespeichert!`);
       this.close();
     };
   }
