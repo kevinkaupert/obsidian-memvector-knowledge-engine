@@ -33,29 +33,25 @@ var import_obsidian2 = require("obsidian");
 async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent für Obsidian. Antworte kurz, strukturiert und präzise auf Deutsch.") {
   try {
     const rawBase = (apiBase || "").toLowerCase().trim();
+    const rawModel = (modelName || "").toLowerCase().trim();
     const cleanKey = (apiKey || "").trim();
     const headers = { "Content-Type": "application/json" };
-    let url = "";
-    let isAnthropic = false;
 
-    if (rawBase.includes("anthropic.com")) {
-      isAnthropic = true;
+    const isAnthropic = rawBase.includes("anthropic") || rawModel.includes("claude");
+    let url = "";
+
+    if (isAnthropic) {
       url = "https://api.anthropic.com/v1/messages";
-    } else if (rawBase.includes("deepseek.com")) {
+    } else if (rawBase.includes("deepseek")) {
       url = "https://api.deepseek.com/v1/chat/completions";
-    } else if (rawBase.includes("openai.com")) {
+    } else if (rawBase.includes("openai")) {
       url = "https://api.openai.com/v1/chat/completions";
-    } else if (rawBase.includes("openrouter.ai")) {
+    } else if (rawBase.includes("openrouter")) {
       url = "https://openrouter.ai/api/v1/chat/completions";
     } else {
       let cleanBase = (apiBase || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
       cleanBase = cleanBase.replace(/\/(messages|chat\/completions|models)$/i, "");
-      if (cleanBase.includes("anthropic")) {
-        isAnthropic = true;
-        url = `${cleanBase}/v1/messages`.replace(/\/v1\/v1\//, "/v1/");
-      } else {
-        url = `${cleanBase}/chat/completions`;
-      }
+      url = `${cleanBase}/chat/completions`;
     }
 
     let payload;
