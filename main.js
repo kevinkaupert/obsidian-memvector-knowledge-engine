@@ -246,6 +246,8 @@ var translations = {
     qdrantCollDesc: "Name der Vektor-Collection f\xFCr Notiz-Embeddings.",
     qdrantKeyName: "Qdrant API Key (Optional)",
     qdrantKeyDesc: "API-Schl\xFCssel f\xFCr Qdrant Cloud oder gesch\xFCtzte Server.",
+    qdrantAutoSyncName: "Automatische Vektor-Synchronisation",
+    qdrantAutoSyncDesc: "Synchronisiere Embeddings aller Notizen automatisch beim Speichern mit der Qdrant Vektor-Datenbank.",
 
     // Section 5: Memgraph
     secMemgraph: "5. Memgraph Graph-Datenbank Anbindung",
@@ -409,6 +411,8 @@ var translations = {
     qdrantCollDesc: "Name of the vector collection for note embeddings.",
     qdrantKeyName: "Qdrant API Key (Optional)",
     qdrantKeyDesc: "API key for Qdrant Cloud or protected servers.",
+    qdrantAutoSyncName: "Automatic Vector Sync",
+    qdrantAutoSyncDesc: "Automatically sync note embeddings to Qdrant vector database upon saving.",
 
     // Section 5: Memgraph
     secMemgraph: "5. Memgraph Graph Database Connection",
@@ -1451,6 +1455,17 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         .setValue(this.plugin.settings.qdrantApiKey || "")
         .onChange(async (value) => {
           this.plugin.settings.qdrantApiKey = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName(t.qdrantAutoSyncName || "Automatische Vektor-Synchronisation")
+      .setDesc(t.qdrantAutoSyncDesc || "Synchronisiere Embeddings aller Notizen automatisch beim Speichern mit der Qdrant Vektor-Datenbank.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.autoSyncQdrant || false)
+        .onChange(async (value) => {
+          this.plugin.settings.autoSyncQdrant = value;
           await this.plugin.saveSettings();
         })
       );
