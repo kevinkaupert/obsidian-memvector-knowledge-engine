@@ -3368,22 +3368,27 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
         const srcNode = edge ? edge.src : this.selectedNodes[0];
         const tgtNode = edge ? edge.tgt : this.selectedNodes[1];
 
-        const row = flowBody.createEl("div", { style: "display: grid; grid-template-columns: 1fr 300px 1fr; align-items: center; gap: 16px;" });
+        const row = flowBody.createEl("div", { style: "display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; background: var(--background-primary); padding: 14px 18px; border-radius: 6px; border: 1px solid var(--interactive-accent);" });
 
-        // Source Box
-        const srcBox = row.createEl("div", { style: "background: var(--background-primary); padding: 12px 16px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
-        srcBox.createEl("div", { text: "QUELLE (A)", style: "font-size: 0.7em; font-weight: 700; color: #06b6d4; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;" });
-        srcBox.createEl("div", { text: `[${srcNode.type.toUpperCase()}] ${srcNode.title}`, style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal);" });
+        // Col 1: Source Note (Right-aligned towards arrow)
+        const srcCol = row.createEl("div", {
+          style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+          title: srcNode.title
+        });
+        srcCol.setText(srcNode.title);
 
-        // Relation Center Dropdown + Arrow
-        const centerWrap = row.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; gap: 6px;" });
-        centerWrap.createEl("span", { text: "── KANTENTYP ──►", style: "font-family: var(--font-monospace); font-size: 0.72em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
+        // Col 2: Arrow + Dropdown + Arrow
+        const centerWrap = row.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;" });
+        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; font-weight: 700; color: var(--interactive-accent);" });
         createSingleDropdown(centerWrap, 0);
+        centerWrap.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; font-weight: 700; color: var(--interactive-accent);" });
 
-        // Target Box
-        const tgtBox = row.createEl("div", { style: "background: var(--background-primary); padding: 12px 16px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
-        tgtBox.createEl("div", { text: "ZIEL (B)", style: "font-size: 0.7em; font-weight: 700; color: #10b981; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.05em;" });
-        tgtBox.createEl("div", { text: `[${tgtNode.type.toUpperCase()}] ${tgtNode.title}`, style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal);" });
+        // Col 3: Target Note (Left-aligned away from arrow)
+        const tgtCol = row.createEl("div", {
+          style: "font-size: 0.9em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+          title: tgtNode.title
+        });
+        tgtCol.setText(tgtNode.title);
       } else {
         // Multi-Node Clean 3-Column Aligned Table List
         const masterRow = flowBody.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; background: var(--background-primary); padding: 10px 16px; border-radius: 6px; border: 1px dashed var(--interactive-accent); margin-bottom: 8px;" });
@@ -3409,27 +3414,31 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
           updateCypherPreview();
         };
 
-        // Table Rows aligned with CSS Grid
+        // Table Rows aligned with CSS Grid (1 line per edge, perfectly aligned columns)
         edges.forEach((e, idx) => {
           const gridRow = flowBody.createEl("div", {
-            style: "display: grid; grid-template-columns: 1fr 300px 1fr; align-items: center; gap: 14px; background: var(--background-primary); padding: 10px 16px; border-radius: 6px; border: 1px solid var(--background-modifier-border);"
+            style: "display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; background: var(--background-primary); padding: 12px 18px; border-radius: 6px; border: 1px solid var(--background-modifier-border); margin-bottom: 12px;"
           });
 
-          // Col 1: Source Note
-          const srcCol = gridRow.createEl("div", { style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" });
-          srcCol.createEl("span", { text: "QUELLE: ", style: "font-size: 0.7em; font-weight: 700; color: #06b6d4;" });
-          srcCol.createEl("span", { text: `[${e.src.type.toUpperCase()}] ${e.src.title}`, style: "font-size: 0.86em; font-weight: 600; color: var(--text-normal);" });
+          // Col 1: Source Note Title (Right-aligned towards arrow)
+          const srcCol = gridRow.createEl("div", {
+            style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+            title: e.src.title
+          });
+          srcCol.setText(e.src.title);
 
-          // Col 2: Arrow + Dropdown
-          const centerCol = gridRow.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 8px;" });
-          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.8em; color: var(--interactive-accent); font-weight: 700;" });
+          // Col 2: Arrow + Dropdown + Arrow
+          const centerCol = gridRow.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;" });
+          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
           createSingleDropdown(centerCol, idx);
-          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.8em; color: var(--interactive-accent); font-weight: 700;" });
+          centerCol.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.85em; color: var(--interactive-accent); font-weight: 700;" });
 
-          // Col 3: Target Note
-          const tgtCol = gridRow.createEl("div", { style: "overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;" });
-          tgtCol.createEl("span", { text: "ZIEL: ", style: "font-size: 0.7em; font-weight: 700; color: #10b981;" });
-          tgtCol.createEl("span", { text: `[${e.tgt.type.toUpperCase()}] ${e.tgt.title}`, style: "font-size: 0.86em; font-weight: 600; color: var(--text-normal);" });
+          // Col 3: Target Note Title (Left-aligned away from arrow)
+          const tgtCol = gridRow.createEl("div", {
+            style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;",
+            title: e.tgt.title
+          });
+          tgtCol.setText(e.tgt.title);
         });
       }
     };
