@@ -997,6 +997,20 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
+     new import_obsidian3.Setting(containerEl)
+      .setName(t.synthLinkModeName || "Synthese WikiLink-Strategie")
+      .setDesc(t.synthLinkModeDesc || "Bestimmt, wie KI-Synthesen WikiLinks handhaben, um blinde/leere Links im Vault zu vermeiden.")
+      .addDropdown((dropdown) => dropdown
+        .addOption("suggested_section", "Nur existierende verlinken + Neue als Lücken-Abschnitt am Ende (Empfohlen)")
+        .addOption("existing_only", "Strikt nur existierende Vault-Notizen verlinken (Keine blinden Links)")
+        .addOption("all_concepts", "Alle Konzepte verlinken (Inkl. neuer Platzhalter-Links)")
+        .setValue(this.plugin.settings.synthesisLinkMode || "suggested_section")
+        .onChange(async (value) => {
+          this.plugin.settings.synthesisLinkMode = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
     // 4. Qdrant
     containerEl.createEl("h3", { text: t.secQdrant });
     new import_obsidian3.Setting(containerEl)
@@ -1105,6 +1119,7 @@ var DEFAULT_SETTINGS = {
   weightFolder: 10,
   weightSemantics: 10,
   radarNoteCount: 10,
+  synthesisLinkMode: "suggested_section",
   qdrantUrl: "http://localhost:6333",
   qdrantCollection: "obsidian_wiki_vectors",
   qdrantApiKey: "",
@@ -2582,10 +2597,39 @@ STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
 
     const rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
 
-    // Auto-convert any remaining **Term** bold words into [[slug|Term]] WikiLinks
-    const synthesisText = rawSynthesisText.replace(/\*\*([^*]+)\*\*/g, (match, term) => {
-      const cleanTerm = term.trim();
-      if (cleanTerm.length > 2 && !cleanTerm.includes("\n") && !cleanTerm.startsWith("#")) {
+    // Build Vault Title & Alias Map to check existing notes
+    const allVaultFiles = this.plugin.app.vault.getMarkdownFiles();
+    const vaultTitleMap = new Map();
+    allVaultFiles.forEach((file) => {
+      const basename = file.basename;
+      const slug = basename
+        .toLowerCase()
+        .replace(/ä/g, "ae")
+        .replace(/ö/g, "oe")
+        .replace(/ü/g, "ue")
+        .replace(/ß/g, "ss")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      vaultTitleMap.set(slug, basename);
+      vaultTitleMap.set(basename.toLowerCase(), basename);
+
+      const cache = this.plugin.app.metadataCache.getFileCache(file);
+      if (cache?.frontmatter?.aliases) {
+        const aliases = Array.isArray(cache.frontmatter.aliases) ? cache.frontmatter.aliases : [cache.frontmatter.aliases];
+        aliases.forEach((al) => vaultTitleMap.set(String(al).toLowerCase(), basename));
+      }
+    });
+
+    const linkMode = this.plugin.settings?.synthesisLinkMode || "suggested_section";
+    let synthesisText = rawSynthesisText;
+
+    if (linkMode === "existing_only" || linkMode === "suggested_section") {
+      const prospectiveTerms = new Set();
+
+      synthesisText = rawSynthesisText.replace(/\*\*([^*]+)\*\*/g, (match, term) => {
+        const cleanTerm = term.trim();
+        if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || cleanTerm.startsWith("#")) return match;
+
         const slug = cleanTerm
           .toLowerCase()
           .replace(/ä/g, "ae")
@@ -2594,10 +2638,49 @@ STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
           .replace(/ß/g, "ss")
           .replace(/[^a-z0-9]+/g, "-")
           .replace(/^-+|-+$/g, "");
-        if (slug) return `[[${slug}|${cleanTerm}]]`;
+
+        const existingBasename = vaultTitleMap.get(slug) || vaultTitleMap.get(cleanTerm.toLowerCase());
+        if (existingBasename) {
+          return `[[${existingBasename}|${cleanTerm}]]`;
+        }
+
+        // Store uncreated concept for suggestions
+        prospectiveTerms.add(cleanTerm);
+        return cleanTerm; // Keep as plain text in main body to avoid blind links!
+      });
+
+      if (linkMode === "suggested_section" && prospectiveTerms.size > 0) {
+        synthesisText += "\n\n### 💡 Vorgeschlagene neue Notizen (Wissenslücken)\n";
+        prospectiveTerms.forEach((term) => {
+          const slug = term
+            .toLowerCase()
+            .replace(/ä/g, "ae")
+            .replace(/ö/g, "oe")
+            .replace(/ü/g, "ue")
+            .replace(/ß/g, "ss")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+          synthesisText += `- [[${slug}|${term}]] *(Notiz noch nicht im Vault vorhanden)*\n`;
+        });
       }
-      return match;
-    });
+    } else {
+      // "all_concepts" mode: Convert all **Term** into [[slug|Term]]
+      synthesisText = rawSynthesisText.replace(/\*\*([^*]+)\*\*/g, (match, term) => {
+        const cleanTerm = term.trim();
+        if (cleanTerm.length > 2 && !cleanTerm.includes("\n") && !cleanTerm.startsWith("#")) {
+          const slug = cleanTerm
+            .toLowerCase()
+            .replace(/ä/g, "ae")
+            .replace(/ö/g, "oe")
+            .replace(/ü/g, "ue")
+            .replace(/ß/g, "ss")
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+          if (slug) return `[[${slug}|${cleanTerm}]]`;
+        }
+        return match;
+      });
+    }
 
     new SynthesisResultModal(this.plugin.app, selected, synthesisText, modelName).open();
     hoverBar.setText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);
