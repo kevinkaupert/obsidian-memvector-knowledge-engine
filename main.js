@@ -85,7 +85,6 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
 }
 
 // src/i18n.ts
-// src/i18n.ts
 var translations = {
   de: {
     sidebarTitle: "MemVector Co-Pilot",
@@ -116,6 +115,8 @@ var translations = {
     domainDesc: "Bestimmt die Merkmalsgewichtung im 2D-Vektorraum: 'Universelles Notizbuch' fokussiert Begriffsh\xE4ufigkeiten & Semantik (ideal f\xFCr PKM, Code, Forschung). 'Mathematik' gewichtet LaTeX-Formeln st\xE4rker, um mathematische Definitionen & S\xE4tze strukturell zu clustern.",
     domainGeneral: "Universelles Notizbuch (PKM, Code, Allgemeines Wissen, Forschung)",
     domainMath: "Mathematik & Formalwissenschaften (LaTeX-Formeln & Beweise)",
+    embedModelName: "Embedding Modell (Modellname)",
+    embedModelDesc: "W\xE4hlen oder tippen Sie das Modell f\xFCr Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small', 'all-minilm').",
     exclusionsName: "Pfad- & Datei-Ausschlie\xDFungen",
     exclusionsDesc: "Schlie\xDFe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
     radarCountName: "Mini-Radar Notizen-Anzahl (X)",
@@ -126,7 +127,7 @@ var translations = {
     qdrantUrlName: "Qdrant Server URL",
     qdrantUrlDesc: "HTTP-URL deiner Qdrant-Instanz (z. B. http://localhost:6333 oder Cloud-URL).",
     qdrantCollName: "Qdrant Collection Name",
-    qdrantCollDesc: "Name der Vektor-Collection f\xFCr bge-m3 Notiz-Embeddings.",
+    qdrantCollDesc: "Name der Vektor-Collection f\xFCr Notiz-Embeddings.",
     qdrantKeyName: "Qdrant API Key (Optional)",
     qdrantKeyDesc: "API-Schl\xFCssel f\xFCr Qdrant Cloud oder gesch\xFCtzte Server.",
 
@@ -139,7 +140,19 @@ var translations = {
     memgraphPassName: "Memgraph Passwort",
     memgraphPassDesc: "Passwort f\xFCr Memgraph Authentifizierung.",
     memgraphAutoSyncName: "Automatische Cypher-Ausf\xFChrung",
-    memgraphAutoSyncDesc: "F\xFChre erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus."
+    memgraphAutoSyncDesc: "F\xFChre erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus.",
+
+    // Floating Panel i18n
+    secFilter: "Filter",
+    secView: "Ansicht",
+    secActions: "Aktionen",
+    lblShowEdges: "Kanten anzeigen",
+    lblLasso: "Lasso-Auswahl",
+    btnScanVault: "Vault scannen",
+    btnCalcVectors: "Vektoren berechnen",
+    btnCreateRel: "Beziehung erstellen",
+    btnClearSel: "Auswahl leeren",
+    hoverHint: "Bewege die Maus \xFCber einen Vektor-Punkt. Ziehe mit gedr\xFCckter Shift-Taste oder Cmd-Klick zum Ausw\xE4hlen."
   },
   en: {
     sidebarTitle: "MemVector Co-Pilot",
@@ -170,6 +183,8 @@ var translations = {
     domainDesc: "Controls feature weighting in 2D vector space clustering: 'Universal Notebook' focuses on word frequencies & semantics (ideal for PKM, code, research). 'Mathematics' heavily weights LaTeX formulas to structurally link definitions & theorems.",
     domainGeneral: "Universal Notebook (PKM, Code, General Knowledge, Research)",
     domainMath: "Mathematics & Formal Sciences (LaTeX Formulas & Proofs)",
+    embedModelName: "Embedding Model",
+    embedModelDesc: "Select or type the model for note embeddings (e.g., 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small', 'all-minilm').",
     exclusionsName: "Path & File Exclusions",
     exclusionsDesc: "Exclude paths and files from 2D Scatterplot (e.g. -path: schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
     radarCountName: "Mini-Radar Note Count (X)",
@@ -180,7 +195,7 @@ var translations = {
     qdrantUrlName: "Qdrant Server URL",
     qdrantUrlDesc: "HTTP URL of your Qdrant instance (e.g., http://localhost:6333 or cloud URL).",
     qdrantCollName: "Qdrant Collection Name",
-    qdrantCollDesc: "Name of the vector collection for bge-m3 note embeddings.",
+    qdrantCollDesc: "Name of the vector collection for note embeddings.",
     qdrantKeyName: "Qdrant API Key (Optional)",
     qdrantKeyDesc: "API key for Qdrant Cloud or protected servers.",
 
@@ -193,7 +208,19 @@ var translations = {
     memgraphPassName: "Memgraph Password",
     memgraphPassDesc: "Password for Memgraph authentication.",
     memgraphAutoSyncName: "Automatic Cypher Execution",
-    memgraphAutoSyncDesc: "Execute created Cypher edges directly on the Memgraph server when saving."
+    memgraphAutoSyncDesc: "Execute created Cypher edges directly on the Memgraph server when saving.",
+
+    // Floating Panel i18n
+    secFilter: "Filter",
+    secView: "View",
+    secActions: "Actions",
+    lblShowEdges: "Show Edges",
+    lblLasso: "Lasso Selection",
+    btnScanVault: "Scan Vault",
+    btnCalcVectors: "Calculate Vectors",
+    btnCreateRel: "Create Relation",
+    btnClearSel: "Clear Selection",
+    hoverHint: "Hover over vector nodes. Hold Shift + drag or Cmd-Click to select."
   }
 };
 function getTranslation(lang) {
@@ -799,6 +826,18 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
+      .setName(t.embedModelName)
+      .setDesc(t.embedModelDesc)
+      .addText((text) => text
+        .setPlaceholder("bge-m3")
+        .setValue(this.plugin.settings.embeddingModel || "bge-m3")
+        .onChange(async (value) => {
+          this.plugin.settings.embeddingModel = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
       .setName(t.exclusionsName)
       .setDesc(t.exclusionsDesc)
       .addText((text) => text
@@ -918,6 +957,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
 var DEFAULT_SETTINGS = {
   language: "de",
   knowledgeDomain: "general",
+  embeddingModel: "bge-m3",
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",
   deepseekApiKey: "ollama",
@@ -1110,21 +1150,21 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       return body;
     };
 
+    const lang = this.plugin.settings?.language || "de";
+    const t = getTranslation(lang);
+
     // ── Panel Header ───────────────────────────────────────────────────────
     const panelHeader = toolbar.createEl("div");
-    panelHeader.style.cssText = "display:flex; align-items:center; gap:8px; padding:11px 14px;";
-    const titleDot = panelHeader.createEl("div");
+    panelHeader.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.05);";
+    const headerLeft = panelHeader.createEl("div");
+    headerLeft.style.cssText = "display:flex; align-items:center; gap:8px;";
+    const titleDot = headerLeft.createEl("div");
     titleDot.style.cssText = "width:7px; height:7px; border-radius:50%; background:#06b6d4; box-shadow:0 0 8px #06b6d4; flex-shrink:0;";
-    const isMathDomain = this.plugin.settings?.knowledgeDomain === "math";
-    panelHeader.createEl("span", {
-      text: isMathDomain ? "VEKTORRAUM" : "WISSENSRAUM",
-      style: "font-family:monospace; font-size:0.72em; font-weight:700; letter-spacing:0.1em; color:#f1f5f9; flex:1;"
-    });
     const statusText = panelHeader.createEl("span", { text: "–" });
-    statusText.style.cssText = "font-family:monospace; font-size:0.68em; color:#475569;";
+    statusText.style.cssText = "font-family:monospace; font-size:0.75em; color:#94a3b8; font-weight:600;";
 
     // ── Section: Filter ────────────────────────────────────────────────────
-    const filterBody = createSection(toolbar, "Filter", true);
+    const filterBody = createSection(toolbar, t.secFilter, true);
 
     const filterInput = filterBody.createEl("input", {
       type: "text",
@@ -1139,32 +1179,33 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     `;
 
     // ── Section: Ansicht ───────────────────────────────────────────────────
-    const ansichtBody = createSection(toolbar, "Ansicht", true);
+    const ansichtBody = createSection(toolbar, t.secView, true);
 
-    const edgeToggle = createToggle(ansichtBody, "Kanten anzeigen", this.showEdges, async (on) => {
+    const edgeToggle = createToggle(ansichtBody, t.lblShowEdges, this.showEdges, async (on) => {
       this.showEdges = on;
       if (on) await this.loadRelationEdges();
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     });
 
-    const lassoToggle = createToggle(ansichtBody, "Lasso-Auswahl", this.lassoSelectMode, (on) => {
+    const lassoToggle = createToggle(ansichtBody, t.lblLasso, this.lassoSelectMode, (on) => {
       this.lassoSelectMode = on;
       canvas.style.cursor = on ? "crosshair" : "grab";
     });
 
     // ── Section: Aktionen ──────────────────────────────────────────────────
-    const aktionenBody = createSection(toolbar, "Aktionen", true);
+    const aktionenBody = createSection(toolbar, t.secActions, true);
 
-    const refreshBtn = createActionBtn(aktionenBody, "Vault scannen", async () => {
-      statusText.setText("Scanne...");
+    const refreshBtn = createActionBtn(aktionenBody, t.btnScanVault, async () => {
+      statusText.setText("...");
       await this.scanVaultNotes();
       statusText.setText(`${this.nodes.length}`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
     });
 
-    const calcVectorsBtn = createActionBtn(aktionenBody, "BGE-M3 Vektoren berechnen", null);
+    const embedModelLabel = this.plugin.settings?.embeddingModel || "bge-m3";
+    const calcVectorsBtn = createActionBtn(aktionenBody, `${t.btnCalcVectors} (${embedModelLabel})`, null);
 
-    const createRelBtn = createActionBtn(aktionenBody, "Beziehung erstellen (≥2 wählen)", null);
+    const createRelBtn = createActionBtn(aktionenBody, `${t.btnCreateRel} (≥2)`, null);
     createRelBtn.disabled = true;
     createRelBtn.style.opacity = "0.35";
     createRelBtn.style.cursor = "not-allowed";
@@ -1172,14 +1213,14 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     createRelBtn.onmouseleave = null;
 
     const modelLabel = this.plugin.settings?.modelName || "LLM";
-    const synthesizeBtn = createActionBtn(aktionenBody, `KI-Synthese (${modelLabel}) (0)`, null);
+    const synthesizeBtn = createActionBtn(aktionenBody, `${modelLabel} Synthese (0)`, null);
     synthesizeBtn.disabled = true;
     synthesizeBtn.style.opacity = "0.35";
     synthesizeBtn.style.cursor = "not-allowed";
     synthesizeBtn.onmouseenter = null;
     synthesizeBtn.onmouseleave = null;
 
-    const clearSelBtn = createActionBtn(aktionenBody, "Auswahl leeren", null);
+    const clearSelBtn = createActionBtn(aktionenBody, t.btnClearSel, null);
 
     // Helper to enable/disable action buttons with consistent appearance
     const setActionBtnEnabled = (btn, enabled) => {
@@ -1207,7 +1248,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     hoverBar.style.fontSize = "0.85em";
     hoverBar.style.color = "var(--text-muted)";
     hoverBar.style.zIndex = "10";
-    hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
+    hoverBar.setText(t.hoverHint);
 
     showEdgesToggleBtn.onclick = async () => {
       this.showEdges = !this.showEdges;
