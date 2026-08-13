@@ -44,15 +44,24 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
     let payload;
 
     if (isAnthropic) {
+      let cleanModel = (modelName || "claude-3-5-sonnet-20241022").trim();
+      if (cleanModel.includes("claude-3.5-sonnet") || cleanModel === "claude-3-5-sonnet" || cleanModel === "claude") {
+        cleanModel = "claude-3-5-sonnet-20241022";
+      } else if (cleanModel.includes("claude-3.5-haiku") || cleanModel === "claude-3-5-haiku") {
+        cleanModel = "claude-3-5-haiku-20241022";
+      } else if (cleanModel.includes("claude-3-opus")) {
+        cleanModel = "claude-3-opus-20240229";
+      }
+
       if (cleanKey) headers["x-api-key"] = cleanKey;
       headers["anthropic-version"] = "2023-06-01";
       headers["anthropic-dangerous-direct-browser-access"] = "true";
       payload = {
-        model: modelName || "claude-3-5-sonnet-20241022",
-        max_tokens: 2048,
+        model: cleanModel,
+        max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: "user", content: prompt }],
-        temperature: temperature ?? 0.1
+        temperature: Math.max(0, Math.min(1, temperature ?? 0.1))
       };
     } else {
       if (cleanKey && cleanKey !== "ollama") {
@@ -89,8 +98,10 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
         if (errJson?.error?.message) errMsg = errJson.error.message;
       } catch (e) {}
 
-      if (response.status === 402) {
-        throw new Error(`HTTP 402 Payment Required (Guthaben aufgebraucht): ${errMsg || "Bitte Lade Guthaben auf platform.deepseek.com auf oder schalte in den Einstellungen auf lokales Ollama um."}`);
+      if (response.status === 400) {
+        throw new Error(`HTTP 400 Bad Request: ${errMsg || "Ungültige Parameter oder ungültiger Modellname für Claude"}`);
+      } else if (response.status === 402) {
+        throw new Error(`HTTP 402 Payment Required (Guthaben aufgebraucht): ${errMsg || "Bitte lade Guthaben auf platform.deepseek.com auf oder schalte auf lokales Ollama um."}`);
       } else if (response.status === 401) {
         throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${cleanBase}`);
       } else if (response.status === 404) {
