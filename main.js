@@ -2341,8 +2341,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           ctx.font = "bold 11px var(--font-interface, sans-serif)";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-          ctx.shadowBlur = 4;
 
           const titleText = `☁️ ${c.label.toUpperCase()} (${c.count})`;
           ctx.fillStyle = palette.labelColor;
@@ -2450,8 +2448,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           ctx.font = "bold 9px monospace";
           ctx.textAlign = "center";
           ctx.textBaseline = descText ? "top" : "middle";
-          ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-          ctx.shadowBlur = 4;
           ctx.fillStyle = edgeColor;
           ctx.fillText(typeText, midX, descText ? midY - 14 : midY);
 
@@ -2508,9 +2504,6 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         ctx.font = `${fontH}px sans-serif`;
 
         ctx.save();
-        ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
-        ctx.shadowBlur = 4;
-
         ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? themeTextNormal : themeTextMuted;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
