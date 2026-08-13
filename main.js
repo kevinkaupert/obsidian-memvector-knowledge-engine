@@ -1455,6 +1455,45 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
+    new import_obsidian3.Setting(containerEl)
+      .setName("Qdrant-Verbindung testen")
+      .setDesc("Prüft die Erreichbarkeit des Qdrant Vektor-Servers und der Collection.")
+      .addButton((btn) => btn
+        .setButtonText("Qdrant Verbindung testen")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Testen...");
+          btn.setDisabled(true);
+          try {
+            let baseUrl = (this.plugin.settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
+            const headers = { "Content-Type": "application/json" };
+            if (this.plugin.settings.qdrantApiKey) {
+              headers["api-key"] = this.plugin.settings.qdrantApiKey;
+            }
+            const res = await (0, import_obsidian3.requestUrl)({
+              url: `${baseUrl}/collections`,
+              method: "GET",
+              headers,
+              throwOnError: false
+            });
+            if (res.status === 200) {
+              btn.setButtonText("✅ Erfolgreich!");
+              new import_obsidian3.Notice("✅ Qdrant-Verbindung erfolgreich hergestellt!");
+            } else {
+              throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung abgelehnt"}`);
+            }
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new import_obsidian3.Notice(`❌ Qdrant-Verbindung fehlgeschlagen: ${err.message}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Qdrant Verbindung testen");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+      );
+
     // 5. Memgraph
     containerEl.createEl("h3", { text: t.secMemgraph });
     new import_obsidian3.Setting(containerEl)
@@ -1501,6 +1540,40 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.autoSyncMemgraph = value;
           await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName("Memgraph-Verbindung testen")
+      .setDesc("Prüft die Erreichbarkeit der Memgraph Graph-Datenbank.")
+      .addButton((btn) => btn
+        .setButtonText("Memgraph Verbindung testen")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Testen...");
+          btn.setDisabled(true);
+          try {
+            let baseUrl = (this.plugin.settings.memgraphUrl || "http://localhost:7000").replace(/\/+$/, "");
+            const res = await (0, import_obsidian3.requestUrl)({
+              url: baseUrl,
+              method: "GET",
+              throwOnError: false
+            });
+            if (res.status === 200 || res.status === 405 || res.status === 401 || res.status === 400) {
+              btn.setButtonText("✅ Erfolgreich!");
+              new import_obsidian3.Notice("✅ Memgraph-Server ist erreichbar!");
+            } else {
+              throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung abgelehnt"}`);
+            }
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new import_obsidian3.Notice(`❌ Memgraph-Verbindung fehlgeschlagen: ${err.message}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Memgraph Verbindung testen");
+              btn.setDisabled(false);
+            }, 3000);
+          }
         })
       );
   }
