@@ -2550,27 +2550,54 @@ ${n.content}
 
     const isMath = this.plugin.settings?.knowledgeDomain === "math";
 
+    const notesListStr = selected.map((n) => `- Notiz: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
+
     const prompt = isMath
       ? `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
 Der Benutzer hat folgende ${selected.length} mathematische Notizen im 2D-Vektorraum selektiert:
 
 ${notesSummary}
 
-Aufgabe:
+Verfügbare Notiz-WikiLinks:
+${notesListStr}
+
+STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
 1. Erläutere präzise auf Deutsch den mathematischen Zusammenhang, die Brücke und den roten Faden zwischen diesen ${selected.length} Notizen.
-2. Zeige, wie sie sich gegenseitig ergänzen, wo Vorbedingung/Beweisschritte vorliegen und welche mathematische Identität oder Struktur sie verbindet.
-3. Formuliere eine saubere Synthese in Markdown mit LaTeX-Formeln ($...$) und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`
+2. Zeige, wie sie sich gegenseitig ergänzen, wo Vorbedingungen/Beweisschritte vorliegen und welche mathematische Identität oder Struktur sie verbindet.
+3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Satz, Beweistrick oder Begriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] (wie z. B. [[disjunktion|Disjunktion]], [[gauss-summenformel|Gaußsche Summenformel]]) STATT bloßer Fettschrift (**...**)!
+4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für mathematische Begriffe oder Notiznamen. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
       : `Du bist ein führender Wissens-Synthesizer und KI-Co-Pilot für Obsidian Knowledge Vaults.
 Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
 
 ${notesSummary}
 
-Aufgabe:
+Verfügbare Notiz-WikiLinks:
+${notesListStr}
+
+STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
 1. Erläutere präzise auf Deutsch den inhaltlichen Zusammenhang, die Kerngedanken und den roten Faden zwischen diesen ${selected.length} Notizen.
 2. Zeige, wie die Konzepte aufeinander aufbauen, sich ergänzen oder verschiedene Blickwinkel einnehmen.
-3. Formuliere eine strukturierte Synthese in Markdown mit klaren Überschriften, Kernaussagen und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`;
+3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Konzept oder Schlüsselbegriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] STATT bloßer Fettschrift (**...**)!
+4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`;
 
-    const synthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
+    const rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
+
+    // Auto-convert any remaining **Term** bold words into [[slug|Term]] WikiLinks
+    const synthesisText = rawSynthesisText.replace(/\*\*([^*]+)\*\*/g, (match, term) => {
+      const cleanTerm = term.trim();
+      if (cleanTerm.length > 2 && !cleanTerm.includes("\n") && !cleanTerm.startsWith("#")) {
+        const slug = cleanTerm
+          .toLowerCase()
+          .replace(/ä/g, "ae")
+          .replace(/ö/g, "oe")
+          .replace(/ü/g, "ue")
+          .replace(/ß/g, "ss")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "");
+        if (slug) return `[[${slug}|${cleanTerm}]]`;
+      }
+      return match;
+    });
 
     new SynthesisResultModal(this.plugin.app, selected, synthesisText, modelName).open();
     hoverBar.setText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);
