@@ -37,10 +37,10 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
     const cleanKey = (apiKey || "").trim();
     const headers = { "Content-Type": "application/json" };
 
-    const isAnthropic = rawBase.includes("anthropic") || rawModel.includes("claude");
+    const isDirectAnthropic = rawBase.includes("anthropic.com") || (rawBase.includes("anthropic") && !rawBase.includes("openrouter") && !rawBase.includes("deepseek") && !rawBase.includes("localhost"));
     let url = "";
 
-    if (isAnthropic) {
+    if (isDirectAnthropic) {
       url = "https://api.anthropic.com/v1/messages";
     } else if (rawBase.includes("deepseek")) {
       url = "https://api.deepseek.com/v1/chat/completions";
@@ -56,16 +56,23 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
 
     let payload;
 
-    if (isAnthropic) {
-      let rawModel = (modelName || "").toLowerCase().trim();
+    if (isDirectAnthropic) {
       let cleanModel = (modelName || "").trim();
-      if (!cleanModel || !cleanModel.startsWith("claude-")) {
-        cleanModel = "claude-sonnet-5";
-        if (rawModel.includes("haiku")) {
-          cleanModel = "claude-haiku-4-5";
-        } else if (rawModel.includes("opus")) {
-          cleanModel = "claude-opus-4-8";
+      if (cleanModel.toLowerCase().startsWith("anthropic/")) {
+        cleanModel = cleanModel.slice(10).trim();
+      }
+      const lowerModel = cleanModel.toLowerCase();
+
+      if (!cleanModel || lowerModel === "claude-sonnet-5" || lowerModel.includes("sonnet") || lowerModel === "claude") {
+        if (lowerModel.includes("3-7") || lowerModel.includes("3.7")) {
+          cleanModel = "claude-3-7-sonnet-20250219";
+        } else {
+          cleanModel = "claude-3-5-sonnet-20241022";
         }
+      } else if (lowerModel === "claude-haiku-4-5" || lowerModel.includes("haiku")) {
+        cleanModel = "claude-3-5-haiku-20241022";
+      } else if (lowerModel === "claude-opus-4-8" || lowerModel.includes("opus")) {
+        cleanModel = "claude-3-opus-20240229";
       }
 
       if (cleanKey) headers["x-api-key"] = cleanKey;
@@ -74,10 +81,12 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       payload = {
         model: cleanModel,
         max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: "user", content: prompt }],
+        messages: [{ role: "user", content: prompt || "Hallo" }],
         temperature: Math.max(0, Math.min(1, temperature ?? 0.1))
       };
+      if (systemPrompt && systemPrompt.trim()) {
+        payload.system = systemPrompt.trim();
+      }
     } else {
       if (cleanKey && cleanKey !== "ollama") {
         headers["Authorization"] = `Bearer ${cleanKey}`;
@@ -85,8 +94,8 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
       payload = {
         model: modelName || "deepseek-r1:7b",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt }
+          ...(systemPrompt && systemPrompt.trim() ? [{ role: "system", content: systemPrompt.trim() }] : []),
+          { role: "user", content: prompt || "Hallo" }
         ],
         temperature: temperature ?? 0.1
       };
@@ -102,7 +111,7 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
 
     if (response.status === 200) {
       const data = response.json;
-      if (isAnthropic) {
+      if (isDirectAnthropic) {
         return data.content?.[0]?.text || "Keine Antwort von Claude erhalten.";
       }
       return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
