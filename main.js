@@ -1659,8 +1659,29 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
               }
             });
 
-            new import_obsidian3.Notice(`✅ Graph extrahiert: ${nodeMap.size} Knoten, ${edgeList.length} Kanten bereit für Memgraph! (Sichtbar im Lab unter localhost:3005)`);
-            btn.setButtonText("✅ Graph Bereit!");
+            let cypherQueries = [];
+            Array.from(nodeMap.values()).forEach((item) => {
+              const titleEscaped = item.title.replace(/"/g, '\\"');
+              cypherQueries.push(`MERGE (n:Note {id: "${item.id}"}) ON CREATE SET n.title = "${titleEscaped}", n.path = "${item.path}";`);
+            });
+
+            edgeList.forEach((e) => {
+              cypherQueries.push(`MATCH (a:Note {id: "${e.src}"}), (b:Note {id: "${e.tgt}"}) MERGE (a)-[:LINKS_TO]->(b);`);
+            });
+
+            const fullCypher = cypherQueries.join("\n");
+            
+            try {
+              if (navigator.clipboard) {
+                await navigator.clipboard.writeText(fullCypher);
+              }
+              new import_obsidian3.Notice(`📋 ${nodeMap.size} Knoten & ${edgeList.length} Kanten als Cypher in deine Zwischenablage kopiert! Füge es in Memgraph Lab (Run Query) ein.`);
+            } catch (e) {
+              console.log("Cypher Output:", fullCypher);
+              new import_obsidian3.Notice(`📋 Cypher generiert (${nodeMap.size} Knoten, ${edgeList.length} Kanten).`);
+            }
+
+            btn.setButtonText("✅ Cypher Kopiert!");
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new import_obsidian3.Notice(`❌ Memgraph Sync-Fehler: ${err.message}`);
