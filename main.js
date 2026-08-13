@@ -770,6 +770,31 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
   }
 };
 
+async function fetchProviderModels(apiBaseUrl, apiKey) {
+  const cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").replace(/\/+$/, "");
+  const targetUrl = cleanUrl.endsWith("/models") ? cleanUrl : `${cleanUrl}/models`;
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey && apiKey !== "ollama") {
+    headers["Authorization"] = `Bearer ${apiKey}`;
+  }
+
+  const res = await (0, import_obsidian3.requestUrl)({
+    url: targetUrl,
+    method: "GET",
+    headers,
+    throwOnError: false
+  });
+
+  if (res.status >= 400) {
+    throw new Error(`HTTP ${res.status}: ${res.text || "Verbindung fehlgeschlagen"}`);
+  }
+
+  const data = JSON.parse(res.text || "{}");
+  const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
+  const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
+  return models;
+}
+
 // src/MathWikiSettingTab.ts
 var import_obsidian3 = require("obsidian");
 var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
@@ -811,39 +836,35 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       .setName(t.llmProvName)
       .setDesc(t.llmProvDesc)
       .addDropdown((dropdown) => dropdown
-        .addOption("ollama", "Ollama (Lokal - kein API-Key)")
-        .addOption("claude", "Anthropic Claude API (api.anthropic.com)")
-        .addOption("deepseek", "DeepSeek Cloud API (api.deepseek.com)")
-        .addOption("openai", "OpenAI API (api.openai.com)")
-        .addOption("openrouter", "OpenRouter API (openrouter.ai)")
-        .addOption("custom", "Benutzerdefinierter REST Endpoint")
+        .addOption("ollama", "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("claude", "Anthropic Claude (api.anthropic.com)")
+        .addOption("deepseek", "DeepSeek Cloud (api.deepseek.com)")
+        .addOption("openai", "OpenAI (api.openai.com)")
+        .addOption("openrouter", "OpenRouter (openrouter.ai/api/v1)")
+        .addOption("custom", "Custom REST Endpoint")
         .setValue(this.plugin.settings.llmProvider || "ollama")
         .onChange(async (value) => {
           this.plugin.settings.llmProvider = value;
           if (value === "ollama") {
             this.plugin.settings.apiBaseUrl = "http://localhost:11434/v1";
-            this.plugin.settings.modelName = "deepseek-r1:7b";
             this.plugin.settings.deepseekApiKey = "ollama";
+            this.plugin.settings.modelName = "deepseek-r1:7b";
           } else if (value === "claude") {
             this.plugin.settings.apiBaseUrl = "https://api.anthropic.com/v1";
-            this.plugin.settings.modelName = "claude-3-5-sonnet-20241022";
             this.plugin.settings.deepseekApiKey = "";
+            this.plugin.settings.modelName = "claude-3-5-sonnet-20241022";
           } else if (value === "deepseek") {
             this.plugin.settings.apiBaseUrl = "https://api.deepseek.com/v1";
-            this.plugin.settings.modelName = "deepseek-reasoner";
             this.plugin.settings.deepseekApiKey = "";
+            this.plugin.settings.modelName = "deepseek-reasoner";
           } else if (value === "openai") {
             this.plugin.settings.apiBaseUrl = "https://api.openai.com/v1";
-            this.plugin.settings.modelName = "gpt-4o";
             this.plugin.settings.deepseekApiKey = "";
+            this.plugin.settings.modelName = "gpt-4o";
           } else if (value === "openrouter") {
             this.plugin.settings.apiBaseUrl = "https://openrouter.ai/api/v1";
+            this.plugin.settings.deepseekApiKey = "";
             this.plugin.settings.modelName = "anthropic/claude-3.5-sonnet";
-            this.plugin.settings.deepseekApiKey = "";
-          } else if (value === "custom") {
-            this.plugin.settings.apiBaseUrl = "http://localhost:8000/v1";
-            this.plugin.settings.modelName = "custom-model";
-            this.plugin.settings.deepseekApiKey = "";
           }
           await this.plugin.saveSettings();
           this.display();
@@ -855,7 +876,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       .setDesc(t.apiBaseUrlDesc)
       .addText((text) => text
         .setPlaceholder("http://localhost:11434/v1")
-        .setValue(this.plugin.settings.apiBaseUrl || "http://localhost:11434/v1")
+        .setValue(this.plugin.settings.apiBaseUrl || "")
         .onChange(async (value) => {
           this.plugin.settings.apiBaseUrl = value.trim();
           await this.plugin.saveSettings();
@@ -866,7 +887,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       .setName(t.apiKeyName)
       .setDesc(t.apiKeyDesc)
       .addText((text) => text
-        .setPlaceholder("sk-...")
+        .setPlaceholder("sk-... / ollama")
         .setValue(this.plugin.settings.deepseekApiKey || "")
         .onChange(async (value) => {
           this.plugin.settings.deepseekApiKey = value.trim();
@@ -875,9 +896,54 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
+      .setName("LLM-Verbindung testen & Modelle abfragen")
+      .setDesc("Prüft die API-Verbindung und lädt automatisch alle verfügbaren Sprachmodelle vom Provider.")
+      .addButton((btn) => btn
+        .setButtonText("Verbindung testen & Modelle laden")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Testen...");
+          btn.setDisabled(true);
+          try {
+            const models = await fetchProviderModels(this.plugin.settings.apiBaseUrl, this.plugin.settings.deepseekApiKey);
+            btn.setButtonText("✅ Erfolgreich!");
+            new import_obsidian3.Notice(`✅ LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            if (models.length > 0) {
+              this.plugin.settings.fetchedLlmModels = models;
+              if (!models.includes(this.plugin.settings.modelName)) {
+                this.plugin.settings.modelName = models[0];
+              }
+              await this.plugin.saveSettings();
+              this.display();
+            }
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new import_obsidian3.Notice(`❌ LLM-Verbindung fehlgeschlagen: ${err.message}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Verbindung testen & Modelle laden");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+      );
+
+    const fetchedLlm = this.plugin.settings.fetchedLlmModels || [];
+    const modelSetting = new import_obsidian3.Setting(containerEl)
       .setName(t.modelNameTitle)
-      .setDesc(t.modelNameDesc)
-      .addText((text) => text
+      .setDesc(t.modelNameDesc);
+
+    if (fetchedLlm.length > 0) {
+      modelSetting.addDropdown((dropdown) => {
+        fetchedLlm.forEach((m) => dropdown.addOption(m, m));
+        dropdown.setValue(this.plugin.settings.modelName || fetchedLlm[0]);
+        dropdown.onChange(async (val) => {
+          this.plugin.settings.modelName = val;
+          await this.plugin.saveSettings();
+        });
+      });
+    } else {
+      modelSetting.addText((text) => text
         .setPlaceholder("model-name")
         .setValue(this.plugin.settings.modelName || "")
         .onChange(async (value) => {
@@ -885,6 +951,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+    }
 
     new import_obsidian3.Setting(containerEl)
       .setName(t.temperatureTitle)
@@ -967,9 +1034,54 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
       );
 
     new import_obsidian3.Setting(containerEl)
+      .setName("Embedding-Verbindung testen & Modelle abfragen")
+      .setDesc("Prüft die API-Verbindung und lädt automatisch alle verfügbaren Embedding-Modelle vom Provider.")
+      .addButton((btn) => btn
+        .setButtonText("Verbindung testen & Modelle laden")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Testen...");
+          btn.setDisabled(true);
+          try {
+            const models = await fetchProviderModels(this.plugin.settings.embeddingApiBaseUrl, this.plugin.settings.embeddingApiKey);
+            btn.setButtonText("✅ Erfolgreich!");
+            new import_obsidian3.Notice(`✅ Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            if (models.length > 0) {
+              this.plugin.settings.fetchedEmbedModels = models;
+              if (!models.includes(this.plugin.settings.embeddingModel)) {
+                this.plugin.settings.embeddingModel = models[0];
+              }
+              await this.plugin.saveSettings();
+              this.display();
+            }
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new import_obsidian3.Notice(`❌ Embedding-Verbindung fehlgeschlagen: ${err.message}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Verbindung testen & Modelle laden");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+      );
+
+    const fetchedEmbed = this.plugin.settings.fetchedEmbedModels || [];
+    const embedModelSetting = new import_obsidian3.Setting(containerEl)
       .setName(t.embedModelName)
-      .setDesc(t.embedModelDesc)
-      .addText((text) => text
+      .setDesc(t.embedModelDesc);
+
+    if (fetchedEmbed.length > 0) {
+      embedModelSetting.addDropdown((dropdown) => {
+        fetchedEmbed.forEach((m) => dropdown.addOption(m, m));
+        dropdown.setValue(this.plugin.settings.embeddingModel || fetchedEmbed[0]);
+        dropdown.onChange(async (val) => {
+          this.plugin.settings.embeddingModel = val;
+          await this.plugin.saveSettings();
+        });
+      });
+    } else {
+      embedModelSetting.addText((text) => text
         .setPlaceholder("bge-m3")
         .setValue(this.plugin.settings.embeddingModel || "bge-m3")
         .onChange(async (value) => {
@@ -977,6 +1089,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+    }
 
     new import_obsidian3.Setting(containerEl)
       .setName(t.exclusionsName)
@@ -1367,6 +1480,19 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       border-radius:6px; border:none; outline:none; box-shadow:none;
       background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal);
     `;
+
+    let filterDebounce = null;
+    filterInput.oninput = () => {
+      if (filterDebounce) window.clearTimeout(filterDebounce);
+      filterDebounce = window.setTimeout(async () => {
+        const val = filterInput.value.trim();
+        this.plugin.settings.vectorSearchExclusions = val;
+        await this.plugin.saveSettings();
+        await this.scanVaultNotes(val);
+        statusText.setText(`${this.nodes.length}`);
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+      }, 200);
+    };
 
     // ── Section: Ansicht ───────────────────────────────────────────────────
     const ansichtBody = createSection(toolbar, t.secView, true);
@@ -1845,10 +1971,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         if (term && filePath.includes(term)) return false;
       } else if (rule.startsWith("-file:")) {
         const term = rule.slice(6).toLowerCase();
-        if (term && (fileBasename.includes(term) || fileName.includes(term))) return false;
+        if (term && (fileBasename.includes(term) || fileName.includes(term) || filePath.includes(term))) return false;
       } else if (rule.startsWith("-")) {
         const term = rule.slice(1).toLowerCase();
-        if (term && (filePath.includes(term) || fileBasename.includes(term))) return false;
+        if (term && (filePath.includes(term) || fileBasename.includes(term) || fileName.includes(term))) return false;
       }
     }
 
