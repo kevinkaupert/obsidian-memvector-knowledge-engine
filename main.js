@@ -632,10 +632,11 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
       };
 
       const detailsEl = focusBox.createEl("details");
+      detailsEl.open = true;
       detailsEl.style.marginTop = "8px";
 
       detailsEl.createEl("summary", {
-        text: "Nahestehende Notizen (Liste anzeigen)",
+        text: "Nahestehende Notizen",
         style: "cursor: pointer; font-size: 0.85em; color: var(--text-muted); font-weight: 500;"
       });
 
@@ -657,7 +658,8 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
         const nameSpan = row.createEl("span", { text: `${idx + 1}. ${item.file.basename}` });
         nameSpan.style.color = "var(--text-accent)";
 
-        const scoreSpan = row.createEl("span", { text: `${item.score}` });
+        const scoreVal = typeof item.score === "number" ? item.score.toFixed(3) : String(item.score);
+        const scoreSpan = row.createEl("span", { text: scoreVal });
         scoreSpan.style.color = "var(--text-muted)";
 
         row.onclick = () => {
