@@ -630,33 +630,6 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
           this.app.workspace.openLinkText(item.file.basename, item.file.path, true);
         };
       });
-
-      const synthNeighborsBtn = focusBox.createEl("button", {
-        text: "LLM Synthese",
-        style: "width: 100%; margin-top: 10px; font-size: 0.85em; background: var(--interactive-accent); color: var(--text-on-accent);"
-      });
-
-      synthNeighborsBtn.onclick = async () => {
-        synthNeighborsBtn.disabled = true;
-        synthNeighborsBtn.setText("LLM Synthese läuft...");
-        const selectedNodes = [
-          { id: activeFile.basename, title: activeFile.basename, path: activeFile.path, type: "active", latexFormulas: Array.from(activeFormulas), content: activeContent.slice(0, 800) },
-          ...topNeighbors.slice(0, 5).map((t) => ({ id: t.file.basename, title: t.file.basename, path: t.file.path, type: "neighbor", latexFormulas: t.formulas, content: t.content }))
-        ];
-
-        const notesSummary = selectedNodes.map((n, i) => `Notiz ${i + 1}: ${n.title} (${n.path})`).join("\n");
-        const prompt = `Der Benutzer analysiert die Notiz '${activeFile.basename}' und ihre 5 nahen Vektor-Nachbarn im Vault:\n${notesSummary}\n\nErläutere kurz den Wissenszusammenhang und die logischen Verbindungen dieser Konzepte auf Deutsch.`;
-
-        const apiBase = pluginSettings?.apiBaseUrl || "http://localhost:11434/v1";
-        const apiKey = pluginSettings?.deepseekApiKey || "ollama";
-        const modelName = pluginSettings?.modelName || "deepseek-r1:7b";
-        const temp = pluginSettings?.temperature ?? 0.1;
-
-        const resText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
-        new SynthesisResultModal(this.app, selectedNodes, resText).open();
-        synthNeighborsBtn.disabled = false;
-        synthNeighborsBtn.setText("LLM Synthese");
-      };
     } catch (err) {
       console.error("Error rendering active note radar focus:", err);
     }
