@@ -2984,10 +2984,14 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
     const { workspace } = this.app;
     let leaf = workspace.getLeavesOfType(MATH_WIKI_VIEW_TYPE)[0];
     if (!leaf) {
-      const rightLeaf = workspace.getRightLeaf(false);
+      // Try to get an existing right leaf, create new one if needed
+      let rightLeaf = workspace.getRightLeaf(false);
+      if (!rightLeaf) {
+        rightLeaf = workspace.getRightLeaf(true);
+      }
       if (rightLeaf) {
+        await rightLeaf.setViewState({ type: MATH_WIKI_VIEW_TYPE, active: true });
         leaf = rightLeaf;
-        await leaf.setViewState({ type: MATH_WIKI_VIEW_TYPE, active: true });
       }
     }
     if (leaf) {
