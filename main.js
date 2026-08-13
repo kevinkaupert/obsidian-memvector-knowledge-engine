@@ -33,12 +33,18 @@ var import_obsidian2 = require("obsidian");
 async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.") {
   try {
     let cleanBase = (apiBase || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
+    cleanBase = cleanBase.replace(/\/(messages|chat\/completions|models)$/i, "");
+
     const isAnthropic = cleanBase.includes("anthropic.com");
-    if (isAnthropic && !cleanBase.endsWith("/v1")) {
-      cleanBase = `${cleanBase}/v1`;
+    let url = "";
+
+    if (isAnthropic) {
+      if (!cleanBase.endsWith("/v1")) cleanBase = `${cleanBase}/v1`;
+      url = `${cleanBase}/messages`;
+    } else {
+      url = `${cleanBase}/chat/completions`;
     }
 
-    let url = isAnthropic ? `${cleanBase}/messages` : `${cleanBase}/chat/completions`;
     const headers = { "Content-Type": "application/json" };
     const cleanKey = (apiKey || "").trim();
     let payload;
@@ -803,6 +809,8 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 
 async function fetchProviderModels(apiBaseUrl, apiKey) {
   let cleanUrl = (apiBaseUrl || "http://localhost:11434/v1").trim().replace(/\/+$/, "");
+  cleanUrl = cleanUrl.replace(/\/(messages|chat\/completions|models)$/i, "");
+
   const isAnthropic = cleanUrl.includes("anthropic.com");
   if (isAnthropic && !cleanUrl.endsWith("/v1")) {
     cleanUrl = `${cleanUrl}/v1`;
