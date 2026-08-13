@@ -30,7 +30,7 @@ var import_obsidian4 = require("obsidian");
 var import_obsidian2 = require("obsidian");
 
 // src/callDirectLLM.ts
-async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent für Obsidian. Antworte kurz, strukturiert und präzise auf Deutsch.") {
+async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "You are a knowledge synthesis assistant for Obsidian. Respond concisely, structured, and precisely.") {
   try {
     const rawBase = (apiBase || "").toLowerCase().trim();
     const rawModel = (modelName || "").toLowerCase().trim();
@@ -269,7 +269,88 @@ var translations = {
     btnCalcVectors: "Vektoren berechnen",
     btnCreateRel: "Beziehung erstellen",
     btnClearSel: "Auswahl leeren",
-    hoverHint: "Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen."
+    hoverHint: "Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.",
+
+    // RelationBuilderModal i18n
+    relModalTitle: "Beziehung & Graph-Kante erstellen",
+    relNotesSelected: "Notizen gew\xE4hlt",
+    relFlowPreview: "GRAPH-FLUSS & KANTEN-VORSCHAU",
+    relSwapDirection: "Richtung umkehren \u27A4",
+    relBulkChange: "Alle:",
+    relTopologyTitle: "1. KANTEN-TOPOLOGIE & HAUPTNOTIZ",
+    relTopoFocalToRest: "Quelle \u27A4 Ziel (A \u27A4 B / Rest)",
+    relTopoRestToFocal: "Quellen \u27A4 Ziel (Rest \u27A4 A)",
+    relTopoChain: "Kette (1 \u27A4 2 \u27A4 3)",
+    relFocalNote: "Hauptnotiz (A):",
+    relDescTitle: "2. WARUM SIND DIESE NOTIZEN VERBUNDEN? (BESCHREIBUNG)",
+    relDescPlaceholder: "Beschreibe den fachlichen/didaktischen Grund der Verbindung...",
+    relCypherSummary: "Memgraph Cypher Code Vorschau anzeigen",
+    relCancelBtn: "Abbrechen",
+    relSaveBtn: "Beziehung & Kanten speichern",
+    relSaving: "Speichere Kanten...",
+    relSaveSuccess: "Beziehungs-Kanten (wiki/relations/) erfolgreich gespeichert!",
+    relSaveError: "Fehler beim Speichern der Beziehungsnotiz",
+    relDefaultDesc: "Beziehung vom Typ",
+    relBetween: "zwischen",
+    relAnd: "und",
+    relFileHeading: "Beziehung",
+    relFileType: "Typ",
+    relFileSource: "Quelle (Startnotiz)",
+    relFileTarget: "Ziel (Zielnotiz)",
+    relFileReason: "Didaktischer / Fachlicher Grund",
+
+    // Relation type categories
+    relCatLogic: "Logik & Implikation",
+    relCatProofs: "Beweisf\xFChrung & Korollare",
+    relCatDefinitions: "Definitionen & Abstraktion",
+    relCatStructure: "Struktur & Isomorphie",
+    relCatExamples: "Beispiele & Gegenbeispiele",
+
+    // Relation type labels
+    relImplies: "impliziert",
+    relEquivalentTo: "\xE4quivalent zu",
+    relNecessaryCondition: "ist notwendige Bedingung f\xFCr",
+    relSufficientCondition: "ist hinreichende Bedingung f\xFCr",
+    relContradicts: "widerspricht",
+    relIndependentOf: "ist unabh\xE4ngig von",
+    relProves: "beweist",
+    relRefutes: "widerlegt",
+    relFollowsFrom: "folgt aus",
+    relBasedOn: "basiert auf",
+    relCorollaryOf: "ist Korollar von",
+    relLemmaFor: "ist Lemma f\xFCr",
+    relDefines: "definiert",
+    relEquivDef: "ist \xE4quivalente Definition zu",
+    relSpecialCase: "ist Spezialfall von",
+    relGeneralizes: "verallgemeinert",
+    relExtends: "erweitert",
+    relIsomorphicTo: "ist isomorph zu",
+    relEmbeddedIn: "ist eingebettet in",
+    relDualTo: "ist dual zu",
+    relAnalogousTo: "ist analog zu",
+    relExampleFor: "ist Beispiel f\xFCr",
+    relCounterexampleFor: "ist Gegenbeispiel f\xFCr",
+    relCustom: "Frei...",
+    relCustomPlaceholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
+
+    // LLM Prompts
+    llmSystemPrompt: "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.",
+    llmPromptLang: "auf Deutsch",
+
+    // Synthesis Result Modal i18n
+    synthModalTitle: "KI-Wissenssynthese",
+    synthLinkedNotes: "Verkn\xFCpfte Notizen:",
+    synthSaveBtn: "Als Synthese-Notiz speichern (wiki/synthesis/)",
+    synthSaving: "Speichere...",
+    synthCloseBtn: "Schlie\xDFen",
+    synthDocDesc: "Automatisch generierte Wissenssynthese.",
+
+    // Notices
+    noticeEmbeddingError: "Embedding Fehler",
+    noticeVectorsCalc: "Notiz-Vektoren mit",
+    noticeVectorsCalcSuffix: "berechnet.",
+    noticeSynthSaved: "Synthese-Notiz erfolgreich unter",
+    noticeSynthSavedSuffix: "gespeichert!"
   },
   en: {
     sidebarTitle: "MemVector Co-Pilot",
@@ -351,7 +432,88 @@ var translations = {
     btnCalcVectors: "Calculate Vectors",
     btnCreateRel: "Create Relation",
     btnClearSel: "Clear Selection",
-    hoverHint: "Hover over vector nodes. Hold Shift + drag or Cmd-Click to select."
+    hoverHint: "Hover over vector nodes. Hold Shift + drag or Cmd-Click to select.",
+
+    // RelationBuilderModal i18n
+    relModalTitle: "Create Relation & Graph Edge",
+    relNotesSelected: "notes selected",
+    relFlowPreview: "GRAPH FLOW & EDGE PREVIEW",
+    relSwapDirection: "Swap Direction \u27A4",
+    relBulkChange: "All:",
+    relTopologyTitle: "1. EDGE TOPOLOGY & FOCAL NOTE",
+    relTopoFocalToRest: "Source \u27A4 Target (A \u27A4 B / Rest)",
+    relTopoRestToFocal: "Sources \u27A4 Target (Rest \u27A4 A)",
+    relTopoChain: "Chain (1 \u27A4 2 \u27A4 3)",
+    relFocalNote: "Focal Note (A):",
+    relDescTitle: "2. WHY ARE THESE NOTES CONNECTED? (DESCRIPTION)",
+    relDescPlaceholder: "Describe the academic / didactic reason for this connection...",
+    relCypherSummary: "Show Memgraph Cypher Code Preview",
+    relCancelBtn: "Cancel",
+    relSaveBtn: "Save Relation & Edges",
+    relSaving: "Saving edges...",
+    relSaveSuccess: "relation edges (wiki/relations/) saved successfully!",
+    relSaveError: "Error saving relation note",
+    relDefaultDesc: "Relation of type",
+    relBetween: "between",
+    relAnd: "and",
+    relFileHeading: "Relation",
+    relFileType: "Type",
+    relFileSource: "Source (Start Note)",
+    relFileTarget: "Target (End Note)",
+    relFileReason: "Didactic / Academic Reason",
+
+    // Relation type categories
+    relCatLogic: "Logic & Implication",
+    relCatProofs: "Proofs & Corollaries",
+    relCatDefinitions: "Definitions & Abstraction",
+    relCatStructure: "Structure & Isomorphism",
+    relCatExamples: "Examples & Counterexamples",
+
+    // Relation type labels
+    relImplies: "implies",
+    relEquivalentTo: "equivalent to",
+    relNecessaryCondition: "is necessary condition for",
+    relSufficientCondition: "is sufficient condition for",
+    relContradicts: "contradicts",
+    relIndependentOf: "is independent of",
+    relProves: "proves",
+    relRefutes: "refutes",
+    relFollowsFrom: "follows from",
+    relBasedOn: "based on",
+    relCorollaryOf: "is corollary of",
+    relLemmaFor: "is lemma for",
+    relDefines: "defines",
+    relEquivDef: "is equivalent definition for",
+    relSpecialCase: "is special case of",
+    relGeneralizes: "generalizes",
+    relExtends: "extends",
+    relIsomorphicTo: "is isomorphic to",
+    relEmbeddedIn: "is embedded in",
+    relDualTo: "is dual to",
+    relAnalogousTo: "is analogous to",
+    relExampleFor: "is example for",
+    relCounterexampleFor: "is counterexample for",
+    relCustom: "Custom...",
+    relCustomPlaceholder: "Custom type (e.g. IS_HOMOMORPHIC_TO)...",
+
+    // LLM Prompts
+    llmSystemPrompt: "You are a knowledge synthesis assistant for Obsidian. Respond concisely, structured, and precisely in English.",
+    llmPromptLang: "in English",
+
+    // Synthesis Result Modal i18n
+    synthModalTitle: "AI Knowledge Synthesis",
+    synthLinkedNotes: "Linked notes:",
+    synthSaveBtn: "Save as Synthesis Note (wiki/synthesis/)",
+    synthSaving: "Saving...",
+    synthCloseBtn: "Close",
+    synthDocDesc: "Automatically generated knowledge synthesis.",
+
+    // Notices
+    noticeEmbeddingError: "Embedding Error",
+    noticeVectorsCalc: "note vectors calculated with",
+    noticeVectorsCalcSuffix: ".",
+    noticeSynthSaved: "Synthesis note saved successfully at",
+    noticeSynthSavedSuffix: "!"
   }
 };
 function getTranslation(lang) {
@@ -1823,13 +1985,16 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       calcVectorsBtn.disabled = false;
       calcVectorsBtn.style.opacity = "1";
 
+      const vLang = this.plugin?.settings?.language || "de";
+      const vT = getTranslation(vLang);
+
       if (successCount === total) {
         this.applyVectorLayout();
         this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
         hoverBar.style.color = "var(--text-muted)";
-        hoverBar.setText(`✅ ${successCount}/${total} Vektoren erfolgreich mit '${embedModel}' berechnet.`);
+        hoverBar.setText(`✅ ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
         statusText.setText(`${total} | Vektoren OK`);
-        new import_obsidian4.Notice(`✅ ${successCount} Notiz-Vektoren mit '${embedModel}' berechnet.`);
+        new import_obsidian4.Notice(`✅ ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
       } else if (lastError) {
         statusText.setText(`Fehler (${successCount}/${total})`);
       }
@@ -3000,22 +3165,33 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
     const temp = this.plugin.settings?.temperature ?? 0.1;
 
-    hoverBar.setText(`🤖 ${modelName} analysiert und synthetisiert die Notizen...`);
+    const synthLang = this.plugin.settings?.language || "de";
+    const synthT = getTranslation(synthLang);
+
+    hoverBar.setText(`${modelName} ...`);
+
+    const noteLabel = synthLang === "de" ? "Notiz" : "Note";
+    const pathLabel = synthLang === "de" ? "Pfad" : "Path";
+    const formulasLabel = synthLang === "de" ? "Formeln" : "Formulas";
+    const excerptLabel = synthLang === "de" ? "Auszug" : "Excerpt";
 
     const notesSummary = selected.map((n, idx) => `
-### Notiz ${idx + 1}: [${n.type.toUpperCase()}] ${n.title}
-Pfad: ${n.path}
-Formeln: ${n.latexFormulas.map((f) => `$${f}$`).join(", ")}
-Auszug:
+### ${noteLabel} ${idx + 1}: [${n.type.toUpperCase()}] ${n.title}
+${pathLabel}: ${n.path}
+${formulasLabel}: ${n.latexFormulas.map((f) => `$${f}$`).join(", ")}
+${excerptLabel}:
 ${n.content}
 `).join("\n---\n");
 
     const isMath = this.plugin.settings?.knowledgeDomain === "math";
 
-    const notesListStr = selected.map((n) => `- Notiz: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
+    const notesListStr = selected.map((n) => `- ${noteLabel}: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
+
+    const promptLang = synthT.llmPromptLang;
 
     const prompt = isMath
-      ? `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
+      ? (synthLang === "de"
+        ? `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
 Der Benutzer hat folgende ${selected.length} mathematische Notizen im 2D-Vektorraum selektiert:
 
 ${notesSummary}
@@ -3024,11 +3200,25 @@ Verfügbare Notiz-WikiLinks:
 ${notesListStr}
 
 STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
-1. Erläutere präzise auf Deutsch den mathematischen Zusammenhang, die Brücke und den roten Faden zwischen diesen ${selected.length} Notizen.
+1. Erläutere präzise ${promptLang} den mathematischen Zusammenhang, die Brücke und den roten Faden zwischen diesen ${selected.length} Notizen.
 2. Zeige, wie sie sich gegenseitig ergänzen, wo Vorbedingungen/Beweisschritte vorliegen und welche mathematische Identität oder Struktur sie verbindet.
 3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Satz, Beweistrick oder Begriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] (wie z. B. [[disjunktion|Disjunktion]], [[gauss-summenformel|Gaußsche Summenformel]]) STATT bloßer Fettschrift (**...**)!
 4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für mathematische Begriffe oder Notiznamen. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
-      : `Du bist ein führender Wissens-Synthesizer und KI-Co-Pilot für Obsidian Knowledge Vaults.
+        : `You are a leading mathematical tutor and AI co-pilot for an Obsidian study wiki.
+The user has selected the following ${selected.length} mathematical notes in the 2D vector space:
+
+${notesSummary}
+
+Available note WikiLinks:
+${notesListStr}
+
+STRICT FORMATTING AND LINKING RULES:
+1. Explain precisely ${promptLang} the mathematical relationship, bridge, and common thread between these ${selected.length} notes.
+2. Show how they complement each other, where preconditions/proof steps exist, and what mathematical identity or structure connects them.
+3. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, theorem, proof technique, or concept INSTEAD of bold text (**...**)!
+4. PROHIBITION: Do NOT use bold text (**term**) for mathematical terms or note names. Replace bold with real Obsidian WikiLinks [[...]].`)
+      : (synthLang === "de"
+        ? `Du bist ein führender Wissens-Synthesizer und KI-Co-Pilot für Obsidian Knowledge Vaults.
 Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
 
 ${notesSummary}
@@ -3037,12 +3227,25 @@ Verfügbare Notiz-WikiLinks:
 ${notesListStr}
 
 STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
-1. Erläutere präzise auf Deutsch den inhaltlichen Zusammenhang, die Kerngedanken und den roten Faden zwischen diesen ${selected.length} Notizen.
+1. Erläutere präzise ${promptLang} den inhaltlichen Zusammenhang, die Kerngedanken und den roten Faden zwischen diesen ${selected.length} Notizen.
 2. Zeige, wie die Konzepte aufeinander aufbauen, sich ergänzen oder verschiedene Blickwinkel einnehmen.
 3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Konzept oder Schlüsselbegriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] STATT bloßer Fettschrift (**...**)!
-4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`;
+4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
+        : `You are a leading knowledge synthesizer and AI co-pilot for Obsidian Knowledge Vaults.
+The user has selected the following ${selected.length} notes in the 2D vector space:
 
-    const rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
+${notesSummary}
+
+Available note WikiLinks:
+${notesListStr}
+
+STRICT FORMATTING AND LINKING RULES:
+1. Explain precisely ${promptLang} the content relationship, core ideas, and common thread between these ${selected.length} notes.
+2. Show how the concepts build on each other, complement each other, or offer different perspectives.
+3. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, concept, or key term INSTEAD of bold text (**...**)!
+4. PROHIBITION: Do NOT use bold text (**term**) for technical terms. Replace bold with real Obsidian WikiLinks [[...]].`);
+
+    const rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp, synthT.llmSystemPrompt);
 
     // Build Vault Title & Alias Map to check existing notes
     const allVaultFiles = this.plugin.app.vault.getMarkdownFiles();
@@ -3129,17 +3332,18 @@ STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
       });
     }
 
-    new SynthesisResultModal(this.plugin.app, selected, synthesisText, modelName).open();
+    new SynthesisResultModal(this.plugin.app, selected, synthesisText, modelName, this.plugin).open();
     hoverBar.setText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);
   }
 };
 
 var SynthesisResultModal = class extends import_obsidian4.Modal {
-  constructor(app, selectedNodes, synthesisText, modelName = "LLM") {
+  constructor(app, selectedNodes, synthesisText, modelName = "LLM", plugin = null) {
     super(app);
     this.selectedNodes = selectedNodes;
     this.synthesisText = synthesisText;
     this.modelName = modelName;
+    this.plugin = plugin;
   }
   onOpen() {
     const { contentEl } = this;
@@ -3147,9 +3351,12 @@ var SynthesisResultModal = class extends import_obsidian4.Modal {
     contentEl.style.maxHeight = "80vh";
     contentEl.style.overflowY = "auto";
 
-    contentEl.createEl("h2", { text: `KI-Wissenssynthese (${this.modelName})` });
+    const lang = this.plugin?.settings?.language || "de";
+    const t = getTranslation(lang);
+
+    contentEl.createEl("h2", { text: `${t.synthModalTitle} (${this.modelName})` });
     contentEl.createEl("p", {
-      text: `Verknüpfte Notizen: ${this.selectedNodes.map((n) => n.title).join(", ")}`,
+      text: `${t.synthLinkedNotes} ${this.selectedNodes.map((n) => n.title).join(", ")}`,
       style: "color: var(--text-muted); font-size: 0.9em;"
     });
 
@@ -3169,22 +3376,23 @@ var SynthesisResultModal = class extends import_obsidian4.Modal {
     btnRow.style.justifyContent = "flex-end";
 
     const saveBtn = btnRow.createEl("button", {
-      text: "Als Synthese-Notiz speichern (wiki/synthesis/)",
+      text: t.synthSaveBtn,
       style: "background: var(--interactive-accent); color: var(--text-on-accent);"
     });
 
-    const closeBtn = btnRow.createEl("button", { text: "Schließen" });
+    const closeBtn = btnRow.createEl("button", { text: t.synthCloseBtn });
     closeBtn.onclick = () => this.close();
 
     saveBtn.onclick = async () => {
       saveBtn.disabled = true;
-      saveBtn.setText("Speichere...");
+      saveBtn.setText(t.synthSaving);
       const slug = this.selectedNodes.map((n) => n.id).join("-").slice(0, 50).toLowerCase();
       const fileName = `wiki/synthesis/synthese-${slug}.md`;
+      const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
       const frontmatter = `---
 type: synthesis
-title: "Synthese: ${this.selectedNodes.map((n) => n.title).join(" & ")}"
-description: "Automatisch von ${this.modelName} generierte Wissenssynthese."
+title: "${synthTitlePrefix} ${this.selectedNodes.map((n) => n.title).join(" & ")}"
+description: "${t.synthDocDesc}"
 status: draft
 sources: [${this.selectedNodes.map((n) => `"${n.path}"`).join(", ")}]
 generated:
@@ -3192,12 +3400,12 @@ generated:
   at: "${new Date().toISOString()}"
 ---
 
-# Synthese: ${this.selectedNodes.map((n) => `[[${n.id}|${n.title}]]`).join(" & ")}
+# ${synthTitlePrefix} ${this.selectedNodes.map((n) => `[[${n.id}|${n.title}]]`).join(" & ")}
 
 ${this.synthesisText}
 `;
       await this.app.vault.create(fileName, frontmatter);
-      new import_obsidian4.Notice(`Synthese-Notiz erfolgreich unter '${fileName}' gespeichert!`);
+      new import_obsidian4.Notice(`${t.noticeSynthSaved} '${fileName}' ${t.noticeSynthSavedSuffix}`);
       this.close();
     };
   }
@@ -3226,6 +3434,8 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "24px";
 
+    const lang = this.plugin.settings?.language || "de";
+    const t = getTranslation(lang);
     const count = this.selectedNodes.length;
 
     // Header
@@ -3235,75 +3445,75 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     const headerLeft = headerRow.createEl("div", { style: "display: flex; align-items: center; gap: 10px;" });
     headerLeft.createEl("div", { style: "width: 8px; height: 8px; border-radius: 50%; background: var(--interactive-accent, #38bdf8);" });
-    headerLeft.createEl("h3", { text: "Beziehung & Graph-Kante erstellen", style: "margin: 0; font-size: 1.1em; font-weight: 700; color: var(--text-normal);" });
+    headerLeft.createEl("h3", { text: t.relModalTitle, style: "margin: 0; font-size: 1.1em; font-weight: 700; color: var(--text-normal);" });
 
     headerRow.createEl("span", {
-      text: `${count} Notizen gewählt`,
+      text: `${count} ${t.relNotesSelected}`,
       style: "font-family: var(--font-monospace); font-size: 0.8em; padding: 4px 12px; background: var(--background-primary-alt, rgba(255, 255, 255, 0.05)); color: var(--text-muted); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));"
     });
 
-    // 23 Mathematical Relation Types Grouped by Category
+    // 23 Mathematical Relation Types Grouped by Category (i18n)
     const categories = [
       {
-        name: "Logik & Implikation",
+        name: t.relCatLogic,
         items: [
-          { val: "IMPLIES", label: "impliziert" },
-          { val: "EQUIVALENT_TO", label: "äquivalent zu" },
-          { val: "NECESSARY_CONDITION_FOR", label: "ist notwendige Bedingung für" },
-          { val: "SUFFICIENT_CONDITION_FOR", label: "ist hinreichende Bedingung für" },
-          { val: "CONTRADICTS", label: "widerspricht" },
-          { val: "IS_INDEPENDENT_OF", label: "ist unabhängig von" }
+          { val: "IMPLIES", label: t.relImplies },
+          { val: "EQUIVALENT_TO", label: t.relEquivalentTo },
+          { val: "NECESSARY_CONDITION_FOR", label: t.relNecessaryCondition },
+          { val: "SUFFICIENT_CONDITION_FOR", label: t.relSufficientCondition },
+          { val: "CONTRADICTS", label: t.relContradicts },
+          { val: "IS_INDEPENDENT_OF", label: t.relIndependentOf }
         ]
       },
       {
-        name: "Beweisführung & Korollare",
+        name: t.relCatProofs,
         items: [
-          { val: "PROVES", label: "beweist" },
-          { val: "REFUTES", label: "widerlegt" },
-          { val: "FOLLOWS_FROM", label: "folgt aus" },
-          { val: "BASED_ON", label: "basiert auf" },
-          { val: "COROLLARY_OF", label: "ist Korollar von" },
-          { val: "LEMMA_FOR", label: "ist Lemma für" }
+          { val: "PROVES", label: t.relProves },
+          { val: "REFUTES", label: t.relRefutes },
+          { val: "FOLLOWS_FROM", label: t.relFollowsFrom },
+          { val: "BASED_ON", label: t.relBasedOn },
+          { val: "COROLLARY_OF", label: t.relCorollaryOf },
+          { val: "LEMMA_FOR", label: t.relLemmaFor }
         ]
       },
       {
-        name: "Definitionen & Abstraktion",
+        name: t.relCatDefinitions,
         items: [
-          { val: "DEFINES", label: "definiert" },
-          { val: "EQUIVALENT_DEFINITION_FOR", label: "ist äquivalente Definition zu" },
-          { val: "SPECIAL_CASE_OF", label: "ist Spezialfall von" },
-          { val: "GENERALIZES", label: "verallgemeinert" },
-          { val: "EXTENDS", label: "erweitert" }
+          { val: "DEFINES", label: t.relDefines },
+          { val: "EQUIVALENT_DEFINITION_FOR", label: t.relEquivDef },
+          { val: "SPECIAL_CASE_OF", label: t.relSpecialCase },
+          { val: "GENERALIZES", label: t.relGeneralizes },
+          { val: "EXTENDS", label: t.relExtends }
         ]
       },
       {
-        name: "Struktur & Isomorphie",
+        name: t.relCatStructure,
         items: [
-          { val: "ISOMORPHIC_TO", label: "ist isomorph zu" },
-          { val: "EMBEDDED_IN", label: "ist eingebettet in" },
-          { val: "DUAL_TO", label: "ist dual zu" },
-          { val: "ANALOGOUS_TO", label: "ist analog zu" }
+          { val: "ISOMORPHIC_TO", label: t.relIsomorphicTo },
+          { val: "EMBEDDED_IN", label: t.relEmbeddedIn },
+          { val: "DUAL_TO", label: t.relDualTo },
+          { val: "ANALOGOUS_TO", label: t.relAnalogousTo }
         ]
       },
       {
-        name: "Beispiele & Gegenbeispiele",
+        name: t.relCatExamples,
         items: [
-          { val: "EXAMPLE_FOR", label: "ist Beispiel für" },
-          { val: "COUNTEREXAMPLE_FOR", label: "ist Gegenbeispiel für" },
-          { val: "CUSTOM", label: "Frei..." }
+          { val: "EXAMPLE_FOR", label: t.relExampleFor },
+          { val: "COUNTEREXAMPLE_FOR", label: t.relCounterexampleFor },
+          { val: "CUSTOM", label: t.relCustom }
         ]
       }
     ];
 
-    // ── TOP CARD: Live Graph-Fluss & Kantentyp-Vorschau ────────────────────
+    // ── TOP CARD: Live Graph-Flow & Edge Preview ────────────────────
     const flowCard = contentEl.createEl("div", {
       style: "background: var(--background-secondary-alt, rgba(15, 23, 42, 0.7)); padding: 18px; border-radius: 8px; border: 1px solid var(--interactive-accent, #38bdf8); margin-bottom: 20px;"
     });
 
     const flowHeader = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;" });
-    flowHeader.createEl("span", { text: "GRAPH-FLUSS & KANTEN-VORSCHAU", style: "font-size: 0.75em; font-weight: 700; color: var(--interactive-accent, #38bdf8); letter-spacing: 0.06em;" });
+    flowHeader.createEl("span", { text: t.relFlowPreview, style: "font-size: 0.75em; font-weight: 700; color: var(--interactive-accent, #38bdf8); letter-spacing: 0.06em;" });
 
-    const swapBtn = flowHeader.createEl("button", { text: "Richtung umkehren ➔", style: "font-size: 0.78em; font-weight: 600; padding: 5px 14px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--interactive-accent, #38bdf8);" });
+    const swapBtn = flowHeader.createEl("button", { text: t.relSwapDirection, style: "font-size: 0.78em; font-weight: 600; padding: 5px 14px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--interactive-accent, #38bdf8);" });
 
     const flowBody = flowCard.createEl("div", { style: "display: flex; flex-direction: column; gap: 10px;" });
 
@@ -3370,7 +3580,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
         const masterRow = flowBody.createEl("div", {
           style: "display: flex; align-items: center; gap: 12px; padding: 8px 14px; margin-bottom: 6px; background: var(--background-primary); border-radius: 6px; border: 1px dashed rgba(56, 189, 248, 0.25);"
         });
-        masterRow.createEl("span", { text: "Alle:", style: "font-size: 0.78em; font-weight: 600; color: var(--text-muted); flex-shrink: 0;" });
+        masterRow.createEl("span", { text: t.relBulkChange, style: "font-size: 0.78em; font-weight: 600; color: var(--text-muted); flex-shrink: 0;" });
 
         const masterSelect = masterRow.createEl("select", {
           style: "font-size: 0.78em; font-weight: 600; padding: 4px 8px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent); border: 1px solid rgba(56, 189, 248, 0.3); flex: 1; max-width: 200px;"
@@ -3398,45 +3608,79 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       edges.forEach((e, idx) => {
         const cleanSrc = e.src.title.replace(/[\r\n]+/g, " ").trim();
         const cleanTgt = e.tgt.title.replace(/[\r\n]+/g, " ").trim();
-        const relVal = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
-        const relLabel = (allRelItems.find(r => r.val === relVal) || {}).label || relVal;
 
-        // Single row container
-        const row = listEl.createEl("div", {
-          style: "display: flex; align-items: center; gap: 0; padding: 10px 14px; border-radius: 6px; background: var(--background-primary); border-left: 3px solid " + (idx % 2 === 0 ? "rgba(56, 189, 248, 0.5)" : "rgba(16, 185, 129, 0.5)") + "; transition: background 0.15s ease;"
-        });
+        // Single row container - force horizontal flex with direct style props
+        const row = listEl.createEl("div");
+        row.style.display = "flex";
+        row.style.flexDirection = "row";
+        row.style.flexWrap = "nowrap";
+        row.style.alignItems = "center";
+        row.style.padding = "10px 14px";
+        row.style.borderRadius = "6px";
+        row.style.background = "var(--background-primary)";
+        row.style.borderLeft = "3px solid " + (idx % 2 === 0 ? "rgba(56, 189, 248, 0.5)" : "rgba(16, 185, 129, 0.5)");
+        row.style.transition = "background 0.15s ease";
+        row.style.marginBottom = "4px";
 
-        // Hover effect
         row.addEventListener("mouseenter", () => { row.style.background = "var(--background-primary-alt, rgba(255,255,255,0.04))"; });
         row.addEventListener("mouseleave", () => { row.style.background = "var(--background-primary)"; });
 
-        // Source name
-        const srcSpan = row.createEl("span", {
-          style: "flex: 1; font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 10px;",
-          title: cleanSrc
-        });
-        srcSpan.setText(cleanSrc);
+        // Source name (right-aligned, shrinks to fit)
+        const srcDiv = row.createEl("div");
+        srcDiv.style.flex = "1 1 0px";
+        srcDiv.style.minWidth = "0";
+        srcDiv.style.fontSize = "0.88em";
+        srcDiv.style.fontWeight = "600";
+        srcDiv.style.color = "var(--text-normal)";
+        srcDiv.style.textAlign = "right";
+        srcDiv.style.overflow = "hidden";
+        srcDiv.style.textOverflow = "ellipsis";
+        srcDiv.style.whiteSpace = "nowrap";
+        srcDiv.style.paddingRight = "10px";
+        srcDiv.title = cleanSrc;
+        srcDiv.textContent = cleanSrc;
 
-        // Arrow + Dropdown cluster (fixed width, never wraps)
-        const center = row.createEl("div", {
-          style: "display: flex; align-items: center; gap: 6px; flex-shrink: 0;"
-        });
-        center.createEl("span", { text: "\u2192", style: "font-size: 1em; color: var(--text-faint); font-weight: 400;" });
+        // Arrow + Dropdown cluster (never shrinks, never wraps)
+        const center = row.createEl("div");
+        center.style.display = "flex";
+        center.style.flexDirection = "row";
+        center.style.flexWrap = "nowrap";
+        center.style.alignItems = "center";
+        center.style.gap = "6px";
+        center.style.flexShrink = "0";
+
+        const arrowL = center.createEl("span");
+        arrowL.textContent = "\u2192";
+        arrowL.style.fontSize = "1em";
+        arrowL.style.color = "var(--text-faint)";
+
         createSingleDropdown(center, idx);
-        center.createEl("span", { text: "\u2192", style: "font-size: 1em; color: var(--text-faint); font-weight: 400;" });
 
-        // Target name
-        const tgtSpan = row.createEl("span", {
-          style: "flex: 1; font-size: 0.88em; font-weight: 600; color: var(--text-normal); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 10px;",
-          title: cleanTgt
-        });
-        tgtSpan.setText(cleanTgt);
+        const arrowR = center.createEl("span");
+        arrowR.textContent = "\u2192";
+        arrowR.style.fontSize = "1em";
+        arrowR.style.color = "var(--text-faint)";
+
+        // Target name (left-aligned, shrinks to fit)
+        const tgtDiv = row.createEl("div");
+        tgtDiv.style.flex = "1 1 0px";
+        tgtDiv.style.minWidth = "0";
+        tgtDiv.style.fontSize = "0.88em";
+        tgtDiv.style.fontWeight = "600";
+        tgtDiv.style.color = "var(--text-normal)";
+        tgtDiv.style.textAlign = "left";
+        tgtDiv.style.overflow = "hidden";
+        tgtDiv.style.textOverflow = "ellipsis";
+        tgtDiv.style.whiteSpace = "nowrap";
+        tgtDiv.style.paddingLeft = "10px";
+        tgtDiv.title = cleanTgt;
+        tgtDiv.textContent = cleanTgt;
       });
     };
 
     const customInput = flowCard.createEl("input", {
       type: "text",
-      placeholder: "Eigener Typ (z. B. IS_HOMOMORPHIC_TO)...",
+      placeholder: t.relCustomPlaceholder,
       style: "width: 100%; font-size: 0.82em; padding: 8px 12px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); margin-top: 12px; display: none;"
     });
 
@@ -3464,14 +3708,14 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 16px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 20px;"
     });
 
-    step1.createEl("div", { text: "1. KANTEN-TOPOLOGIE & HAUPTNOTIZ", style: "font-size: 0.78em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;" });
+    step1.createEl("div", { text: t.relTopologyTitle, style: "font-size: 0.78em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;" });
 
     const topolRow = step1.createEl("div", { style: "display: flex; gap: 10px; margin-bottom: 12px;" });
 
     const topologies = [
-      { id: "FOCAL_TO_REST", label: "Quelle ➔ Ziel (A ➔ B / Rest)" },
-      { id: "REST_TO_FOCAL", label: "Quellen ➔ Ziel (Rest ➔ A)" },
-      { id: "CHAIN", label: "Kette (1 ➔ 2 ➔ 3)" }
+      { id: "FOCAL_TO_REST", label: t.relTopoFocalToRest },
+      { id: "REST_TO_FOCAL", label: t.relTopoRestToFocal },
+      { id: "CHAIN", label: t.relTopoChain }
     ];
 
     const topolBtns = [];
@@ -3505,7 +3749,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     });
 
     const focalWrap = step1.createEl("div", { style: "margin-top: 12px; display: flex; align-items: center; gap: 12px;" });
-    focalWrap.createEl("span", { text: "Hauptnotiz (A):", style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal); white-space: nowrap;" });
+    focalWrap.createEl("span", { text: t.relFocalNote, style: "font-size: 0.85em; font-weight: 600; color: var(--text-normal); white-space: nowrap;" });
 
     const focalSelect = focalWrap.createEl("select", {
       style: "flex: 1; padding: 6px 12px; font-size: 0.85em; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border);"
@@ -3527,10 +3771,10 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 16px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 20px;"
     });
 
-    step2.createEl("div", { text: "2. WARUM SIND DIESE NOTIZEN VERBUNDEN? (BESCHREIBUNG)", style: "font-size: 0.78em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;" });
+    step2.createEl("div", { text: t.relDescTitle, style: "font-size: 0.78em; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px;" });
 
     const descArea = step2.createEl("textarea", {
-      placeholder: "Beschreibe den fachlichen/didaktischen Grund der Verbindung...",
+      placeholder: t.relDescPlaceholder,
       style: "width: 100%; box-sizing: border-box; min-height: 120px; font-size: 0.88em; padding: 12px 14px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;"
     });
     descArea.oninput = () => {
@@ -3544,7 +3788,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     });
 
     details.createEl("summary", {
-      text: "Memgraph Cypher Code Vorschau anzeigen",
+      text: t.relCypherSummary,
       style: "cursor: pointer; font-weight: 600; color: var(--interactive-accent);"
     });
 
@@ -3595,18 +3839,18 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     // Action Footer
     const btnRow = contentEl.createEl("div", { style: "display: flex; gap: 12px; justify-content: flex-end; align-items: center;" });
 
-    const cancelBtn = btnRow.createEl("button", { text: "Abbrechen" });
+    const cancelBtn = btnRow.createEl("button", { text: t.relCancelBtn });
     cancelBtn.style.padding = "8px 16px";
     cancelBtn.onclick = () => this.close();
 
     const saveBtn = btnRow.createEl("button", {
-      text: "Beziehung & Kanten speichern",
+      text: t.relSaveBtn,
       style: "background: var(--interactive-accent, #38bdf8); color: #ffffff; font-weight: 600; border: none; padding: 8px 20px; border-radius: 6px; cursor: pointer;"
     });
 
     saveBtn.onclick = async () => {
       saveBtn.disabled = true;
-      saveBtn.setText("Speichere Kanten...");
+      saveBtn.setText(t.relSaving);
 
       const edges = generateEdges();
       let createdCount = 0;
@@ -3616,7 +3860,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
         const edgeType = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
         const relFileName = `rel-${e.src.id}-to-${e.tgt.id}.md`;
         const relPath = `wiki/relations/${relFileName}`;
-        const descText = this.relDesc ? this.relDesc : `Beziehung vom Typ ${edgeType} zwischen [[${e.src.id}|${e.src.title}]] und [[${e.tgt.id}|${e.tgt.title}]].`;
+        const descText = this.relDesc ? this.relDesc : `${t.relDefaultDesc} ${edgeType} ${t.relBetween} [[${e.src.id}|${e.src.title}]] ${t.relAnd} [[${e.tgt.id}|${e.tgt.title}]].`;
 
         const fileContent = `---
 type: relation
@@ -3635,13 +3879,13 @@ source_note: "[[${e.src.id}|${e.src.title}]]"
 target_note: "[[${e.tgt.id}|${e.tgt.title}]]"
 ---
 
-# Beziehung: [[${e.src.id}|${e.src.title}]] ➔ [[${e.tgt.id}|${e.tgt.title}]]
+# ${t.relFileHeading}: [[${e.src.id}|${e.src.title}]] \u27a4 [[${e.tgt.id}|${e.tgt.title}]]
 
-- **Typ:** \`${edgeType}\`
-- **Quelle (Startnotiz):** [[${e.src.id}|${e.src.title}]]
-- **Ziel (Zielnotiz):** [[${e.tgt.id}|${e.tgt.title}]]
+- **${t.relFileType}:** \`${edgeType}\`
+- **${t.relFileSource}:** [[${e.src.id}|${e.src.title}]]
+- **${t.relFileTarget}:** [[${e.tgt.id}|${e.tgt.title}]]
 
-## Didaktischer / Fachlicher Grund
+## ${t.relFileReason}
 ${descText}
 `;
 
@@ -3654,11 +3898,11 @@ ${descText}
           }
           createdCount++;
         } catch (err) {
-          console.error(`Fehler beim Speichern der Beziehungsnotiz ${relPath}:`, err);
+          console.error(`${t.relSaveError} ${relPath}:`, err);
         }
       }
 
-      new import_obsidian4.Notice(`${createdCount} Beziehungs-Kanten (wiki/relations/) erfolgreich gespeichert!`);
+      new import_obsidian4.Notice(`${createdCount} ${t.relSaveSuccess}`);
       this.close();
     };
   }
