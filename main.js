@@ -3295,7 +3295,14 @@ STRICT FORMATTING AND LINKING RULES:
 3. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, concept, or key term INSTEAD of bold text (**...**)!
 4. PROHIBITION: Do NOT use bold text (**term**) for technical terms. Replace bold with real Obsidian WikiLinks [[...]].`);
 
-    const rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp, synthT.llmSystemPrompt);
+    let rawSynthesisText;
+    try {
+      rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp, synthT.llmSystemPrompt);
+    } catch (err) {
+      hoverBar.setText(`❌ Synthese fehlgeschlagen`);
+      new import_obsidian4.Notice(`❌ MemVector LLM-Fehler: ${err.message || err}`);
+      return;
+    }
 
     // Build Vault Title & Alias Map to check existing notes
     const allVaultFiles = this.plugin.app.vault.getMarkdownFiles();
@@ -3410,15 +3417,23 @@ var SynthesisResultModal = class extends import_obsidian4.Modal {
       style: "color: var(--text-muted); font-size: 0.9em;"
     });
 
-    const resultBox = contentEl.createEl("div");
+    const resultBox = contentEl.createEl("div", { cls: "markdown-rendered" });
     resultBox.style.background = "var(--background-secondary)";
-    resultBox.style.padding = "12px 16px";
-    resultBox.style.borderRadius = "6px";
-    resultBox.style.whiteSpace = "pre-wrap";
-    resultBox.style.fontFamily = "var(--font-monospace)";
-    resultBox.style.fontSize = "0.9em";
+    resultBox.style.padding = "16px";
+    resultBox.style.borderRadius = "8px";
+    resultBox.style.fontSize = "0.95em";
     resultBox.style.margin = "12px 0";
-    resultBox.setText(this.synthesisText);
+    resultBox.style.maxHeight = "500px";
+    resultBox.style.overflowY = "auto";
+    resultBox.style.lineHeight = "1.6";
+
+    import_obsidian4.MarkdownRenderer.render(
+      this.app,
+      this.synthesisText,
+      resultBox,
+      "",
+      this
+    );
 
     const btnRow = contentEl.createEl("div");
     btnRow.style.display = "flex";
