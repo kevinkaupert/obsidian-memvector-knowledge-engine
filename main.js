@@ -1685,6 +1685,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
+      this._wasDragging = false;
+      this._mouseDownX = mouseX;
+      this._mouseDownY = mouseY;
+
       const isLassoMode = this.lassoSelectMode || e.shiftKey;
       if (isLassoMode) {
         this.isDraggingLasso = true;
@@ -1700,6 +1704,15 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
+
+      // Mark as drag once mouse moved more than 4px from press point
+      if (!this._wasDragging && this._mouseDownX !== undefined) {
+        const dx = mouseX - this._mouseDownX;
+        const dy = mouseY - this._mouseDownY;
+        if (Math.sqrt(dx * dx + dy * dy) > 4) {
+          this._wasDragging = true;
+        }
+      }
 
       if (this.isDraggingPan) {
         this.pan.x = mouseX - this.dragStart.x;
@@ -1743,6 +1756,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       if (this.isDraggingLasso) {
         this.isDraggingLasso = false;
         if (this.lassoPath.length > 2) {
+          this._wasDragging = true; // Prevent click from clearing the lasso selection
           this.nodes.forEach((node) => {
             const screenPos = this.worldToScreen(node.x, node.y);
             if (isPointInPolygon(screenPos.x, screenPos.y, this.lassoPath)) {
@@ -1756,12 +1770,20 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     });
 
     canvas.addEventListener("click", (e) => {
+      // Ignore click if it was actually a drag or lasso release
+      if (this._wasDragging) {
+        this._wasDragging = false;
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
       const clicked = this.hitTest(mouseX, mouseY);
+
       if (clicked) {
-        if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        if (e.metaKey || e.ctrlKey) {
+          // Cmd/Ctrl+click: toggle multi-select
           if (this.selectedNodeIds.has(clicked.id)) {
             this.selectedNodeIds.delete(clicked.id);
           } else {
@@ -1769,17 +1791,30 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           }
           updateSelectionUI();
         } else {
-          this.pan.x = canvasWrap.clientWidth / 2 - clicked.x * this.zoom;
-          this.pan.y = canvasWrap.clientHeight / 2 - clicked.y * this.zoom;
-          this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
-          this.plugin.app.workspace.openLinkText(clicked.id, clicked.path, true);
+          // Simple click: select this node (replace selection)
+          this.selectedNodeIds.clear();
+          this.selectedNodeIds.add(clicked.id);
+          updateSelectionUI();
         }
       } else {
-        // Click on empty canvas area → clear selection
+        // Click on empty area → clear selection
         if (this.selectedNodeIds.size > 0) {
           this.selectedNodeIds.clear();
           updateSelectionUI();
         }
+      }
+    });
+
+    canvas.addEventListener("dblclick", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      const clicked = this.hitTest(mouseX, mouseY);
+      if (clicked) {
+        this.pan.x = canvasWrap.clientWidth / 2 - clicked.x * this.zoom;
+        this.pan.y = canvasWrap.clientHeight / 2 - clicked.y * this.zoom;
+        this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+        this.plugin.app.workspace.openLinkText(clicked.id, clicked.path, true);
       }
     });
 

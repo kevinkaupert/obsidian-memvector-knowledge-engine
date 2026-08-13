@@ -1,6 +1,6 @@
 {
   "name": "obsidian-memvector-knowledge-engine",
-  "version": "1.5.2",
+  "version": "1.5.3",
   "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
   "main": "main.js",
   "scripts": {
