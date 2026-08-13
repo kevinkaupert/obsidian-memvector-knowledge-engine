@@ -1116,14 +1116,14 @@ var DEFAULT_SETTINGS = {
 };
 
 var CLOUD_PALETTES = [
-  { inner: "rgba(6, 182, 212, 0.25)", outer: "rgba(6, 182, 212, 0.01)", labelColor: "#06b6d4" },   // Cyan
-  { inner: "rgba(139, 92, 246, 0.25)", outer: "rgba(139, 92, 246, 0.01)", labelColor: "#8b5cf6" }, // Violet
-  { inner: "rgba(16, 185, 129, 0.25)", outer: "rgba(16, 185, 129, 0.01)", labelColor: "#10b981" }, // Emerald
-  { inner: "rgba(245, 158, 11, 0.25)", outer: "rgba(245, 158, 11, 0.01)", labelColor: "#f59e0b" }, // Amber
-  { inner: "rgba(236, 72, 153, 0.25)", outer: "rgba(236, 72, 153, 0.01)", labelColor: "#ec4899" }, // Pink
-  { inner: "rgba(59, 130, 246, 0.25)", outer: "rgba(59, 130, 246, 0.01)", labelColor: "#3b82f6" }, // Blue
-  { inner: "rgba(239, 68, 68, 0.25)", outer: "rgba(239, 68, 68, 0.01)", labelColor: "#ef4444" },   // Red
-  { inner: "rgba(20, 184, 166, 0.25)", outer: "rgba(20, 184, 166, 0.01)", labelColor: "#14b8a6" }  // Teal
+  { inner: "rgba(100, 116, 139, 0.16)", outer: "rgba(100, 116, 139, 0.01)", labelColor: "#94a3b8" }, // Muted Slate
+  { inner: "rgba(99, 102, 241, 0.16)",  outer: "rgba(99, 102, 241, 0.01)",  labelColor: "#a5b4fc" }, // Muted Indigo
+  { inner: "rgba(20, 184, 166, 0.16)",  outer: "rgba(20, 184, 166, 0.01)",  labelColor: "#5eead4" }, // Muted Teal
+  { inner: "rgba(168, 85, 247, 0.16)",  outer: "rgba(168, 85, 247, 0.01)",  labelColor: "#c084fc" }, // Muted Violet
+  { inner: "rgba(234, 179, 8, 0.14)",   outer: "rgba(234, 179, 8, 0.01)",   labelColor: "#fde047" }, // Muted Gold
+  { inner: "rgba(59, 130, 246, 0.16)",  outer: "rgba(59, 130, 246, 0.01)",  labelColor: "#93c5fd" }, // Muted Blue
+  { inner: "rgba(16, 185, 129, 0.16)",  outer: "rgba(16, 185, 129, 0.01)",  labelColor: "#6ee7b7" }, // Muted Emerald
+  { inner: "rgba(244, 114, 182, 0.14)", outer: "rgba(244, 114, 182, 0.01)", labelColor: "#fbcfe8" }  // Muted Rose
 ];
 
 var MATH_VECTOR_SCATTER_VIEW_TYPE = "math-vector-scatterplot-view";
