@@ -29,188 +29,40 @@ var import_obsidian4 = require("obsidian");
 // src/MathWikiSidebarView.ts
 var import_obsidian2 = require("obsidian");
 
-// src/ClientMathEngine.ts
-var import_obsidian = require("obsidian");
-var ClientMathEngine = class {
-  /**
-   * Converts math strings (e.g. SymPy's x**2 + 2*x*y + y**2) into clean LaTeX (x^2 + 2xy + y^2).
-   */
-  static toLatex(exprStr) {
-    if (!exprStr)
-      return "";
-    let latex = exprStr.trim();
-    latex = latex.replace(/\*\*/g, "^");
-    latex = latex.replace(/(\d+)\s*\*\s*([a-zA-Z])/g, "$1$2");
-    latex = latex.replace(/([a-zA-Z0-9])\s*\*\s*([a-zA-Z])/g, "$1$2");
-    latex = latex.replace(/\*/g, " ");
-    latex = latex.replace(/\s+/g, " ");
-    return latex.trim();
-  }
-  /**
-   * Extracts variable names from a math expression string.
-   */
-  static getFreeVariables(exprStr) {
-    const matches = exprStr.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
-    const mathKeywords = /* @__PURE__ */ new Set(["sin", "cos", "tan", "sqrt", "log", "exp", "abs", "pi"]);
-    const vars = /* @__PURE__ */ new Set();
-    for (const m of matches) {
-      if (!mathKeywords.has(m.toLowerCase())) {
-        vars.add(m);
-      }
+// src/callDirectLLM.ts
+async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0.1, systemPrompt = "Du bist ein Wissens-Synthese Assistent f\xFCr Obsidian. Antworte kurz, strukturiert und pr\xE4zise auf Deutsch.") {
+  try {
+    const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
+    const url = `${cleanBase}/chat/completions`;
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey && apiKey !== "ollama") {
+      headers["Authorization"] = `Bearer ${apiKey}`;
     }
-    return Array.from(vars).sort();
-  }
-  /**
-   * Canonicalizes variable names to v1, v2, v3... for Alpha-Equivalence matching.
-   */
-  static canonicalizeVariables(exprStr) {
-    const vars = this.getFreeVariables(exprStr);
-    const mapping = {};
-    let canonical = exprStr;
-    vars.forEach((v, idx) => {
-      const placeholder = `v${idx + 1}`;
-      mapping[v] = placeholder;
-    });
-    const sortedVars = [...vars].sort((a, b) => b.length - a.length);
-    for (const v of sortedVars) {
-      const regex = new RegExp(`\\b${v}\\b`, "g");
-      canonical = canonical.replace(regex, mapping[v]);
-    }
-    return { canonical, mapping };
-  }
-  /**
-   * Checks Alpha-Equivalence between two expressions directly in JS.
-   */
-  static checkAlphaEquivalence(expr1, expr2) {
-    const c1 = this.canonicalizeVariables(expr1);
-    const c2 = this.canonicalizeVariables(expr2);
-    const exp1 = this.expandExpression(c1.canonical);
-    const exp2 = this.expandExpression(c2.canonical);
-    if (this.normalizeExprString(exp1) === this.normalizeExprString(exp2)) {
-      const varMap = {};
-      const vars1 = this.getFreeVariables(expr1);
-      const vars2 = this.getFreeVariables(expr2);
-      vars1.forEach((v1, idx) => {
-        if (vars2[idx]) {
-          varMap[v1] = vars2[idx];
-        }
-      });
-      return {
-        isEquivalent: true,
-        variableMapping: varMap,
-        explanation: "Strukturell identisch unter Variablensubstitution (Client-Side JS Engine)."
-      };
-    }
-    return {
-      isEquivalent: false,
-      explanation: "Keine direkte \xDCberdeckung durch Client-Side Regeln gefunden."
+    const payload = {
+      model: modelName || "deepseek-r1:7b",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: prompt }
+      ],
+      temperature: temperature ?? 0.1
     };
-  }
-  /**
-   * Expands basic algebraic patterns like (A + B)^2, (A - B)^2, (A - B)(A + B).
-   */
-  static expandExpression(exprStr) {
-    let result = exprStr.trim();
-    const squarePlusMatch = result.match(/^\(([^+-]+)\s*\+\s*([^+-]+)\)\s*(\^|\*\*)\s*2$/);
-    if (squarePlusMatch) {
-      const a = squarePlusMatch[1].trim();
-      const b = squarePlusMatch[2].trim();
-      return `${a}^2 + 2*${a}*${b} + ${b}^2`;
+    const response = await (0, import_obsidian2.requestUrl)({
+      url,
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      throwOnError: false
+    });
+    if (response.status === 200) {
+      const data = response.json;
+      return data.choices[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
+    } else {
+      return `LLM API Fehler (${response.status}): ${response.text || "Verbindung abgebrochen."}`;
     }
-    const squareMinusMatch = result.match(/^\(([^+-]+)\s*-\s*([^+-]+)\)\s*(\^|\*\*)\s*2$/);
-    if (squareMinusMatch) {
-      const a = squareMinusMatch[1].trim();
-      const b = squareMinusMatch[2].trim();
-      return `${a}^2 - 2*${a}*${b} + ${b}^2`;
-    }
-    return result;
+  } catch (err) {
+    return `LLM Verbindungsfehler zu '${apiBase}': ${err.message || String(err)}`;
   }
-  /**
-   * Factors basic algebraic patterns.
-   */
-  static factorExpression(exprStr) {
-    let clean = this.normalizeExprString(exprStr);
-    const binomMatch = clean.match(/^([a-zA-Z0-9]+)\^2\+2\*?\1\*?([a-zA-Z0-9]+)\+\2\^2$/);
-    if (binomMatch) {
-      return `(${binomMatch[1]} + ${binomMatch[2]})^2`;
-    }
-    return exprStr;
-  }
-  /**
-   * Normalizes expression string spacing and operators for string comparison.
-   */
-  static normalizeExprString(str) {
-    return str.replace(/\s+/g, "").replace(/\*\*/g, "^").replace(/\*/g, "").toLowerCase();
-  }
-  /**
-   * Sub-expression replacement in JavaScript.
-   */
-  static replaceSubExpression(fullExpr, subExpr, replacement) {
-    if (fullExpr.includes(subExpr)) {
-      return fullExpr.replace(subExpr, replacement);
-    }
-    return fullExpr;
-  }
-  /**
-   * Direct LLM Call (Ollama or DeepSeek Cloud) using Obsidian's requestUrl.
-   */
-  static async callDirectLLM(prompt, apiBase, apiKey, modelName) {
-    try {
-      const cleanBase = apiBase.replace(/\/+$/, "");
-      const url = `${cleanBase}/chat/completions`;
-      const headers = { "Content-Type": "application/json" };
-      if (apiKey && apiKey !== "ollama") {
-        headers["Authorization"] = `Bearer ${apiKey}`;
-      }
-      const payload = {
-        model: modelName || "deepseek-r1:7b",
-        messages: [
-          {
-            role: "system",
-            content: "Du bist ein Mathematik-Assistent fuer Obsidian. Erklaere mathematische Aequivalenzen und Umformungen kurz auf Deutsch."
-          },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.1
-      };
-      const response = await (0, import_obsidian.requestUrl)({
-        url,
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        throwOnError: false
-      });
-      if (response.status === 200) {
-        const data = response.json;
-        return data.choices[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
-      } else {
-        return `LLM API Fehler (${response.status}): ${response.text || "Verbindung abgebrochen."}`;
-      }
-    } catch (err) {
-      return `LLM Verbindungsfehler zu '${apiBase}': ${err.message || String(err)}`;
-    }
-  }
-  static async getOllamaEmbedding(text, apiBase = "http://localhost:11434/v1", modelName = "bge-m3") {
-    try {
-      const cleanBase = apiBase.replace(/\/v1\/?$/, "").replace(/\/+$/, "");
-      const url = `${cleanBase}/api/embeddings`;
-      const response = await (0, import_obsidian.requestUrl)({
-        url,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelName, prompt: text }),
-        throwOnError: false
-      });
-      if (response.status === 200 && response.json && response.json.embedding) {
-        return response.json.embedding;
-      }
-      return null;
-    } catch (err) {
-      console.error("Ollama Embedding Error:", err);
-      return null;
-    }
-  }
-};
+}
 
 // src/i18n.ts
 var translations = {
@@ -381,33 +233,9 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
     }, 150);
   }
   async onOpen() {
-    try {
-      await (0, import_obsidian2.loadMathJax)();
-    } catch (err) {
-      console.error("Failed to pre-load MathJax:", err);
-    }
     await this.renderView();
   }
-  renderMathElement(container, mathStr, isDisplay = false) {
-    const mathWrapper = container.createEl("div", { cls: "math-rendered-node" });
-    try {
-      let cleanMath = ClientMathEngine.toLatex(mathStr);
-      if (cleanMath.startsWith("$$") && cleanMath.endsWith("$$")) {
-        cleanMath = cleanMath.slice(2, -2).trim();
-      } else if (cleanMath.startsWith("$") && cleanMath.endsWith("$")) {
-        cleanMath = cleanMath.slice(1, -1).trim();
-      } else if (cleanMath.startsWith("\\(") && cleanMath.endsWith("\\)")) {
-        cleanMath = cleanMath.slice(2, -2).trim();
-      } else if (cleanMath.startsWith("\\[") && cleanMath.endsWith("\\]")) {
-        cleanMath = cleanMath.slice(2, -2).trim();
-      }
-      const renderedNode = (0, import_obsidian2.renderMath)(cleanMath, isDisplay);
-      mathWrapper.appendChild(renderedNode);
-    } catch (err) {
-      mathWrapper.setText(mathStr);
-    }
-    return mathWrapper;
-  }
+
   getNode2DPosition(file, content) {
     const scatterLeaf = this.app.workspace.getLeavesOfType("math-vector-scatterplot-view")[0];
     if (scatterLeaf && scatterLeaf.view && scatterLeaf.view.nodes) {
@@ -804,29 +632,30 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
       });
 
       const synthNeighborsBtn = focusBox.createEl("button", {
-        text: "Mit DeepSeek-R1 synthetisieren",
+        text: "LLM Synthese",
         style: "width: 100%; margin-top: 10px; font-size: 0.85em; background: var(--interactive-accent); color: var(--text-on-accent);"
       });
 
       synthNeighborsBtn.onclick = async () => {
         synthNeighborsBtn.disabled = true;
-        synthNeighborsBtn.setText("Synthetisiere mit DeepSeek-R1...");
+        synthNeighborsBtn.setText("LLM Synthese läuft...");
         const selectedNodes = [
           { id: activeFile.basename, title: activeFile.basename, path: activeFile.path, type: "active", latexFormulas: Array.from(activeFormulas), content: activeContent.slice(0, 800) },
           ...topNeighbors.slice(0, 5).map((t) => ({ id: t.file.basename, title: t.file.basename, path: t.file.path, type: "neighbor", latexFormulas: t.formulas, content: t.content }))
         ];
 
         const notesSummary = selectedNodes.map((n, i) => `Notiz ${i + 1}: ${n.title} (${n.path})`).join("\n");
-        const prompt = `Du bist ein mathematischer Co-Pilot. Der Benutzer analysiert die Notiz '${activeFile.basename}' und ihre 5 nahen Vektor-Nachbarn:\n${notesSummary}\n\nErläutere kurz den mathematischen Zusammenhang und die Verbindung dieser Konzepte auf Deutsch.`;
+        const prompt = `Der Benutzer analysiert die Notiz '${activeFile.basename}' und ihre 5 nahen Vektor-Nachbarn im Vault:\n${notesSummary}\n\nErläutere kurz den Wissenszusammenhang und die logischen Verbindungen dieser Konzepte auf Deutsch.`;
 
         const apiBase = pluginSettings?.apiBaseUrl || "http://localhost:11434/v1";
         const apiKey = pluginSettings?.deepseekApiKey || "ollama";
         const modelName = pluginSettings?.modelName || "deepseek-r1:7b";
+        const temp = pluginSettings?.temperature ?? 0.1;
 
-        const resText = await ClientMathEngine.callDirectLLM(prompt, apiBase, apiKey, modelName);
+        const resText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
         new SynthesisResultModal(this.app, selectedNodes, resText).open();
         synthNeighborsBtn.disabled = false;
-        synthNeighborsBtn.setText("Mit DeepSeek-R1 synthetisieren");
+        synthNeighborsBtn.setText("LLM Synthese");
       };
     } catch (err) {
       console.error("Error rendering active note radar focus:", err);
@@ -835,214 +664,13 @@ var MathWikiSidebarView = class extends import_obsidian2.ItemView {
 
   async renderView() {
     const container = this.containerEl.children[1];
+    if (!container) return;
     container.empty();
-    const pluginSettings = this.app.plugins?.plugins?.["obsidian-llm-math-wiki"]?.settings;
-    const lang = pluginSettings?.language || "de";
-    const t = getTranslation(lang);
-    const header = container.createEl("h3", { text: t.sidebarTitle });
+    const pluginSettings = this.app.plugins?.plugins?.["obsidian-memvector-knowledge-engine"]?.settings || this.app.plugins?.plugins?.["obsidian-llm-math-wiki"]?.settings;
+    const header = container.createEl("h3", { text: "MemVector Co-Pilot" });
     header.style.marginBottom = "15px";
 
     await this.renderActiveNoteFocus(container, pluginSettings);
-
-    if (!this.selectionState || !this.selectionState.subExpr) {
-      const emptyMsg = container.createEl("div", {
-        text: t.selectSubExprHint
-      });
-      emptyMsg.style.color = "var(--text-muted)";
-      emptyMsg.style.fontStyle = "italic";
-      emptyMsg.style.padding = "10px 0";
-      return;
-    }
-    const { fullExpr, subExpr } = this.selectionState;
-    const selectionBox = container.createEl("div");
-    selectionBox.style.background = "var(--background-secondary)";
-    selectionBox.style.borderRadius = "8px";
-    selectionBox.style.padding = "12px";
-    selectionBox.style.marginBottom = "15px";
-    selectionBox.createEl("small", { text: t.selectedSubExpr, cls: "math-label" });
-    const subDisplay = selectionBox.createEl("div");
-    subDisplay.style.fontSize = "1.3em";
-    subDisplay.style.fontWeight = "bold";
-    subDisplay.style.color = "var(--text-accent)";
-    subDisplay.style.margin = "6px 0 10px 0";
-    this.renderMathElement(subDisplay, subExpr, true);
-    if (fullExpr && fullExpr !== subExpr) {
-      selectionBox.createEl("small", { text: t.contextFullExpr, cls: "math-label" });
-      const fullDisplay = selectionBox.createEl("div");
-      fullDisplay.style.color = "var(--text-muted)";
-      fullDisplay.style.fontSize = "1.05em";
-      fullDisplay.style.marginTop = "4px";
-      this.renderMathElement(fullDisplay, fullExpr, false);
-    }
-    const transformationsContainer = container.createEl("div");
-    this.renderClientSideFallback(transformationsContainer, fullExpr, subExpr, t);
-    this.renderDeepSeekSection(container, fullExpr, subExpr, pluginSettings);
-    (0, import_obsidian2.finishRenderMath)();
-    const mode = pluginSettings?.executionMode || "auto";
-    if (mode === "standalone")
-      return;
-    this.currentAbortController = new AbortController();
-    const signal = this.currentAbortController.signal;
-    try {
-      const res = await fetch(`${this.apiServerUrl}/api/subexpression`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ full_expr: fullExpr, sub_expr: subExpr }),
-        signal
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (!signal.aborted) {
-          transformationsContainer.empty();
-          this.renderTransformations(
-            transformationsContainer,
-            data.sub_transformations || {},
-            data.substituted_full_expr,
-            fullExpr,
-            subExpr,
-            "[Level 1: SymPy Engine]",
-            t
-          );
-          (0, import_obsidian2.finishRenderMath)();
-        }
-      }
-    } catch (err) {
-      if (err.name === "AbortError")
-        return;
-      if (mode === "python") {
-        transformationsContainer.createEl("div", { text: t.pythonServerOffline, style: "color: var(--text-error);" });
-      }
-    }
-  }
-  renderClientSideFallback(container, fullExpr, subExpr, t) {
-    const expanded = ClientMathEngine.expandExpression(subExpr);
-    const factored = ClientMathEngine.factorExpression(subExpr);
-    const substitutedFull = ClientMathEngine.replaceSubExpression(fullExpr, subExpr, expanded);
-    const transformations = {
-      original: subExpr,
-      expanded: expanded !== subExpr ? expanded : void 0,
-      factored: factored !== subExpr ? factored : void 0
-    };
-    this.renderTransformations(container, transformations, substitutedFull, fullExpr, subExpr, "[Level 1: Client JS Engine]", t);
-  }
-  renderTransformations(container, subTrans, substitutedFull, fullExpr, subExpr, engineBadge, t) {
-    const transBox = container.createEl("div");
-    transBox.style.background = "var(--background-primary-alt)";
-    transBox.style.border = "1px solid var(--background-modifier-border)";
-    transBox.style.borderRadius = "8px";
-    transBox.style.padding = "12px";
-    transBox.style.marginBottom = "15px";
-    const header = transBox.createEl("div");
-    header.style.display = "flex";
-    header.style.justifyContent = "space-between";
-    header.style.alignItems = "center";
-    header.style.marginBottom = "12px";
-    header.createEl("h4", { text: t.transformationSuggestions, style: "margin:0;" });
-    header.createEl("span", {
-      text: engineBadge,
-      style: "background: var(--background-secondary); padding: 2px 8px; border-radius: 4px; font-size: 0.75em; color: var(--text-accent);"
-    });
-    let hasSuggestions = false;
-    if (subTrans.expanded && subTrans.expanded !== subExpr) {
-      hasSuggestions = true;
-      const expItem = transBox.createEl("div");
-      expItem.style.marginBottom = "12px";
-      expItem.style.display = "flex";
-      expItem.style.flexDirection = "column";
-      expItem.style.gap = "4px";
-      expItem.createEl("strong", { text: t.expandedForm });
-      const mathContainer = expItem.createEl("div");
-      mathContainer.style.fontSize = "1.1em";
-      this.renderMathElement(mathContainer, subTrans.expanded, true);
-      const btn = expItem.createEl("button", { text: t.replaceInEditor });
-      btn.style.alignSelf = "flex-start";
-      btn.style.marginTop = "4px";
-      btn.onclick = () => {
-        if (this.onReplaceCallback) {
-          const latexText = ClientMathEngine.toLatex(subTrans.expanded);
-          this.onReplaceCallback(latexText);
-          new import_obsidian2.Notice(`${t.replacedNotice} ${latexText}`);
-        }
-      };
-    }
-    if (subTrans.factored && subTrans.factored !== subExpr) {
-      hasSuggestions = true;
-      const factItem = transBox.createEl("div");
-      factItem.style.marginBottom = "12px";
-      factItem.style.display = "flex";
-      factItem.style.flexDirection = "column";
-      factItem.style.gap = "4px";
-      factItem.createEl("strong", { text: t.factoredForm });
-      const mathContainer = factItem.createEl("div");
-      mathContainer.style.fontSize = "1.1em";
-      this.renderMathElement(mathContainer, subTrans.factored, true);
-      const btn = factItem.createEl("button", { text: t.replaceInEditor });
-      btn.style.alignSelf = "flex-start";
-      btn.style.marginTop = "4px";
-      btn.onclick = () => {
-        if (this.onReplaceCallback) {
-          const latexText = ClientMathEngine.toLatex(subTrans.factored);
-          this.onReplaceCallback(latexText);
-          new import_obsidian2.Notice(`${t.replacedNotice} ${latexText}`);
-        }
-      };
-    }
-    if (!hasSuggestions) {
-      transBox.createEl("div", { text: t.noSuggestions, style: "color: var(--text-muted);" });
-    }
-    if (substitutedFull && substitutedFull !== fullExpr) {
-      const fullResBox = transBox.createEl("div");
-      fullResBox.style.marginTop = "14px";
-      fullResBox.style.paddingTop = "10px";
-      fullResBox.style.borderTop = "1px dashed var(--background-modifier-border)";
-      fullResBox.createEl("strong", { text: t.newFullEquation });
-      const fullMathContainer = fullResBox.createEl("div");
-      fullMathContainer.style.fontSize = "1.15em";
-      fullMathContainer.style.marginTop = "4px";
-      this.renderMathElement(fullMathContainer, substitutedFull, true);
-    }
-  }
-  renderDeepSeekSection(container, fullExpr, subExpr, pluginSettings) {
-    const llmSection = container.createEl("div");
-    llmSection.style.background = "var(--background-secondary)";
-    llmSection.style.borderRadius = "8px";
-    llmSection.style.padding = "12px";
-    llmSection.style.marginTop = "15px";
-    const llmHeader = llmSection.createEl("div");
-    llmHeader.style.display = "flex";
-    llmHeader.style.justifyContent = "space-between";
-    llmHeader.style.alignItems = "center";
-    llmHeader.style.marginBottom = "8px";
-    llmHeader.createEl("h4", { text: "DeepSeek-R1 LLM Reasoning", style: "margin: 0;" });
-    llmHeader.createEl("span", {
-      text: "[Level 3: DeepSeek]",
-      style: "background: var(--background-primary); padding: 2px 8px; border-radius: 4px; font-size: 0.75em; color: var(--text-accent);"
-    });
-    const askBtn = llmSection.createEl("button", {
-      text: "Mit DeepSeek-R1 analysieren",
-      style: "width: 100%; margin-bottom: 8px;"
-    });
-    const llmResultBox = llmSection.createEl("div");
-    llmResultBox.style.fontSize = "0.9em";
-    llmResultBox.style.color = "var(--text-muted)";
-    llmResultBox.style.whiteSpace = "pre-wrap";
-    const runLLMAnalysis = async () => {
-      askBtn.disabled = true;
-      askBtn.setText("Analysiere mit DeepSeek-R1...");
-      llmResultBox.setText("Sende Anfrage an Ollama / DeepSeek...");
-      const prompt = `Analysiere und erklaere diesen mathematischen Teilausdruck '${subExpr}' im Kontext von '${fullExpr}'. Zeige Schritte zur Vereinfachung.`;
-      const apiBase = pluginSettings?.apiBaseUrl || "http://localhost:11434/v1";
-      const apiKey = pluginSettings?.deepseekApiKey || "ollama";
-      const modelName = pluginSettings?.modelName || "deepseek-r1:7b";
-      const resText = await ClientMathEngine.callDirectLLM(prompt, apiBase, apiKey, modelName);
-      llmResultBox.setText(resText);
-      askBtn.disabled = false;
-      askBtn.setText("Erneut mit DeepSeek-R1 analysieren");
-    };
-    askBtn.onclick = runLLMAnalysis;
-    if (pluginSettings?.enableLevel3LLM) {
-      runLLMAnalysis();
-    }
   }
 };
 
@@ -1057,123 +685,108 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const t = getTranslation(this.plugin.settings.language || "de");
-    containerEl.createEl("h2", { text: t.settingsTitle });
+    containerEl.createEl("h2", { text: "MemVector Knowledge Engine Einstellungen" });
     containerEl.createEl("p", {
-      text: t.settingsDesc,
+      text: "Konfigurieren Sie Ihr LLM, Vektordatenbank (Qdrant), Graph-Datenbank (Memgraph) und Benutzeroberfläche.",
       cls: "setting-item-description"
     });
-    new import_obsidian3.Setting(containerEl).setName(t.languageSettingName).setDesc(t.languageSettingDesc).addDropdown(
-      (dropdown) => dropdown.addOption("de", "Deutsch").addOption("en", "English").setValue(this.plugin.settings.language || "de").onChange(async (value) => {
-        this.plugin.settings.language = value;
-        await this.plugin.saveSettings();
-        this.display();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.triggerModeName).setDesc(t.triggerModeDesc).addDropdown(
-      (dropdown) => dropdown.addOption("button", t.triggerModeButton).addOption("auto", t.triggerModeAuto).setValue(this.plugin.settings.triggerMode || "button").onChange(async (value) => {
-        this.plugin.settings.triggerMode = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.executionModeName).setDesc(t.executionModeDesc).addDropdown(
-      (dropdown) => dropdown.addOption("auto", t.autoDetectMode).addOption("standalone", t.standaloneMode).addOption("python", t.pythonMode).setValue(this.plugin.settings.executionMode || "auto").onChange(async (value) => {
-        this.plugin.settings.executionMode = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    containerEl.createEl("h3", { text: "1. Python SymPy Server" });
-    new import_obsidian3.Setting(containerEl).setName(t.pythonServerUrlName).setDesc(t.pythonServerUrlDesc).addText(
-      (text) => text.setPlaceholder("http://localhost:8000").setValue(this.plugin.settings.apiServerUrl).onChange(async (value) => {
-        this.plugin.settings.apiServerUrl = value.trim();
-        await this.plugin.saveSettings();
-      })
-    ).addButton(
-      (button) => button.setButtonText(t.testServerBtn).onClick(async () => {
-        try {
-          const res = await fetch(`${this.plugin.settings.apiServerUrl}/`);
-          if (res.ok) {
-            new import_obsidian3.Notice(t.serverOnlineNotice);
-          } else {
-            new import_obsidian3.Notice(`Status: ${res.status}`);
+
+    // 1. Allgemein
+    containerEl.createEl("h3", { text: "1. Allgemein" });
+    new import_obsidian3.Setting(containerEl)
+      .setName("Sprache / Language")
+      .setDesc("Wählen Sie die Sprache für Benachrichtigungen und UI-Texte.")
+      .addDropdown((dropdown) => dropdown
+        .addOption("de", "Deutsch")
+        .addOption("en", "English")
+        .setValue(this.plugin.settings.language || "de")
+        .onChange(async (value) => {
+          this.plugin.settings.language = value;
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+
+    // 2. LLM Provider
+    containerEl.createEl("h3", { text: "2. LLM Provider (für KI-Synthese & Co-Pilot)" });
+    new import_obsidian3.Setting(containerEl)
+      .setName("LLM Provider")
+      .setDesc("Wählen Sie den Anbieter für Ihr LLM aus. Sie können jede OpenAI-kompatible API (Ollama, DeepSeek Cloud, OpenAI, LM Studio, etc.) nutzen.")
+      .addDropdown((dropdown) => dropdown
+        .addOption("ollama", "Ollama (Lokal - kein API-Key erforderlich)")
+        .addOption("deepseek", "DeepSeek Cloud API (api.deepseek.com)")
+        .addOption("openai", "OpenAI API (GPT-4o, etc.)")
+        .addOption("custom", "Benutzerdefinierter API Endpoint")
+        .setValue(this.plugin.settings.llmProvider || "ollama")
+        .onChange(async (value) => {
+          this.plugin.settings.llmProvider = value;
+          if (value === "ollama") {
+            this.plugin.settings.apiBaseUrl = "http://localhost:11434/v1";
+            this.plugin.settings.modelName = "deepseek-r1:7b";
+            this.plugin.settings.deepseekApiKey = "ollama";
+          } else if (value === "deepseek") {
+            this.plugin.settings.apiBaseUrl = "https://api.deepseek.com/v1";
+            this.plugin.settings.modelName = "deepseek-reasoner";
+          } else if (value === "openai") {
+            this.plugin.settings.apiBaseUrl = "https://api.openai.com/v1";
+            this.plugin.settings.modelName = "gpt-4o";
           }
-        } catch (e) {
-          new import_obsidian3.Notice(t.serverOfflineNotice);
-        }
-      })
-    );
-    containerEl.createEl("h3", { text: "2. LLM Provider & Model" });
-    new import_obsidian3.Setting(containerEl).setName(t.llmProviderName).setDesc(t.llmProviderDesc).addDropdown(
-      (dropdown) => dropdown.addOption("ollama", "Ollama (Local LLM - No API Key)").addOption("deepseek", "DeepSeek Cloud API (api.deepseek.com)").addOption("openai", "OpenAI (GPT-4o)").addOption("custom", "Custom REST API Endpoint").setValue(this.plugin.settings.llmProvider).onChange(async (value) => {
-        this.plugin.settings.llmProvider = value;
-        if (value === "ollama") {
-          this.plugin.settings.apiBaseUrl = "http://localhost:11434/v1";
-          this.plugin.settings.modelName = "deepseek-r1:7b";
-          this.plugin.settings.deepseekApiKey = "ollama";
-        } else if (value === "deepseek") {
-          this.plugin.settings.apiBaseUrl = "https://api.deepseek.com/v1";
-          this.plugin.settings.modelName = "deepseek-reasoner";
-        }
-        await this.plugin.saveSettings();
-        this.display();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.apiBaseUrlName).setDesc(t.apiBaseUrlDesc).addText(
-      (text) => text.setPlaceholder("http://localhost:11434/v1").setValue(this.plugin.settings.apiBaseUrl).onChange(async (value) => {
-        this.plugin.settings.apiBaseUrl = value.trim();
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.apiKeyName).setDesc(t.apiKeyDesc).addText(
-      (text) => text.setPlaceholder("sk-...").setValue(this.plugin.settings.deepseekApiKey).onChange(async (value) => {
-        this.plugin.settings.deepseekApiKey = value.trim();
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.modelNameTitle).setDesc(t.modelNameDesc).addText(
-      (text) => text.setPlaceholder("deepseek-r1").setValue(this.plugin.settings.modelName).onChange(async (value) => {
-        this.plugin.settings.modelName = value.trim();
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.temperatureTitle).setDesc(t.temperatureDesc).addSlider(
-      (slider) => slider.setLimits(0, 1, 0.05).setValue(this.plugin.settings.temperature).setDynamicTooltip().onChange(async (value) => {
-        this.plugin.settings.temperature = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    containerEl.createEl("h3", { text: "3. Equivalence Engine Cascade" });
-    new import_obsidian3.Setting(containerEl).setName(t.level1Name).setDesc(t.level1Desc).addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.enableLevel1Sympy).onChange(async (value) => {
-        this.plugin.settings.enableLevel1Sympy = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.level2Name).setDesc(t.level2Desc).addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.enableLevel2AlphaEquiv).onChange(async (value) => {
-        this.plugin.settings.enableLevel2AlphaEquiv = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.level3Name).setDesc(t.level3Desc).addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.enableLevel3LLM).onChange(async (value) => {
-        this.plugin.settings.enableLevel3LLM = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    containerEl.createEl("h3", { text: "4. Editor Behavior" });
-    new import_obsidian3.Setting(containerEl).setName(t.autoUpdateName).setDesc(t.autoUpdateDesc).addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.enableAutoSidebarUpdate).onChange(async (value) => {
-        this.plugin.settings.enableAutoSidebarUpdate = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    new import_obsidian3.Setting(containerEl).setName(t.replaceModeName).setDesc(t.replaceModeDesc).addDropdown(
-      (dropdown) => dropdown.addOption("replace", t.replaceModeDirect).addOption("insert_below", t.replaceModeNewLine).setValue(this.plugin.settings.replaceBehavior).onChange(async (value) => {
-        this.plugin.settings.replaceBehavior = value;
-        await this.plugin.saveSettings();
-      })
-    );
-    containerEl.createEl("h3", { text: "5. Wissensdomäne & Vektorraum-Filter" });
+          await this.plugin.saveSettings();
+          this.display();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName("API Base Endpoint URL")
+      .setDesc("Basis-URL des OpenAI-kompatiblen API Endpoints (z. B. http://localhost:11434/v1 für Ollama oder https://api.deepseek.com/v1).")
+      .addText((text) => text
+        .setPlaceholder("http://localhost:11434/v1")
+        .setValue(this.plugin.settings.apiBaseUrl || "http://localhost:11434/v1")
+        .onChange(async (value) => {
+          this.plugin.settings.apiBaseUrl = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName("API Key")
+      .setDesc("API-Schlüssel für Cloud-APIs (für Ollama leer lassen oder 'ollama' eintragen).")
+      .addText((text) => text
+        .setPlaceholder("sk-...")
+        .setValue(this.plugin.settings.deepseekApiKey || "ollama")
+        .onChange(async (value) => {
+          this.plugin.settings.deepseekApiKey = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName("Modellname (Model Name)")
+      .setDesc("Exakter Name des LLM-Modells (z. B. 'deepseek-r1:7b', 'deepseek-reasoner', 'gpt-4o', 'llama3').")
+      .addText((text) => text
+        .setPlaceholder("deepseek-r1:7b")
+        .setValue(this.plugin.settings.modelName || "deepseek-r1:7b")
+        .onChange(async (value) => {
+          this.plugin.settings.modelName = value.trim();
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new import_obsidian3.Setting(containerEl)
+      .setName("Temperatur")
+      .setDesc("Niedrigere Werte (0.0 - 0.2) liefern deterministische, strukturiere Antworten; höhere Werte erlauben kreativierende Antworten.")
+      .addSlider((slider) => slider
+        .setLimits(0, 1, 0.05)
+        .setValue(this.plugin.settings.temperature ?? 0.1)
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          this.plugin.settings.temperature = value;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    // 3. Wissensdomäne & Vektorraum-Filter
+    containerEl.createEl("h3", { text: "3. Wissensdomäne & Vektorraum-Filter" });
     new import_obsidian3.Setting(containerEl)
       .setName("Wissensdomäne / Fachbereich")
       .setDesc("Wähle zwischen universellen Notizbüchern (Allgemeines Wissen, Code, Forschung, PKM) oder spezialisierter Mathematik (LaTeX-Beweise & Formeln).")
@@ -1186,6 +799,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Pfad- & Datei-Ausschlüsse")
       .setDesc("Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks). Syntax wie im Obsidian Graph View.")
@@ -1197,6 +811,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Mini-Radar Notizen-Anzahl (X)")
       .setDesc("Anzahl der nahesten Vektor-Notizen (X), auf die der Mini-Radar in der Seitenleiste beim Öffnen automatisch skaliert.")
@@ -1212,7 +827,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
-    containerEl.createEl("h3", { text: "6. Qdrant Vektor-Datenbank Anbindung" });
+    // 4. Qdrant
+    containerEl.createEl("h3", { text: "4. Qdrant Vektor-Datenbank Anbindung" });
     new import_obsidian3.Setting(containerEl)
       .setName("Qdrant Server URL")
       .setDesc("HTTP-URL deiner Qdrant-Instanz (z. B. http://localhost:6333 oder Cloud-URL).")
@@ -1224,6 +840,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Qdrant Collection Name")
       .setDesc("Name der Vektor-Collection für bge-m3 Notiz-Embeddings.")
@@ -1235,6 +852,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Qdrant API Key (Optional)")
       .setDesc("API-Schlüssel für Qdrant Cloud oder geschützte Server.")
@@ -1247,7 +865,8 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
         })
       );
 
-    containerEl.createEl("h3", { text: "7. Memgraph Graph-Datenbank Anbindung" });
+    // 5. Memgraph
+    containerEl.createEl("h3", { text: "5. Memgraph Graph-Datenbank Anbindung" });
     new import_obsidian3.Setting(containerEl)
       .setName("Memgraph Cypher HTTP Server URL")
       .setDesc("HTTP Cypher Endpoint deiner Memgraph-Instanz (z. B. http://localhost:7000).")
@@ -1259,6 +878,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Memgraph Benutzername")
       .setDesc("Benutzername für Memgraph Authentifizierung (Standard: leer).")
@@ -1270,6 +890,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Memgraph Passwort")
       .setDesc("Passwort für Memgraph Authentifizierung.")
@@ -1281,6 +902,7 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
+
     new import_obsidian3.Setting(containerEl)
       .setName("Automatische Cypher-Ausführung")
       .setDesc("Führe erstellte Cypher-Kanten beim Speichern direkt auf dem Memgraph-Server aus.")
@@ -1298,21 +920,11 @@ var MathWikiSettingTab = class extends import_obsidian3.PluginSettingTab {
 var DEFAULT_SETTINGS = {
   language: "de",
   knowledgeDomain: "general",
-  triggerMode: "button",
-  executionMode: "auto",
-  apiServerUrl: "http://localhost:8000",
-  serverTimeout: 10,
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",
   deepseekApiKey: "ollama",
   modelName: "deepseek-r1:7b",
   temperature: 0.1,
-  enableLevel1Sympy: true,
-  enableLevel2AlphaEquiv: true,
-  enableLevel3LLM: true,
-  maxVaultScanResults: 50,
-  enableAutoSidebarUpdate: false,
-  replaceBehavior: "replace",
   vectorSearchExclusions: "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
   radarNoteCount: 10,
   qdrantUrl: "http://localhost:6333",
@@ -2369,10 +1981,8 @@ Aufgabe:
 3. Formuliere eine strukturierte Synthese in Markdown mit klaren Überschriften, Kernaussagen und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`;
 
     const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
-    const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
-    const modelName = this.plugin.settings?.modelName || "deepseek-r1:7b";
-
-    const synthesisText = await ClientMathEngine.callDirectLLM(prompt, apiBase, apiKey, modelName);
+    const temp = this.plugin.settings?.temperature ?? 0.1;
+    const synthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
 
     new SynthesisResultModal(this.plugin.app, selected, synthesisText).open();
     hoverBar.setText(`DeepSeek-R1 Synthese für ${selected.length} Notizen abgeschlossen.`);
@@ -2814,7 +2424,6 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
     this.sidebarView = null;
-    this.lastSelectionRange = null;
   }
   async onload() {
     console.log("Loading MemVector Knowledge Engine Plugin...");
@@ -2823,9 +2432,8 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
     this.registerView(
       MATH_WIKI_VIEW_TYPE,
       (leaf) => {
-        const view = new MathWikiSidebarView(leaf, this.settings.apiServerUrl);
+        const view = new MathWikiSidebarView(leaf);
         this.sidebarView = view;
-        view.setReplaceCallback((replacement) => this.replaceSelectionInActiveEditor(replacement));
         return view;
       }
     );
@@ -2840,13 +2448,6 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
       this.activateVectorScatterView();
     });
     this.addCommand({
-      id: "analyze-selected-math",
-      name: "MemVector: Markierten Text / Formel analysieren",
-      editorCallback: (editor) => {
-        this.analyzeCurrentSelection(editor);
-      }
-    });
-    this.addCommand({
       id: "open-math-wiki-sidebar",
       name: "MemVector: Seitenleiste \xF6ffnen",
       callback: () => this.activateSidebarView()
@@ -2856,19 +2457,8 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
       name: "MemVector: 2D Vektor-Scatterplot \xF6ffnen",
       callback: () => this.activateVectorScatterView()
     });
-    this.addCommand({
-      id: "scan-vault-math-equivalences",
-      name: "MemVector: Vault nach \xE4quivalenten Konzepten & Formeln durchsuchen",
-      callback: () => this.scanVaultEquivalences()
-    });
-    this.registerEvent(
-      this.app.workspace.on("layout-change", () => {
-        this.registerTopRightHeaderButton();
-      })
-    );
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
-        this.registerTopRightHeaderButton();
         if (this.sidebarView) {
           this.sidebarView.renderView();
         }
@@ -2881,110 +2471,11 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
         }
       })
     );
-    this.registerTopRightHeaderButton();
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor) => {
-        const selection = editor.getSelection().trim();
-        if (selection) {
-          menu.addItem((item) => {
-            item.setTitle("MemVector: Text / Formel analysieren").setIcon("function-square").onClick(() => {
-              this.analyzeCurrentSelection(editor);
-            });
-          });
-        }
-      })
-    );
-    this.registerEvent(
-      this.app.workspace.on("editor-change", (editor) => {
-        if (this.settings.triggerMode === "auto") {
-          this.handleEditorSelection(editor);
-        }
-      })
-    );
-  }
-  registerTopRightHeaderButton() {
-    const leaves = this.app.workspace.getLeavesOfType("markdown");
-    leaves.forEach((leaf) => {
-      if (leaf.view instanceof import_obsidian4.MarkdownView) {
-        const view = leaf.view;
-        const headerActions = view.containerEl.querySelector(".view-actions");
-        if (headerActions && !headerActions.querySelector(".math-copilot-top-btn")) {
-          const btn = view.addAction("function-square", "MemVector: Text / Formel analysieren", () => {
-            this.analyzeCurrentSelection(view.editor);
-          });
-          if (btn) {
-            btn.addClass("math-copilot-top-btn");
-          }
-        }
-      }
-    });
-  }
-  async analyzeCurrentSelection(editor) {
-    const selectedText = editor.getSelection().trim();
-    const cursor = editor.getCursor();
-    const lineContent = editor.getLine(cursor.line).trim();
-    const subExpr = selectedText || lineContent;
-    if (!subExpr) {
-      new import_obsidian4.Notice("Bitte markiere eine Formel im Editor.");
-      return;
-    }
-    if (selectedText) {
-      this.lastSelectionRange = {
-        from: editor.getCursor("from"),
-        to: editor.getCursor("to")
-      };
-    } else {
-      this.lastSelectionRange = null;
-    }
-    await this.activateSidebarView();
-    if (this.sidebarView) {
-      this.sidebarView.updateSelection({
-        subExpr,
-        fullExpr: lineContent || subExpr
-      });
-    }
-  }
-  handleEditorSelection(editor) {
-    const selectedText = editor.getSelection().trim();
-    if (!selectedText)
-      return;
-    const cursor = editor.getCursor();
-    const lineContent = editor.getLine(cursor.line).trim();
-    if (selectedText) {
-      this.lastSelectionRange = {
-        from: editor.getCursor("from"),
-        to: editor.getCursor("to")
-      };
-    }
-    if (this.sidebarView) {
-      this.sidebarView.updateSelection({
-        subExpr: selectedText,
-        fullExpr: lineContent || selectedText
-      });
-    }
-  }
-  replaceSelectionInActiveEditor(replacement) {
-    const activeView = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
-    if (activeView) {
-      const editor = activeView.editor;
-      if (this.lastSelectionRange) {
-        if (this.settings.replaceBehavior === "replace") {
-          editor.replaceRange(replacement, this.lastSelectionRange.from, this.lastSelectionRange.to);
-        } else {
-          editor.replaceRange(`${editor.getRange(this.lastSelectionRange.from, this.lastSelectionRange.to)}
-= ${replacement}`, this.lastSelectionRange.from, this.lastSelectionRange.to);
-        }
-        new import_obsidian4.Notice("Formel erfolgreich im Editor ersetzt!");
-      } else {
-        editor.replaceSelection(replacement);
-      }
-    }
   }
   async activateSidebarView() {
     const { workspace } = this.app;
     let leaf = workspace.getLeavesOfType(MATH_WIKI_VIEW_TYPE)[0];
     if (!leaf) {
-      // Try to get an existing right leaf, create new one if needed
       let rightLeaf = workspace.getRightLeaf(false);
       if (!rightLeaf) {
         rightLeaf = workspace.getRightLeaf(true);
@@ -3012,33 +2503,11 @@ var LLMMathWikiPlugin = class extends import_obsidian4.Plugin {
       workspace.revealLeaf(leaf);
     }
   }
-  async scanVaultEquivalences() {
-    new import_obsidian4.Notice("Scanning vault for formula equivalences...");
-    try {
-      const vaultPath = this.app.vault.adapter.getBasePath();
-      const res = await fetch(`${this.settings.apiServerUrl}/api/vault/scan`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vault_path: vaultPath })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        new import_obsidian4.Notice(`Scan komplett! ${data.total_matches} \xE4quivalente Formeln im Vault gefunden.`);
-      } else {
-        new import_obsidian4.Notice("Fehler beim Scannen. Ist der Python Server gestartet?");
-      }
-    } catch (err) {
-      new import_obsidian4.Notice("Konnte Python Server nicht erreichen.");
-    }
-  }
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    if (this.sidebarView) {
-      this.sidebarView.apiServerUrl = this.settings.apiServerUrl;
-    }
   }
   onunload() {
     console.log("Unloading MemVector Knowledge Engine Plugin.");
