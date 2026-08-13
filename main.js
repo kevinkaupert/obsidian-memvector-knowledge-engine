@@ -98,6 +98,51 @@ function getShortModelName(model) {
   return baseName.length > 12 ? baseName.slice(0, 10) + "\u2026" : baseName;
 }
 
+async function fetchEmbedding(text, apiBase, apiKey, modelName = "bge-m3") {
+  const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
+  
+  if (cleanBase.includes("11434")) {
+    const rawOllamaBase = cleanBase.replace(/\/v1$/, "");
+    try {
+      const res = await (0, import_obsidian2.requestUrl)({
+        url: `${rawOllamaBase}/api/embeddings`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelName, prompt: text.slice(0, 2000) }),
+        throwOnError: false
+      });
+      if (res.status === 200 && res.json?.embedding) {
+        return { embedding: res.json.embedding, error: null };
+      } else if (res.status === 404) {
+        return { embedding: null, error: `Modell '${modelName}' nicht in Ollama gefunden. Bitte im Terminal ausf\xFChren: 'ollama pull ${modelName}'` };
+      }
+    } catch (err) {
+      // fallback to /v1/embeddings
+    }
+  }
+
+  try {
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey && apiKey !== "ollama") {
+      headers["Authorization"] = `Bearer ${apiKey}`;
+    }
+    const res = await (0, import_obsidian2.requestUrl)({
+      url: `${cleanBase}/embeddings`,
+      method: "POST",
+      headers,
+      body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
+      throwOnError: false
+    });
+    if (res.status === 200) {
+      const vec = res.json?.data?.[0]?.embedding || res.json?.embedding;
+      if (vec) return { embedding: vec, error: null };
+    }
+    return { embedding: null, error: `API HTTP ${res.status}: ${res.text || "Embedding fehlgeschlagen"}` };
+  } catch (err) {
+    return { embedding: null, error: `Verbindungsfehler zu '${cleanBase}': ${err.message || String(err)}` };
+  }
+}
+
 // src/i18n.ts
 var translations = {
   de: {
@@ -1332,9 +1377,68 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     refreshBtn.onclick = async () => {
       statusText.setText("Scanne Vault Notizen...");
+      hoverBar.style.color = "var(--text-muted)";
+      hoverBar.setText("Scanne Vault-Notizen...");
       await this.scanVaultNotes();
-      statusText.setText(`${this.nodes.length} Notizen geladen.`);
+      statusText.setText(`${this.nodes.length}`);
+      hoverBar.setText(`${this.nodes.length} Notizen erfolgreich im Vault gescannt.`);
       this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    };
+
+    calcVectorsBtn.onclick = async () => {
+      const embedModel = this.plugin.settings?.embeddingModel || "bge-m3";
+      const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
+      const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
+
+      if (!this.nodes || this.nodes.length === 0) {
+        await this.scanVaultNotes();
+      }
+
+      const total = this.nodes.length;
+      if (total === 0) {
+        hoverBar.style.color = "var(--text-warning, #f59e0b)";
+        hoverBar.setText("⚠️ Keine Notizen im Vault zum Berechnen von Vektoren gefunden.");
+        return;
+      }
+
+      calcVectorsBtn.disabled = true;
+      calcVectorsBtn.style.opacity = "0.5";
+      statusText.setText(`Vektoren 0/${total}...`);
+
+      let successCount = 0;
+      let lastError = null;
+
+      for (let i = 0; i < total; i++) {
+        const node = this.nodes[i];
+        hoverBar.style.color = "var(--text-muted)";
+        hoverBar.setText(`⚙️ Berechne Embeddings mit '${embedModel}' (${i + 1}/${total}): ${node.title}...`);
+        
+        const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
+        const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);
+
+        if (res.error) {
+          lastError = res.error;
+          hoverBar.style.color = "var(--text-error, #f87171)";
+          hoverBar.setText(`⚠️ Embedding Fehler (${i + 1}/${total}): ${res.error}`);
+          new import_obsidian4.Notice(`Embedding Fehler: ${res.error}`, 8000);
+          break;
+        } else if (res.embedding) {
+          node.embedding = res.embedding;
+          successCount++;
+        }
+      }
+
+      calcVectorsBtn.disabled = false;
+      calcVectorsBtn.style.opacity = "1";
+
+      if (successCount === total) {
+        hoverBar.style.color = "var(--text-muted)";
+        hoverBar.setText(`✅ ${successCount}/${total} Vektoren erfolgreich mit '${embedModel}' berechnet.`);
+        statusText.setText(`${total} | Vektoren OK`);
+        new import_obsidian4.Notice(`✅ ${successCount} Notiz-Vektoren mit '${embedModel}' berechnet.`);
+      } else if (lastError) {
+        statusText.setText(`Fehler (${successCount}/${total})`);
+      }
     };
 
     synthesizeBtn.onclick = () => this.runDeepSeekSynthesis(hoverBar);
