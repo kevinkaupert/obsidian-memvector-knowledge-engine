@@ -981,6 +981,29 @@ async function fetchProviderModels(apiBaseUrl, apiKey, llmProvider = "") {
   const isAnthropic = rawBase.includes("anthropic") || (llmProvider || "").toLowerCase().includes("claude");
 
   if (isAnthropic) {
+    if (cleanKey && cleanKey !== "ollama") {
+      try {
+        const res = await (0, import_obsidian3.requestUrl)({
+          url: "https://api.anthropic.com/v1/models",
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": cleanKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true"
+          },
+          throwOnError: false
+        });
+
+        if (res.status === 200) {
+          const data = JSON.parse(res.text || "{}");
+          const rawList = data?.data || data?.models || (Array.isArray(data) ? data : []);
+          const models = rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
+          if (models.length > 0) return models;
+        }
+      } catch (err) {}
+    }
+
     return [
       "claude-3-7-sonnet-20250219",
       "claude-3-5-sonnet-20241022",
