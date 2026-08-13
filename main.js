@@ -1171,7 +1171,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     createRelBtn.onmouseenter = null;
     createRelBtn.onmouseleave = null;
 
-    const synthesizeBtn = createActionBtn(aktionenBody, "DeepSeek-R1 Synthese (0)", null);
+    const modelLabel = this.plugin.settings?.modelName || "LLM";
+    const synthesizeBtn = createActionBtn(aktionenBody, `KI-Synthese (${modelLabel}) (0)`, null);
     synthesizeBtn.disabled = true;
     synthesizeBtn.style.opacity = "0.35";
     synthesizeBtn.style.cursor = "not-allowed";
@@ -1248,9 +1249,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const updateSelectionUI = () => {
       const count = this.selectedNodeIds.size;
+      const currentModel = this.plugin.settings?.modelName || "KI";
 
       setActionBtnEnabled(synthesizeBtn, count > 0);
-      synthesizeBtn.setText(`DeepSeek-R1 Synthese (${count})`);
+      synthesizeBtn.setText(`${currentModel} Synthese (${count})`);
 
       setActionBtnEnabled(createRelBtn, count >= 2);
       createRelBtn.setText(count >= 2 ? `Beziehung erstellen (${count})` : "Beziehung (≥2 wählen)");
@@ -1946,7 +1948,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
     if (selected.length === 0) return;
 
-    hoverBar.setText("🤖 DeepSeek-R1 (7B) analysiert und synthetisiert die mathematischen Konzepte...");
+    const modelName = this.plugin.settings?.modelName || "LLM";
+    const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
+    const apiKey = this.plugin.settings?.deepseekApiKey || "ollama";
+    const temp = this.plugin.settings?.temperature ?? 0.1;
+
+    hoverBar.setText(`🤖 ${modelName} analysiert und synthetisiert die Notizen...`);
 
     const notesSummary = selected.map((n, idx) => `
 ### Notiz ${idx + 1}: [${n.type.toUpperCase()}] ${n.title}
@@ -1978,20 +1985,19 @@ Aufgabe:
 2. Zeige, wie die Konzepte aufeinander aufbauen, sich ergänzen oder verschiedene Blickwinkel einnehmen.
 3. Formuliere eine strukturierte Synthese in Markdown mit klaren Überschriften, Kernaussagen und Obsidian [[WikiLinks]] zu den Notiz-Titeln.`;
 
-    const apiBase = this.plugin.settings?.apiBaseUrl || "http://localhost:11434/v1";
-    const temp = this.plugin.settings?.temperature ?? 0.1;
     const synthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temp);
 
-    new SynthesisResultModal(this.plugin.app, selected, synthesisText).open();
-    hoverBar.setText(`DeepSeek-R1 Synthese für ${selected.length} Notizen abgeschlossen.`);
+    new SynthesisResultModal(this.plugin.app, selected, synthesisText, modelName).open();
+    hoverBar.setText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);
   }
 };
 
 var SynthesisResultModal = class extends import_obsidian4.Modal {
-  constructor(app, selectedNodes, synthesisText) {
+  constructor(app, selectedNodes, synthesisText, modelName = "LLM") {
     super(app);
     this.selectedNodes = selectedNodes;
     this.synthesisText = synthesisText;
+    this.modelName = modelName;
   }
   onOpen() {
     const { contentEl } = this;
@@ -1999,7 +2005,7 @@ var SynthesisResultModal = class extends import_obsidian4.Modal {
     contentEl.style.maxHeight = "80vh";
     contentEl.style.overflowY = "auto";
 
-    contentEl.createEl("h2", { text: "DeepSeek-R1 Mathe-Synthese" });
+    contentEl.createEl("h2", { text: `KI-Wissenssynthese (${this.modelName})` });
     contentEl.createEl("p", {
       text: `Verknüpfte Notizen: ${this.selectedNodes.map((n) => n.title).join(", ")}`,
       style: "color: var(--text-muted); font-size: 0.9em;"
@@ -2036,11 +2042,11 @@ var SynthesisResultModal = class extends import_obsidian4.Modal {
       const frontmatter = `---
 type: synthesis
 title: "Synthese: ${this.selectedNodes.map((n) => n.title).join(" & ")}"
-description: "Automatisch von DeepSeek-R1 7B generierte mathematische Synthese."
+description: "Automatisch von ${this.modelName} generierte Wissenssynthese."
 status: draft
 sources: [${this.selectedNodes.map((n) => `"${n.path}"`).join(", ")}]
 generated:
-  by: "DeepSeek-R1 7B"
+  by: "${this.modelName}"
   at: "${new Date().toISOString()}"
 ---
 
