@@ -2341,13 +2341,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           ctx.font = "bold 11px var(--font-interface, sans-serif)";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
+          ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+          ctx.shadowBlur = 4;
 
           const titleText = `☁️ ${c.label.toUpperCase()} (${c.count})`;
-          const textWidth = ctx.measureText(titleText).width;
-
-          ctx.fillStyle = themeBgSelected;
-          ctx.fillRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
-
           ctx.fillStyle = palette.labelColor;
           ctx.fillText(titleText, pos.x, pos.y);
           ctx.restore();
@@ -2451,21 +2448,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const typeText = `[${edge.relType}]`;
 
           ctx.font = "bold 9px monospace";
-          const typeWidth = ctx.measureText(typeText).width;
-          ctx.font = "9px sans-serif";
-          const descWidth = descText ? ctx.measureText(descText).width : 0;
-
-          const badgeWidth = Math.max(typeWidth, descWidth) + 14;
-          const badgeHeight = descText ? 28 : 16;
-
-          ctx.fillStyle = themeBgSelected;
-          ctx.fillRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
-
-          ctx.font = "bold 9px monospace";
           ctx.textAlign = "center";
           ctx.textBaseline = descText ? "top" : "middle";
+          ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+          ctx.shadowBlur = 4;
           ctx.fillStyle = edgeColor;
-          ctx.fillText(typeText, midX, descText ? midY - badgeHeight / 2 + 3 : midY);
+          ctx.fillText(typeText, midX, descText ? midY - 14 : midY);
 
           if (descText) {
             ctx.font = "9px sans-serif";
@@ -2518,11 +2506,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
         const fontH = Math.max(9, Math.min(13, 10 * this.zoom));
         ctx.font = `${fontH}px sans-serif`;
-        const txtWidth = ctx.measureText(titleText).width;
 
         ctx.save();
-        ctx.fillStyle = isSelected ? themeBgSelected : themeBgPill;
-        ctx.fillRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
+        ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+        ctx.shadowBlur = 4;
 
         ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? themeTextNormal : themeTextMuted;
         ctx.textAlign = "center";
