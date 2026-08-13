@@ -1326,9 +1326,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     });
     filterInput.style.cssText = `
       display:block; width:calc(100% - 24px); margin:4px 12px 8px;
-      box-sizing:border-box; font-size:0.76em; padding:5px 9px;
-      border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.09));
-      background:var(--background-primary, rgba(15,23,42,0.7)); color:var(--text-normal, #f8fafc); outline:none;
+      box-sizing:border-box; font-size:0.76em; padding:6px 10px;
+      border-radius:6px; border:none; outline:none; box-shadow:none;
+      background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal);
     `;
 
     // ── Section: Ansicht ───────────────────────────────────────────────────
@@ -1343,10 +1343,9 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
       const select = row.createEl("select");
       select.style.cssText = `
-        font-size:0.75em; padding:3px 6px; border-radius:6px;
-        background:var(--background-primary, rgba(15,23,42,0.8));
-        color:var(--text-normal, #f8fafc); border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1));
-        outline:none; cursor:pointer;
+        font-size:0.75em; padding:4px 8px; border-radius:6px; border:none; outline:none; box-shadow:none;
+        background:var(--background-primary-alt, var(--background-secondary));
+        color:var(--text-normal); cursor:pointer;
       `;
       options.forEach((opt) => {
         const option = select.createEl("option", { text: opt.label, value: opt.id });
@@ -2340,11 +2339,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const titleText = `☁️ ${c.label.toUpperCase()} (${c.count})`;
           const textWidth = ctx.measureText(titleText).width;
 
-          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.fillStyle = "var(--background-secondary-alt, rgba(15, 23, 42, 0.85))";
           ctx.fillRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
-          ctx.strokeStyle = palette.labelColor;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(pos.x - textWidth / 2 - 8, pos.y - 10, textWidth + 16, 20);
 
           ctx.fillStyle = palette.labelColor;
           ctx.fillText(titleText, pos.x, pos.y);
@@ -2456,11 +2452,8 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           const badgeWidth = Math.max(typeWidth, descWidth) + 14;
           const badgeHeight = descText ? 28 : 16;
 
-          ctx.fillStyle = "rgba(15, 23, 42, 0.94)";
+          ctx.fillStyle = "var(--background-secondary-alt, rgba(15, 23, 42, 0.88))";
           ctx.fillRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
-          ctx.strokeStyle = edgeColor;
-          ctx.lineWidth = 1.2;
-          ctx.strokeRect(midX - badgeWidth / 2, midY - badgeHeight / 2, badgeWidth, badgeHeight);
 
           ctx.font = "bold 9px monospace";
           ctx.textAlign = "center";
@@ -2470,7 +2463,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
           if (descText) {
             ctx.font = "9px sans-serif";
-            ctx.fillStyle = "#e2e8f0";
+            ctx.fillStyle = "var(--text-normal, #e2e8f0)";
             ctx.fillText(descText, midX, midY + 1);
           }
         }
@@ -2522,13 +2515,10 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
         const txtWidth = ctx.measureText(titleText).width;
 
         ctx.save();
-        ctx.fillStyle = isSelected ? "rgba(15, 23, 42, 0.94)" : "rgba(15, 23, 42, 0.72)";
+        ctx.fillStyle = isSelected ? "var(--background-secondary, rgba(15, 23, 42, 0.92))" : "var(--background-primary-alt, rgba(15, 23, 42, 0.75))";
         ctx.fillRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
-        ctx.strokeStyle = isSelected ? "rgba(96, 165, 250, 0.5)" : "rgba(255, 255, 255, 0.08)";
-        ctx.lineWidth = 0.8;
-        ctx.strokeRect(pos.x - txtWidth / 2 - 4, pos.y + 12 * this.zoom - 2, txtWidth + 8, fontH + 5);
 
-        ctx.fillStyle = isSelected ? "#ffffff" : isHovered ? "#f8fafc" : "#cbd5e1";
+        ctx.fillStyle = isSelected ? "var(--text-normal, #ffffff)" : isHovered ? "var(--text-normal, #f8fafc)" : "var(--text-muted, #cbd5e1)";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(titleText, pos.x, pos.y + 12 * this.zoom + 1);
