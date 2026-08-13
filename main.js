@@ -213,6 +213,10 @@ var translations = {
     secActions: "Aktionen",
     lblShowEdges: "Kanten anzeigen",
     lblLasso: "Lasso-Auswahl",
+    lblProjection: "Projektion",
+    projClouds: "Themen-Wolken (Cloud Map)",
+    projFlow: "Abh\xE4ngigkeits-Fluss (DAG)",
+    projGraph: "Reiner Graph (WikiLinks)",
     btnScanVault: "Vault scannen",
     btnCalcVectors: "Vektoren berechnen",
     btnCreateRel: "Beziehung erstellen",
@@ -287,6 +291,10 @@ var translations = {
     secActions: "Actions",
     lblShowEdges: "Show Edges",
     lblLasso: "Lasso Selection",
+    lblProjection: "Projection",
+    projClouds: "Topic Clouds (Cloud Map)",
+    projFlow: "Dependency Flow (DAG)",
+    projGraph: "Pure Graph (WikiLinks)",
     btnScanVault: "Scan Vault",
     btnCalcVectors: "Calculate Vectors",
     btnCreateRel: "Create Relation",
@@ -1309,6 +1317,39 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     // ── Section: Ansicht ───────────────────────────────────────────────────
     const ansichtBody = createSection(toolbar, t.secView, true);
 
+    const createDropdown = (parent, label, options, initialValue, onChange) => {
+      const row = parent.createEl("div");
+      row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:6px 12px;";
+
+      const lbl = row.createEl("span", { text: label });
+      lbl.style.cssText = "font-size:0.8em; color:var(--text-muted, #94a3b8); flex:1;";
+
+      const select = row.createEl("select");
+      select.style.cssText = `
+        font-size:0.75em; padding:3px 6px; border-radius:6px;
+        background:var(--background-primary, rgba(15,23,42,0.8));
+        color:var(--text-normal, #f8fafc); border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1));
+        outline:none; cursor:pointer;
+      `;
+      options.forEach((opt) => {
+        const option = select.createEl("option", { text: opt.label, value: opt.id });
+        if (opt.id === initialValue) option.selected = true;
+      });
+
+      select.onchange = () => onChange(select.value);
+      return select;
+    };
+
+    const projDropdown = createDropdown(ansichtBody, t.lblProjection, [
+      { id: "cloud", label: t.projClouds },
+      { id: "flow", label: t.projFlow },
+      { id: "graph", label: t.projGraph }
+    ], this.projectionMode || "cloud", (newMode) => {
+      this.projectionMode = newMode;
+      this.applyVectorLayout();
+      this.draw(ctx, canvasWrap.clientWidth, canvasWrap.clientHeight);
+    });
+
     const edgeToggle = createToggle(ansichtBody, t.lblShowEdges, this.showEdges, async (on) => {
       this.showEdges = on;
       if (on) await this.loadRelationEdges();
@@ -1815,20 +1856,12 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
     if (!this.nodes || this.nodes.length === 0) return;
 
     const isMath = this.plugin.settings?.knowledgeDomain === "math";
+    const mode = this.projectionMode || "cloud";
     const n = this.nodes.length;
 
-    const typeOffsets = {
-      definition: { x: -260, y: -160 },
-      theorem: { x: 220, y: -160 },
-      concept: { x: 0, y: 180 },
-      relation: { x: -220, y: 160 },
-      synthesis: { x: 260, y: 160 },
-      course: { x: 0, y: -260 },
-      question: { x: -320, y: 0 },
-      source: { x: 320, y: 0 }
-    };
-
+    // Helper: calculate hybrid similarity matrix S(i, j)
     const calcSimilarity = (a, b) => {
+      let vecSim = 0;
       if (a.embedding && b.embedding && a.embedding.length === b.embedding.length) {
         let dot = 0, normA = 0, normB = 0;
         for (let k = 0; k < a.embedding.length; k++) {
@@ -1837,7 +1870,7 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
           normB += b.embedding[k] * b.embedding[k];
         }
         if (normA > 0 && normB > 0) {
-          return Math.max(0, Math.min(1, (dot / (Math.sqrt(normA) * Math.sqrt(normB)) + 1) / 2));
+          vecSim = Math.max(0, Math.min(1, (dot / (Math.sqrt(normA) * Math.sqrt(normB)) + 1) / 2));
         }
       }
 
@@ -1855,12 +1888,20 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       const formSim = formsA.size + formsB.size > 0 ? formIntersect / Math.max(1, Math.min(formsA.size, formsB.size)) : 0;
 
       const isWikiLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
-      const linkSim = isWikiLinked ? 0.6 : 0;
+      const linkSim = isWikiLinked ? 0.7 : 0;
+
+      const folderA = a.path.split("/").slice(0, -1).join("/");
+      const folderB = b.path.split("/").slice(0, -1).join("/");
+      const folderSim = (folderA && folderA === folderB) ? 0.3 : 0;
+
+      if (a.embedding && b.embedding) {
+        return vecSim * 0.50 + linkSim * 0.30 + folderSim * 0.10 + (isMath ? formSim : wordSim) * 0.10;
+      }
 
       if (isMath) {
-        return Math.min(1.0, wordSim * 0.15 + formSim * 0.55 + linkSim * 0.30);
+        return Math.min(1.0, wordSim * 0.15 + formSim * 0.50 + linkSim * 0.25 + folderSim * 0.10);
       } else {
-        return Math.min(1.0, wordSim * 0.55 + formSim * 0.10 + linkSim * 0.35);
+        return Math.min(1.0, wordSim * 0.50 + formSim * 0.05 + linkSim * 0.30 + folderSim * 0.15);
       }
     };
 
@@ -1874,55 +1915,136 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
       }
     }
 
-    // Assign anchor positions based on note type to preserve structured topic clouds
-    for (let i = 0; i < n; i++) {
-      const node = this.nodes[i];
-      const baseOffset = typeOffsets[node.type] || { x: 0, y: 0 };
-      const hashStr = node.id + (node.content || "");
-      let hash = 0;
-      for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
-
-      node.anchorX = baseOffset.x + ((Math.abs(hash) % 180) - 90);
-      node.anchorY = baseOffset.y + ((Math.abs(hash >> 3) % 180) - 90);
-      node.x = node.anchorX;
-      node.y = node.anchorY;
+    // Assign Logical Communities / Clouds (Centroid Extraction)
+    const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
+    const centroids = [];
+    const step = Math.floor(n / numClouds);
+    for (let k = 0; k < numClouds; k++) {
+      centroids.push(this.nodes[Math.min(n - 1, k * step)]);
     }
 
-    // Force-directed pass combining topic cloud anchor gravity and similarity/WikiLink springs
-    const iterations = 25;
-    for (let iter = 0; iter < iterations; iter++) {
-      const alpha = 0.45 * (1 - iter / iterations);
-
-      for (let i = 0; i < n; i++) {
-        const nodeA = this.nodes[i];
-        let fx = 0, fy = 0;
-
-        // Gravity pull towards topic cloud anchor
-        fx += (nodeA.anchorX - nodeA.x) * 0.15;
-        fy += (nodeA.anchorY - nodeA.y) * 0.15;
-
-        // Spring attraction / repulsion to similar / linked nodes
-        for (let j = 0; j < n; j++) {
-          if (i === j) continue;
-          const nodeB = this.nodes[j];
-          const dx = nodeA.x - nodeB.x;
-          const dy = nodeA.y - nodeB.y;
-          const dist = Math.hypot(dx, dy) || 1;
-
-          const sim = matrix[i][j];
-          if (sim > 0.08) {
-            const idealDist = (isMath ? 180 : 150) * (1 - sim * 0.7);
-            const delta = dist - idealDist;
-            fx -= (dx / dist) * delta * sim * 0.25;
-            fy -= (dy / dist) * delta * sim * 0.25;
-          } else if (dist < 80) {
-            fx += (dx / dist) * 12;
-            fy += (dy / dist) * 12;
-          }
+    this.nodes.forEach((node, i) => {
+      let maxSim = -1, bestCloud = 0;
+      centroids.forEach((cNode, cIdx) => {
+        const sim = matrix[i][this.nodes.indexOf(cNode)];
+        if (sim > maxSim) {
+          maxSim = sim;
+          bestCloud = cIdx;
         }
+      });
+      node.cloudId = bestCloud;
+      node.cloudLabel = centroids[bestCloud].title || `Thema ${bestCloud + 1}`;
+    });
 
-        nodeA.x += fx * alpha;
-        nodeA.y += fy * alpha;
+    if (mode === "cloud") {
+      // MODE 1: Topic Clouds (Centroid-based Universal Logical Clusters)
+      const cloudAngleStep = (Math.PI * 2) / numClouds;
+      const cloudRadius = 320;
+
+      this.nodes.forEach((node, i) => {
+        const cAngle = node.cloudId * cloudAngleStep;
+        const cX = Math.cos(cAngle) * cloudRadius;
+        const cY = Math.sin(cAngle) * cloudRadius;
+
+        const hashStr = node.id + (node.content || "");
+        let hash = 0;
+        for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
+
+        node.anchorX = cX + ((Math.abs(hash) % 160) - 80);
+        node.anchorY = cY + ((Math.abs(hash >> 3) % 160) - 80);
+        node.x = node.anchorX;
+        node.y = node.anchorY;
+      });
+
+      const iterations = 30;
+      for (let iter = 0; iter < iterations; iter++) {
+        const alpha = 0.5 * (1 - iter / iterations);
+
+        for (let i = 0; i < n; i++) {
+          const nodeA = this.nodes[i];
+          let fx = 0, fy = 0;
+
+          fx += (nodeA.anchorX - nodeA.x) * 0.12;
+          fy += (nodeA.anchorY - nodeA.y) * 0.12;
+
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const nodeB = this.nodes[j];
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            const dist = Math.hypot(dx, dy) || 1;
+
+            const sim = matrix[i][j];
+            if (sim > 0.1) {
+              const idealDist = 160 * (1 - sim * 0.75);
+              const delta = dist - idealDist;
+              fx -= (dx / dist) * delta * sim * 0.22;
+              fy -= (dy / dist) * delta * sim * 0.22;
+            } else if (dist < 75) {
+              fx += (dx / dist) * 14;
+              fy += (dy / dist) * 14;
+            }
+          }
+
+          nodeA.x += fx * alpha;
+          nodeA.y += fy * alpha;
+        }
+      }
+    } else if (mode === "flow") {
+      // MODE 2: Dependency & Prerequisite Flow (DAG - Hierarchical Layout)
+      const typeRank = {
+        definition: 0,
+        concept: 1,
+        theorem: 2,
+        relation: 3,
+        synthesis: 4,
+        question: 2,
+        course: 0,
+        source: 0
+      };
+
+      this.nodes.forEach((node, i) => {
+        const rank = typeRank[node.type] ?? 2;
+        const hashStr = node.id;
+        let hash = 0;
+        for (let k = 0; k < hashStr.length; k++) hash = (hash << 5) - hash + hashStr.charCodeAt(k);
+
+        node.x = ((Math.abs(hash) % 600) - 300);
+        node.y = -250 + rank * 130 + ((Math.abs(hash >> 3) % 80) - 40);
+      });
+    } else if (mode === "graph") {
+      // MODE 3: Pure Graph Layout (WikiLink-driven Force Layout)
+      this.nodes.forEach((node, i) => {
+        const angle = (i / n) * Math.PI * 2;
+        node.x = Math.cos(angle) * 200;
+        node.y = Math.sin(angle) * 200;
+      });
+
+      const iterations = 35;
+      for (let iter = 0; iter < iterations; iter++) {
+        const alpha = 0.5 * (1 - iter / iterations);
+        for (let i = 0; i < n; i++) {
+          const nodeA = this.nodes[i];
+          let fx = 0, fy = 0;
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            const nodeB = this.nodes[j];
+            const dx = nodeA.x - nodeB.x;
+            const dy = nodeA.y - nodeB.y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const sim = matrix[i][j];
+            if (sim > 0.2) {
+              const delta = dist - 120;
+              fx -= (dx / dist) * delta * sim * 0.3;
+              fy -= (dy / dist) * delta * sim * 0.3;
+            } else if (dist < 90) {
+              fx += (dx / dist) * 16;
+              fy += (dy / dist) * 16;
+            }
+          }
+          nodeA.x += fx * alpha;
+          nodeA.y += fy * alpha;
+        }
       }
     }
   }
@@ -2114,6 +2236,38 @@ var VectorScatterView = class extends import_obsidian4.ItemView {
 
     const nodeMap = new Map();
     this.nodes.forEach((n) => nodeMap.set(n.id.toLowerCase(), n));
+
+    // Render Topic Cloud Overlay Labels in Cloud Projection Mode
+    if ((!this.projectionMode || this.projectionMode === "cloud") && this.nodes && this.nodes.length > 0) {
+      const cloudCenters = new Map();
+      this.nodes.forEach((n) => {
+        if (n.cloudId !== undefined) {
+          if (!cloudCenters.has(n.cloudId)) {
+            cloudCenters.set(n.cloudId, { sumX: 0, sumY: 0, count: 0, label: n.cloudLabel || `Thema ${n.cloudId + 1}` });
+          }
+          const c = cloudCenters.get(n.cloudId);
+          c.sumX += n.x;
+          c.sumY += n.y;
+          c.count++;
+        }
+      });
+
+      cloudCenters.forEach((c) => {
+        if (c.count > 0) {
+          const avgX = c.sumX / c.count;
+          const avgY = c.sumY / c.count;
+          const pos = this.worldToScreen(avgX, avgY);
+
+          ctx.save();
+          ctx.font = "600 11px var(--font-interface, sans-serif)";
+          ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(`☁️ ${c.label} (${c.count})`, pos.x, pos.y - 35 * this.zoom);
+          ctx.restore();
+        }
+      });
+    }
 
     // 2D Kernel Density Field Heatmap Layer (Glowing Cluster Density)
     ctx.save();
