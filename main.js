@@ -44,12 +44,11 @@ async function callDirectLLM(prompt, apiBase, apiKey, modelName, temperature = 0
     let payload;
 
     if (isAnthropic) {
-      let cleanModel = (modelName || "claude-3-5-sonnet-20241022").trim();
-      if (cleanModel.includes("claude-3.5-sonnet") || cleanModel === "claude-3-5-sonnet" || cleanModel === "claude") {
-        cleanModel = "claude-3-5-sonnet-20241022";
-      } else if (cleanModel.includes("claude-3.5-haiku") || cleanModel === "claude-3-5-haiku") {
+      let rawModel = (modelName || "").toLowerCase().trim();
+      let cleanModel = "claude-3-5-sonnet-20241022";
+      if (rawModel.includes("haiku")) {
         cleanModel = "claude-3-5-haiku-20241022";
-      } else if (cleanModel.includes("claude-3-opus")) {
+      } else if (rawModel.includes("opus")) {
         cleanModel = "claude-3-opus-20240229";
       }
 
