@@ -3211,12 +3211,13 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
     this.focalIndex = 0;
     this.topology = "FOCAL_TO_REST";
     this.relType = "REQUIRES";
+    this.edgeRelTypes = {};
     this.relDesc = "";
   }
 
   onOpen() {
-    this.modalEl.style.width = "70vw";
-    this.modalEl.style.maxWidth = "920px";
+    this.modalEl.style.width = "75vw";
+    this.modalEl.style.maxWidth = "960px";
     this.modalEl.style.minWidth = "360px";
 
     const { contentEl } = this;
@@ -3304,28 +3305,29 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     const swapBtn = flowHeader.createEl("button", { text: "⇄ Richtung umkehren", style: "font-size: 0.78em; font-weight: 600; padding: 4px 12px; border-radius: 6px; cursor: pointer; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--interactive-accent, #38bdf8);" });
 
-    const flowBody = flowCard.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 6px 0;" });
+    const flowBody = flowCard.createEl("div", { style: "display: flex; flex-direction: column; gap: 10px; padding: 4px 0;" });
 
-    const createRelDropdown = (parent) => {
+    const createSingleDropdown = (parent, edgeIdx) => {
+      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || "REQUIRES";
       const select = parent.createEl("select", {
-        style: "font-size: 0.85em; font-weight: 600; padding: 6px 12px; border-radius: 6px; background: var(--background-primary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; max-width: 320px;"
+        style: "font-size: 0.82em; font-weight: 600; padding: 5px 10px; border-radius: 6px; background: var(--background-primary); color: var(--interactive-accent, #38bdf8); border: 1px solid var(--interactive-accent, #38bdf8); cursor: pointer; max-width: 280px;"
       });
 
       categories.forEach((cat) => {
         const group = select.createEl("optgroup", { label: `── ${cat.name} ──` });
         cat.items.forEach((item) => {
           const opt = group.createEl("option", { text: `${item.val} (${item.label})`, value: item.val });
-          if (item.val === this.relType) opt.selected = true;
+          if (item.val === currentVal) opt.selected = true;
         });
       });
 
       select.onchange = () => {
         if (select.value === "CUSTOM") {
           customInput.style.display = "block";
-          this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
+          this.edgeRelTypes[edgeIdx] = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
         } else {
           customInput.style.display = "none";
-          this.relType = select.value;
+          this.edgeRelTypes[edgeIdx] = select.value;
         }
         updateFlowPreview();
         updateCypherPreview();
@@ -3342,31 +3344,63 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
         const srcNode = edge ? edge.src : this.selectedNodes[0];
         const tgtNode = edge ? edge.tgt : this.selectedNodes[1];
 
+        const row = flowBody.createEl("div", { style: "display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;" });
+
         // Source Box
-        const srcBox = flowBody.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
+        const srcBox = row.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(6, 182, 212, 0.4);" });
         srcBox.createEl("div", { text: "🔷 QUELLE (A)", style: "font-size: 0.68em; font-weight: 700; color: #06b6d4; margin-bottom: 2px;" });
         srcBox.createEl("div", { text: srcNode.title, style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal);" });
 
         // Relation Center Dropdown + Arrow
-        const centerWrap = flowBody.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; gap: 4px;" });
-        centerWrap.createEl("span", { text: "─── KANTENTYP (LABEL) ───►", style: "font-family: var(--font-monospace); font-size: 0.72em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
-        createRelDropdown(centerWrap);
+        const centerWrap = row.createEl("div", { style: "display: flex; flex-direction: column; align-items: center; gap: 4px;" });
+        centerWrap.createEl("span", { text: "─── KANTENTYP ───►", style: "font-family: var(--font-monospace); font-size: 0.72em; font-weight: 700; color: var(--interactive-accent, #38bdf8);" });
+        createSingleDropdown(centerWrap, 0);
 
         // Target Box
-        const tgtBox = flowBody.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
+        const tgtBox = row.createEl("div", { style: "flex: 1; min-width: 180px; background: var(--background-primary); padding: 10px 14px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.4);" });
         tgtBox.createEl("div", { text: "🎯 ZIEL (B)", style: "font-size: 0.68em; font-weight: 700; color: #10b981; margin-bottom: 2px;" });
         tgtBox.createEl("div", { text: tgtNode.title, style: "font-size: 0.88em; font-weight: 600; color: var(--text-normal);" });
       } else {
-        // Multi-Node Flow
-        const centerWrap = flowBody.createEl("div", { style: "width: 100%; display: flex; justify-content: center; margin-bottom: 8px;" });
-        createRelDropdown(centerWrap);
+        // Multi-Node Individual Dropdown List
+        const masterRow = flowBody.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; background: var(--background-primary); padding: 8px 12px; border-radius: 6px; border: 1px dashed var(--interactive-accent); margin-bottom: 6px;" });
+        masterRow.createEl("span", { text: "⚡ Alle Kanten gleichzeitig ändern:", style: "font-size: 0.8em; font-weight: 600; color: var(--text-muted);" });
+
+        const masterSelect = masterRow.createEl("select", {
+          style: "font-size: 0.82em; font-weight: 600; padding: 4px 10px; border-radius: 6px; background: var(--background-secondary); color: var(--interactive-accent); border: 1px solid var(--interactive-accent);"
+        });
+        categories.forEach((cat) => {
+          const group = masterSelect.createEl("optgroup", { label: `── ${cat.name} ──` });
+          cat.items.forEach((item) => {
+            const opt = group.createEl("option", { text: `${item.val} (${item.label})`, value: item.val });
+            if (item.val === this.relType) opt.selected = true;
+          });
+        });
+
+        masterSelect.onchange = () => {
+          this.relType = masterSelect.value;
+          edges.forEach((_, idx) => {
+            this.edgeRelTypes[idx] = masterSelect.value;
+          });
+          updateFlowPreview();
+          updateCypherPreview();
+        };
 
         edges.forEach((e, idx) => {
-          if (idx > 0) flowBody.createEl("span", { text: "  |  ", style: "color: var(--text-muted);" });
-          const pill = flowBody.createEl("div", { style: "background: var(--background-primary); padding: 6px 12px; border-radius: 6px; font-size: 0.8em; border: 1px solid var(--background-modifier-border);" });
-          pill.createEl("span", { text: `${e.src.title} `, style: "font-weight: 600;" });
-          pill.createEl("span", { text: `──[${this.relType}]──► `, style: "color: var(--interactive-accent); font-family: var(--font-monospace);" });
-          pill.createEl("span", { text: e.tgt.title, style: "font-weight: 600;" });
+          const edgeRow = flowBody.createEl("div", { style: "display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--background-primary); padding: 8px 14px; border-radius: 6px; border: 1px solid var(--background-modifier-border);" });
+
+          // Source Label
+          const srcLabel = edgeRow.createEl("div", { style: "flex: 1; font-size: 0.84em; font-weight: 600; color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" });
+          srcLabel.setText(`🔷 ${e.src.title}`);
+
+          // Edge Dropdown
+          const edgeCenter = edgeRow.createEl("div", { style: "display: flex; align-items: center; gap: 6px;" });
+          edgeCenter.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.8em; color: var(--interactive-accent); font-weight: 700;" });
+          createSingleDropdown(edgeCenter, idx);
+          edgeCenter.createEl("span", { text: "──►", style: "font-family: var(--font-monospace); font-size: 0.8em; color: var(--interactive-accent); font-weight: 700;" });
+
+          // Target Label
+          const tgtLabel = edgeRow.createEl("div", { style: "flex: 1; font-size: 0.84em; font-weight: 600; color: var(--text-normal); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;" });
+          tgtLabel.setText(`🎯 ${e.tgt.title}`);
         });
       }
     };
@@ -3459,7 +3493,7 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     if (this.topology === "CHAIN") focalWrap.style.display = "none";
 
-    // STEP 2: Description Textarea
+    // STEP 2: Description Textarea (Full Width & Spacious)
     const step2 = contentEl.createEl("div", {
       style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 14px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 16px;"
     });
@@ -3468,8 +3502,12 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
 
     const descArea = step2.createEl("textarea", {
       placeholder: "Beschreibe den fachlichen/didaktischen Grund der Verbindung...",
-      style: "width: 100%; height: 60px; font-size: 0.82em; padding: 8px 10px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;"
+      style: "width: 100%; box-sizing: border-box; min-height: 110px; font-size: 0.85em; padding: 10px 12px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;"
     });
+    descArea.oninput = () => {
+      this.relDesc = descArea.value;
+      updateCypherPreview();
+    };
     descArea.oninput = () => {
       this.relDesc = descArea.value;
       updateCypherPreview();
@@ -3539,9 +3577,10 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       });
 
       edges.forEach((e, idx) => {
+        const edgeType = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
         const srcAlias = nodeMap.get(e.src.id).alias;
         const tgtAlias = nodeMap.get(e.tgt.id).alias;
-        lines.push(`MERGE (${srcAlias})-[r${idx}:${typeStr} { description: "${descEscaped}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`);
+        lines.push(`MERGE (${srcAlias})-[r${idx}:${edgeType} { description: "${descEscaped}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`);
       });
 
       const returnParts = edges.map((_, idx) => `r${idx}`).join(", ");
@@ -3571,14 +3610,16 @@ var RelationBuilderModal = class extends import_obsidian4.Modal {
       const edges = generateEdges();
       let createdCount = 0;
 
-      for (const e of edges) {
+      for (let idx = 0; idx < edges.length; idx++) {
+        const e = edges[idx];
+        const edgeType = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
         const relFileName = `rel-${e.src.id}-to-${e.tgt.id}.md`;
         const relPath = `wiki/relations/${relFileName}`;
-        const descText = this.relDesc ? this.relDesc : `Beziehung vom Typ ${this.relType} zwischen [[${e.src.id}|${e.src.title}]] und [[${e.tgt.id}|${e.tgt.title}]].`;
+        const descText = this.relDesc ? this.relDesc : `Beziehung vom Typ ${edgeType} zwischen [[${e.src.id}|${e.src.title}]] und [[${e.tgt.id}|${e.tgt.title}]].`;
 
         const fileContent = `---
 type: relation
-title: "${e.src.title} ➔ ${e.tgt.title} (${this.relType})"
+title: "${e.src.title} ➔ ${e.tgt.title} (${edgeType})"
 description: "${descText.replace(/"/g, '\\"')}"
 status: draft
 sources:
@@ -3588,14 +3629,14 @@ generated:
   by: "MemVector Co-Pilot"
   at: "${new Date().toISOString()}"
 verified: null
-relation_type: "${this.relType}"
+relation_type: "${edgeType}"
 source_note: "[[${e.src.id}|${e.src.title}]]"
 target_note: "[[${e.tgt.id}|${e.tgt.title}]]"
 ---
 
 # Beziehung: [[${e.src.id}|${e.src.title}]] ➔ [[${e.tgt.id}|${e.tgt.title}]]
 
-- **Typ:** \`${this.relType}\`
+- **Typ:** \`${edgeType}\`
 - **Quelle (Startnotiz):** [[${e.src.id}|${e.src.title}]]
 - **Ziel (Zielnotiz):** [[${e.tgt.id}|${e.tgt.title}]]
 
