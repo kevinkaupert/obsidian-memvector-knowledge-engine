@@ -6,4 +6,4 @@ dist/
 .vscode/
 data.json
 data.json.*.bak
-
+main.new.js

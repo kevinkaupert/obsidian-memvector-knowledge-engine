@@ -4,8 +4,11 @@
   "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
   "main": "main.js",
   "scripts": {
-    "dev": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --target=es2020 --outfile=main.js --watch",
-    "build": "esbuild src/main.ts --bundle --external:obsidian --format=cjs --target=es2020 --outfile=main.js --minify"
+    "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --watch",
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --minify",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "obsidian",
@@ -20,5 +23,15 @@
     "bge-m3"
   ],
   "author": "Kevin Mike Kaupert",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "neo4j-driver-lite": "^5.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.5.7",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.11"
+  }
 }
