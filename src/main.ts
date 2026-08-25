@@ -3,11 +3,10 @@ import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSettings } from "./settings/apiKeyMigration";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import type { MemVectorSettings } from "./settings/types";
-import { MATH_WIKI_VIEW_TYPE } from "./constants";
+import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
+import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 
-// NOTE: vector-scatter view registration, ribbon icon, and command are
-// added in phase 6 — see the plan file for sequencing.
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
   private sidebarView: MathWikiSidebarView | null = null;
@@ -22,15 +21,24 @@ export default class MemVectorPlugin extends Plugin {
       this.sidebarView = view;
       return view;
     });
+    this.registerView(MATH_VECTOR_SCATTER_VIEW_TYPE, (leaf: WorkspaceLeaf) => new VectorScatterView(leaf, this));
 
     this.addRibbonIcon("function-square", "MemVector Co-Pilot Seitenleiste", () => {
       this.activateSidebarView();
+    });
+    this.addRibbonIcon("dot-network", "MemVector 2D Vektorraum", () => {
+      this.activateVectorScatterView();
     });
 
     this.addCommand({
       id: "open-math-wiki-sidebar",
       name: "MemVector: Seitenleiste öffnen",
       callback: () => this.activateSidebarView(),
+    });
+    this.addCommand({
+      id: "open-math-vector-scatterplot",
+      name: "MemVector: 2D Vektor-Scatterplot öffnen",
+      callback: () => this.activateVectorScatterView(),
     });
 
     this.registerEvent(
@@ -54,6 +62,16 @@ export default class MemVectorPlugin extends Plugin {
         await rightLeaf.setViewState({ type: MATH_WIKI_VIEW_TYPE, active: true });
         leaf = rightLeaf;
       }
+    }
+    if (leaf) workspace.revealLeaf(leaf);
+  }
+
+  async activateVectorScatterView(): Promise<void> {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)[0];
+    if (!leaf) {
+      leaf = workspace.getLeaf(true);
+      if (leaf) await leaf.setViewState({ type: MATH_VECTOR_SCATTER_VIEW_TYPE, active: true });
     }
     if (leaf) workspace.revealLeaf(leaf);
   }

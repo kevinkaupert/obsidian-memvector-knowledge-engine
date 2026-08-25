@@ -1,0 +1,211 @@
+import { ItemView, type App, type WorkspaceLeaf } from "obsidian";
+import { getTranslation } from "../../i18n";
+import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
+import type { MemVectorSettings } from "../../settings/types";
+import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
+import { wireCanvasInteraction } from "./canvasInteraction";
+import type { ScatterViewContext } from "./context";
+import { hitTest as hitTestPure } from "./hitTesting";
+import { applyVectorLayout } from "./layout/applyVectorLayout";
+import type { ProjectionMode } from "./layout/projections";
+import { draw } from "./rendering/drawOrchestrator";
+import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
+import { runSynthesis } from "./synthesis";
+import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
+import type { RelationEdge, ScatterNode } from "./types";
+import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+
+export interface VectorScatterHost {
+  app: App;
+  settings: MemVectorSettings;
+  saveSettings(): Promise<void>;
+}
+
+export class VectorScatterView extends ItemView implements ScatterViewContext {
+  nodes: ScatterNode[] = [];
+  selectedNodeIds = new Set<string>();
+  pan = { x: 0, y: 0 };
+  zoom = 1;
+  isDraggingPan = false;
+  isDraggingLasso = false;
+  dragStart = { x: 0, y: 0 };
+  lassoPath: { x: number; y: number }[] = [];
+  lassoSelectMode = false;
+  hoveredNode: ScatterNode | null = null;
+  showEdges = false;
+  relationEdges: RelationEdge[] = [];
+  nodeSpacing = 160;
+  cloudSpacing = 320;
+  projectionMode: ProjectionMode = "cloud";
+
+  private canvas!: HTMLCanvasElement;
+  private canvasCtx!: CanvasRenderingContext2D;
+  private canvasWrap!: HTMLElement;
+  private resizeObserver: ResizeObserver | null = null;
+  private toolbarHandles: ToolbarHandles | null = null;
+
+  constructor(
+    leaf: WorkspaceLeaf,
+    private readonly host: VectorScatterHost
+  ) {
+    super(leaf);
+  }
+
+  get settings(): MemVectorSettings {
+    return this.host.settings;
+  }
+
+  saveSettings(): Promise<void> {
+    return this.host.saveSettings();
+  }
+
+  getViewType(): string {
+    return MATH_VECTOR_SCATTER_VIEW_TYPE;
+  }
+
+  getDisplayText(): string {
+    return "MemVector Graph";
+  }
+
+  getIcon(): string {
+    return "dot-network";
+  }
+
+  async onOpen(): Promise<void> {
+    this.containerEl.style.position = "relative";
+    const container = (this.containerEl.children[1] as HTMLElement | undefined) || this.containerEl;
+    container.empty();
+    container.addClass("math-vector-scatter-container");
+    Object.assign(container.style, {
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      width: "100%",
+      background: "var(--background-primary)",
+      position: "relative",
+      overflow: "hidden",
+    });
+
+    const canvasWrap = container.createEl("div");
+    Object.assign(canvasWrap.style, { flex: "1", position: "relative", width: "100%", height: "100%", overflow: "hidden" });
+    this.canvasWrap = canvasWrap;
+
+    const canvas = canvasWrap.createEl("canvas");
+    Object.assign(canvas.style, { width: "100%", height: "100%", display: "block", cursor: "grab" });
+    this.canvas = canvas;
+    const canvasCtx = canvas.getContext("2d");
+    if (!canvasCtx) return;
+    this.canvasCtx = canvasCtx;
+
+    const toolbarEl = canvasWrap.createEl("div");
+    Object.assign(toolbarEl.style, {
+      position: "absolute",
+      top: "12px",
+      right: "12px",
+      zIndex: "20",
+      display: "flex",
+      flexDirection: "column",
+      width: "220px",
+      borderRadius: "12px",
+      background: "var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)))",
+      backdropFilter: "blur(20px)",
+      border: "1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)))",
+      boxShadow: "0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3))",
+      overflow: "hidden",
+      transition: "opacity 0.2s ease, transform 0.2s ease",
+      userSelect: "none",
+    });
+
+    this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
+      const isVisible = toolbarEl.style.opacity !== "0";
+      toolbarEl.style.opacity = isVisible ? "0" : "1";
+      toolbarEl.style.pointerEvents = isVisible ? "none" : "auto";
+      toolbarEl.style.transform = isVisible ? "translateY(-6px) scale(0.97)" : "translateY(0) scale(1)";
+    });
+
+    const hoverBar = container.createEl("div");
+    Object.assign(hoverBar.style, {
+      padding: "6px 12px",
+      borderTop: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
+      background: "var(--background-secondary, rgba(15, 23, 42, 0.9))",
+      fontSize: "0.85em",
+      color: "var(--text-muted)",
+      zIndex: "10",
+    });
+
+    const t = getTranslation(this.settings.language || "de");
+    this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
+
+    this.resizeObserver = new ResizeObserver(() => this.handleResize());
+    this.resizeObserver.observe(canvasWrap);
+    this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
+
+    wireCanvasInteraction(this, {
+      canvas,
+      canvasWrap,
+      hoverBar,
+      updateSelectionUI: () => this.toolbarHandles?.updateSelectionUI(),
+    });
+
+    await this.scanVaultNotes();
+    this.toolbarHandles.updateSelectionUI();
+  }
+
+  onClose(): Promise<void> {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    return Promise.resolve();
+  }
+
+  private handleResize(): void {
+    const w = this.canvasWrap.clientWidth || 800;
+    const h = this.canvasWrap.clientHeight || 600;
+    this.canvas.width = w * window.devicePixelRatio;
+    this.canvas.height = h * window.devicePixelRatio;
+    this.canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    this.redraw();
+  }
+
+  redraw(): void {
+    if (!this.canvasCtx || !this.canvasWrap) return;
+    draw(this.canvasCtx, this.canvasWrap.clientWidth, this.canvasWrap.clientHeight, this.containerEl, {
+      nodes: this.nodes,
+      zoom: this.zoom,
+      pan: this.pan,
+      projectionMode: this.projectionMode,
+      showEdges: this.showEdges,
+      relationEdges: this.relationEdges,
+      selectedNodeIds: this.selectedNodeIds,
+      hoveredNode: this.hoveredNode,
+      isDraggingLasso: this.isDraggingLasso,
+      lassoPath: this.lassoPath,
+    });
+  }
+
+  async scanVaultNotes(filterOverride?: string): Promise<void> {
+    this.nodes = await scanVaultNotesPure(this.app, filterOverride, this.settings.vectorSearchExclusions);
+    this.applyLayout();
+    await this.loadRelationEdges();
+  }
+
+  applyLayout(): void {
+    applyVectorLayout(this.nodes, this.settings, this.projectionMode, this.nodeSpacing, this.cloudSpacing, this.relationEdges);
+  }
+
+  async loadRelationEdges(): Promise<void> {
+    this.relationEdges = await loadRelationEdgesPure(this.app);
+  }
+
+  hitTest(mouseX: number, mouseY: number): ScatterNode | null {
+    return hitTestPure(this.nodes, mouseX, mouseY, this.zoom, this.pan);
+  }
+
+  openRelationBuilder(selected: ScatterNode[]): void {
+    new RelationBuilderModal(this.app, this.settings, selected).open();
+  }
+
+  async runSynthesis(setHoverText: (text: string) => void): Promise<void> {
+    const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
+    await runSynthesis(this.app, this.settings, selected, setHoverText);
+  }
+}
