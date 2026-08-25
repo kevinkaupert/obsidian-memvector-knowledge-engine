@@ -1,0 +1,54 @@
+import type { App } from "obsidian";
+import { fetchEmbedding } from "../../llm/fetchEmbedding";
+import type { MemVectorSettings } from "../../settings/types";
+import { ensureCollection, upsertPoints, type QdrantPoint } from "./qdrantClient";
+import { pointIdForPath } from "./pointId";
+
+export interface QdrantSyncResult {
+  totalFiles: number;
+  syncedCount: number;
+}
+
+/**
+ * Bugfix (found while extracting this from main.js:1483-1563): the original
+ * handler checked `embedding.length > 0` and pushed `vector: embedding`
+ * directly, but `fetchEmbedding()` resolves an `{ embedding, error }` object,
+ * not a bare array. `.length` on that object is always `undefined`, so the
+ * condition was always false — the Qdrant sync button never synced a single
+ * note, it just always reported "no embeddings generated" regardless of
+ * whether the embedding call actually succeeded.
+ */
+export async function syncVaultToQdrant(app: App, settings: MemVectorSettings): Promise<QdrantSyncResult> {
+  const vaultFiles = app.vault.getMarkdownFiles();
+  const baseUrl = (settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
+  const collection = settings.qdrantCollection || "obsidian_wiki_vectors";
+
+  await ensureCollection(baseUrl, collection, settings.qdrantApiKey);
+
+  const points: QdrantPoint[] = [];
+  for (const file of vaultFiles) {
+    const content = await app.vault.read(file);
+    if (!content.trim()) continue;
+
+    const { embedding } = await fetchEmbedding(
+      content.slice(0, 1000),
+      settings.embeddingApiBaseUrl,
+      settings.embeddingApiKey,
+      settings.embeddingModel
+    );
+
+    if (embedding && embedding.length > 0) {
+      points.push({
+        id: pointIdForPath(file.path),
+        vector: embedding,
+        payload: { path: file.path, title: file.basename, content: content.slice(0, 500) },
+      });
+    }
+  }
+
+  if (points.length > 0) {
+    await upsertPoints(baseUrl, collection, settings.qdrantApiKey, points);
+  }
+
+  return { totalFiles: vaultFiles.length, syncedCount: points.length };
+}
