@@ -22,6 +22,7 @@ export const PROVIDER_DEFAULT_MODELS: Record<LlmProvider, string> = {
   openai: "gpt-4o",
   openrouter: "anthropic/claude-sonnet-5",
   ollama: "deepseek-r1:7b",
+  custom: "",
 };
 
 export function getDefaultModelFor(provider: LlmProvider): string {

@@ -1,4 +1,4 @@
-export type LlmProvider = "ollama" | "claude" | "deepseek" | "openai" | "openrouter";
+export type LlmProvider = "ollama" | "claude" | "deepseek" | "openai" | "openrouter" | "custom";
 export type KnowledgeDomain = "general" | "math";
 
 /**
@@ -46,4 +46,14 @@ export interface MemVectorSettings {
 
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
+}
+
+/**
+ * Minimal shape settings-tab sections need from the plugin instance.
+ * Kept separate from the concrete plugin class to avoid settings/* importing
+ * back up from main.ts.
+ */
+export interface SettingsHost {
+  settings: MemVectorSettings;
+  saveSettings(): Promise<void>;
 }
