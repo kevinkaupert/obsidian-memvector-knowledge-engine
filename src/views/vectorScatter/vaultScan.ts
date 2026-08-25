@@ -13,7 +13,7 @@ const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
 };
 
 const DEFAULT_EXCLUSIONS =
-  "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks";
+  "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks";
 
 /** Obsidian Graph-View-style include/exclude query: `-path:x -file:y term`. */
 export function shouldIncludeFile(file: TFile, queryStr: string): boolean {

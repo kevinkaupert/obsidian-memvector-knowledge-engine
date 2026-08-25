@@ -38,7 +38,7 @@ export const de: TranslationKeys = {
   embedModelName: "Embedding Modellname",
   embedModelDesc: "Exakter Modellname für Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   exclusionsName: "Pfad- & Datei-Ausschließungen",
-  exclusionsDesc: "Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path: schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
+  exclusionsDesc: "Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
   radarCountName: "Mini-Radar Notizen-Anzahl (X)",
   radarCountDesc: "Anzahl der nahesten Vektor-Notizen (X), auf die der Mini-Radar in der Seitenleiste beim Öffnen automatisch skaliert.",
 

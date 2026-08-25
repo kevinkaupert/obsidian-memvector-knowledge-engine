@@ -149,7 +149,7 @@ export function renderVectorFilterSection(
     .setDesc(t.exclusionsDesc)
     .addText((text) =>
       text
-        .setPlaceholder("-path: schema -file:index -file:log -file:README")
+        .setPlaceholder("-path:schema -file:index -file:log -file:README")
         .setValue(settings.vectorSearchExclusions || "")
         .onChange(async (value) => {
           settings.vectorSearchExclusions = value;

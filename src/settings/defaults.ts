@@ -16,7 +16,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   temperature: 0.1,
 
   vectorSearchExclusions:
-    "-path: schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
+    "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
   weightVector: 50,
   weightWikiLinks: 30,
   weightFolder: 10,
