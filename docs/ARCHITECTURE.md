@@ -62,4 +62,4 @@
 
 ### 2.5. External Database Connections (Optional)
 - **Qdrant Vector Database:** Syncs dense embeddings to a remote/local Qdrant collection for multi-device vector search.
-- **Memgraph Cypher Graph Database:** Pushes structured relationships (`type: relation`, `Voraussetzung: [[...]]`, `Impliziert: [[...]]`) directly into Memgraph via Cypher HTTP queries.
+- **Memgraph Graph Database:** Pushes structured relationships (`type: relation`, `Voraussetzung: [[...]]`, `Impliziert: [[...]]`) directly into Memgraph over the **Bolt protocol**, via `neo4j-driver-lite` (Memgraph documents Bolt-driver compatibility with the standard Neo4j drivers). An earlier version of this plugin attempted this over a plain HTTP `/db/data/cypher` endpoint (an old, removed Neo4j REST route Memgraph never implemented), which silently never worked and fell back to copying Cypher to the clipboard while still reporting success — that path has been replaced entirely.

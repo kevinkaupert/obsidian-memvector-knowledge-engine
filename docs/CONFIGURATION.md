@@ -28,11 +28,13 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 | Provider | Base URL | API Key | Default Model |
 |---|---|---|---|
 | **Ollama (Local)** | `http://localhost:11434/v1` | `ollama` | `deepseek-r1:7b` |
-| **Anthropic Claude** | `https://api.anthropic.com/v1` | Your `sk-ant-...` Key | `claude-3-5-sonnet-20241022` |
+| **Anthropic Claude** | `https://api.anthropic.com/v1` | Your `sk-ant-...` Key | `claude-sonnet-5` |
 | **DeepSeek Cloud** | `https://api.deepseek.com/v1` | Your `sk-...` Key | `deepseek-reasoner` |
 | **OpenAI** | `https://api.openai.com/v1` | Your `sk-...` Key | `gpt-4o` |
-| **OpenRouter** | `https://openrouter.ai/api/v1` | Your `sk-or-...` Key | `anthropic/claude-3.5-sonnet` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Your `sk-or-...` Key | `anthropic/claude-sonnet-5` |
 | **Custom Endpoint** | `http://localhost:8000/v1` | (Optional) | `custom-model` |
+
+> Each provider now keeps its own API key in settings — switching the provider dropdown no longer clears a previously entered key for another provider.
 
 ---
 
@@ -66,4 +68,16 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 
 ### Section 4 & 5: Qdrant & Memgraph Connections
 - **Qdrant Vector DB:** Syncs embeddings to Qdrant collection.
-- **Memgraph Graph DB:** Syncs relation edges (`wiki/relations/`) via HTTP Cypher.
+- **Memgraph Graph DB:** Syncs the vault graph and relation edges (`wiki/relations/`) via the **Bolt protocol** (`bolt://host:port`, default `bolt://localhost:7687`), not HTTP.
+
+---
+
+## 3. Where Your Settings Are Stored — Plaintext & iCloud Sync
+
+All settings — including every LLM API key and your Memgraph password — are stored **unencrypted** in this plugin's `data.json`, per Obsidian's standard `saveData`/`loadData` plugin API. This is a platform constraint (essentially every Obsidian plugin with API-key settings works this way), not something specific to a bug in this plugin.
+
+What *is* worth knowing if this vault lives under an iCloud-synced path (e.g. `~/Library/Mobile Documents/iCloud~md~obsidian/...`, as this one does): `data.json` syncs in plaintext to iCloud and to every other device signed into the same Apple ID, exactly like any other file in the vault. If that's a concern:
+
+- Prefer provider API keys that can be scoped to low privilege / revoked independently (most providers support per-key scoping or easy revocation).
+- Treat your Memgraph password with the same care as an API key — it's stored the same way, and it's arguably higher-value than a single chat-completion key since it can grant broader read/write access to your graph database.
+- `data.json` is already excluded from this plugin's own git repository (`.gitignore`); that only protects against it leaking via git, not via the vault's own sync mechanism.
