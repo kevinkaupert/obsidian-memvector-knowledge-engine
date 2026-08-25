@@ -7,3 +7,4 @@ dist/
 data.json
 data.json.*.bak
 main.new.js
+main.js.old-backup
