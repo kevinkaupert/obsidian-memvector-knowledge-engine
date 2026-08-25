@@ -141,6 +141,7 @@ export const de: TranslationKeys = {
   relEmbeddedIn: "ist eingebettet in",
   relDualTo: "ist dual zu",
   relAnalogousTo: "ist analog zu",
+  relOppositeOf: "ist Gegenteil von",
   relExampleFor: "ist Beispiel für",
   relCounterexampleFor: "ist Gegenbeispiel für",
   relCustom: "Frei...",

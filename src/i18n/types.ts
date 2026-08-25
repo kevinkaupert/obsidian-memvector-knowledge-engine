@@ -130,6 +130,7 @@ export interface TranslationKeys {
   relEmbeddedIn: string;
   relDualTo: string;
   relAnalogousTo: string;
+  relOppositeOf: string;
   relExampleFor: string;
   relCounterexampleFor: string;
   relCustom: string;

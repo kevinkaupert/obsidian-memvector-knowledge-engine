@@ -52,6 +52,7 @@ export function buildRelationCategories(t: TranslationKeys): RelationCategory[] 
         { val: "EMBEDDED_IN", label: t.relEmbeddedIn },
         { val: "DUAL_TO", label: t.relDualTo },
         { val: "ANALOGOUS_TO", label: t.relAnalogousTo },
+        { val: "IS_OPPOSITE_OF", label: t.relOppositeOf },
       ],
     },
     {
