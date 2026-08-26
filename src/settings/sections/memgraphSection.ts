@@ -1,8 +1,19 @@
 import { Notice, Setting, type App } from "obsidian";
 import { testMemgraphConnection } from "../../sync/memgraph/connectionTest";
 import { syncVaultToMemgraph } from "../../sync/memgraph/memgraphSync";
+import { flushPendingMemgraphRelations } from "../../sync/memgraph/pendingRelationsQueue";
 import type { TranslationKeys } from "../../i18n";
 import type { SettingsHost } from "../types";
+
+async function flushPendingRelationsQuietly(host: SettingsHost): Promise<void> {
+  if (!host.settings.autoSyncMemgraph || host.settings.pendingMemgraphRelations.length === 0) return;
+  try {
+    const count = await flushPendingMemgraphRelations(host.settings, () => host.saveSettings());
+    if (count > 0) new Notice(`✅ ${count} ausstehende Beziehung(en) nachsynchronisiert.`);
+  } catch {
+    // still unreachable - stays queued
+  }
+}
 
 export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys): void {
   const { settings } = host;
@@ -72,6 +83,7 @@ export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: 
             const result = await syncVaultToMemgraph(app, settings);
             btn.setButtonText("✅ Synchronisiert!");
             new Notice(`✅ Vault-Graph (${result.nodeCount} Knoten, ${result.edgeCount} Kanten) erfolgreich in Memgraph importiert!`);
+            await flushPendingRelationsQuietly(host);
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new Notice(`❌ Memgraph Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
@@ -98,6 +110,7 @@ export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: 
             await testMemgraphConnection(settings);
             btn.setButtonText("✅ Erfolgreich!");
             new Notice("✅ Memgraph-Server ist über Bolt erreichbar!");
+            await flushPendingRelationsQuietly(host);
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new Notice(`❌ Memgraph-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);

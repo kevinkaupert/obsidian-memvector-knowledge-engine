@@ -1,6 +1,8 @@
 import { Modal, Notice, type App } from "obsidian";
 import { getTranslation } from "../../i18n";
-import type { MemVectorSettings } from "../../settings/types";
+import { enqueuePendingRelations } from "../../sync/memgraph/pendingRelationsQueue";
+import { pushRelationEdges } from "../../sync/memgraph/relationSync";
+import type { SettingsHost } from "../../settings/types";
 import { buildRelationCategories, type RelationCategory } from "./relationCategories";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
@@ -16,7 +18,7 @@ export class RelationBuilderModal extends Modal {
 
   constructor(
     app: App,
-    private readonly settings: MemVectorSettings,
+    private readonly host: SettingsHost,
     private selectedNodes: RelationNode[]
   ) {
     super(app);
@@ -33,7 +35,7 @@ export class RelationBuilderModal extends Modal {
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "24px";
 
-    const lang = this.settings.language || "de";
+    const lang = this.host.settings.language || "de";
     const t = getTranslation(lang);
     const count = this.selectedNodes.length;
     const categories = buildRelationCategories(t);
@@ -317,6 +319,7 @@ export class RelationBuilderModal extends Modal {
 
       const edges = generate();
       let createdCount = 0;
+      const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string }[] = [];
       for (let idx = 0; idx < edges.length; idx++) {
         const e = edges[idx];
         const edgeType = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
@@ -325,12 +328,27 @@ export class RelationBuilderModal extends Modal {
         try {
           await writeRelationFile(this.app, path, content);
           createdCount++;
+          typedEdges.push({ src: e.src, tgt: e.tgt, relType: edgeType, description: this.relDesc });
         } catch (err) {
           console.error(`${t.relSaveError} ${path}:`, err);
         }
       }
 
       new Notice(`${createdCount} ${t.relSaveSuccess}`);
+
+      if (this.host.settings.autoSyncMemgraph && typedEdges.length > 0) {
+        try {
+          await pushRelationEdges(this.host.settings, typedEdges);
+          new Notice(`✅ ${typedEdges.length} Beziehung(en) direkt in Memgraph synchronisiert.`);
+        } catch (err) {
+          enqueuePendingRelations(this.host.settings, typedEdges);
+          await this.host.saveSettings();
+          new Notice(
+            `⚠️ Memgraph gerade nicht erreichbar: ${err instanceof Error ? err.message : String(err)} — wird automatisch nachgeholt, sobald die Verbindung wieder da ist.`
+          );
+        }
+      }
+
       this.close();
     };
   }

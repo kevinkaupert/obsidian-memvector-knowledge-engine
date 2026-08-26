@@ -1,4 +1,5 @@
 import type { TranslationKeys } from "../../i18n";
+import { buildRelationCypherPreview } from "./relationCypherPreview";
 import type { RelationEdgeDraft } from "./relationEdgeBuilder";
 
 export function relationFilePath(edge: RelationEdgeDraft): string {
@@ -7,6 +8,7 @@ export function relationFilePath(edge: RelationEdgeDraft): string {
 
 export function buildRelationFileContent(edge: RelationEdgeDraft, edgeType: string, description: string, t: TranslationKeys): string {
   const descText = description || `${t.relDefaultDesc} ${edgeType} ${t.relBetween} [[${edge.src.id}|${edge.src.title}]] ${t.relAnd} [[${edge.tgt.id}|${edge.tgt.title}]].`;
+  const cypherText = buildRelationCypherPreview([edge], { 0: edgeType }, edgeType, description);
 
   return `---
 type: relation
@@ -33,5 +35,12 @@ target_note: "[[${edge.tgt.id}|${edge.tgt.title}]]"
 
 ## ${t.relFileReason}
 ${descText}
+
+## Cypher (Memgraph)
+Wird automatisch mit Memgraph synchronisiert (falls verbunden). Zum manuellen Ausführen in Memgraph Lab:
+
+\`\`\`cypher
+${cypherText}
+\`\`\`
 `;
 }

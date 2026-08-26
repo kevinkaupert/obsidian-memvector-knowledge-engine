@@ -46,6 +46,24 @@ export interface MemVectorSettings {
 
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
+
+  /** Relations created while Memgraph was unreachable - retried on next successful connection. */
+  pendingMemgraphRelations: PendingMemgraphRelation[];
+}
+
+export interface RelationGraphNode {
+  id: string;
+  title: string;
+  path: string;
+  type: string;
+}
+
+export interface PendingMemgraphRelation {
+  src: RelationGraphNode;
+  tgt: RelationGraphNode;
+  relType: string;
+  description: string;
+  queuedAt: string;
 }
 
 /**

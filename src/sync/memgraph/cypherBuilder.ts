@@ -1,3 +1,5 @@
+import type { RelationGraphNode } from "../../settings/types";
+
 export interface GraphNode {
   id: string;
   title: string;
@@ -49,6 +51,41 @@ export function buildGraphStatements(nodes: GraphNode[], edges: GraphEdge[]): Cy
 
 function escapeForLiteral(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+export interface TypedEdgeInput {
+  src: RelationGraphNode;
+  tgt: RelationGraphNode;
+  relType: string;
+  description: string;
+}
+
+/**
+ * Parameterized statements for a manually-created, richly-typed relation
+ * (from RelationBuilderModal) - adds description/source/target-path
+ * properties on the edge, unlike buildGraphStatements' plain LINKS_TO edges.
+ */
+export function buildTypedEdgeStatements(edges: TypedEdgeInput[]): CypherStatement[] {
+  const statements: CypherStatement[] = [];
+  const seenNodeIds = new Set<string>();
+
+  for (const e of edges) {
+    for (const node of [e.src, e.tgt]) {
+      if (seenNodeIds.has(node.id)) continue;
+      seenNodeIds.add(node.id);
+      statements.push({
+        query: "MERGE (n:Note {id: $id}) ON CREATE SET n.title = $title, n.path = $path",
+        params: { id: node.id, title: node.title, path: node.path },
+      });
+    }
+
+    statements.push({
+      query: `MATCH (a:Note {id: $src}), (b:Note {id: $tgt}) MERGE (a)-[r:${sanitizeRelType(e.relType)}]->(b) SET r.description = $description, r.source_path = $srcPath, r.target_path = $tgtPath, r.updated_at = datetime()`,
+      params: { src: e.src.id, tgt: e.tgt.id, description: e.description || "", srcPath: e.src.path, tgtPath: e.tgt.path },
+    });
+  }
+
+  return statements;
 }
 
 /** Human-readable literal Cypher text, for the clipboard/Memgraph-Lab-paste preview (RelationBuilderModal). */

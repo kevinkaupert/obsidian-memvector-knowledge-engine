@@ -1,4 +1,4 @@
-import { Plugin, type WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
 import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSettings } from "./settings/apiKeyMigration";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
@@ -6,6 +6,7 @@ import type { MemVectorSettings } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
+import { flushPendingMemgraphRelations } from "./sync/memgraph/pendingRelationsQueue";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
@@ -51,6 +52,20 @@ export default class MemVectorPlugin extends Plugin {
         this.sidebarView?.renderView();
       })
     );
+
+    this.tryFlushPendingMemgraphRelations();
+  }
+
+  /** Best-effort: relations created while Memgraph was unreachable get retried once it's back, without blocking startup. */
+  private tryFlushPendingMemgraphRelations(): void {
+    if (!this.settings.autoSyncMemgraph || this.settings.pendingMemgraphRelations.length === 0) return;
+    flushPendingMemgraphRelations(this.settings, () => this.saveSettings())
+      .then((count) => {
+        if (count > 0) new Notice(`✅ ${count} zuvor ausstehende Beziehung(en) mit Memgraph synchronisiert.`);
+      })
+      .catch(() => {
+        // Still unreachable - stays queued, retried again next time (plugin load, successful connection test, or manual sync).
+      });
   }
 
   async activateSidebarView(): Promise<void> {

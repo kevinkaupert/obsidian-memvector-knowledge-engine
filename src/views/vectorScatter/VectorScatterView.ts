@@ -201,7 +201,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   openRelationBuilder(selected: ScatterNode[]): void {
-    new RelationBuilderModal(this.app, this.settings, selected).open();
+    new RelationBuilderModal(this.app, this, selected).open();
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {
