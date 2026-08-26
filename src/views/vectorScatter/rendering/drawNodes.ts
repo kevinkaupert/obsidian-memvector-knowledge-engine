@@ -1,5 +1,5 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
-import type { RelationKind } from "../relatedNodes";
+import type { RelationTally } from "../relatedNodes";
 import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
@@ -30,13 +30,16 @@ function drawHalo(ctx: CanvasRenderingContext2D, x: number, y: number, radius: n
   ctx.restore();
 }
 
-/** Memgraph-only -> accent, WikiLink-only -> warm gold, both -> a gradient blending the two so a doubly-connected note reads as such at a glance. */
-function relationColor(ctx: CanvasRenderingContext2D, kind: RelationKind, x: number, y: number, radius: number, accent: string): string | CanvasGradient {
-  if (kind === "memgraph") return accent;
-  if (kind === "wikilink") return WIKILINK_COLOR;
-  const grad = ctx.createLinearGradient(x - radius, y - radius, x + radius, y + radius);
-  grad.addColorStop(0, accent);
-  grad.addColorStop(1, WIKILINK_COLOR);
+/** Splits the ring/halo left-to-right in proportion to how many of the connections to this note are WikiLinks (gold) vs. Memgraph edges (accent) - e.g. 2 WikiLinks + 1 Memgraph edge reads as 2/3 gold, 1/3 accent, not a flat 50/50 blend. */
+function relationColor(ctx: CanvasRenderingContext2D, tally: RelationTally, x: number, y: number, radius: number, accent: string): string | CanvasGradient {
+  if (tally.memgraph === 0) return WIKILINK_COLOR;
+  if (tally.wikilink === 0) return accent;
+
+  const goldShare = tally.wikilink / (tally.wikilink + tally.memgraph);
+  const feather = 0.04;
+  const grad = ctx.createLinearGradient(x - radius, y, x + radius, y);
+  grad.addColorStop(Math.max(0, goldShare - feather), WIKILINK_COLOR);
+  grad.addColorStop(Math.min(1, goldShare + feather), accent);
   return grad;
 }
 
@@ -51,26 +54,26 @@ export function drawNodes(
   themeTextMuted: string,
   themeAccent: string,
   style: ScatterVisualStyle,
-  relatedNodeKinds: Map<string, RelationKind> = new Map()
+  relationTallies: Map<string, RelationTally> = new Map()
 ): void {
   nodes.forEach((node) => {
     const pos = worldToScreen(node.x, node.y, zoom, pan);
     const isSelected = selectedNodeIds.has(node.id);
     const isHovered = hoveredNode === node;
     const isActive = isSelected || isHovered;
-    const relatedKind = !isActive ? relatedNodeKinds.get(node.id) : undefined;
+    const tally = !isActive ? relationTallies.get(node.id) : undefined;
     const radius = (isSelected ? 8 : 6) * zoom;
 
     if (style === "ink") {
-      if (relatedKind) drawHalo(ctx, pos.x, pos.y, radius + 5, relationColor(ctx, relatedKind, pos.x, pos.y, radius + 5, themeAccent));
+      if (tally) drawHalo(ctx, pos.x, pos.y, radius + 5, relationColor(ctx, tally, pos.x, pos.y, radius + 5, themeAccent));
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
       if (isActive) {
         ctx.fillStyle = themeAccent;
         ctx.fill();
       } else {
-        ctx.lineWidth = relatedKind ? 1.75 : 1.25;
-        ctx.strokeStyle = relatedKind ? relationColor(ctx, relatedKind, pos.x, pos.y, radius, themeAccent) : NEUTRAL_RING;
+        ctx.lineWidth = tally ? 1.75 : 1.25;
+        ctx.strokeStyle = tally ? relationColor(ctx, tally, pos.x, pos.y, radius, themeAccent) : NEUTRAL_RING;
         ctx.stroke();
       }
     } else {

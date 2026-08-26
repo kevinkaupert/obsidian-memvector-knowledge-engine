@@ -15,7 +15,7 @@ const EDGE_COLORS_MUTED: Record<string, string> = {
 
 const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
 
-/** Renders every edge whenever "Kanten anzeigen" is on, highlighting those touching a selected/hovered node - so relations stay visible/clickable without requiring a selection first. */
+/** Only renders edges touching a currently selected/hovered node - never the full graph at once, so "Kanten anzeigen" stays legible even in a dense vault. */
 export function drawEdges(
   ctx: CanvasRenderingContext2D,
   nodeMap: Map<string, ScatterNode>,
@@ -30,16 +30,16 @@ export function drawEdges(
 ): void {
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
+  if (activeNodeIds.size === 0) return;
 
   relationEdges.forEach((edge) => {
     if (edge.relType === "RELATED_TO") return;
     const srcNode = nodeMap.get(edge.srcId);
     const tgtNode = nodeMap.get(edge.tgtId);
     if (!srcNode || !tgtNode) return;
+    if (!activeNodeIds.has(srcNode.id) && !activeNodeIds.has(tgtNode.id)) return;
 
-    const isActive = activeNodeIds.has(srcNode.id) || activeNodeIds.has(tgtNode.id);
-    const baseColor = style === "muted" ? EDGE_COLORS_MUTED[edge.relType] || NEUTRAL_EDGE : NEUTRAL_EDGE;
-    const edgeColor = isActive ? themeAccent : baseColor;
+    const edgeColor = style === "muted" ? EDGE_COLORS_MUTED[edge.relType] || NEUTRAL_EDGE : themeAccent;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);
@@ -49,7 +49,7 @@ export function drawEdges(
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(p2.x, p2.y);
     ctx.strokeStyle = edgeColor;
-    ctx.lineWidth = isActive ? 2 : 1;
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
@@ -64,23 +64,21 @@ export function drawEdges(
     ctx.fillStyle = edgeColor;
     ctx.fill();
 
-    if (isActive || zoom > 0.8) {
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
-      const rawDesc = edge.desc || "";
-      const descText = rawDesc.length > 42 ? `${rawDesc.slice(0, 40)}...` : rawDesc;
+    const midX = (p1.x + p2.x) / 2;
+    const midY = (p1.y + p2.y) / 2;
+    const rawDesc = edge.desc || "";
+    const descText = rawDesc.length > 42 ? `${rawDesc.slice(0, 40)}...` : rawDesc;
 
-      ctx.font = "bold 9px monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = descText ? "top" : "middle";
-      ctx.fillStyle = edgeColor;
-      ctx.fillText(`[${edge.relType}]`, midX, descText ? midY - 14 : midY);
+    ctx.font = "bold 9px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = descText ? "top" : "middle";
+    ctx.fillStyle = edgeColor;
+    ctx.fillText(`[${edge.relType}]`, midX, descText ? midY - 14 : midY);
 
-      if (descText) {
-        ctx.font = "9px sans-serif";
-        ctx.fillStyle = themeTextNormal;
-        ctx.fillText(descText, midX, midY + 1);
-      }
+    if (descText) {
+      ctx.font = "9px sans-serif";
+      ctx.fillStyle = themeTextNormal;
+      ctx.fillText(descText, midX, midY + 1);
     }
     ctx.restore();
   });

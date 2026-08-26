@@ -217,7 +217,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   hitTestEdge(mouseX: number, mouseY: number): RelationEdge | null {
-    return hitTestEdgePure(this.nodes, this.relationEdges, mouseX, mouseY, this.zoom, this.pan);
+    const activeNodeIds = new Set(this.selectedNodeIds);
+    if (this.hoveredNode) activeNodeIds.add(this.hoveredNode.id);
+    return hitTestEdgePure(this.nodes, this.relationEdges, activeNodeIds, mouseX, mouseY, this.zoom, this.pan);
   }
 
   private refreshRelationEdges(): void {

@@ -26,16 +26,18 @@ function distanceToSegment(px: number, py: number, x1: number, y1: number, x2: n
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
-/** Tests every edge that rendering/drawEdges.ts would draw (i.e. all of them, whenever showEdges is on) - not just ones touching the current selection, so any visible edge is clickable. */
+/** Only tests edges that rendering/drawEdges.ts would actually draw (touching a currently selected/hovered node) - matching its visibility rule, so nothing invisible is clickable. */
 export function hitTestEdge(
   nodes: ScatterNode[],
   relationEdges: RelationEdge[],
+  activeNodeIds: Set<string>,
   mouseX: number,
   mouseY: number,
   zoom: number,
   pan: PanState,
   threshold = 8
 ): RelationEdge | null {
+  if (activeNodeIds.size === 0) return null;
   const nodeMap = new Map(nodes.map((n) => [n.id.toLowerCase(), n]));
 
   for (const edge of relationEdges) {
@@ -43,6 +45,7 @@ export function hitTestEdge(
     const srcNode = nodeMap.get(edge.srcId);
     const tgtNode = nodeMap.get(edge.tgtId);
     if (!srcNode || !tgtNode) continue;
+    if (!activeNodeIds.has(srcNode.id) && !activeNodeIds.has(tgtNode.id)) continue;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);

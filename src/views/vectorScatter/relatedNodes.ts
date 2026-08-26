@@ -1,53 +1,64 @@
 import type { RelationEdge, ScatterNode } from "./types";
 
-/** How a note is connected to the current focus - drives the glow color in the "ink" style. */
-export type RelationKind = "wikilink" | "memgraph" | "both";
-
-function upsertKind(map: Map<string, RelationKind>, id: string, kind: RelationKind): void {
-  const existing = map.get(id);
-  map.set(id, !existing || existing === kind ? kind : "both");
+/** How many WikiLink vs. Memgraph connections tie a note to the current focus - drives a proportionally split glow color in the "ink" style. */
+export interface RelationTally {
+  wikilink: number;
+  memgraph: number;
 }
 
-/** Every other note connected to `focusNode`, tagged by how: a raw [[WikiLink]] in either direction, a typed Memgraph relation edge, or both. */
-export function computeRelatedNodeKinds(nodes: ScatterNode[], relationEdges: RelationEdge[], focusNode: ScatterNode): Map<string, RelationKind> {
+function bump(tallies: Map<string, RelationTally>, id: string, key: keyof RelationTally): void {
+  const t = tallies.get(id) || { wikilink: 0, memgraph: 0 };
+  t[key] += 1;
+  tallies.set(id, t);
+}
+
+/**
+ * Tallies, per other note, how many distinct connections it has to `focusNode`:
+ * a WikiLink counts once per direction (so a mutual link counts twice), a
+ * Memgraph relation edge counts once per matching edge.
+ */
+export function computeRelationTally(nodes: ScatterNode[], relationEdges: RelationEdge[], focusNode: ScatterNode): Map<string, RelationTally> {
   const nodeMap = new Map(nodes.map((n) => [n.id.toLowerCase(), n]));
   const focusId = focusNode.id.toLowerCase();
   const focusLinks = new Set(focusNode.links.map((l) => l.toLowerCase()));
-  const result = new Map<string, RelationKind>();
+  const tallies = new Map<string, RelationTally>();
 
   nodes.forEach((n) => {
     if (n === focusNode) return;
     const nId = n.id.toLowerCase();
-    const linksToFocus = n.links.some((l) => l.toLowerCase() === focusId);
-    if (focusLinks.has(nId) || linksToFocus) upsertKind(result, n.id, "wikilink");
+    if (focusLinks.has(nId)) bump(tallies, n.id, "wikilink");
+    if (n.links.some((l) => l.toLowerCase() === focusId)) bump(tallies, n.id, "wikilink");
   });
 
   relationEdges.forEach((e) => {
     if (e.srcId === focusId) {
       const other = nodeMap.get(e.tgtId);
-      if (other) upsertKind(result, other.id, "memgraph");
+      if (other) bump(tallies, other.id, "memgraph");
     } else if (e.tgtId === focusId) {
       const other = nodeMap.get(e.srcId);
-      if (other) upsertKind(result, other.id, "memgraph");
+      if (other) bump(tallies, other.id, "memgraph");
     }
   });
 
-  return result;
+  return tallies;
 }
 
-/** Union of computeRelatedNodeKinds across every currently selected node, falling back to the hovered node when nothing is selected. */
-export function computeFocusRelatedKinds(
+/** Sums computeRelationTally across every currently selected note, falling back to the hovered note when nothing is selected. */
+export function computeFocusRelationTallies(
   nodes: ScatterNode[],
   relationEdges: RelationEdge[],
   selectedNodeIds: Set<string>,
   hoveredNode: ScatterNode | null
-): Map<string, RelationKind> {
+): Map<string, RelationTally> {
   const focusNodes = nodes.filter((n) => selectedNodeIds.has(n.id));
   if (focusNodes.length === 0 && hoveredNode) focusNodes.push(hoveredNode);
 
-  const merged = new Map<string, RelationKind>();
+  const merged = new Map<string, RelationTally>();
   focusNodes.forEach((f) => {
-    computeRelatedNodeKinds(nodes, relationEdges, f).forEach((kind, id) => upsertKind(merged, id, kind));
+    computeRelationTally(nodes, relationEdges, f).forEach((tally, id) => {
+      const existing = merged.get(id) || { wikilink: 0, memgraph: 0 };
+      merged.set(id, { wikilink: existing.wikilink + tally.wikilink, memgraph: existing.memgraph + tally.memgraph });
+    });
   });
   return merged;
 }
