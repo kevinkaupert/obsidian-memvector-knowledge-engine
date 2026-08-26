@@ -1,4 +1,5 @@
 import { Notice, Setting, type App } from "obsidian";
+import { testQdrantConnection } from "../../sync/qdrant/connectionTest";
 import { syncVaultToQdrant } from "../../sync/qdrant/qdrantSync";
 import type { TranslationKeys } from "../../i18n";
 import type { SettingsHost } from "../types";
@@ -81,6 +82,32 @@ export function renderQdrantSection(containerEl: HTMLElement, app: App, host: Se
           } finally {
             setTimeout(() => {
               btn.setButtonText("Jetzt Vault in Qdrant synchronisieren");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+    );
+
+  new Setting(containerEl)
+    .setName("Qdrant-Verbindung testen")
+    .setDesc("Prüft die Erreichbarkeit der Qdrant Vektor-Datenbank.")
+    .addButton((btn) =>
+      btn
+        .setButtonText("Qdrant Verbindung testen")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Testen...");
+          btn.setDisabled(true);
+          try {
+            await testQdrantConnection(settings.qdrantUrl, settings.qdrantApiKey);
+            btn.setButtonText("✅ Erfolgreich!");
+            new Notice("✅ Qdrant ist erreichbar!");
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new Notice(`❌ Qdrant-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Qdrant Verbindung testen");
               btn.setDisabled(false);
             }, 3000);
           }
