@@ -11,7 +11,7 @@ import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
-import { findNodeByQuery } from "./search";
+import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import type { RelationEdge, ScatterNode } from "./types";
@@ -51,6 +51,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   private toolbarHandles: ToolbarHandles | null = null;
   private searchHighlight: { nodeId: string; startedAt: number } | null = null;
   private searchAnimHandle: number | null = null;
+  private lastSearchQuery: string | null = null;
+  private lastSearchMatches: ScatterNode[] = [];
+  private lastSearchIndex = -1;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -253,8 +256,20 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     ).open();
   }
 
+  /** Repeated Enter on the same query cycles through every match (looping back to the first) instead of jumping to the best match each time. */
   searchNote(query: string): void {
-    const match = findNodeByQuery(this.nodes, query);
+    const normalized = query.trim().toLowerCase();
+    const isSameQuery = normalized === this.lastSearchQuery && this.lastSearchMatches.length > 0;
+
+    if (isSameQuery) {
+      this.lastSearchIndex = (this.lastSearchIndex + 1) % this.lastSearchMatches.length;
+    } else {
+      this.lastSearchQuery = normalized;
+      this.lastSearchMatches = findNodesByQuery(this.nodes, query);
+      this.lastSearchIndex = 0;
+    }
+
+    const match = this.lastSearchMatches[this.lastSearchIndex];
     if (!match) {
       const t = getTranslation(this.settings.language || "de");
       new Notice(`${t.searchNotFound} "${query}"`);

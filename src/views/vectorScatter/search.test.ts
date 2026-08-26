@@ -1,31 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { findNodeByQuery } from "./search";
+import { findNodesByQuery } from "./search";
 import type { ScatterNode } from "./types";
 
 function node(id: string, title: string): ScatterNode {
   return { id, title, type: "definition", path: `${id}.md`, x: 0, y: 0, latexFormulas: [], links: [], content: "" };
 }
 
-describe("findNodeByQuery", () => {
-  const nodes = [node("gauss-summenformel", "Gauß-Summenformel"), node("induktion", "Vollständige Induktion")];
+describe("findNodesByQuery", () => {
+  const nodes = [node("aussage", "Aussage"), node("aussagen-von-mengen", "Aussagen von Mengen"), node("induktion", "Vollständige Induktion")];
 
-  it("finds an exact title match case-insensitively", () => {
-    expect(findNodeByQuery(nodes, "gauß-summenformel")?.id).toBe("gauss-summenformel");
+  it("puts an exact title match first", () => {
+    expect(findNodesByQuery(nodes, "aussage").map((n) => n.id)).toEqual(["aussage", "aussagen-von-mengen"]);
   });
 
-  it("finds a substring match when there is no exact match", () => {
-    expect(findNodeByQuery(nodes, "gauss")?.id).toBe("gauss-summenformel");
+  it("returns every substring match, not just the first", () => {
+    expect(findNodesByQuery(nodes, "auss").map((n) => n.id)).toEqual(["aussage", "aussagen-von-mengen"]);
   });
 
   it("matches against the id as well as the title", () => {
-    expect(findNodeByQuery(nodes, "induktion")?.id).toBe("induktion");
+    expect(findNodesByQuery(nodes, "induktion").map((n) => n.id)).toEqual(["induktion"]);
   });
 
-  it("returns null for an empty query", () => {
-    expect(findNodeByQuery(nodes, "  ")).toBeNull();
+  it("returns an empty array for an empty query", () => {
+    expect(findNodesByQuery(nodes, "  ")).toEqual([]);
   });
 
-  it("returns null when nothing matches", () => {
-    expect(findNodeByQuery(nodes, "kein-treffer")).toBeNull();
+  it("returns an empty array when nothing matches", () => {
+    expect(findNodesByQuery(nodes, "kein-treffer")).toEqual([]);
   });
 });
