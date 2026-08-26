@@ -1,4 +1,6 @@
+import type { App } from "obsidian";
 import { auth, driver as createDriver, type Driver } from "neo4j-driver-lite";
+import { getMemgraphPassword } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import type { CypherStatement } from "./cypherBuilder";
 import { toMemgraphError } from "./errors";
@@ -11,13 +13,13 @@ export interface MemgraphConnection {
   close(): Promise<void>;
 }
 
-function authTokenFor(settings: MemVectorSettings) {
+function authTokenFor(app: App, settings: MemVectorSettings) {
   // neo4j-driver-lite's own type defs for auth.none() don't satisfy the
   // AuthToken shape the driver() function expects (missing `credentials`).
   // Empty-credential basic auth is functionally equivalent against a
   // Memgraph instance that doesn't have auth enabled, without fighting
   // that upstream type gap.
-  return auth.basic(settings.memgraphUser || "", settings.memgraphPassword || "");
+  return auth.basic(settings.memgraphUser || "", getMemgraphPassword(app));
 }
 
 /**
@@ -28,11 +30,11 @@ function authTokenFor(settings: MemVectorSettings) {
  * implemented - so it silently always failed and fell back to a clipboard
  * copy while still telling the user "✅ Synchronisiert!".
  */
-export function connect(settings: MemVectorSettings): MemgraphConnection {
+export function connect(app: App, settings: MemVectorSettings): MemgraphConnection {
   const url = settings.memgraphUrl || "bolt://localhost:7687";
   let driverInstance: Driver;
   try {
-    driverInstance = createDriver(url, authTokenFor(settings), { encrypted: false });
+    driverInstance = createDriver(url, authTokenFor(app, settings), { encrypted: false });
   } catch (err) {
     throw toMemgraphError(err);
   }

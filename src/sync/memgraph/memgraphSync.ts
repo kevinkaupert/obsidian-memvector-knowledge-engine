@@ -37,7 +37,7 @@ export async function syncVaultToMemgraph(app: App, settings: MemVectorSettings)
   const { nodes, edges } = extractVaultGraph(app);
   const statements = buildGraphStatements(nodes, edges);
 
-  const connection = connect(settings);
+  const connection = connect(app, settings);
   try {
     await connection.runStatements(statements);
   } finally {

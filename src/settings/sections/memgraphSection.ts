@@ -1,14 +1,15 @@
-import { Notice, Setting, type App } from "obsidian";
+import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { testMemgraphConnection } from "../../sync/memgraph/connectionTest";
 import { syncVaultToMemgraph } from "../../sync/memgraph/memgraphSync";
 import { flushPendingMemgraphRelations } from "../../sync/memgraph/pendingRelationsQueue";
 import type { TranslationKeys } from "../../i18n";
+import { getMemgraphPassword, setMemgraphPassword } from "../secrets";
 import type { SettingsHost } from "../types";
 
-async function flushPendingRelationsQuietly(host: SettingsHost): Promise<void> {
+async function flushPendingRelationsQuietly(app: App, host: SettingsHost): Promise<void> {
   if (!host.settings.autoSyncMemgraph || host.settings.pendingMemgraphRelations.length === 0) return;
   try {
-    const count = await flushPendingMemgraphRelations(host.settings, () => host.saveSettings());
+    const count = await flushPendingMemgraphRelations(app, host.settings, () => host.saveSettings());
     if (count > 0) new Notice(`✅ ${count} ausstehende Beziehung(en) nachsynchronisiert.`);
   } catch {
     // still unreachable - stays queued
@@ -45,18 +46,8 @@ export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: 
         })
     );
 
-  new Setting(containerEl)
-    .setName(t.memgraphPassName)
-    .setDesc(`${t.memgraphPassDesc} ⚠️ Wird unverschlüsselt in data.json gespeichert (siehe CONFIGURATION.md).`)
-    .addText((text) =>
-      text
-        .setPlaceholder("Passwort...")
-        .setValue(settings.memgraphPassword || "")
-        .onChange(async (value) => {
-          settings.memgraphPassword = value.trim();
-          await host.saveSettings();
-        })
-    );
+  const memgraphPassSetting = new Setting(containerEl).setName(t.memgraphPassName).setDesc(t.memgraphPassDesc);
+  new SecretComponent(app, memgraphPassSetting.controlEl).setValue(getMemgraphPassword(app)).onChange((value) => setMemgraphPassword(app, value.trim()));
 
   new Setting(containerEl)
     .setName(t.memgraphAutoSyncName)
@@ -83,7 +74,7 @@ export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: 
             const result = await syncVaultToMemgraph(app, settings);
             btn.setButtonText("✅ Synchronisiert!");
             new Notice(`✅ Vault-Graph (${result.nodeCount} Knoten, ${result.edgeCount} Kanten) erfolgreich in Memgraph importiert!`);
-            await flushPendingRelationsQuietly(host);
+            await flushPendingRelationsQuietly(app, host);
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new Notice(`❌ Memgraph Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
@@ -107,10 +98,10 @@ export function renderMemgraphSection(containerEl: HTMLElement, app: App, host: 
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            await testMemgraphConnection(settings);
+            await testMemgraphConnection(app, settings);
             btn.setButtonText("✅ Erfolgreich!");
             new Notice("✅ Memgraph-Server ist über Bolt erreichbar!");
-            await flushPendingRelationsQuietly(host);
+            await flushPendingRelationsQuietly(app, host);
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
             new Notice(`❌ Memgraph-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);

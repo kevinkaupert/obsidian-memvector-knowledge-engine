@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
+import { getEmbeddingApiKey } from "../../../settings/secrets";
 import type { MemVectorSettings } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
 import type { ProjectionMode } from "../layout/projections";
@@ -243,7 +244,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const embedModel = ctx.settings.embeddingModel || "bge-m3";
   const apiBase = ctx.settings.embeddingApiBaseUrl || "http://localhost:11434/v1";
-  const apiKey = ctx.settings.embeddingApiKey || "ollama";
+  const apiKey = getEmbeddingApiKey(ctx.app);
 
   if (!ctx.nodes || ctx.nodes.length === 0) {
     await ctx.scanVaultNotes();

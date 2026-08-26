@@ -6,12 +6,10 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
 
   embeddingProvider: "ollama",
   embeddingApiBaseUrl: "http://localhost:11434/v1",
-  embeddingApiKey: "ollama",
   embeddingModel: "bge-m3",
 
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",
-  apiKeys: { ollama: "ollama" },
   modelName: "deepseek-r1:7b",
   temperature: 0.1,
 
@@ -27,15 +25,13 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
 
   qdrantUrl: "http://localhost:6333",
   qdrantCollection: "obsidian_wiki_vectors",
-  qdrantApiKey: "",
   autoSyncQdrant: false,
 
   // Bolt endpoint (was previously an inert HTTP-Cypher URL that no working
-  // sync path ever actually reached — see apiKeyMigration.ts's sibling,
+  // sync path ever actually reached — see settings/secrets.ts's sibling,
   // sync/memgraph/memgraphSync.ts, for the real client).
   memgraphUrl: "bolt://localhost:7687",
   memgraphUser: "",
-  memgraphPassword: "",
   autoSyncMemgraph: false,
   pendingMemgraphRelations: [],
   enrichSynthesisContext: false,

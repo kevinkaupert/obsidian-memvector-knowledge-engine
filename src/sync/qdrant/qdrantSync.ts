@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import { fetchEmbedding } from "../../llm/fetchEmbedding";
+import { getEmbeddingApiKey, getQdrantApiKey } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { ensureCollection, upsertPoints, type QdrantPoint } from "./qdrantClient";
 import { pointIdForPath } from "./pointId";
@@ -23,8 +24,10 @@ export async function syncVaultToQdrant(app: App, settings: MemVectorSettings): 
   const vaultFiles = app.vault.getMarkdownFiles();
   const baseUrl = (settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
   const collection = settings.qdrantCollection || "obsidian_wiki_vectors";
+  const qdrantApiKey = getQdrantApiKey(app);
+  const embeddingApiKey = getEmbeddingApiKey(app);
 
-  await ensureCollection(baseUrl, collection, settings.qdrantApiKey);
+  await ensureCollection(baseUrl, collection, qdrantApiKey);
 
   const points: QdrantPoint[] = [];
   for (const file of vaultFiles) {
@@ -35,12 +38,7 @@ export async function syncVaultToQdrant(app: App, settings: MemVectorSettings): 
     // instead of actual content - strip it before truncating.
     const content = stripFrontmatter(rawContent);
 
-    const { embedding } = await fetchEmbedding(
-      content.slice(0, 1000),
-      settings.embeddingApiBaseUrl,
-      settings.embeddingApiKey,
-      settings.embeddingModel
-    );
+    const { embedding } = await fetchEmbedding(content.slice(0, 1000), settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
 
     if (embedding && embedding.length > 0) {
       points.push({
@@ -52,7 +50,7 @@ export async function syncVaultToQdrant(app: App, settings: MemVectorSettings): 
   }
 
   if (points.length > 0) {
-    await upsertPoints(baseUrl, collection, settings.qdrantApiKey, points);
+    await upsertPoints(baseUrl, collection, qdrantApiKey, points);
   }
 
   return { totalFiles: vaultFiles.length, syncedCount: points.length };

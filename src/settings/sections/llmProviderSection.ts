@@ -1,8 +1,8 @@
-import { Notice, Setting } from "obsidian";
+import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import { PROVIDER_DEFAULT_MODELS } from "../../llm/modelDefaults";
 import type { TranslationKeys } from "../../i18n";
-import { getApiKeyFor, setApiKeyFor } from "../apiKeyMigration";
+import { getApiKeyFor, setApiKeyFor } from "../secrets";
 import type { LlmProvider, SettingsHost } from "../types";
 
 const PROVIDER_BASE_URLS: Record<LlmProvider, string> = {
@@ -16,6 +16,7 @@ const PROVIDER_BASE_URLS: Record<LlmProvider, string> = {
 
 export function renderLlmProviderSection(
   containerEl: HTMLElement,
+  app: App,
   host: SettingsHost,
   t: TranslationKeys,
   rerender: () => void
@@ -63,18 +64,10 @@ export function renderLlmProviderSection(
         })
     );
 
-  new Setting(containerEl)
-    .setName(t.apiKeyName)
-    .setDesc(t.apiKeyDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("sk-... / ollama")
-        .setValue(getApiKeyFor(settings, settings.llmProvider))
-        .onChange(async (value) => {
-          setApiKeyFor(settings, settings.llmProvider, value.trim());
-          await host.saveSettings();
-        })
-    );
+  const apiKeySetting = new Setting(containerEl).setName(t.apiKeyName).setDesc(t.apiKeyDesc);
+  new SecretComponent(app, apiKeySetting.controlEl)
+    .setValue(getApiKeyFor(app, settings.llmProvider))
+    .onChange((value) => setApiKeyFor(app, settings.llmProvider, value.trim()));
 
   new Setting(containerEl)
     .setName("LLM-Verbindung testen & Modelle abfragen")
@@ -87,11 +80,7 @@ export function renderLlmProviderSection(
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            const models = await fetchProviderModels(
-              settings.apiBaseUrl,
-              getApiKeyFor(settings, settings.llmProvider),
-              settings.llmProvider
-            );
+            const models = await fetchProviderModels(settings.apiBaseUrl, getApiKeyFor(app, settings.llmProvider), settings.llmProvider);
             btn.setButtonText("✅ Erfolgreich!");
             new Notice(`✅ LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {

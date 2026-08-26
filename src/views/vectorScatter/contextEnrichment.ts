@@ -1,6 +1,7 @@
 import { TFile, type App } from "obsidian";
 import { fetchGraphNeighbors } from "../../sync/memgraph/graphNeighbors";
 import { searchSimilar } from "../../sync/qdrant/qdrantClient";
+import { getQdrantApiKey } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { toSlug } from "../../noteSlug";
 import { stripFrontmatter } from "../../noteContent";
@@ -24,14 +25,14 @@ function averageEmbedding(vectors: number[][]): number[] | null {
   return sum.map((v) => v / vectors.length);
 }
 
-async function fetchQdrantNeighbors(settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
+async function fetchQdrantNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const embeddings = selected.map((n) => n.embedding).filter((e): e is number[] => !!e && e.length > 0);
   const queryVector = averageEmbedding(embeddings);
   if (!queryVector) return found;
 
   const baseUrl = (settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
-  const hits = await searchSimilar(baseUrl, settings.qdrantCollection || "obsidian_wiki_vectors", settings.qdrantApiKey, queryVector, limit + selected.length);
+  const hits = await searchSimilar(baseUrl, settings.qdrantCollection || "obsidian_wiki_vectors", getQdrantApiKey(app), queryVector, limit + selected.length);
 
   for (const hit of hits) {
     const path = hit.payload?.path;
@@ -46,7 +47,7 @@ async function fetchQdrantNeighbors(settings: MemVectorSettings, selected: Scatt
 async function fetchMemgraphNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => toSlug(n.id));
-  const neighbors = await fetchGraphNeighbors(settings, ids, 2, limit + selected.length);
+  const neighbors = await fetchGraphNeighbors(app, settings, ids, 2, limit + selected.length);
 
   for (const neighbor of neighbors) {
     if (selected.some((s) => s.path === neighbor.path)) continue;
@@ -73,7 +74,7 @@ export async function enrichContext(app: App, settings: MemVectorSettings, selec
   const merged = new Map<string, EnrichedNote>();
 
   const [qdrantResult, memgraphResult] = await Promise.allSettled([
-    fetchQdrantNeighbors(settings, selected, limitPerSource),
+    fetchQdrantNeighbors(app, settings, selected, limitPerSource),
     fetchMemgraphNeighbors(app, settings, selected, limitPerSource),
   ]);
 

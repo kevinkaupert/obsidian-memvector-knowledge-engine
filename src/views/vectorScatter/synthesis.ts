@@ -1,5 +1,5 @@
 import { Notice, type App } from "obsidian";
-import { getApiKeyFor } from "../../settings/apiKeyMigration";
+import { getApiKeyFor } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { callDirectLLM } from "../../llm/callDirectLLM";
 import { getTranslation } from "../../i18n";
@@ -212,7 +212,7 @@ export async function runSynthesis(
   const apiBase = settings.apiBaseUrl || "http://localhost:11434/v1";
   // Bugfix #3 follow-through: was reading the legacy shared `deepseekApiKey`
   // field directly; now reads the current provider's own key.
-  const apiKey = getApiKeyFor(settings, settings.llmProvider) || "ollama";
+  const apiKey = getApiKeyFor(app, settings.llmProvider);
   const temperature = settings.temperature ?? 0.1;
   const lang = settings.language || "de";
   const t = getTranslation(lang);

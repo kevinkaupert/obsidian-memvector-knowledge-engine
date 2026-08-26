@@ -1,7 +1,8 @@
-import { Notice, Setting, type App } from "obsidian";
+import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { testQdrantConnection } from "../../sync/qdrant/connectionTest";
 import { syncVaultToQdrant } from "../../sync/qdrant/qdrantSync";
 import type { TranslationKeys } from "../../i18n";
+import { getQdrantApiKey, setQdrantApiKey } from "../secrets";
 import type { SettingsHost } from "../types";
 
 export function renderQdrantSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys): void {
@@ -34,18 +35,8 @@ export function renderQdrantSection(containerEl: HTMLElement, app: App, host: Se
         })
     );
 
-  new Setting(containerEl)
-    .setName(t.qdrantKeyName)
-    .setDesc(t.qdrantKeyDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("Optional Key...")
-        .setValue(settings.qdrantApiKey || "")
-        .onChange(async (value) => {
-          settings.qdrantApiKey = value.trim();
-          await host.saveSettings();
-        })
-    );
+  const qdrantKeySetting = new Setting(containerEl).setName(t.qdrantKeyName).setDesc(t.qdrantKeyDesc);
+  new SecretComponent(app, qdrantKeySetting.controlEl).setValue(getQdrantApiKey(app)).onChange((value) => setQdrantApiKey(app, value.trim()));
 
   new Setting(containerEl)
     .setName(t.qdrantAutoSyncName)
@@ -99,7 +90,7 @@ export function renderQdrantSection(containerEl: HTMLElement, app: App, host: Se
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            await testQdrantConnection(settings.qdrantUrl, settings.qdrantApiKey);
+            await testQdrantConnection(settings.qdrantUrl, getQdrantApiKey(app));
             btn.setButtonText("✅ Erfolgreich!");
             new Notice("✅ Qdrant ist erreichbar!");
           } catch (err) {

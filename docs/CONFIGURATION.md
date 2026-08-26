@@ -72,12 +72,14 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 
 ---
 
-## 3. Where Your Settings Are Stored — Plaintext & iCloud Sync
+## 3. Where Your Settings Are Stored — Secrets vs. Plain Settings
 
-All settings — including every LLM API key and your Memgraph password — are stored **unencrypted** in this plugin's `data.json`, per Obsidian's standard `saveData`/`loadData` plugin API. This is a platform constraint (essentially every Obsidian plugin with API-key settings works this way), not something specific to a bug in this plugin.
+Since v1.7.0 (requires Obsidian **1.11.4+**), every secret this plugin needs — per-provider LLM API keys, the embedding API key, the Qdrant API key, and the Memgraph password — is stored via Obsidian's own `app.secretStorage` API, **not** in this plugin's `data.json`. Everything else (URLs, model names, filter settings, etc.) still lives in `data.json` as plain, non-secret configuration, same as before.
 
-What *is* worth knowing if this vault lives under an iCloud-synced path (e.g. `~/Library/Mobile Documents/iCloud~md~obsidian/...`, as this one does): `data.json` syncs in plaintext to iCloud and to every other device signed into the same Apple ID, exactly like any other file in the vault. If that's a concern:
+On first load after upgrading, any secret found in an existing `data.json` (from before v1.7.0) is migrated into `secretStorage` automatically, once, and then stripped from `data.json` on the next settings save.
 
-- Prefer provider API keys that can be scoped to low privilege / revoked independently (most providers support per-key scoping or easy revocation).
-- Treat your Memgraph password with the same care as an API key — it's stored the same way, and it's arguably higher-value than a single chat-completion key since it can grant broader read/write access to your graph database.
-- `data.json` is already excluded from this plugin's own git repository (`.gitignore`); that only protects against it leaking via git, not via the vault's own sync mechanism.
+A couple of things still worth knowing:
+
+- `app.secretStorage` is desktop-only (this plugin already is, via `isDesktopOnly: true`), and any other locally-installed Obsidian plugin can technically call `secretStorage.getSecret()` too — it isn't sandboxed per-plugin. It does, however, keep your keys out of `data.json` entirely, so they're no longer exposed by iCloud/vault sync, this plugin's own backups, or anyone with read access to the vault folder on disk.
+- Prefer provider API keys that can be scoped to low privilege / revoked independently (most providers support per-key scoping or easy revocation) as an additional layer regardless of storage mechanism.
+- If you're on an Obsidian version older than 1.11.4, this plugin won't load at all (`minAppVersion` enforces it) — update Obsidian first.

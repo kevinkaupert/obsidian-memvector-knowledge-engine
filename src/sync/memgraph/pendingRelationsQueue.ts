@@ -1,3 +1,4 @@
+import type { App } from "obsidian";
 import type { MemVectorSettings, PendingMemgraphRelation } from "../../settings/types";
 import type { TypedEdgeInput } from "./cypherBuilder";
 import { pushRelationEdges } from "./relationSync";
@@ -15,13 +16,14 @@ export function enqueuePendingRelations(settings: MemVectorSettings, edges: Type
  * time) - only clears/persists the queue on success.
  */
 export async function flushPendingMemgraphRelations(
+  app: App,
   settings: MemVectorSettings,
   saveSettings: () => Promise<void>
 ): Promise<number> {
   const pending = settings.pendingMemgraphRelations;
   if (pending.length === 0) return 0;
 
-  await pushRelationEdges(settings, pending);
+  await pushRelationEdges(app, settings, pending);
   const flushedCount = pending.length;
   settings.pendingMemgraphRelations = [];
   await saveSettings();

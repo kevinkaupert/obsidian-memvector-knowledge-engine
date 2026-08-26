@@ -1,6 +1,7 @@
-import { Notice, Setting } from "obsidian";
+import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import type { TranslationKeys } from "../../i18n";
+import { getEmbeddingApiKey, setEmbeddingApiKey } from "../secrets";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 
 interface EmbeddingProviderDefaults {
@@ -15,12 +16,7 @@ const EMBEDDING_PROVIDER_DEFAULTS: Record<string, EmbeddingProviderDefaults> = {
   custom: { embeddingApiBaseUrl: "http://localhost:8000/v1", embeddingApiKey: "", embeddingModel: "custom-embed" },
 };
 
-export function renderVectorFilterSection(
-  containerEl: HTMLElement,
-  host: SettingsHost,
-  t: TranslationKeys,
-  rerender: () => void
-): void {
+export function renderVectorFilterSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const { settings } = host;
   containerEl.createEl("h3", { text: t.secVector });
 
@@ -52,7 +48,7 @@ export function renderVectorFilterSection(
           settings.embeddingProvider = value as LlmProvider;
           if (defaults) {
             settings.embeddingApiBaseUrl = defaults.embeddingApiBaseUrl;
-            settings.embeddingApiKey = defaults.embeddingApiKey;
+            setEmbeddingApiKey(app, defaults.embeddingApiKey);
             settings.embeddingModel = defaults.embeddingModel;
           }
           await host.saveSettings();
@@ -73,18 +69,8 @@ export function renderVectorFilterSection(
         })
     );
 
-  new Setting(containerEl)
-    .setName(t.embedApiKeyName)
-    .setDesc(t.embedApiKeyDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("sk-... / ollama")
-        .setValue(settings.embeddingApiKey || "ollama")
-        .onChange(async (value) => {
-          settings.embeddingApiKey = value.trim();
-          await host.saveSettings();
-        })
-    );
+  const embedKeySetting = new Setting(containerEl).setName(t.embedApiKeyName).setDesc(t.embedApiKeyDesc);
+  new SecretComponent(app, embedKeySetting.controlEl).setValue(getEmbeddingApiKey(app)).onChange((value) => setEmbeddingApiKey(app, value.trim()));
 
   new Setting(containerEl)
     .setName("Embedding-Verbindung testen & Modelle abfragen")
@@ -97,7 +83,7 @@ export function renderVectorFilterSection(
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            const models = await fetchProviderModels(settings.embeddingApiBaseUrl, settings.embeddingApiKey);
+            const models = await fetchProviderModels(settings.embeddingApiBaseUrl, getEmbeddingApiKey(app));
             btn.setButtonText("✅ Erfolgreich!");
             new Notice(`✅ Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {
@@ -143,5 +129,4 @@ export function renderVectorFilterSection(
         })
     );
   }
-
 }

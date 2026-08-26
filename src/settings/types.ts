@@ -4,9 +4,10 @@ export type KnowledgeDomain = "general" | "math";
 export type ScatterVisualStyle = "monochrome" | "muted" | "ink";
 
 /**
- * Per-provider API keys. Replaces the legacy single `deepseekApiKey` field
- * (see apiKeyMigration.ts) that used to be silently reused/reset across
- * every cloud provider.
+ * Per-provider API keys, keyed the same way settings/secrets.ts's secretStorage
+ * IDs are derived. Only used as an in-memory shape during one-time migration
+ * out of the legacy plaintext `apiKeys` settings field - actual keys now live
+ * in Obsidian's app.secretStorage (since 1.11.4), never in data.json.
  */
 export type ApiKeyMap = Partial<Record<LlmProvider, string>>;
 
@@ -16,14 +17,10 @@ export interface MemVectorSettings {
 
   embeddingProvider: LlmProvider;
   embeddingApiBaseUrl: string;
-  embeddingApiKey: string;
   embeddingModel: string;
 
   llmProvider: LlmProvider;
   apiBaseUrl: string;
-  /** @deprecated use `apiKeys` instead; kept only for one-release migration safety. */
-  deepseekApiKey?: string;
-  apiKeys: ApiKeyMap;
   modelName: string;
   temperature: number;
 
@@ -38,12 +35,10 @@ export interface MemVectorSettings {
 
   qdrantUrl: string;
   qdrantCollection: string;
-  qdrantApiKey: string;
   autoSyncQdrant: boolean;
 
   memgraphUrl: string;
   memgraphUser: string;
-  memgraphPassword: string;
   autoSyncMemgraph: boolean;
 
   /** Hybrid GraphRAG: pull Qdrant-similar + Memgraph-neighbor notes into the LLM synthesis prompt as extra context. */

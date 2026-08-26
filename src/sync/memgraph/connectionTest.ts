@@ -1,3 +1,4 @@
+import type { App } from "obsidian";
 import type { MemVectorSettings } from "../../settings/types";
 import { connect } from "./neo4jDriverAdapter";
 
@@ -7,8 +8,8 @@ import { connect } from "./neo4jDriverAdapter";
  * treated a malformed/binary response as proof the server was up - it
  * never actually distinguished a running Memgraph from a closed port.
  */
-export async function testMemgraphConnection(settings: MemVectorSettings): Promise<void> {
-  const connection = connect(settings);
+export async function testMemgraphConnection(app: App, settings: MemVectorSettings): Promise<void> {
+  const connection = connect(app, settings);
   try {
     await connection.verifyConnectivity();
   } finally {

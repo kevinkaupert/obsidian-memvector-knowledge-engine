@@ -1,6 +1,6 @@
 import { Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { MathWikiSettingTab } from "./settings/SettingTab";
-import { migrateSettings } from "./settings/apiKeyMigration";
+import { migrateSecretsToSecretStorage, migrateSettings } from "./settings/secrets";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import type { MemVectorSettings } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
@@ -59,7 +59,7 @@ export default class MemVectorPlugin extends Plugin {
   /** Best-effort: relations created while Memgraph was unreachable get retried once it's back, without blocking startup. */
   private tryFlushPendingMemgraphRelations(): void {
     if (!this.settings.autoSyncMemgraph || this.settings.pendingMemgraphRelations.length === 0) return;
-    flushPendingMemgraphRelations(this.settings, () => this.saveSettings())
+    flushPendingMemgraphRelations(this.app, this.settings, () => this.saveSettings())
       .then((count) => {
         if (count > 0) new Notice(`✅ ${count} zuvor ausstehende Beziehung(en) mit Memgraph synchronisiert.`);
       })
@@ -97,7 +97,15 @@ export default class MemVectorPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = migrateSettings(await this.loadData());
+    const raw = await this.loadData();
+    this.settings = migrateSettings(raw);
+    // One-time move of any plaintext secrets left over from before 1.6.1
+    // (per-provider LLM keys, the legacy shared deepseekApiKey, the
+    // embedding/Qdrant API keys, the Memgraph password) into Obsidian's
+    // own secretStorage - only persists if something actually moved.
+    if (migrateSecretsToSecretStorage(this.app, raw, this.settings)) {
+      await this.saveSettings();
+    }
   }
 
   async saveSettings(): Promise<void> {

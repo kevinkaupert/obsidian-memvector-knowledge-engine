@@ -25,8 +25,8 @@ export class MathWikiSettingTab extends PluginSettingTab {
     containerEl.createEl("p", { text: t.settingsDesc, cls: "setting-item-description" });
 
     renderGeneralSection(containerEl, this.host, t, rerender);
-    renderLlmProviderSection(containerEl, this.host, t, rerender);
-    renderVectorFilterSection(containerEl, this.host, t, rerender);
+    renderLlmProviderSection(containerEl, this.app, this.host, t, rerender);
+    renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
     renderQdrantSection(containerEl, this.app, this.host, t);
     renderMemgraphSection(containerEl, this.app, this.host, t);
   }

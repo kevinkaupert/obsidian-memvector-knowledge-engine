@@ -1,3 +1,4 @@
+import type { App } from "obsidian";
 import type { MemVectorSettings } from "../../settings/types";
 import { connect } from "./neo4jDriverAdapter";
 
@@ -8,7 +9,7 @@ export interface GraphNeighbor {
 }
 
 /** Notes within `hops` graph-steps (any relationship type) of the given node IDs, excluding the given IDs themselves. */
-export async function fetchGraphNeighbors(settings: MemVectorSettings, nodeIds: string[], hops: number, limit: number): Promise<GraphNeighbor[]> {
+export async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, nodeIds: string[], hops: number, limit: number): Promise<GraphNeighbor[]> {
   if (nodeIds.length === 0) return [];
 
   // Memgraph rejects a parameterized LIMIT ("must be an integer" even when
@@ -18,7 +19,7 @@ export async function fetchGraphNeighbors(settings: MemVectorSettings, nodeIds: 
   const safeHops = Math.max(1, Math.min(Math.trunc(hops), 3));
   const safeLimit = Math.max(1, Math.trunc(limit));
 
-  const connection = connect(settings);
+  const connection = connect(app, settings);
   try {
     const rows = await connection.query<{ id: string; title: string; path: string }>(
       `MATCH (start:Note) WHERE start.id IN $ids

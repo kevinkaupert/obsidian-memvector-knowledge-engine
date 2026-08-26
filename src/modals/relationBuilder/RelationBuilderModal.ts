@@ -349,7 +349,7 @@ export class RelationBuilderModal extends Modal {
 
       if (this.host.settings.autoSyncMemgraph && typedEdges.length > 0) {
         try {
-          await pushRelationEdges(this.host.settings, typedEdges);
+          await pushRelationEdges(this.app, this.host.settings, typedEdges);
           new Notice(`✅ ${typedEdges.length} Beziehung(en) direkt in Memgraph synchronisiert.`);
         } catch (err) {
           enqueuePendingRelations(this.host.settings, typedEdges);
@@ -391,7 +391,7 @@ export class RelationBuilderModal extends Modal {
       const [srcNode, tgtNode] = this.selectedNodes;
       if (this.host.settings.autoSyncMemgraph) {
         try {
-          await deleteRelationEdge(this.host.settings, srcNode.id, tgtNode.id, initialEdge.relType);
+          await deleteRelationEdge(this.app, this.host.settings, srcNode.id, tgtNode.id, initialEdge.relType);
           new Notice(`🗑️ ${t.relDeleteSuccess}`);
         } catch (err) {
           new Notice(`⚠️ ${t.relDeleteSyncWarning}: ${err instanceof Error ? err.message : String(err)}`);
