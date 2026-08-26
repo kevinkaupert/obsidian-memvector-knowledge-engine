@@ -7,7 +7,7 @@ import { toSlug } from "../../noteSlug";
 import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
 import type { ScatterNode } from "./types";
 
-function buildPrompt(selected: ScatterNode[], isMath: boolean, lang: string, promptLang: string): string {
+function buildPrompt(selected: ScatterNode[], isMath: boolean, lang: string, promptLang: string, customQuestion?: string): string {
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
   const formulasLabel = lang === "de" ? "Formeln" : "Formulas";
@@ -26,6 +26,39 @@ ${n.content}
     .join("\n---\n");
 
   const notesListStr = selected.map((n) => `- ${noteLabel}: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
+
+  const trimmedQuestion = customQuestion?.trim();
+  if (trimmedQuestion) {
+    return lang === "de"
+      ? `Du bist ein führender ${isMath ? "mathematischer Tutor" : "Wissens-Synthesizer"} und KI-Co-Pilot für ein Obsidian Knowledge-Wiki.
+Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
+
+${notesSummary}
+
+Verfügbare Notiz-WikiLinks:
+${notesListStr}
+
+Beantworte präzise ${promptLang} die folgende Frage des Nutzers zu diesen ${selected.length} Notizen:
+"${trimmedQuestion}"
+
+STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
+1. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Satz oder Begriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] STATT bloßer Fettschrift (**...**)!
+2. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe oder Notiznamen. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
+      : `You are a leading ${isMath ? "mathematical tutor" : "knowledge synthesizer"} and AI co-pilot for an Obsidian knowledge wiki.
+The user has selected the following ${selected.length} notes in the 2D vector space:
+
+${notesSummary}
+
+Available note WikiLinks:
+${notesListStr}
+
+Answer precisely ${promptLang} the user's following question about these ${selected.length} notes:
+"${trimmedQuestion}"
+
+STRICT FORMATTING AND LINKING RULES:
+1. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, theorem, or concept INSTEAD of bold text (**...**)!
+2. PROHIBITION: Do NOT use bold text (**term**) for technical terms or note names. Replace bold with real Obsidian WikiLinks [[...]].`;
+  }
 
   if (isMath) {
     return lang === "de"
@@ -142,7 +175,8 @@ export async function runSynthesis(
   app: App,
   settings: MemVectorSettings,
   selected: ScatterNode[],
-  setHoverText: (text: string) => void
+  setHoverText: (text: string) => void,
+  customQuestion?: string
 ): Promise<void> {
   if (selected.length === 0) return;
 
@@ -157,7 +191,7 @@ export async function runSynthesis(
 
   setHoverText(`${modelName} ...`);
 
-  const prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang);
+  const prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion);
 
   let rawSynthesisText: string;
   try {

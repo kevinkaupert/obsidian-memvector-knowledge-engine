@@ -204,8 +204,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     new RelationBuilderModal(this.app, this.settings, selected).open();
   }
 
-  async runSynthesis(setHoverText: (text: string) => void): Promise<void> {
+  async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {
     const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
-    await runSynthesis(this.app, this.settings, selected, setHoverText);
+    await runSynthesis(this.app, this.settings, selected, setHoverText, customQuestion);
   }
 }

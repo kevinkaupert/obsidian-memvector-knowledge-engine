@@ -38,5 +38,5 @@ export interface ScatterViewContext {
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;
   openRelationBuilder(selected: ScatterNode[]): void;
-  runSynthesis(setHoverText: (text: string) => void): Promise<void>;
+  runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void>;
 }
