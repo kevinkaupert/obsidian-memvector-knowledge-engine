@@ -97,7 +97,7 @@ export const en: TranslationKeys = {
   styleInk: "Ink & Focus Glow",
   projClouds: "Topic Clouds (Cloud Map)",
   projUmap: "UMAP Manifold (Local Cluster)",
-  projNode2Vec: "Graph-Topology (Node2Vec)",
+  projGraphTopology: "Graph Topology",
   projFormula: "Formula Symbols (LaTeX)",
   projSemanticAnchors: "LLM Semantic Map (Topic Anchors)",
   projFlow: "Dependency Flow (DAG)",

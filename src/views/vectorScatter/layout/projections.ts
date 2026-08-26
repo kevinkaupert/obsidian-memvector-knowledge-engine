@@ -1,7 +1,7 @@
 import type { RelationEdge, ScatterNode } from "../types";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
 
-export type ProjectionMode = "cloud" | "umap" | "node2vec" | "formula" | "semantic" | "flow" | "graph";
+export type ProjectionMode = "cloud" | "umap" | "graphTopology" | "formula" | "semantic" | "flow" | "graph";
 
 export interface ProjectionParams {
   nodes: ScatterNode[];
@@ -125,12 +125,13 @@ function applyUmapProjection({ nodes, matrix, nodeSpacing, cloudSpacing }: Proje
 }
 
 /**
- * MODE 5: Graph-Topology - node2vec-*flavored* (not actual node2vec, no
- * random walks/skip-gram) force layout driven purely by graph connectivity,
- * not vector similarity. See graphTopologyWeights.ts for the real hop-distance
- * + relation-type weighting this now uses instead of a flat linked/not-linked split.
+ * MODE 5: Graph-Topology - a force layout driven purely by graph
+ * connectivity, not vector similarity. Not real Node2Vec (no random
+ * walks/skip-gram) despite the resemblance in spirit - see
+ * graphTopologyWeights.ts for the real hop-distance + relation-type
+ * weighting this uses instead of a flat linked/not-linked split.
  */
-function applyNode2VecProjection({ nodes, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
+function applyGraphTopologyProjection({ nodes, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   const targetSpacing = nodeSpacing || 180;
   const cloudRadius = cloudSpacing || 500;
@@ -323,7 +324,7 @@ function applyGraphProjection({ nodes, matrix }: ProjectionParams): void {
 const PROJECTIONS: Record<ProjectionMode, (params: ProjectionParams) => void> = {
   cloud: applyCloudProjection,
   umap: applyUmapProjection,
-  node2vec: applyNode2VecProjection,
+  graphTopology: applyGraphTopologyProjection,
   formula: applyFormulaProjection,
   semantic: applySemanticProjection,
   flow: applyFlowProjection,

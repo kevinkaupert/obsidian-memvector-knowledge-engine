@@ -43,7 +43,7 @@ const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] =
 const PROJECTION_OPTIONS: { id: ProjectionMode; labelKey: keyof TranslationKeys; fallback: string }[] = [
   { id: "cloud", labelKey: "projClouds", fallback: "Themen-Wolken" },
   { id: "umap", labelKey: "projUmap", fallback: "UMAP Manifold" },
-  { id: "node2vec", labelKey: "projNode2Vec", fallback: "Graph-Topology" },
+  { id: "graphTopology", labelKey: "projGraphTopology", fallback: "Graph-Topology" },
   { id: "formula", labelKey: "projFormula", fallback: "Formel-Symbole" },
   { id: "semantic", labelKey: "projSemanticAnchors", fallback: "LLM Themen-Landkarte" },
   { id: "flow", labelKey: "projFlow", fallback: "Abhängigkeits-Fluss" },

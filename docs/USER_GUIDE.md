@@ -43,7 +43,9 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and status.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
 3. **Ansicht (View Toggles):**
-   - **Kanten anzeigen (Show Edges):** Toggle Cypher/relationship edge rendering between notes.
+   - **Projektion:** Switches between 7 layout algorithms (Themen-Wolken, Abhängigkeits-Fluss, Reiner Graph, UMAP Manifold, Graph-Topology, Formel-Symbole, LLM Themen-Landkarte) - see `docs/ARCHITECTURE.md` §2.1 for what each one is actually based on.
+   - **Darstellung:** Selects the visual style (Monochrom / Gedämpfte Typ-Farben / Tinte & Fokus-Glow).
+   - **Kanten anzeigen (Show Edges):** Toggle relationship edge rendering between notes, plus a **Kanten-Radius** selector (1/2/3 hops, "Alle", or "Unbegrenzt") controlling how far from the current selection edges are shown.
    - **Lasso-Auswahl (Lasso Select):** Switch cursor to crosshair for freehand loop selection without holding Shift.
 4. **Aktionen (Actions):**
    - **Vault scannen:** Trigger full note re-scan.

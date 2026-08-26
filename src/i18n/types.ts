@@ -89,7 +89,7 @@ export interface TranslationKeys {
   styleInk: string;
   projClouds: string;
   projUmap: string;
-  projNode2Vec: string;
+  projGraphTopology: string;
   projFormula: string;
   projSemanticAnchors: string;
   projFlow: string;
