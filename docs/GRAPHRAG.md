@@ -7,22 +7,24 @@ pushed embeddings and the note graph into them, but nothing ever read that
 data back into the LLM synthesis feature. The "AI Co-Pilot" only ever saw
 the notes you manually selected in the 2D graph — nothing more.
 
-`enrichSynthesisContext` (toggle in the "Synthese" toolbar section, off by
-default) closes that loop: before calling the LLM, the plugin now pulls in
-notes you *didn't* select, from two independent sources, and adds them to
-the prompt as background context.
+The `enrichSynthesisContext` setting (a toggle in the Synthesis toolbar
+section, off by default; UI label is localized, `t.synthEnrichToggle` in
+`src/i18n/`) closes that loop: before calling the LLM, the plugin now
+pulls in notes you *didn't* select, from two independent sources, and
+adds them to the prompt as background context.
 
 ## Workflow
 
 1. Select one or more notes in the 2D vector graph, as usual.
-2. Toggle **"Kontext aus Qdrant + Memgraph anreichern"** on (in the
-   "Synthese" section of the floating toolbar).
+2. Turn on the enrichment toggle in the Synthesis section of the floating
+   toolbar (labelled "Kontext aus Qdrant + Memgraph anreichern" in German,
+   "Enrich context from Qdrant + Memgraph" in English).
 3. Click the synthesize button (with or without a custom question in the
    text field above it).
 4. Before the LLM call, the plugin runs two lookups in parallel:
    - **Qdrant**: averages the embedding vectors of your selected notes and
      runs a similarity search against the whole vault's embeddings (needs
-     "Vektoren berechnen" to have been run at least once, so the selected
+     the "calculate vectors" action to have been run at least once, so the selected
      notes actually have embeddings).
    - **Memgraph**: finds notes within 1–2 graph-hops of your selected
      notes — via plain WikiLinks *and* any typed relations you've created

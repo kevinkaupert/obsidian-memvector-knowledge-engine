@@ -75,6 +75,9 @@ export interface TranslationKeys {
   btnCreateRel: string;
   btnClearSel: string;
   hoverHint: string;
+  secSynthesis: string;
+  synthPromptPlaceholder: string;
+  synthEnrichToggle: string;
 
   relModalTitle: string;
   relNotesSelected: string;

@@ -83,6 +83,9 @@ export const en: TranslationKeys = {
   btnCreateRel: "Create Relation",
   btnClearSel: "Clear Selection",
   hoverHint: "Hover over vector nodes. Hold Shift + drag or Cmd-Click to select.",
+  secSynthesis: "Synthesis",
+  synthPromptPlaceholder: 'Custom question (optional) – e.g. "How do these points fit into the overall network?"',
+  synthEnrichToggle: "Enrich context from Qdrant + Memgraph",
 
   // RelationBuilderModal i18n
   relModalTitle: "Create Relation & Graph Edge",
