@@ -137,10 +137,16 @@ export interface TranslationKeys {
   relFileSource: string;
   relFileTarget: string;
   relFileReason: string;
+  relFileOriginalTerm: string;
+  relFileBidirectional: string;
+  relBidirectionalYes: string;
+  relBidirectionalNo: string;
 
   relCatLogic: string;
+  relCatPreconditions: string;
   relCatProofs: string;
   relCatDefinitions: string;
+  relCatConstruction: string;
   relCatStructure: string;
   relCatExamples: string;
 
@@ -167,6 +173,20 @@ export interface TranslationKeys {
   relAnalogousTo: string;
   relOppositeOf: string;
   relExampleFor: string;
+  relInduces: string;
+  relCharacterizes: string;
+  relPresupposes: string;
+  relCorresponds: string;
+  relDegenerateCaseOf: string;
+  relExtensionOf: string;
+  relAdjunctionOf: string;
+  relReducesTo: string;
+  relGeneratedBy: string;
+  relProductOf: string;
+  relCoproductOf: string;
+  relQuotientOf: string;
+  relClosedUnder: string;
+  relRetractsTo: string;
   relCounterexampleFor: string;
   relCustom: string;
   relCustomPlaceholder: string;

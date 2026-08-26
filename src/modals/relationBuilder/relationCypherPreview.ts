@@ -1,4 +1,5 @@
-import type { RelationEdgeDraft, RelationNode } from "./relationEdgeBuilder";
+import type { RelationNode } from "./relationEdgeBuilder";
+import type { ResolvedRelationEdge } from "./relationTermMapping";
 
 /**
  * This is a *different* Cypher shape than sync/memgraph/cypherBuilder.ts:
@@ -8,12 +9,7 @@ import type { RelationEdgeDraft, RelationNode } from "./relationEdgeBuilder";
  * whole-vault sync. Kept separate rather than forced into a shared
  * abstraction that doesn't actually fit both use cases.
  */
-export function buildRelationCypherPreview(
-  edges: RelationEdgeDraft[],
-  edgeRelTypes: Record<number, string>,
-  defaultRelType: string,
-  description: string
-): string {
+export function buildRelationCypherPreview(edges: ResolvedRelationEdge[], description: string): string {
   const descEscaped = (description || "").replace(/"/g, '\\"');
   const lines: string[] = [];
   const nodeMap = new Map<string, { alias: string; node: RelationNode }>();
@@ -30,11 +26,11 @@ export function buildRelationCypherPreview(
   });
 
   edges.forEach((e, idx) => {
-    const edgeType = edgeRelTypes[idx] || defaultRelType || "REQUIRES";
     const srcAlias = nodeMap.get(e.src.id)!.alias;
     const tgtAlias = nodeMap.get(e.tgt.id)!.alias;
+    const termEscaped = e.originalTerm.replace(/"/g, '\\"');
     lines.push(
-      `MERGE (${srcAlias})-[r${idx}:${edgeType} { description: "${descEscaped}", source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`
+      `MERGE (${srcAlias})-[r${idx}:${e.label} { description: "${descEscaped}", original_term: "${termEscaped}", bidirectional: ${e.bidirectional}, source_path: "${e.src.path}", target_path: "${e.tgt.path}", created_at: datetime() }]->(${tgtAlias})`
     );
   });
 

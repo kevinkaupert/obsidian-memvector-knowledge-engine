@@ -18,6 +18,7 @@ export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
       const srcMatch = yaml.match(/^source_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
       const tgtMatch = yaml.match(/^target_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
       const typeMatch = yaml.match(/^relation_type:\s*["']?([^"'\n]+)/m);
+      const bidirectionalMatch = yaml.match(/^bidirectional:\s*(true|false)/m);
       const descMatch = content.match(/## Didaktischer \/ Fachlicher Grund\n([\s\S]*?)(?=\n##|$)/i);
       const desc = descMatch ? descMatch[1].trim().replace(/\n+/g, " ") : "";
 
@@ -25,10 +26,11 @@ export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
         const srcId = srcMatch[1].trim().toLowerCase();
         const tgtId = tgtMatch[1].trim().toLowerCase();
         const relType = (typeMatch ? typeMatch[1] : "REQUIRES").trim().toUpperCase();
+        const bidirectional = bidirectionalMatch ? bidirectionalMatch[1] === "true" : false;
         const key = `${srcId}->${tgtId}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
-          edges.push({ srcId, tgtId, relType, desc, title: `${srcId} -> ${tgtId}`, path: f.path });
+          edges.push({ srcId, tgtId, relType, desc, title: `${srcId} -> ${tgtId}`, path: f.path, bidirectional });
         }
       }
     } catch (err) {

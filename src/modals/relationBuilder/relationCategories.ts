@@ -10,58 +10,90 @@ export interface RelationCategory {
   items: RelationTypeOption[];
 }
 
-/** 23 relation types grouped by mathematical category, labels localized via i18n. */
+/**
+ * 37 German relation terms, grouped by category, that all consolidate down
+ * to the 13 standardized Cypher labels in relationTermMapping.ts. `val` is
+ * the i18n key name (not the Cypher label - several terms share one label,
+ * e.g. "beweist" and "impliziert" both mean IMPLIES) so it stays stable
+ * across language switches and doubles as the resolveRelationTerm() lookup key.
+ */
 export function buildRelationCategories(t: TranslationKeys): RelationCategory[] {
   return [
     {
       name: t.relCatLogic,
       items: [
-        { val: "IMPLIES", label: t.relImplies },
-        { val: "EQUIVALENT_TO", label: t.relEquivalentTo },
-        { val: "NECESSARY_CONDITION_FOR", label: t.relNecessaryCondition },
-        { val: "SUFFICIENT_CONDITION_FOR", label: t.relSufficientCondition },
-        { val: "CONTRADICTS", label: t.relContradicts },
-        { val: "IS_INDEPENDENT_OF", label: t.relIndependentOf },
+        { val: "relImplies", label: t.relImplies },
+        { val: "relSufficientCondition", label: t.relSufficientCondition },
+        { val: "relProves", label: t.relProves },
+        { val: "relInduces", label: t.relInduces },
+        { val: "relCharacterizes", label: t.relCharacterizes },
+        { val: "relFollowsFrom", label: t.relFollowsFrom },
+        { val: "relEquivalentTo", label: t.relEquivalentTo },
+        { val: "relEquivDef", label: t.relEquivDef },
+        { val: "relCorresponds", label: t.relCorresponds },
+        { val: "relContradicts", label: t.relContradicts },
+        { val: "relIndependentOf", label: t.relIndependentOf },
       ],
     },
     {
-      name: t.relCatProofs,
+      name: t.relCatPreconditions,
       items: [
-        { val: "PROVES", label: t.relProves },
-        { val: "REFUTES", label: t.relRefutes },
-        { val: "FOLLOWS_FROM", label: t.relFollowsFrom },
-        { val: "BASED_ON", label: t.relBasedOn },
-        { val: "COROLLARY_OF", label: t.relCorollaryOf },
-        { val: "LEMMA_FOR", label: t.relLemmaFor },
+        { val: "relBasedOn", label: t.relBasedOn },
+        { val: "relPresupposes", label: t.relPresupposes },
+        { val: "relNecessaryCondition", label: t.relNecessaryCondition },
       ],
     },
     {
       name: t.relCatDefinitions,
       items: [
-        { val: "DEFINES", label: t.relDefines },
-        { val: "EQUIVALENT_DEFINITION_FOR", label: t.relEquivDef },
-        { val: "SPECIAL_CASE_OF", label: t.relSpecialCase },
-        { val: "GENERALIZES", label: t.relGeneralizes },
-        { val: "EXTENDS", label: t.relExtends },
+        { val: "relGeneralizes", label: t.relGeneralizes },
+        { val: "relSpecialCase", label: t.relSpecialCase },
+        { val: "relExampleFor", label: t.relExampleFor },
+        { val: "relDegenerateCaseOf", label: t.relDegenerateCaseOf },
+        { val: "relExtends", label: t.relExtends },
+        { val: "relExtensionOf", label: t.relExtensionOf },
+        { val: "relAdjunctionOf", label: t.relAdjunctionOf },
       ],
     },
     {
-      name: t.relCatStructure,
+      name: t.relCatProofs,
       items: [
-        { val: "ISOMORPHIC_TO", label: t.relIsomorphicTo },
-        { val: "EMBEDDED_IN", label: t.relEmbeddedIn },
-        { val: "DUAL_TO", label: t.relDualTo },
-        { val: "ANALOGOUS_TO", label: t.relAnalogousTo },
-        { val: "IS_OPPOSITE_OF", label: t.relOppositeOf },
+        { val: "relReducesTo", label: t.relReducesTo },
+        { val: "relCorollaryOf", label: t.relCorollaryOf },
+        { val: "relLemmaFor", label: t.relLemmaFor },
+      ],
+    },
+    {
+      name: t.relCatConstruction,
+      items: [
+        { val: "relGeneratedBy", label: t.relGeneratedBy },
+        { val: "relProductOf", label: t.relProductOf },
+        { val: "relCoproductOf", label: t.relCoproductOf },
+        { val: "relQuotientOf", label: t.relQuotientOf },
+        { val: "relClosedUnder", label: t.relClosedUnder },
+        { val: "relEmbeddedIn", label: t.relEmbeddedIn },
+        { val: "relRetractsTo", label: t.relRetractsTo },
       ],
     },
     {
       name: t.relCatExamples,
       items: [
-        { val: "EXAMPLE_FOR", label: t.relExampleFor },
-        { val: "COUNTEREXAMPLE_FOR", label: t.relCounterexampleFor },
-        { val: "CUSTOM", label: t.relCustom },
+        { val: "relRefutes", label: t.relRefutes },
+        { val: "relCounterexampleFor", label: t.relCounterexampleFor },
       ],
+    },
+    {
+      name: t.relCatStructure,
+      items: [
+        { val: "relAnalogousTo", label: t.relAnalogousTo },
+        { val: "relDualTo", label: t.relDualTo },
+        { val: "relOppositeOf", label: t.relOppositeOf },
+        { val: "relIsomorphicTo", label: t.relIsomorphicTo },
+      ],
+    },
+    {
+      name: t.relCustom,
+      items: [{ val: "CUSTOM", label: t.relCustom }],
     },
   ];
 }

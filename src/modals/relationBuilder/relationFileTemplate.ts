@@ -1,18 +1,19 @@
 import type { TranslationKeys } from "../../i18n";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
-import type { RelationEdgeDraft } from "./relationEdgeBuilder";
+import type { ResolvedRelationEdge } from "./relationTermMapping";
 
-export function relationFilePath(edge: RelationEdgeDraft): string {
+export function relationFilePath(edge: ResolvedRelationEdge): string {
   return `wiki/relations/rel-${edge.src.id}-to-${edge.tgt.id}.md`;
 }
 
-export function buildRelationFileContent(edge: RelationEdgeDraft, edgeType: string, description: string, t: TranslationKeys): string {
-  const descText = description || `${t.relDefaultDesc} ${edgeType} ${t.relBetween} [[${edge.src.id}|${edge.src.title}]] ${t.relAnd} [[${edge.tgt.id}|${edge.tgt.title}]].`;
-  const cypherText = buildRelationCypherPreview([edge], { 0: edgeType }, edgeType, description);
+export function buildRelationFileContent(edge: ResolvedRelationEdge, description: string, t: TranslationKeys): string {
+  const descText = description || `${t.relDefaultDesc} ${edge.label} ${t.relBetween} [[${edge.src.id}|${edge.src.title}]] ${t.relAnd} [[${edge.tgt.id}|${edge.tgt.title}]].`;
+  const cypherText = buildRelationCypherPreview([edge], description);
+  const bidirectionalText = edge.bidirectional ? t.relBidirectionalYes : t.relBidirectionalNo;
 
   return `---
 type: relation
-title: "${edge.src.title} ➔ ${edge.tgt.title} (${edgeType})"
+title: "${edge.src.title} ➔ ${edge.tgt.title} (${edge.label})"
 description: "${descText.replace(/"/g, '\\"')}"
 status: draft
 sources:
@@ -22,14 +23,18 @@ generated:
   by: "MemVector Co-Pilot"
   at: "${new Date().toISOString()}"
 verified: null
-relation_type: "${edgeType}"
+relation_type: "${edge.label}"
+original_term: "${edge.originalTerm.replace(/"/g, '\\"')}"
+bidirectional: ${edge.bidirectional}
 source_note: "[[${edge.src.id}|${edge.src.title}]]"
 target_note: "[[${edge.tgt.id}|${edge.tgt.title}]]"
 ---
 
 # ${t.relFileHeading}: [[${edge.src.id}|${edge.src.title}]] ➤ [[${edge.tgt.id}|${edge.tgt.title}]]
 
-- **${t.relFileType}:** \`${edgeType}\`
+- **${t.relFileType}:** \`${edge.label}\`
+- **${t.relFileOriginalTerm}:** ${edge.originalTerm}
+- **${t.relFileBidirectional}:** ${bidirectionalText}
 - **${t.relFileSource}:** [[${edge.src.id}|${edge.src.title}]]
 - **${t.relFileTarget}:** [[${edge.tgt.id}|${edge.tgt.title}]]
 

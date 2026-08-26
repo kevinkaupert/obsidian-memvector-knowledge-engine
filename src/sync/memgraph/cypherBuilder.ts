@@ -58,6 +58,8 @@ export interface TypedEdgeInput {
   tgt: RelationGraphNode;
   relType: string;
   description: string;
+  bidirectional?: boolean;
+  originalTerm?: string;
 }
 
 /**
@@ -80,8 +82,16 @@ export function buildTypedEdgeStatements(edges: TypedEdgeInput[]): CypherStateme
     }
 
     statements.push({
-      query: `MATCH (a:Note {id: $src}), (b:Note {id: $tgt}) MERGE (a)-[r:${sanitizeRelType(e.relType)}]->(b) SET r.description = $description, r.source_path = $srcPath, r.target_path = $tgtPath, r.updated_at = datetime()`,
-      params: { src: e.src.id, tgt: e.tgt.id, description: e.description || "", srcPath: e.src.path, tgtPath: e.tgt.path },
+      query: `MATCH (a:Note {id: $src}), (b:Note {id: $tgt}) MERGE (a)-[r:${sanitizeRelType(e.relType)}]->(b) SET r.description = $description, r.bidirectional = $bidirectional, r.original_term = $originalTerm, r.source_path = $srcPath, r.target_path = $tgtPath, r.updated_at = datetime()`,
+      params: {
+        src: e.src.id,
+        tgt: e.tgt.id,
+        description: e.description || "",
+        bidirectional: e.bidirectional ?? false,
+        originalTerm: e.originalTerm || e.relType,
+        srcPath: e.src.path,
+        tgtPath: e.tgt.path,
+      },
     });
   }
 

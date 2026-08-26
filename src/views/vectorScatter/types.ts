@@ -32,4 +32,5 @@ export interface RelationEdge {
   desc: string;
   title: string;
   path: string;
+  bidirectional: boolean;
 }

@@ -7,7 +7,7 @@ function node(id: string, links: string[] = []): ScatterNode {
 }
 
 function edge(srcId: string, tgtId: string): RelationEdge {
-  return { srcId, tgtId, relType: "REQUIRES", desc: "", title: "", path: "" };
+  return { srcId, tgtId, relType: "REQUIRES", desc: "", title: "", path: "", bidirectional: false };
 }
 
 describe("computeRelationTally", () => {

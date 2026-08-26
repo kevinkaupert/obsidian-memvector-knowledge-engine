@@ -72,6 +72,8 @@ export interface PendingMemgraphRelation {
   tgt: RelationGraphNode;
   relType: string;
   description: string;
+  bidirectional?: boolean;
+  originalTerm?: string;
   queuedAt: string;
 }
 

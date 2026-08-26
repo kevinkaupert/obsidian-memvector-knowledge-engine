@@ -8,13 +8,18 @@ import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type Relation
 import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
 import { writeRelationFile } from "./relationFileWriter";
+import { defaultTermForLabel, resolveEdgesForSave } from "./relationTermMapping";
+
+const DEFAULT_TERM_KEY = "relBasedOn";
 
 export class RelationBuilderModal extends Modal {
   private focalIndex = 0;
   private topology: EdgeTopology = "FOCAL_TO_REST";
-  private relType = "REQUIRES";
+  private relType = DEFAULT_TERM_KEY;
   private edgeRelTypes: Record<number, string> = {};
   private relDesc = "";
+  /** True when editing an edge whose stored label predates the 13-term vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
+  private isCustomFallback = false;
 
   constructor(
     app: App,
@@ -25,7 +30,14 @@ export class RelationBuilderModal extends Modal {
   ) {
     super(app);
     if (initialEdge) {
-      this.relType = initialEdge.relType;
+      const termKey = defaultTermForLabel(initialEdge.relType);
+      if (termKey) {
+        this.relType = termKey;
+      } else {
+        this.relType = initialEdge.relType;
+        this.isCustomFallback = true;
+        this.edgeRelTypes[0] = "CUSTOM";
+      }
       this.relDesc = initialEdge.description;
     }
   }
@@ -66,6 +78,10 @@ export class RelationBuilderModal extends Modal {
       placeholder: t.relCustomPlaceholder,
       attr: { style: "width: 100%; font-size: 0.82em; padding: 8px 12px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); margin-top: 12px; display: none;" },
     }) as HTMLInputElement;
+    if (this.isCustomFallback) {
+      customInput.style.display = "block";
+      customInput.value = this.relType;
+    }
 
     const step1 = contentEl.createEl("div", {
       attr: { style: "background: var(--background-secondary, rgba(30, 41, 59, 0.4)); padding: 16px; border-radius: 8px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06)); margin-bottom: 20px;" },
@@ -95,11 +111,12 @@ export class RelationBuilderModal extends Modal {
     const generate = (): RelationEdgeDraft[] => generateEdges(this.selectedNodes, this.topology, this.focalIndex);
 
     const updateCypherPreview = () => {
-      cypherBox.setText(buildRelationCypherPreview(generate(), this.edgeRelTypes, this.relType, this.relDesc));
+      const resolved = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
+      cypherBox.setText(buildRelationCypherPreview(resolved, this.relDesc));
     };
 
     const createSingleDropdown = (parent: HTMLElement, edgeIdx: number): HTMLSelectElement => {
-      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || "REQUIRES";
+      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || DEFAULT_TERM_KEY;
       const select = parent.createEl("select", {
         attr: { style: "font-size: 0.78em; font-weight: 600; padding: 4px 6px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid rgba(56, 189, 248, 0.3); cursor: pointer; min-width: 0; width: auto; max-width: 140px; text-align: center;" },
       });
@@ -111,7 +128,7 @@ export class RelationBuilderModal extends Modal {
         });
       });
       select.onchange = () => {
-        this.edgeRelTypes[edgeIdx] = select.value === "CUSTOM" ? this.relType : select.value;
+        this.edgeRelTypes[edgeIdx] = select.value;
         customInput.style.display = select.value === "CUSTOM" ? "block" : "none";
         updateFlowPreview();
         updateCypherPreview();
@@ -328,18 +345,16 @@ export class RelationBuilderModal extends Modal {
       saveBtn.disabled = true;
       saveBtn.setText(t.relSaving);
 
-      const edges = generate();
+      const resolvedEdges = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
       let createdCount = 0;
-      const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string }[] = [];
-      for (let idx = 0; idx < edges.length; idx++) {
-        const e = edges[idx];
-        const edgeType = this.edgeRelTypes[idx] || this.relType || "REQUIRES";
+      const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
+      for (const e of resolvedEdges) {
         const path = relationFilePath(e);
-        const content = buildRelationFileContent(e, edgeType, this.relDesc, t);
+        const content = buildRelationFileContent(e, this.relDesc, t);
         try {
           await writeRelationFile(this.app, path, content);
           createdCount++;
-          typedEdges.push({ src: e.src, tgt: e.tgt, relType: edgeType, description: this.relDesc });
+          typedEdges.push({ src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc, bidirectional: e.bidirectional, originalTerm: e.originalTerm });
         } catch (err) {
           console.error(`${t.relSaveError} ${path}:`, err);
         }
