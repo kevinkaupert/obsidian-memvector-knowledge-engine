@@ -5,11 +5,11 @@
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.0.0-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-51%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-53%20passing-brightgreen)
 
 A local-first, privacy-focused **2D Vector Space Visualizer, Graph Engine & AI Co-Pilot** for Obsidian.
 
-Powered by **Qdrant Vector DB**, **Memgraph Graph DB**, and **OpenAI-compatible LLMs (Ollama, Anthropic Claude, DeepSeek, OpenAI, OpenRouter)**.
+Powered by **Qdrant Vector DB**, **Memgraph Graph DB** (via Bolt), and **OpenAI-compatible LLMs (Ollama, Anthropic Claude, DeepSeek, OpenAI, OpenRouter)** — including **hybrid GraphRAG context enrichment**, pulling both vector-similar and graph-neighboring notes into the AI synthesis prompt automatically.
 
 ![MemVector Knowledge Engine Overview](assets/plugin_overview.png)
 
@@ -34,7 +34,8 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 - **Active Note Mini-Radar (Sidebar):** Renders a relative 2D cutout view centered on your active note with polar distance rings and nearest-neighbor navigation.
 - **Knowledge Domain Adaptability:** Switch between **Universal Notebook** (PKM, code, general research) and **Mathematics** (boosts LaTeX formula similarity).
 - **Multi-Language Support (i18n):** Full UI and settings translation in German and English.
-- **External DB Connectors:** Optional Qdrant vector database and Memgraph Cypher graph database sync.
+- **External DB Connectors:** Optional Qdrant vector database sync and Memgraph graph database sync (real Bolt protocol, live-pushes manually created relations too).
+- **Hybrid GraphRAG Context Enrichment:** Optional toggle that augments the AI synthesis prompt with notes you didn't select — found via Qdrant vector similarity *and* Memgraph graph neighborhood (1-2 hops), merged and clearly separated from your actual selection. See [`docs/GRAPHRAG.md`](docs/GRAPHRAG.md) for how and why.
 
 ---
 
