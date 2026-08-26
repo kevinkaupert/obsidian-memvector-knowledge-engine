@@ -3,7 +3,7 @@
   "name": "MemVector Knowledge Engine",
   "version": "1.6.0",
   "minAppVersion": "1.0.0",
-  "description": "Universal Graph & 2D Vector Knowledge Engine for Obsidian powered by Memgraph, Qdrant & DeepSeek-R1.",
+  "description": "2D vector-space graph, Qdrant + Memgraph sync, and AI co-pilot for Obsidian — use Ollama, Anthropic Claude, OpenAI, DeepSeek, or OpenRouter.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": true
