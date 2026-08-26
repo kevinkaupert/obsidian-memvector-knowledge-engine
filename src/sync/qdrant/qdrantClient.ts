@@ -13,13 +13,20 @@ function buildHeaders(apiKey: string): Record<string, string> {
 }
 
 export async function ensureCollection(baseUrl: string, collection: string, apiKey: string): Promise<void> {
-  await requestUrl({
+  const res = await requestUrl({
     url: `${baseUrl}/collections/${collection}`,
     method: "PUT",
     headers: buildHeaders(apiKey),
     body: JSON.stringify({ vectors: { size: 1024, distance: "Cosine" } }),
     throwOnError: false,
   });
+  // 200 = created, 409 = "already exists" (Qdrant's create-collection PUT
+  // isn't idempotent) - both mean the desired end state is reached. The
+  // original code discarded this response entirely, silently swallowing
+  // any *real* creation failure (bad request, auth, etc.) too.
+  if (res.status !== 200 && res.status !== 409) {
+    throw new Error(`Qdrant Collection-Fehler: HTTP ${res.status}: ${res.text || "Collection konnte nicht angelegt werden"}`);
+  }
 }
 
 export async function upsertPoints(baseUrl: string, collection: string, apiKey: string, points: QdrantPoint[]): Promise<void> {
