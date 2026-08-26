@@ -32,17 +32,6 @@ function computeClusterHulls(nodes: ScatterNode[], zoom: number, pan: PanState):
   return hulls;
 }
 
-function drawDashedOutline(ctx: CanvasRenderingContext2D, hull: ClusterHull): void {
-  ctx.save();
-  ctx.setLineDash([3, 5]);
-  ctx.strokeStyle = "rgba(148, 163, 184, 0.22)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(hull.cx, hull.cy, hull.r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
-
 function drawGlow(ctx: CanvasRenderingContext2D, hull: ClusterHull, palette: { inner: string; outer: string }): void {
   const grad = ctx.createRadialGradient(hull.cx, hull.cy, 0, hull.cx, hull.cy, hull.r);
   grad.addColorStop(0, palette.inner);
@@ -55,8 +44,8 @@ function drawGlow(ctx: CanvasRenderingContext2D, hull: ClusterHull, palette: { i
 
 /**
  * Topic-cluster background, per visual style:
- * - "monochrome" / "ink": neutral dashed outline only, never a glow - "ink"'s
- *   focus glow highlights individual *related notes* instead (see drawNodes.ts).
+ * - "monochrome" / "ink": nothing - "ink"'s focus glow highlights individual
+ *   *related notes* instead (see drawNodes.ts).
  * - "muted": one soft desaturated glow per cluster (normal blend, not additive - overlaps no longer blow out).
  */
 export function drawClusters(
@@ -70,13 +59,12 @@ export function drawClusters(
   if (nodes.length === 0) return;
   const hulls = computeClusterHulls(nodes, zoom, pan);
 
-  hulls.forEach((hull) => {
-    if (style === "muted") {
+  if (style === "muted") {
+    hulls.forEach((hull) => {
       const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
       drawGlow(ctx, hull, palette);
-    }
-    drawDashedOutline(ctx, hull);
-  });
+    });
+  }
 
   if (!projectionMode || projectionMode === "cloud") {
     hulls.forEach((hull) => {
