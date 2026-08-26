@@ -23,6 +23,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 - [**Configuration & Customization Guide (`docs/CONFIGURATION.md`)**](docs/CONFIGURATION.md): Complete settings reference, LLM provider setup, **Knowledge Domain (`knowledgeDomain`) customization**, and vault exclusions.
 - [**User Guide (`docs/USER_GUIDE.md`)**](docs/USER_GUIDE.md): Canvas interaction controls, gesture reference, right glassmorphic panel, mini-radar sidebar, and AI synthesis workflow.
 - [**Manual Integration Testing (`docs/TESTING.md`)**](docs/TESTING.md): Repeatable synthetic-note procedure to verify Qdrant and Memgraph sync end-to-end, independent of the plugin's own UI.
+- [**Hybrid GraphRAG Context Enrichment (`docs/GRAPHRAG.md`)**](docs/GRAPHRAG.md): How and why the synthesis feature pulls in Qdrant-similar and Memgraph-neighboring notes as extra LLM context, with synthetic proof it actually finds context a single-source approach would miss.
 
 ---
 

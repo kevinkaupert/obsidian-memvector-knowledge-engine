@@ -44,6 +44,9 @@ export interface MemVectorSettings {
   memgraphPassword: string;
   autoSyncMemgraph: boolean;
 
+  /** Hybrid GraphRAG: pull Qdrant-similar + Memgraph-neighbor notes into the LLM synthesis prompt as extra context. */
+  enrichSynthesisContext: boolean;
+
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
 

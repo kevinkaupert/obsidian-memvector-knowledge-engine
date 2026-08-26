@@ -6,6 +6,8 @@ import { toMemgraphError } from "./errors";
 export interface MemgraphConnection {
   verifyConnectivity(): Promise<void>;
   runStatements(statements: CypherStatement[]): Promise<{ recordCount: number }>;
+  /** Read query returning parsed row objects - runStatements only counts records, it doesn't hand them back. */
+  query<T = Record<string, unknown>>(cypher: string, params?: Record<string, unknown>): Promise<T[]>;
   close(): Promise<void>;
 }
 
@@ -58,6 +60,24 @@ export function connect(settings: MemVectorSettings): MemgraphConnection {
         await session.close();
       }
       return { recordCount };
+    },
+
+    async query<T = Record<string, unknown>>(cypher: string, params: Record<string, unknown> = {}) {
+      const session = driverInstance.session();
+      try {
+        const result = await session.run(cypher, params);
+        return result.records.map((record) => {
+          const row: Record<string, unknown> = {};
+          for (const key of record.keys) {
+            row[key as string] = record.get(key);
+          }
+          return row as T;
+        });
+      } catch (err) {
+        throw toMemgraphError(err);
+      } finally {
+        await session.close();
+      }
     },
 
     async close() {

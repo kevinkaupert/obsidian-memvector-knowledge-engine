@@ -109,6 +109,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   promptInput.style.cssText =
     "display:block; width:calc(100% - 24px); margin:6px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; min-height:56px; resize:vertical; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal); font-family:inherit;";
 
+  createToggle(syntheseBody, "Kontext aus Qdrant + Memgraph anreichern", ctx.settings.enrichSynthesisContext, async (on) => {
+    ctx.settings.enrichSynthesisContext = on;
+    await ctx.saveSettings();
+  });
+
   const fullModelName = ctx.settings.modelName || "LLM";
   const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} Synthese (0)`, null);
   synthesizeBtn.title = `LLM Model: ${fullModelName}`;

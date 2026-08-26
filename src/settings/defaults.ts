@@ -38,4 +38,5 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   memgraphPassword: "",
   autoSyncMemgraph: false,
   pendingMemgraphRelations: [],
+  enrichSynthesisContext: false,
 };

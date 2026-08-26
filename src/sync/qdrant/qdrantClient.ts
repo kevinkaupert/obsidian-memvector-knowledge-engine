@@ -41,3 +41,24 @@ export async function upsertPoints(baseUrl: string, collection: string, apiKey: 
     throw new Error(`Qdrant Upsert Fehler: HTTP ${res.status}`);
   }
 }
+
+export interface QdrantSearchHit {
+  score: number;
+  payload: { path: string; title: string; content: string };
+}
+
+/** Vector similarity search - the read half of what was, until now, a write-only sync target. */
+export async function searchSimilar(baseUrl: string, collection: string, apiKey: string, vector: number[], limit: number): Promise<QdrantSearchHit[]> {
+  const res = await requestUrl({
+    url: `${baseUrl}/collections/${collection}/points/search`,
+    method: "POST",
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify({ vector, limit, with_payload: true }),
+    throwOnError: false,
+  });
+  if (res.status !== 200) {
+    throw new Error(`Qdrant Suche Fehler: HTTP ${res.status}: ${res.text || "Suche fehlgeschlagen"}`);
+  }
+  const result = res.json?.result;
+  return Array.isArray(result) ? result : [];
+}
