@@ -1,4 +1,5 @@
 import type { RelationEdge, ScatterNode } from "../types";
+import { computeGraphTopologyWeights } from "./graphTopologyWeights";
 
 export type ProjectionMode = "cloud" | "umap" | "node2vec" | "formula" | "semantic" | "flow" | "graph";
 
@@ -123,26 +124,17 @@ function applyUmapProjection({ nodes, matrix, nodeSpacing, cloudSpacing }: Proje
   }
 }
 
-/** MODE 5: Graph-Topology - Node2Vec-flavored layout using explicit relation edges + wikilinks as connection weight. */
+/**
+ * MODE 5: Graph-Topology - node2vec-*flavored* (not actual node2vec, no
+ * random walks/skip-gram) force layout driven purely by graph connectivity,
+ * not vector similarity. See graphTopologyWeights.ts for the real hop-distance
+ * + relation-type weighting this now uses instead of a flat linked/not-linked split.
+ */
 function applyNode2VecProjection({ nodes, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   const targetSpacing = nodeSpacing || 180;
   const cloudRadius = cloudSpacing || 500;
-
-  const conn: Float64Array[] = [];
-  for (let i = 0; i < n; i++) {
-    conn[i] = new Float64Array(n);
-    const a = nodes[i];
-    for (let j = 0; j < n; j++) {
-      if (i === j) continue;
-      const b = nodes[j];
-      const isLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
-      const hasRelation = relationEdges.some(
-        (e) => (e.srcId === a.id.toLowerCase() && e.tgtId === b.id.toLowerCase()) || (e.srcId === b.id.toLowerCase() && e.tgtId === a.id.toLowerCase())
-      );
-      conn[i][j] = hasRelation ? 1.0 : isLinked ? 0.7 : 0.05;
-    }
-  }
+  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges);
 
   nodes.forEach((node, i) => {
     const angle = (i / n) * Math.PI * 2;
@@ -163,12 +155,22 @@ function applyNode2VecProjection({ nodes, nodeSpacing, cloudSpacing, relationEdg
         const dx = nodeA.x - nodeB.x;
         const dy = nodeA.y - nodeB.y;
         const dist = Math.hypot(dx, dy) || 1;
+
+        if (repel.has(`${Math.min(i, j)}-${Math.max(i, j)}`)) {
+          const minDist = targetSpacing * 1.8;
+          if (dist < minDist) {
+            fx += (dx / dist) * (minDist - dist) * 0.4;
+            fy += (dy / dist) * (minDist - dist) * 0.4;
+          }
+          continue;
+        }
+
         const weight = conn[i][j];
         if (weight > 0.2) {
-          const idealDist = targetSpacing * (1 - weight * 0.6);
+          const idealDist = targetSpacing * (1 - Math.min(weight, 1) * 0.6);
           const delta = dist - idealDist;
-          fx -= (dx / dist) * delta * weight * 0.35;
-          fy -= (dy / dist) * delta * weight * 0.35;
+          fx -= (dx / dist) * delta * Math.min(weight, 1.3) * 0.35;
+          fy -= (dy / dist) * delta * Math.min(weight, 1.3) * 0.35;
         } else if (dist < targetSpacing * 0.5) {
           fx += (dx / dist) * 18;
           fy += (dy / dist) * 18;
