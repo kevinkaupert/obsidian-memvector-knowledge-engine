@@ -41,6 +41,8 @@ export const en: TranslationKeys = {
   exclusionsDesc: "Exclude paths and files from 2D Scatterplot (e.g. -path:schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
   agentsPathsName: "Agent Guideline Files",
   agentsPathsDesc: "Vault paths loaded as compilation rules for synthesis when the 'Include agent guidelines' toggle is on. Separate multiple paths with commas.",
+  labelOpacityName: "Unfocused Label Opacity",
+  labelOpacityDesc: "While a note is selected or hovered, its own label and those of its connected notes (WikiLink/Memgraph) render fully - every other label in the graph gets this opacity instead, so it stops competing for attention.",
   radarCountName: "Mini-Radar Note Count (X)",
   radarCountDesc: "Number of nearest vector notes (X) that the mini-radar automatically scales to when opened.",
 

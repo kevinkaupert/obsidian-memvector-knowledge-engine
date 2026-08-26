@@ -61,6 +61,8 @@ export interface MemVectorSettings {
   pendingMemgraphRelations: PendingMemgraphRelation[];
 
   scatterVisualStyle: ScatterVisualStyle;
+  /** Opacity (0-1) for the title label of any note that is neither selected/hovered nor connected to it - keeps a dense graph's labels from being visually overwhelming while a focus is active. */
+  unselectedLabelOpacity: number;
 }
 
 export interface RelationGraphNode {

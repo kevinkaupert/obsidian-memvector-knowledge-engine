@@ -42,4 +42,5 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
   scatterVisualStyle: "ink",
+  unselectedLabelOpacity: 0.35,
 };

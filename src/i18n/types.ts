@@ -36,6 +36,8 @@ export interface TranslationKeys {
   exclusionsDesc: string;
   agentsPathsName: string;
   agentsPathsDesc: string;
+  labelOpacityName: string;
+  labelOpacityDesc: string;
   radarCountName: string;
   radarCountDesc: string;
 

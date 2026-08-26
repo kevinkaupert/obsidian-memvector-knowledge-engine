@@ -41,6 +41,8 @@ export const de: TranslationKeys = {
   exclusionsDesc: "Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
   agentsPathsName: "Agenten-Richtlinien-Dateien",
   agentsPathsDesc: "Vault-Pfade, die bei aktiviertem 'Agenten-Richtlinien einbeziehen'-Schalter in der Synthese als Kompilierungsregeln geladen werden. Mehrere Pfade durch Komma trennen.",
+  labelOpacityName: "Deckkraft nicht-fokussierter Beschriftungen",
+  labelOpacityDesc: "Solange eine Notiz ausgewählt oder gehovert ist, werden ihre eigene Beschriftung und die ihrer verbundenen Notizen (WikiLink/Memgraph) voll angezeigt - alle anderen Beschriftungen im Graph bekommen diese Deckkraft, damit sie nicht ablenken.",
   radarCountName: "Mini-Radar Notizen-Anzahl (X)",
   radarCountDesc: "Anzahl der nahesten Vektor-Notizen (X), auf die der Mini-Radar in der Seitenleiste beim Öffnen automatisch skaliert.",
 

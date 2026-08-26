@@ -158,6 +158,20 @@ export function renderVectorFilterSection(
     );
 
   new Setting(containerEl)
+    .setName(t.labelOpacityName)
+    .setDesc(t.labelOpacityDesc)
+    .addSlider((slider) =>
+      slider
+        .setLimits(0, 100, 5)
+        .setValue(Math.round((settings.unselectedLabelOpacity ?? 0.35) * 100))
+        .setDynamicTooltip()
+        .onChange(async (value) => {
+          settings.unselectedLabelOpacity = value / 100;
+          await host.saveSettings();
+        })
+    );
+
+  new Setting(containerEl)
     .setName(t.agentsPathsName)
     .setDesc(t.agentsPathsDesc)
     .addText((text) =>

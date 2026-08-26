@@ -54,8 +54,11 @@ export function drawNodes(
   themeTextMuted: string,
   themeAccent: string,
   style: ScatterVisualStyle,
-  relationTallies: Map<string, RelationTally> = new Map()
+  relationTallies: Map<string, RelationTally> = new Map(),
+  unselectedLabelOpacity = 1
 ): void {
+  const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
+
   nodes.forEach((node) => {
     const pos = worldToScreen(node.x, node.y, zoom, pan);
     const isSelected = selectedNodeIds.has(node.id);
@@ -90,13 +93,15 @@ export function drawNodes(
       }
     }
 
-    if (zoom > 0.45 || isActive) {
+    if (zoom > 0.45 || isActive || tally) {
       let titleText = node.title;
       if (titleText.length > 22 && !isActive && zoom < 1.1) {
         titleText = `${titleText.slice(0, 20)}…`;
       }
       const fontH = Math.max(9, Math.min(13, 10 * zoom));
+      const isDimmed = hasFocus && !isActive && !tally;
       ctx.save();
+      ctx.globalAlpha = isDimmed ? unselectedLabelOpacity : 1;
       ctx.font = `${fontH}px sans-serif`;
       ctx.fillStyle = isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted;
       ctx.textAlign = "center";

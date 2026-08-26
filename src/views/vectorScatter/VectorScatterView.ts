@@ -190,6 +190,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       isDraggingLasso: this.isDraggingLasso,
       lassoPath: this.lassoPath,
       scatterVisualStyle: this.settings.scatterVisualStyle,
+      unselectedLabelOpacity: this.settings.unselectedLabelOpacity ?? 0.35,
     });
 
     if (this.searchHighlight) {

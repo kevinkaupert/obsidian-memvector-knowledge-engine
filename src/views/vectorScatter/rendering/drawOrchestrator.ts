@@ -1,12 +1,10 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
-import { computeFocusRelationTallies, type RelationTally } from "../relatedNodes";
+import { computeFocusRelationTallies } from "../relatedNodes";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
 import { drawNodes } from "./drawNodes";
-
-const EMPTY_MAP: Map<string, RelationTally> = new Map();
 
 export interface DrawState {
   nodes: ScatterNode[];
@@ -21,6 +19,7 @@ export interface DrawState {
   isDraggingLasso: boolean;
   lassoPath: { x: number; y: number }[];
   scatterVisualStyle: ScatterVisualStyle;
+  unselectedLabelOpacity: number;
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, zoom: number, pan: PanState): void {
@@ -90,8 +89,7 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     );
   }
 
-  const relationTallies =
-    state.scatterVisualStyle === "ink" ? computeFocusRelationTallies(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode) : EMPTY_MAP;
+  const relationTallies = computeFocusRelationTallies(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode);
 
   drawNodes(
     ctx,
@@ -104,7 +102,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     themeTextMuted,
     themeAccent,
     state.scatterVisualStyle,
-    relationTallies
+    relationTallies,
+    state.unselectedLabelOpacity
   );
 
   if (state.isDraggingLasso) {
