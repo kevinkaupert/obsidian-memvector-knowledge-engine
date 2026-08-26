@@ -1,12 +1,12 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
-import { computeFocusRelatedIds } from "../relatedNodes";
+import { computeFocusRelatedKinds, type RelationKind } from "../relatedNodes";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
 import { drawNodes } from "./drawNodes";
 
-const EMPTY_SET: Set<string> = new Set();
+const EMPTY_MAP: Map<string, RelationKind> = new Map();
 
 export interface DrawState {
   nodes: ScatterNode[];
@@ -77,8 +77,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     drawEdges(ctx, nodeMap, state.relationEdges, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeAccent, state.scatterVisualStyle);
   }
 
-  const relatedNodeIds =
-    state.scatterVisualStyle === "ink" ? computeFocusRelatedIds(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode) : EMPTY_SET;
+  const relatedNodeKinds =
+    state.scatterVisualStyle === "ink" ? computeFocusRelatedKinds(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode) : EMPTY_MAP;
 
   drawNodes(
     ctx,
@@ -91,7 +91,7 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     themeTextMuted,
     themeAccent,
     state.scatterVisualStyle,
-    relatedNodeIds
+    relatedNodeKinds
   );
 
   if (state.isDraggingLasso) {
