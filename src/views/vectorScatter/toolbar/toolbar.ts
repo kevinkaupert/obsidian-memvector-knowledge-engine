@@ -49,6 +49,19 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   // ── Filter ────────────────────────────────────────────────────────────
   const filterBody = createSection(toolbarEl, t.secFilter, true);
+
+  const searchInput = filterBody.createEl("input", {
+    type: "text",
+    placeholder: t.searchPlaceholder,
+  });
+  searchInput.style.cssText =
+    "display:block; width:calc(100% - 24px); margin:4px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal);";
+  searchInput.onkeydown = (e) => {
+    if (e.key === "Enter" && searchInput.value.trim()) {
+      ctx.searchNote(searchInput.value.trim());
+    }
+  };
+
   const filterInput = filterBody.createEl("input", {
     type: "text",
     placeholder: "-path:schema -file:index...",

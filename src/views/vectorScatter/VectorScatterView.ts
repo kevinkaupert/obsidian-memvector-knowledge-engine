@@ -1,4 +1,4 @@
-import { ItemView, type App, type WorkspaceLeaf } from "obsidian";
+import { Notice, ItemView, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
 import type { MemVectorSettings } from "../../settings/types";
@@ -9,11 +9,15 @@ import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure } from "./hitTes
 import { applyVectorLayout } from "./layout/applyVectorLayout";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
+import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
+import { findNodeByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import type { RelationEdge, ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+
+const SEARCH_PULSE_DURATION_MS = 1800;
 
 export interface VectorScatterHost {
   app: App;
@@ -43,6 +47,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   private canvasWrap!: HTMLElement;
   private resizeObserver: ResizeObserver | null = null;
   private toolbarHandles: ToolbarHandles | null = null;
+  private searchHighlight: { nodeId: string; startedAt: number } | null = null;
+  private searchAnimHandle: number | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -154,6 +160,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   onClose(): Promise<void> {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
+    if (this.searchAnimHandle !== null) cancelAnimationFrame(this.searchAnimHandle);
     return Promise.resolve();
   }
 
@@ -181,6 +188,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       lassoPath: this.lassoPath,
       scatterVisualStyle: this.settings.scatterVisualStyle,
     });
+
+    if (this.searchHighlight) {
+      const node = this.nodes.find((n) => n.id === this.searchHighlight!.nodeId);
+      if (node) {
+        const accent = getComputedStyle(this.containerEl).getPropertyValue("--interactive-accent")?.trim() || "#38bdf8";
+        drawSearchPulse(this.canvasCtx, node, performance.now() - this.searchHighlight.startedAt, this.zoom, this.pan, accent);
+      }
+    }
   }
 
   async scanVaultNotes(filterOverride?: string): Promise<void> {
@@ -224,6 +239,34 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       { relType: edge.relType, description: edge.desc, path: edge.path },
       () => this.refreshRelationEdges()
     ).open();
+  }
+
+  searchNote(query: string): void {
+    const match = findNodeByQuery(this.nodes, query);
+    if (!match) {
+      const t = getTranslation(this.settings.language || "de");
+      new Notice(`${t.searchNotFound} "${query}"`);
+      return;
+    }
+
+    this.pan.x = this.canvasWrap.clientWidth / 2 - match.x * this.zoom;
+    this.pan.y = this.canvasWrap.clientHeight / 2 - match.y * this.zoom;
+
+    if (this.searchAnimHandle !== null) cancelAnimationFrame(this.searchAnimHandle);
+    const startedAt = performance.now();
+    this.searchHighlight = { nodeId: match.id, startedAt };
+
+    const tick = (): void => {
+      this.redraw();
+      if (performance.now() - startedAt < SEARCH_PULSE_DURATION_MS) {
+        this.searchAnimHandle = requestAnimationFrame(tick);
+      } else {
+        this.searchHighlight = null;
+        this.searchAnimHandle = null;
+        this.redraw();
+      }
+    };
+    this.searchAnimHandle = requestAnimationFrame(tick);
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {

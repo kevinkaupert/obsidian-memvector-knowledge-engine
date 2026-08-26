@@ -70,6 +70,8 @@ export const en: TranslationKeys = {
   secActions: "Actions",
   lblShowEdges: "Show Edges",
   lblLasso: "Lasso Selection",
+  searchPlaceholder: "Search note + Enter...",
+  searchNotFound: "No note found in the graph for",
   lblProjection: "Projection",
   lblVisualStyle: "Style",
   styleMonochrome: "Monochrome",

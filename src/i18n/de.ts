@@ -70,6 +70,8 @@ export const de: TranslationKeys = {
   secActions: "Aktionen",
   lblShowEdges: "Kanten anzeigen",
   lblLasso: "Lasso-Auswahl",
+  searchPlaceholder: "Notiz suchen + Enter...",
+  searchNotFound: "Keine Notiz im Graph gefunden für",
   lblProjection: "Projektion",
   lblVisualStyle: "Darstellung",
   styleMonochrome: "Monochrom",
