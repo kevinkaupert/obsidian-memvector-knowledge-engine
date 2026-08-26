@@ -12,7 +12,7 @@ const EDGE_COLORS: Record<string, string> = {
   USES: "#f59e0b",
 };
 
-/** Only renders edges touching a selected or hovered node - never the full graph at once. */
+/** Renders every edge whenever the "Kanten anzeigen" toggle is on (dimmed by default), highlighting those touching a selected or hovered node - so relations stay visible/clickable without requiring a selection first. */
 export function drawEdges(
   ctx: CanvasRenderingContext2D,
   nodeMap: Map<string, ScatterNode>,
@@ -25,7 +25,6 @@ export function drawEdges(
 ): void {
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
-  if (activeNodeIds.size === 0) return;
 
   relationEdges.forEach((edge) => {
     if (edge.relType === "RELATED_TO") return;
@@ -35,7 +34,6 @@ export function drawEdges(
 
     const isSrcSelected = activeNodeIds.has(srcNode.id);
     const isTgtSelected = activeNodeIds.has(tgtNode.id);
-    if (!isSrcSelected && !isTgtSelected) return;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);

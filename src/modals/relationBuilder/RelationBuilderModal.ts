@@ -1,7 +1,7 @@
-import { Modal, Notice, type App } from "obsidian";
+import { Modal, Notice, TFile, type App } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { enqueuePendingRelations } from "../../sync/memgraph/pendingRelationsQueue";
-import { pushRelationEdges } from "../../sync/memgraph/relationSync";
+import { deleteRelationEdge, pushRelationEdges } from "../../sync/memgraph/relationSync";
 import type { SettingsHost } from "../../settings/types";
 import { buildRelationCategories, type RelationCategory } from "./relationCategories";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
@@ -20,7 +20,8 @@ export class RelationBuilderModal extends Modal {
     app: App,
     private readonly host: SettingsHost,
     private selectedNodes: RelationNode[],
-    private readonly initialEdge?: { relType: string; description: string }
+    private readonly initialEdge?: { relType: string; description: string; path: string },
+    private readonly onSaved?: () => void
   ) {
     super(app);
     if (initialEdge) {
@@ -313,6 +314,7 @@ export class RelationBuilderModal extends Modal {
 
   private renderFooter(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, generate: () => RelationEdgeDraft[]): void {
     const btnRow = contentEl.createEl("div", { attr: { style: "display: flex; gap: 12px; justify-content: flex-end; align-items: center;" } });
+    this.renderDeleteButton(btnRow, t);
     const cancelBtn = btnRow.createEl("button", { text: t.relCancelBtn });
     cancelBtn.style.padding = "8px 16px";
     cancelBtn.onclick = () => this.close();
@@ -358,6 +360,47 @@ export class RelationBuilderModal extends Modal {
         }
       }
 
+      this.onSaved?.();
+      this.close();
+    };
+  }
+
+  private renderDeleteButton(btnRow: HTMLElement, t: ReturnType<typeof getTranslation>): void {
+    if (!this.initialEdge) return;
+    const initialEdge = this.initialEdge;
+
+    const deleteBtn = btnRow.createEl("button", {
+      text: t.relDeleteBtn,
+      attr: { style: "background: transparent; color: var(--text-error, #f87171); font-weight: 600; border: 1px solid var(--text-error, #f87171); padding: 8px 16px; border-radius: 6px; cursor: pointer; margin-right: auto;" },
+    });
+
+    deleteBtn.onclick = async () => {
+      if (!window.confirm(t.relDeleteConfirm)) return;
+      deleteBtn.disabled = true;
+      deleteBtn.setText(t.relDeleting);
+
+      const file = this.app.vault.getAbstractFileByPath(initialEdge.path);
+      if (file instanceof TFile) {
+        try {
+          await this.app.fileManager.trashFile(file);
+        } catch (err) {
+          console.error(`${t.relDeleteFileError} ${initialEdge.path}:`, err);
+        }
+      }
+
+      const [srcNode, tgtNode] = this.selectedNodes;
+      if (this.host.settings.autoSyncMemgraph) {
+        try {
+          await deleteRelationEdge(this.host.settings, srcNode.id, tgtNode.id, initialEdge.relType);
+          new Notice(`🗑️ ${t.relDeleteSuccess}`);
+        } catch (err) {
+          new Notice(`⚠️ ${t.relDeleteSyncWarning}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        new Notice(`🗑️ ${t.relDeleteSuccess}`);
+      }
+
+      this.onSaved?.();
       this.close();
     };
   }

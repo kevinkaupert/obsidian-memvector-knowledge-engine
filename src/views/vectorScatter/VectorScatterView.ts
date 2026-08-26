@@ -201,20 +201,28 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   hitTestEdge(mouseX: number, mouseY: number): RelationEdge | null {
-    const activeNodeIds = new Set(this.selectedNodeIds);
-    if (this.hoveredNode) activeNodeIds.add(this.hoveredNode.id);
-    return hitTestEdgePure(this.nodes, this.relationEdges, activeNodeIds, mouseX, mouseY, this.zoom, this.pan);
+    return hitTestEdgePure(this.nodes, this.relationEdges, mouseX, mouseY, this.zoom, this.pan);
+  }
+
+  private refreshRelationEdges(): void {
+    void this.loadRelationEdges().then(() => this.redraw());
   }
 
   openRelationBuilder(selected: ScatterNode[]): void {
-    new RelationBuilderModal(this.app, this, selected).open();
+    new RelationBuilderModal(this.app, this, selected, undefined, () => this.refreshRelationEdges()).open();
   }
 
   editRelationEdge(edge: RelationEdge): void {
     const srcNode = this.nodes.find((n) => n.id.toLowerCase() === edge.srcId);
     const tgtNode = this.nodes.find((n) => n.id.toLowerCase() === edge.tgtId);
     if (!srcNode || !tgtNode) return;
-    new RelationBuilderModal(this.app, this, [srcNode, tgtNode], { relType: edge.relType, description: edge.desc }).open();
+    new RelationBuilderModal(
+      this.app,
+      this,
+      [srcNode, tgtNode],
+      { relType: edge.relType, description: edge.desc, path: edge.path },
+      () => this.refreshRelationEdges()
+    ).open();
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {

@@ -88,6 +88,14 @@ export function buildTypedEdgeStatements(edges: TypedEdgeInput[]): CypherStateme
   return statements;
 }
 
+/** Deletes one specific typed relationship between two nodes (edge editor's delete action) - leaves the nodes themselves untouched. */
+export function buildDeleteEdgeStatement(srcId: string, tgtId: string, relType: string): CypherStatement {
+  return {
+    query: `MATCH (a:Note {id: $src})-[r:${sanitizeRelType(relType)}]->(b:Note {id: $tgt}) DELETE r`,
+    params: { src: srcId, tgt: tgtId },
+  };
+}
+
 /** Human-readable literal Cypher text, for the clipboard/Memgraph-Lab-paste preview (RelationBuilderModal). */
 export function toCypherText(nodes: GraphNode[], edges: GraphEdge[]): string {
   const lines: string[] = [];

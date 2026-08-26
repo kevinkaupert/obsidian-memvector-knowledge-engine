@@ -99,6 +99,12 @@ export interface TranslationKeys {
   relSaving: string;
   relSaveSuccess: string;
   relSaveError: string;
+  relDeleteBtn: string;
+  relDeleteConfirm: string;
+  relDeleting: string;
+  relDeleteSuccess: string;
+  relDeleteSyncWarning: string;
+  relDeleteFileError: string;
   relDefaultDesc: string;
   relBetween: string;
   relAnd: string;
