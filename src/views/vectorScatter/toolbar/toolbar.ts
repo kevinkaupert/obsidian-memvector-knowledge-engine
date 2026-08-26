@@ -100,6 +100,23 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     refs.canvas.style.cursor = on ? "crosshair" : "grab";
   });
 
+  // ── Synthese ──────────────────────────────────────────────────────────
+  const syntheseBody = createSection(toolbarEl, "Synthese", false);
+
+  const promptInput = syntheseBody.createEl("textarea", {
+    placeholder: 'Eigene Frage (optional) – z. B. "Wie fügen sich diese Punkte ins Gesamtnetz ein?"',
+  });
+  promptInput.style.cssText =
+    "display:block; width:calc(100% - 24px); margin:6px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; min-height:56px; resize:vertical; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal); font-family:inherit;";
+
+  const fullModelName = ctx.settings.modelName || "LLM";
+  const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} Synthese (0)`, null);
+  synthesizeBtn.title = `LLM Model: ${fullModelName}`;
+  synthesizeBtn.disabled = true;
+  synthesizeBtn.style.opacity = "0.35";
+  synthesizeBtn.style.cursor = "not-allowed";
+  synthesizeBtn.onclick = () => ctx.runSynthesis((text) => hoverBar.setText(text), promptInput.value);
+
   // ── Aktionen ──────────────────────────────────────────────────────────
   const aktionenBody = createSection(toolbarEl, t.secActions, true);
 
@@ -132,23 +149,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.selectedNodeIds.clear();
     updateSelectionUI();
   });
-
-  // ── Synthese ──────────────────────────────────────────────────────────
-  const syntheseBody = createSection(toolbarEl, "Synthese", false);
-
-  const promptInput = syntheseBody.createEl("textarea", {
-    placeholder: 'Eigene Frage (optional) – z. B. "Wie fügen sich diese Punkte ins Gesamtnetz ein?"',
-  });
-  promptInput.style.cssText =
-    "display:block; width:calc(100% - 24px); margin:6px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; min-height:56px; resize:vertical; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal); font-family:inherit;";
-
-  const fullModelName = ctx.settings.modelName || "LLM";
-  const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} Synthese (0)`, null);
-  synthesizeBtn.title = `LLM Model: ${fullModelName}`;
-  synthesizeBtn.disabled = true;
-  synthesizeBtn.style.opacity = "0.35";
-  synthesizeBtn.style.cursor = "not-allowed";
-  synthesizeBtn.onclick = () => ctx.runSynthesis((text) => hoverBar.setText(text), promptInput.value);
 
   hoverBar.setText(t.hoverHint);
 
