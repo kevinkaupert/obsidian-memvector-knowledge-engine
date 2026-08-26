@@ -51,6 +51,8 @@ export interface MemVectorSettings {
 
   /** Include the vault's own AGENTS.md / meta/PROFILE.md (if present) as house-style guidance in the synthesis prompt. */
   includeAgentsGuidelines: boolean;
+  /** Comma-separated vault paths to load for includeAgentsGuidelines - defaults to AGENTS.md, meta/PROFILE.md. */
+  agentsGuidelinePaths: string;
 
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];

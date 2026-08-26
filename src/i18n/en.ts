@@ -39,6 +39,8 @@ export const en: TranslationKeys = {
   embedModelDesc: "Exact model name for note embeddings (e.g., 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   exclusionsName: "Path & File Exclusions",
   exclusionsDesc: "Exclude paths and files from 2D Scatterplot (e.g. -path:schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
+  agentsPathsName: "Agent Guideline Files",
+  agentsPathsDesc: "Vault paths loaded as compilation rules for synthesis when the 'Include agent guidelines' toggle is on. Separate multiple paths with commas.",
   radarCountName: "Mini-Radar Note Count (X)",
   radarCountDesc: "Number of nearest vector notes (X) that the mini-radar automatically scales to when opened.",
 
@@ -74,6 +76,8 @@ export const en: TranslationKeys = {
   searchNotFound: "No note found in the graph for",
   lblProjection: "Projection",
   lblVisualStyle: "Style",
+  lblEdgeHops: "Edge Radius",
+  edgeHopsAll: "All",
   styleMonochrome: "Monochrome",
   styleMuted: "Muted Type Colors",
   styleInk: "Ink & Focus Glow",

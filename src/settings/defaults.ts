@@ -40,5 +40,6 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   pendingMemgraphRelations: [],
   enrichSynthesisContext: false,
   includeAgentsGuidelines: false,
+  agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
   scatterVisualStyle: "ink",
 };

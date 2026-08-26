@@ -1,4 +1,4 @@
-import { Notice, ItemView, type App, type WorkspaceLeaf } from "obsidian";
+import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
 import type { MemVectorSettings } from "../../settings/types";
@@ -23,6 +23,7 @@ export interface VectorScatterHost {
   app: App;
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
+  focusSidebarNote(file: TFile): void;
 }
 
 export class VectorScatterView extends ItemView implements ScatterViewContext {
@@ -37,6 +38,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   lassoSelectMode = false;
   hoveredNode: ScatterNode | null = null;
   showEdges = false;
+  edgeHops = 1;
   relationEdges: RelationEdge[] = [];
   nodeSpacing = 160;
   cloudSpacing = 320;
@@ -181,6 +183,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       pan: this.pan,
       projectionMode: this.projectionMode,
       showEdges: this.showEdges,
+      edgeHops: this.edgeHops,
       relationEdges: this.relationEdges,
       selectedNodeIds: this.selectedNodeIds,
       hoveredNode: this.hoveredNode,
@@ -216,10 +219,16 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     return hitTestPure(this.nodes, mouseX, mouseY, this.zoom, this.pan);
   }
 
+  /** Lets the sidebar's "Nahestehende Notizen" radar show this exact note without switching the actual editor tab (a click here only selects for synthesis). */
+  focusSidebar(node: ScatterNode): void {
+    const file = this.app.vault.getAbstractFileByPath(node.path);
+    if (file instanceof TFile) this.host.focusSidebarNote(file);
+  }
+
   hitTestEdge(mouseX: number, mouseY: number): RelationEdge | null {
     const activeNodeIds = new Set(this.selectedNodeIds);
     if (this.hoveredNode) activeNodeIds.add(this.hoveredNode.id);
-    return hitTestEdgePure(this.nodes, this.relationEdges, activeNodeIds, mouseX, mouseY, this.zoom, this.pan);
+    return hitTestEdgePure(this.nodes, this.relationEdges, activeNodeIds, this.edgeHops, mouseX, mouseY, this.zoom, this.pan);
   }
 
   private refreshRelationEdges(): void {

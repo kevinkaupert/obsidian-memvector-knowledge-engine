@@ -1,4 +1,5 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
+import { computeHopReachableNodeIds } from "../edgeHops";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
@@ -15,13 +16,14 @@ const EDGE_COLORS_MUTED: Record<string, string> = {
 
 const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
 
-/** Only renders edges touching a currently selected/hovered node - never the full graph at once, so "Kanten anzeigen" stays legible even in a dense vault. */
+/** Only renders edges within `hops` of a currently selected/hovered node (hops=0 shows every edge unconditionally) - so "Kanten anzeigen" stays legible even in a dense vault while still letting the radius be widened. */
 export function drawEdges(
   ctx: CanvasRenderingContext2D,
   nodeMap: Map<string, ScatterNode>,
   relationEdges: RelationEdge[],
   selectedNodeIds: Set<string>,
   hoveredNode: ScatterNode | null,
+  hops: number,
   zoom: number,
   pan: PanState,
   themeTextNormal: string,
@@ -30,14 +32,15 @@ export function drawEdges(
 ): void {
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
-  if (activeNodeIds.size === 0) return;
+  if (hops !== 0 && activeNodeIds.size === 0) return;
+  const reachable = hops === 0 ? null : computeHopReachableNodeIds(relationEdges, nodeMap, activeNodeIds, hops);
 
   relationEdges.forEach((edge) => {
     if (edge.relType === "RELATED_TO") return;
     const srcNode = nodeMap.get(edge.srcId);
     const tgtNode = nodeMap.get(edge.tgtId);
     if (!srcNode || !tgtNode) return;
-    if (!activeNodeIds.has(srcNode.id) && !activeNodeIds.has(tgtNode.id)) return;
+    if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
 
     const edgeColor = style === "muted" ? EDGE_COLORS_MUTED[edge.relType] || NEUTRAL_EDGE : themeAccent;
 

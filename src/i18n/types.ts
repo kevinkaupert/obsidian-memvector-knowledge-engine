@@ -34,6 +34,8 @@ export interface TranslationKeys {
   embedModelDesc: string;
   exclusionsName: string;
   exclusionsDesc: string;
+  agentsPathsName: string;
+  agentsPathsDesc: string;
   radarCountName: string;
   radarCountDesc: string;
 
@@ -66,6 +68,8 @@ export interface TranslationKeys {
   searchNotFound: string;
   lblProjection: string;
   lblVisualStyle: string;
+  lblEdgeHops: string;
+  edgeHopsAll: string;
   styleMonochrome: string;
   styleMuted: string;
   styleInk: string;

@@ -27,6 +27,7 @@ export interface ScatterViewContext {
   lassoSelectMode: boolean;
   hoveredNode: ScatterNode | null;
   showEdges: boolean;
+  edgeHops: number;
   relationEdges: RelationEdge[];
   nodeSpacing: number;
   cloudSpacing: number;
@@ -37,6 +38,7 @@ export interface ScatterViewContext {
   applyLayout(): void;
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;
+  focusSidebar(node: ScatterNode): void;
   hitTestEdge(x: number, y: number): RelationEdge | null;
   openRelationBuilder(selected: ScatterNode[]): void;
   editRelationEdge(edge: RelationEdge): void;

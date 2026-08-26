@@ -228,7 +228,7 @@ export async function runSynthesis(
   let prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched);
 
   if (settings.includeAgentsGuidelines) {
-    const guidelines = await loadAgentsGuidelines(app);
+    const guidelines = await loadAgentsGuidelines(app, settings);
     if (guidelines) {
       const header =
         lang === "de"

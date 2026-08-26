@@ -1,4 +1,4 @@
-import { Notice, Plugin, type WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSettings } from "./settings/apiKeyMigration";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
@@ -89,6 +89,11 @@ export default class MemVectorPlugin extends Plugin {
       if (leaf) await leaf.setViewState({ type: MATH_VECTOR_SCATTER_VIEW_TYPE, active: true });
     }
     if (leaf) workspace.revealLeaf(leaf);
+  }
+
+  /** Lets the graph's click handler show a note's radar in the sidebar without switching the actual editor tab. */
+  focusSidebarNote(file: TFile): void {
+    this.sidebarView?.renderView(file);
   }
 
   async loadSettings(): Promise<void> {

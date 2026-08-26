@@ -26,9 +26,10 @@ interface RadarNode extends ScoredNote {
 export async function renderActiveNoteFocus(
   app: App,
   container: HTMLElement,
-  pluginSettings: MemVectorSettings | undefined
+  pluginSettings: MemVectorSettings | undefined,
+  focusFile?: TFile
 ): Promise<void> {
-  const activeFile = app.workspace.getActiveFile();
+  const activeFile = focusFile || app.workspace.getActiveFile();
   if (!activeFile) return;
 
   const focusBox = container.createEl("div");

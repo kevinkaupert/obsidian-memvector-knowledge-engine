@@ -158,6 +158,19 @@ export function renderVectorFilterSection(
     );
 
   new Setting(containerEl)
+    .setName(t.agentsPathsName)
+    .setDesc(t.agentsPathsDesc)
+    .addText((text) =>
+      text
+        .setPlaceholder("AGENTS.md, meta/PROFILE.md")
+        .setValue(settings.agentsGuidelinePaths || "")
+        .onChange(async (value) => {
+          settings.agentsGuidelinePaths = value;
+          await host.saveSettings();
+        })
+    );
+
+  new Setting(containerEl)
     .setName(t.radarCountName)
     .setDesc(t.radarCountDesc)
     .addText((text) =>

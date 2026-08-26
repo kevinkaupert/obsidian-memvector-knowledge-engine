@@ -1,18 +1,27 @@
 import { TFile, type App } from "obsidian";
 import { stripFrontmatter } from "../../noteContent";
+import type { MemVectorSettings } from "../../settings/types";
 
-/** Vault-level "how an agent should compile knowledge here" documents - loaded only if present, never required. */
-const CANDIDATE_PATHS = ["AGENTS.md", "meta/PROFILE.md"];
+/** Vault-level "how an agent should compile knowledge here" documents - configurable in Settings, loaded only if present, never required. */
+const DEFAULT_CANDIDATE_PATHS = ["AGENTS.md", "meta/PROFILE.md"];
 
 /** Per-file char budget. Many local LLMs (e.g. Ollama) serve well under their architectural
  * context size (often 4096 tokens) unless explicitly reconfigured, so this stays small enough
  * to leave headroom for the actual note content and question in the rest of the prompt. */
 const MAX_CHARS_PER_FILE = 2400;
 
-/** Returns the concatenated, size-capped content of whichever candidate files exist in this vault, or an empty string if none do. */
-export async function loadAgentsGuidelines(app: App): Promise<string> {
+function parseCandidatePaths(raw: string | undefined): string[] {
+  const paths = (raw || "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return paths.length > 0 ? paths : DEFAULT_CANDIDATE_PATHS;
+}
+
+/** Returns the concatenated, size-capped content of whichever candidate files (from settings.agentsGuidelinePaths, comma-separated) exist in this vault, or an empty string if none do. */
+export async function loadAgentsGuidelines(app: App, settings: Pick<MemVectorSettings, "agentsGuidelinePaths">): Promise<string> {
   const sections: string[] = [];
-  for (const path of CANDIDATE_PATHS) {
+  for (const path of parseCandidatePaths(settings.agentsGuidelinePaths)) {
     const file = app.vault.getAbstractFileByPath(path);
     if (file instanceof TFile) {
       const content = stripFrontmatter(await app.vault.read(file)).trim();

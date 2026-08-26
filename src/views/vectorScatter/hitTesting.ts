@@ -1,3 +1,4 @@
+import { computeHopReachableNodeIds } from "./edgeHops";
 import type { RelationEdge, ScatterNode } from "./types";
 
 export interface PanState {
@@ -26,26 +27,28 @@ function distanceToSegment(px: number, py: number, x1: number, y1: number, x2: n
   return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
 }
 
-/** Only tests edges that rendering/drawEdges.ts would actually draw (touching a currently selected/hovered node) - matching its visibility rule, so nothing invisible is clickable. */
+/** Only tests edges that rendering/drawEdges.ts would actually draw (within `hops` of a selected/hovered node, or all of them when hops=0) - matching its visibility rule, so nothing invisible is clickable. */
 export function hitTestEdge(
   nodes: ScatterNode[],
   relationEdges: RelationEdge[],
   activeNodeIds: Set<string>,
+  hops: number,
   mouseX: number,
   mouseY: number,
   zoom: number,
   pan: PanState,
   threshold = 8
 ): RelationEdge | null {
-  if (activeNodeIds.size === 0) return null;
+  if (hops !== 0 && activeNodeIds.size === 0) return null;
   const nodeMap = new Map(nodes.map((n) => [n.id.toLowerCase(), n]));
+  const reachable = hops === 0 ? null : computeHopReachableNodeIds(relationEdges, nodeMap, activeNodeIds, hops);
 
   for (const edge of relationEdges) {
     if (edge.relType === "RELATED_TO") continue;
     const srcNode = nodeMap.get(edge.srcId);
     const tgtNode = nodeMap.get(edge.tgtId);
     if (!srcNode || !tgtNode) continue;
-    if (!activeNodeIds.has(srcNode.id) && !activeNodeIds.has(tgtNode.id)) continue;
+    if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) continue;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);

@@ -1,4 +1,4 @@
-import { ItemView, type WorkspaceLeaf } from "obsidian";
+import { ItemView, type TFile, type WorkspaceLeaf } from "obsidian";
 import { MATH_WIKI_VIEW_TYPE } from "../../constants";
 import type { MemVectorSettings } from "../../settings/types";
 import { renderActiveNoteFocus } from "./renderActiveNoteFocus";
@@ -36,7 +36,7 @@ export class MathWikiSidebarView extends ItemView {
     await this.renderView();
   }
 
-  async renderView(): Promise<void> {
+  async renderView(focusFile?: TFile): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement | undefined;
     if (!container) return;
     container.empty();
@@ -44,6 +44,6 @@ export class MathWikiSidebarView extends ItemView {
     const header = container.createEl("h3", { text: "MemVector Co-Pilot" });
     header.style.marginBottom = "15px";
 
-    await renderActiveNoteFocus(this.app, container, this.getSettings());
+    await renderActiveNoteFocus(this.app, container, this.getSettings(), focusFile);
   }
 }

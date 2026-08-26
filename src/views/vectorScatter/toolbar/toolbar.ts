@@ -25,6 +25,13 @@ const VISUAL_STYLE_OPTIONS: { id: MemVectorSettings["scatterVisualStyle"]; label
   { id: "ink", labelKey: "styleInk", fallback: "Tinte & Fokus-Glow" },
 ];
 
+const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] => [
+  { id: "0", label: t.edgeHopsAll },
+  { id: "1", label: "1" },
+  { id: "2", label: "2" },
+  { id: "3", label: "3" },
+];
+
 const PROJECTION_OPTIONS: { id: ProjectionMode; labelKey: keyof TranslationKeys; fallback: string }[] = [
   { id: "cloud", labelKey: "projClouds", fallback: "Themen-Wolken" },
   { id: "umap", labelKey: "projUmap", fallback: "UMAP Manifold" },
@@ -122,11 +129,20 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.applyLayout();
     ctx.redraw();
   });
+  let edgeHopsRow: HTMLElement | null = null;
   createToggle(ansichtBody, t.lblShowEdges, ctx.showEdges, async (on) => {
     ctx.showEdges = on;
+    if (edgeHopsRow) edgeHopsRow.style.display = on ? "flex" : "none";
     if (on) await ctx.loadRelationEdges();
     ctx.redraw();
   });
+  const edgeHopsSelect = createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
+    ctx.edgeHops = parseInt(val, 10) || 1;
+    ctx.redraw();
+  });
+  edgeHopsRow = edgeHopsSelect.parentElement;
+  if (edgeHopsRow) edgeHopsRow.style.display = ctx.showEdges ? "flex" : "none";
+
   createToggle(ansichtBody, t.lblLasso, ctx.lassoSelectMode, (on) => {
     ctx.lassoSelectMode = on;
     refs.canvas.style.cursor = on ? "crosshair" : "grab";

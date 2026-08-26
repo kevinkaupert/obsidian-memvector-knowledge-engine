@@ -137,6 +137,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     const clicked = ctx.hitTest(mouseX, mouseY);
 
     if (clicked) {
+      ctx.focusSidebar(clicked);
       if (e.metaKey || e.ctrlKey) {
         if (ctx.selectedNodeIds.has(clicked.id)) ctx.selectedNodeIds.delete(clicked.id);
         else ctx.selectedNodeIds.add(clicked.id);

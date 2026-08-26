@@ -14,6 +14,7 @@ export interface DrawState {
   pan: PanState;
   projectionMode: string | undefined;
   showEdges: boolean;
+  edgeHops: number;
   relationEdges: RelationEdge[];
   selectedNodeIds: Set<string>;
   hoveredNode: ScatterNode | null;
@@ -74,7 +75,19 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
   drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle);
 
   if (state.showEdges && state.relationEdges.length > 0) {
-    drawEdges(ctx, nodeMap, state.relationEdges, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeAccent, state.scatterVisualStyle);
+    drawEdges(
+      ctx,
+      nodeMap,
+      state.relationEdges,
+      state.selectedNodeIds,
+      state.hoveredNode,
+      state.edgeHops,
+      state.zoom,
+      state.pan,
+      themeTextNormal,
+      themeAccent,
+      state.scatterVisualStyle
+    );
   }
 
   const relationTallies =
