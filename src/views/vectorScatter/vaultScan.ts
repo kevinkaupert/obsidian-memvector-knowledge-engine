@@ -1,4 +1,5 @@
 import type { App, TFile } from "obsidian";
+import { stripFrontmatter } from "../../noteContent";
 import type { ScatterNode, ScatterNoteType } from "./types";
 
 const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
@@ -107,7 +108,12 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
     const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());
     const linkMatches = [...content.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)].map((m) => m[1].trim().toLowerCase());
 
-    const hash = hashString(title + content.slice(0, 500) + latexMatches.join(""));
+    // Bugfix: notes with a long frontmatter block (e.g. a big `sources:`
+    // list) previously had their entire truncation window consumed by
+    // frontmatter noise, leaving zero real body content for the similarity
+    // calc and layout hash to work with. Strip it first.
+    const body = stripFrontmatter(content);
+    const hash = hashString(title + body.slice(0, 500) + latexMatches.join(""));
     const baseOffset = TYPE_OFFSETS[type] || { x: 0, y: 0 };
 
     nodes.push({
@@ -119,7 +125,7 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
       y: baseOffset.y + ((Math.abs(hash >> 3) % 300) - 150),
       latexFormulas: latexMatches,
       links: linkMatches,
-      content: content.slice(0, 800),
+      content: body.slice(0, 800),
     });
   }
 

@@ -1,3 +1,5 @@
+import { stripFrontmatter } from "../../noteContent";
+
 export interface NoteFileLike {
   path: string;
   name: string;
@@ -70,12 +72,14 @@ export function rankCandidates(
   activeContent: string,
   candidates: { file: NoteFileLike; content: string }[]
 ): ScoredNote[] {
-  const activeWords = extractWords(activeContent);
-  const activeFormulas = new Set(extractFormulas(activeContent));
+  const activeBody = stripFrontmatter(activeContent);
+  const activeWords = extractWords(activeBody);
+  const activeFormulas = new Set(extractFormulas(activeBody));
 
   const scored = candidates.map(({ file, content }) => {
-    const { score, formulas } = scoreAgainstActive(activeWords, activeFormulas, content);
-    return { file, type: classifyNoteType(file.path, file.name), score, formulas, content };
+    const body = stripFrontmatter(content);
+    const { score, formulas } = scoreAgainstActive(activeWords, activeFormulas, body);
+    return { file, type: classifyNoteType(file.path, file.name), score, formulas, content: body };
   });
 
   scored.sort((a, b) => b.score - a.score);

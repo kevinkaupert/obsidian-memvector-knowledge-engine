@@ -3,6 +3,7 @@ import { fetchEmbedding } from "../../llm/fetchEmbedding";
 import type { MemVectorSettings } from "../../settings/types";
 import { ensureCollection, upsertPoints, type QdrantPoint } from "./qdrantClient";
 import { pointIdForPath } from "./pointId";
+import { stripFrontmatter } from "../../noteContent";
 
 export interface QdrantSyncResult {
   totalFiles: number;
@@ -27,8 +28,12 @@ export async function syncVaultToQdrant(app: App, settings: MemVectorSettings): 
 
   const points: QdrantPoint[] = [];
   for (const file of vaultFiles) {
-    const content = await app.vault.read(file);
-    if (!content.trim()) continue;
+    const rawContent = await app.vault.read(file);
+    if (!rawContent.trim()) continue;
+    // Bugfix: a note with a long frontmatter block (big `sources:`/`tags:`
+    // list) could have its entire embedding computed from YAML noise
+    // instead of actual content - strip it before truncating.
+    const content = stripFrontmatter(rawContent);
 
     const { embedding } = await fetchEmbedding(
       content.slice(0, 1000),

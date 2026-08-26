@@ -3,6 +3,7 @@ import { fetchGraphNeighbors } from "../../sync/memgraph/graphNeighbors";
 import { searchSimilar } from "../../sync/qdrant/qdrantClient";
 import type { MemVectorSettings } from "../../settings/types";
 import { toSlug } from "../../noteSlug";
+import { stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
 
 export interface EnrichedNote {
@@ -52,7 +53,7 @@ async function fetchMemgraphNeighbors(app: App, settings: MemVectorSettings, sel
     let content = "";
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (file instanceof TFile) {
-      content = (await app.vault.read(file)).slice(0, 500);
+      content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
     }
     found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content, sources: ["memgraph"] });
     if (found.size >= limit) break;

@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
+import { stripFrontmatter } from "../../noteContent";
 import type { NoteFileLike, RadarNoteType } from "./activeNoteScoring";
 
 export interface Position2D {
@@ -62,7 +63,9 @@ export function getNode2DPosition(app: App, file: NoteFileLike, content: string)
   }
 
   const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());
-  const hash = hashString(file.basename + content.slice(0, 500) + latexMatches.join(""));
+  // Bugfix: was hashing raw content including frontmatter - a long
+  // `sources:`/`tags:` block could consume the whole 500-char window.
+  const hash = hashString(file.basename + stripFrontmatter(content).slice(0, 500) + latexMatches.join(""));
   const baseOffset = TYPE_OFFSETS[type] || { x: 0, y: 0 };
 
   return {
