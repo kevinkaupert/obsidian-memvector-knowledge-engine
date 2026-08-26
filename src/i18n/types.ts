@@ -78,6 +78,8 @@ export interface TranslationKeys {
   secSynthesis: string;
   synthPromptPlaceholder: string;
   synthEnrichToggle: string;
+  synthAgentsToggle: string;
+  relModalEditTitle: string;
 
   relModalTitle: string;
   relNotesSelected: string;

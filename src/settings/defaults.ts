@@ -39,4 +39,5 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   autoSyncMemgraph: false,
   pendingMemgraphRelations: [],
   enrichSynthesisContext: false,
+  includeAgentsGuidelines: false,
 };

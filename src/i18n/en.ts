@@ -86,6 +86,8 @@ export const en: TranslationKeys = {
   secSynthesis: "Synthesis",
   synthPromptPlaceholder: 'Custom question (optional) – e.g. "How do these points fit into the overall network?"',
   synthEnrichToggle: "Enrich context from Qdrant + Memgraph",
+  synthAgentsToggle: "Include agent guidelines (AGENTS.md)",
+  relModalEditTitle: "Edit Relation",
 
   // RelationBuilderModal i18n
   relModalTitle: "Create Relation & Graph Edge",

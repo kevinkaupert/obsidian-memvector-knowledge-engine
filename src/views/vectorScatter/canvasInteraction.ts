@@ -146,6 +146,16 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
         ctx.selectedNodeIds.add(clicked.id);
         updateSelectionUI();
       }
+    } else if (ctx.showEdges) {
+      const edge = ctx.hitTestEdge(mouseX, mouseY);
+      if (edge) {
+        ctx.editRelationEdge(edge);
+        return;
+      }
+      if (ctx.selectedNodeIds.size > 0) {
+        ctx.selectedNodeIds.clear();
+        updateSelectionUI();
+      }
     } else if (ctx.selectedNodeIds.size > 0) {
       ctx.selectedNodeIds.clear();
       updateSelectionUI();

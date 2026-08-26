@@ -114,6 +114,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     await ctx.saveSettings();
   });
 
+  createToggle(syntheseBody, t.synthAgentsToggle, ctx.settings.includeAgentsGuidelines, async (on) => {
+    ctx.settings.includeAgentsGuidelines = on;
+    await ctx.saveSettings();
+  });
+
   const fullModelName = ctx.settings.modelName || "LLM";
   const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} ${t.secSynthesis} (0)`, null);
   synthesizeBtn.title = `LLM Model: ${fullModelName}`;

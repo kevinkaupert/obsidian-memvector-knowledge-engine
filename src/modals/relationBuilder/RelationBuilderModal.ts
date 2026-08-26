@@ -19,9 +19,14 @@ export class RelationBuilderModal extends Modal {
   constructor(
     app: App,
     private readonly host: SettingsHost,
-    private selectedNodes: RelationNode[]
+    private selectedNodes: RelationNode[],
+    private readonly initialEdge?: { relType: string; description: string }
   ) {
     super(app);
+    if (initialEdge) {
+      this.relType = initialEdge.relType;
+      this.relDesc = initialEdge.description;
+    }
   }
 
   onOpen(): void {
@@ -75,7 +80,8 @@ export class RelationBuilderModal extends Modal {
     const descArea = step2.createEl("textarea", {
       placeholder: t.relDescPlaceholder,
       attr: { style: "width: 100%; box-sizing: border-box; min-height: 120px; font-size: 0.88em; padding: 12px 14px; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border); resize: vertical;" },
-    });
+    }) as HTMLTextAreaElement;
+    descArea.value = this.relDesc;
 
     const details = contentEl.createEl("details", {
       attr: { style: "background: var(--background-secondary); padding: 12px 16px; border-radius: 8px; border: 1px solid var(--background-modifier-border); margin-bottom: 20px; font-size: 0.82em;" },
@@ -221,7 +227,10 @@ export class RelationBuilderModal extends Modal {
     });
     const headerLeft = headerRow.createEl("div", { attr: { style: "display: flex; align-items: center; gap: 10px;" } });
     headerLeft.createEl("div", { attr: { style: "width: 8px; height: 8px; border-radius: 50%; background: var(--interactive-accent, #38bdf8);" } });
-    headerLeft.createEl("h3", { text: t.relModalTitle, attr: { style: "margin: 0; font-size: 1.1em; font-weight: 700; color: var(--text-normal);" } });
+    headerLeft.createEl("h3", {
+      text: this.initialEdge ? t.relModalEditTitle : t.relModalTitle,
+      attr: { style: "margin: 0; font-size: 1.1em; font-weight: 700; color: var(--text-normal);" },
+    });
     headerRow.createEl("span", {
       text: `${count} ${t.relNotesSelected}`,
       attr: { style: "font-family: var(--font-monospace); font-size: 0.8em; padding: 4px 12px; background: var(--background-primary-alt, rgba(255, 255, 255, 0.05)); color: var(--text-muted); border-radius: 12px; border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));" },

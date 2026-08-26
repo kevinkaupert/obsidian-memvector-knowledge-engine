@@ -47,6 +47,9 @@ export interface MemVectorSettings {
   /** Hybrid GraphRAG: pull Qdrant-similar + Memgraph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
 
+  /** Include the vault's own AGENTS.md / meta/PROFILE.md (if present) as house-style guidance in the synthesis prompt. */
+  includeAgentsGuidelines: boolean;
+
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
 

@@ -86,6 +86,8 @@ export const de: TranslationKeys = {
   secSynthesis: "Synthese",
   synthPromptPlaceholder: 'Eigene Frage (optional) – z. B. "Wie fügen sich diese Punkte ins Gesamtnetz ein?"',
   synthEnrichToggle: "Kontext aus Qdrant + Memgraph anreichern",
+  synthAgentsToggle: "Agenten-Richtlinien (AGENTS.md) einbeziehen",
+  relModalEditTitle: "Beziehung bearbeiten",
 
   // RelationBuilderModal i18n
   relModalTitle: "Beziehung & Graph-Kante erstellen",

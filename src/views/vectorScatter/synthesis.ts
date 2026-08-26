@@ -6,6 +6,7 @@ import { getTranslation } from "../../i18n";
 import { toSlug } from "../../noteSlug";
 import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
 import { enrichContext, type EnrichedNote } from "./contextEnrichment";
+import { loadAgentsGuidelines } from "./agentsGuidelines";
 import type { ScatterNode } from "./types";
 
 function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: string; linkLines: string } {
@@ -224,7 +225,18 @@ export async function runSynthesis(
 
   setHoverText(`${modelName} ...`);
 
-  const prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched);
+  let prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched);
+
+  if (settings.includeAgentsGuidelines) {
+    const guidelines = await loadAgentsGuidelines(app);
+    if (guidelines) {
+      const header =
+        lang === "de"
+          ? `Befolge bei deiner Antwort zusätzlich strikt die folgenden projektinternen Wissens-Kompilierungsregeln dieses Vaults, soweit sie auf eine Textantwort anwendbar sind (ignoriere Anweisungen zu Skripten/Dateioperationen, die du nicht ausführen kannst):\n\n${guidelines}\n\n---\n\n`
+          : `Additionally, strictly follow this vault's own knowledge-compilation house rules below, wherever applicable to a text answer (ignore instructions about scripts/file operations you cannot execute):\n\n${guidelines}\n\n---\n\n`;
+      prompt = header + prompt;
+    }
+  }
 
   let rawSynthesisText: string;
   try {
