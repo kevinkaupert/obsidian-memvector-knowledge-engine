@@ -9,6 +9,17 @@ export const de: TranslationKeys = {
   secGeneral: "1. Allgemein",
   langName: "Sprache / Language",
   langDesc: "Wählen Sie die Sprache für Benachrichtigungen und UI-Texte.",
+  secGeneralScan: "Vault-Scan & Anzeige",
+  secGeneralSynthesis: "Synthese-Verhalten",
+  linkModeName: "Synthese WikiLink-Strategie",
+  linkModeDesc: "Bestimmt, wie KI-Synthesen WikiLinks handhaben, um blinde/leere Links im Vault zu vermeiden.",
+  linkModeSuggested: "Nur existierende verlinken + Neue als Lücken-Abschnitt am Ende (Empfohlen)",
+  linkModeExistingOnly: "Strikt nur existierende Vault-Notizen verlinken (Keine blinden Links)",
+  linkModeAllConcepts: "Alle Konzepte verlinken (Inkl. neuer Platzhalter-Links)",
+  cloudNamingName: "Themen-Wolken Namensgebung",
+  cloudNamingDesc: "Wähle, wie die Titel der Themen-Wolken im 2D-Vektorraum benannt werden: Nach der zentralen Anker-Notiz oder per KI/LLM Synthese.",
+  cloudNamingCentroid: "Schwerpunkt (Titel der zentralen Anker-Notiz)",
+  cloudNamingLlm: "KI / LLM (Automatisch generierte Oberbegriffe)",
 
   // Section 2: LLM Provider
   secLLM: "2. LLM Provider (für KI-Synthese & Co-Pilot)",
@@ -24,7 +35,7 @@ export const de: TranslationKeys = {
   temperatureDesc: "Niedrigere Werte (0.0 - 0.2) liefern deterministische, strukturierte Antworten; höhere Werte erlauben kreativere Antworten.",
 
   // Section 3: Knowledge Domain & Vector Filter
-  secVector: "3. Wissensdomäne & Vektorraum-Filter",
+  secVector: "3. Wissensdomäne & Embedding-Provider",
   domainName: "Wissensdomäne / Fachbereich",
   domainDesc: "Bestimmt die Merkmalsgewichtung im 2D-Vektorraum: 'Universelles Notizbuch' fokussiert Begriffshäufigkeiten & Semantik (ideal für PKM, Code, Forschung). 'Mathematik' gewichtet LaTeX-Formeln stärker, um mathematische Definitionen & Sätze strukturell zu clustern.",
   domainGeneral: "Universelles Notizbuch (PKM, Code, Allgemeines Wissen, Forschung)",

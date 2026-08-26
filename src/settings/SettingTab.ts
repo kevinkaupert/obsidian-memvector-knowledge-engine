@@ -1,6 +1,6 @@
 import { PluginSettingTab, type App, type Plugin } from "obsidian";
 import { getTranslation } from "../i18n";
-import { renderLanguageSection } from "./sections/languageSection";
+import { renderGeneralSection } from "./sections/generalSection";
 import { renderLlmProviderSection } from "./sections/llmProviderSection";
 import { renderMemgraphSection } from "./sections/memgraphSection";
 import { renderQdrantSection } from "./sections/qdrantSection";
@@ -24,7 +24,7 @@ export class MathWikiSettingTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: t.settingsTitle });
     containerEl.createEl("p", { text: t.settingsDesc, cls: "setting-item-description" });
 
-    renderLanguageSection(containerEl, this.host, t, rerender);
+    renderGeneralSection(containerEl, this.host, t, rerender);
     renderLlmProviderSection(containerEl, this.host, t, rerender);
     renderVectorFilterSection(containerEl, this.host, t, rerender);
     renderQdrantSection(containerEl, this.app, this.host, t);

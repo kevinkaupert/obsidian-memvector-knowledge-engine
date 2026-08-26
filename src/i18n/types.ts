@@ -6,6 +6,17 @@ export interface TranslationKeys {
   secGeneral: string;
   langName: string;
   langDesc: string;
+  secGeneralScan: string;
+  secGeneralSynthesis: string;
+  linkModeName: string;
+  linkModeDesc: string;
+  linkModeSuggested: string;
+  linkModeExistingOnly: string;
+  linkModeAllConcepts: string;
+  cloudNamingName: string;
+  cloudNamingDesc: string;
+  cloudNamingCentroid: string;
+  cloudNamingLlm: string;
 
   secLLM: string;
   llmProvName: string;

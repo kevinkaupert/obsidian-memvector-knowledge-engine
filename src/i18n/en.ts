@@ -9,6 +9,17 @@ export const en: TranslationKeys = {
   secGeneral: "1. General",
   langName: "Language",
   langDesc: "Select language for notices and UI text.",
+  secGeneralScan: "Vault Scan & Display",
+  secGeneralSynthesis: "Synthesis Behavior",
+  linkModeName: "Synthesis WikiLink Strategy",
+  linkModeDesc: "Determines how AI syntheses handle WikiLinks, to avoid blind/empty links in the vault.",
+  linkModeSuggested: "Link only existing notes + list new ones as a gap section at the end (Recommended)",
+  linkModeExistingOnly: "Strictly link only existing vault notes (no blind links)",
+  linkModeAllConcepts: "Link every concept (including new placeholder links)",
+  cloudNamingName: "Topic Cloud Naming",
+  cloudNamingDesc: "Choose how topic-cloud titles in the 2D vector space are named: after the central anchor note, or via AI/LLM synthesis.",
+  cloudNamingCentroid: "Centroid (title of the central anchor note)",
+  cloudNamingLlm: "AI / LLM (automatically generated umbrella terms)",
 
   // Section 2: LLM Provider
   secLLM: "2. LLM Provider (for AI Synthesis & Co-Pilot)",
@@ -24,7 +35,7 @@ export const en: TranslationKeys = {
   temperatureDesc: "Lower values (0.0 - 0.2) produce deterministic, structured answers; higher values allow for more creative responses.",
 
   // Section 3: Knowledge Domain & Vector Filter
-  secVector: "3. Knowledge Domain & Vector Space Filter",
+  secVector: "3. Knowledge Domain & Embedding Provider",
   domainName: "Knowledge Domain",
   domainDesc: "Controls feature weighting in 2D vector space clustering: 'Universal Notebook' focuses on word frequencies & semantics (ideal for PKM, code, research). 'Mathematics' heavily weights LaTeX formulas to structurally link definitions & theorems.",
   domainGeneral: "Universal Notebook (PKM, Code, General Knowledge, Research)",
