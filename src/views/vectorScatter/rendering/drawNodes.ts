@@ -37,24 +37,27 @@ export function drawNodes(
   themeTextNormal: string,
   themeTextMuted: string,
   themeAccent: string,
-  style: ScatterVisualStyle
+  style: ScatterVisualStyle,
+  relatedNodeIds: Set<string> = new Set()
 ): void {
   nodes.forEach((node) => {
     const pos = worldToScreen(node.x, node.y, zoom, pan);
     const isSelected = selectedNodeIds.has(node.id);
     const isHovered = hoveredNode === node;
     const isActive = isSelected || isHovered;
+    const isRelated = !isActive && relatedNodeIds.has(node.id);
     const radius = (isSelected ? 8 : 6) * zoom;
 
     if (style === "ink") {
+      if (isRelated) drawHalo(ctx, pos.x, pos.y, radius + 5, themeAccent);
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
       if (isActive) {
         ctx.fillStyle = themeAccent;
         ctx.fill();
       } else {
-        ctx.lineWidth = 1.25;
-        ctx.strokeStyle = NEUTRAL_RING;
+        ctx.lineWidth = isRelated ? 1.75 : 1.25;
+        ctx.strokeStyle = isRelated ? themeAccent : NEUTRAL_RING;
         ctx.stroke();
       }
     } else {

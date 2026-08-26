@@ -55,9 +55,9 @@ function drawGlow(ctx: CanvasRenderingContext2D, hull: ClusterHull, palette: { i
 
 /**
  * Topic-cluster background, per visual style:
- * - "monochrome": neutral dashed outline only, never a glow.
+ * - "monochrome" / "ink": neutral dashed outline only, never a glow - "ink"'s
+ *   focus glow highlights individual *related notes* instead (see drawNodes.ts).
  * - "muted": one soft desaturated glow per cluster (normal blend, not additive - overlaps no longer blow out).
- * - "ink": neutral outline everywhere, colored glow only for the cluster(s) touching the current selection/hover.
  */
 export function drawClusters(
   ctx: CanvasRenderingContext2D,
@@ -65,25 +65,16 @@ export function drawClusters(
   zoom: number,
   pan: PanState,
   projectionMode: string | undefined,
-  style: ScatterVisualStyle,
-  selectedNodeIds: Set<string>,
-  hoveredNode: ScatterNode | null
+  style: ScatterVisualStyle
 ): void {
   if (nodes.length === 0) return;
   const hulls = computeClusterHulls(nodes, zoom, pan);
 
-  const activeCloudIds = new Set<number>();
-  if (style === "ink") {
-    nodes.forEach((n) => {
-      if (n.cloudId === undefined) return;
-      if (selectedNodeIds.has(n.id) || n === hoveredNode) activeCloudIds.add(n.cloudId);
-    });
-  }
-
   hulls.forEach((hull) => {
-    const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
-    if (style === "muted") drawGlow(ctx, hull, palette);
-    else if (style === "ink" && activeCloudIds.has(hull.cloudId)) drawGlow(ctx, hull, palette);
+    if (style === "muted") {
+      const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
+      drawGlow(ctx, hull, palette);
+    }
     drawDashedOutline(ctx, hull);
   });
 

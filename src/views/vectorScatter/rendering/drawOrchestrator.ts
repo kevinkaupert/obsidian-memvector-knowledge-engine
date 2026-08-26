@@ -1,9 +1,12 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
+import { computeFocusRelatedIds } from "../relatedNodes";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
 import { drawNodes } from "./drawNodes";
+
+const EMPTY_SET: Set<string> = new Set();
 
 export interface DrawState {
   nodes: ScatterNode[];
@@ -68,13 +71,28 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
   const nodeMap = new Map<string, ScatterNode>();
   state.nodes.forEach((n) => nodeMap.set(n.id.toLowerCase(), n));
 
-  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle, state.selectedNodeIds, state.hoveredNode);
+  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle);
 
   if (state.showEdges && state.relationEdges.length > 0) {
     drawEdges(ctx, nodeMap, state.relationEdges, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeAccent, state.scatterVisualStyle);
   }
 
-  drawNodes(ctx, state.nodes, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeTextMuted, themeAccent, state.scatterVisualStyle);
+  const relatedNodeIds =
+    state.scatterVisualStyle === "ink" ? computeFocusRelatedIds(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode) : EMPTY_SET;
+
+  drawNodes(
+    ctx,
+    state.nodes,
+    state.selectedNodeIds,
+    state.hoveredNode,
+    state.zoom,
+    state.pan,
+    themeTextNormal,
+    themeTextMuted,
+    themeAccent,
+    state.scatterVisualStyle,
+    relatedNodeIds
+  );
 
   if (state.isDraggingLasso) {
     drawLasso(ctx, state.lassoPath);
