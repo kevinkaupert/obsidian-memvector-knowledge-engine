@@ -137,7 +137,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.redraw();
   });
   const edgeHopsSelect = createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
-    ctx.edgeHops = parseInt(val, 10) || 1;
+    // 0 ("Alle") is a valid, meaningful value here - `parseInt(val, 10) || 1`
+    // would silently coerce it back to 1 since 0 is falsy in JS.
+    const parsed = parseInt(val, 10);
+    ctx.edgeHops = Number.isNaN(parsed) ? 1 : parsed;
     ctx.redraw();
   });
   edgeHopsRow = edgeHopsSelect.parentElement;
