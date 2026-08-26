@@ -22,6 +22,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 - [**System Architecture (`docs/ARCHITECTURE.md`)**](docs/ARCHITECTURE.md): Component map, 2D vector reduction, mini-radar renderer, and LLM integrations.
 - [**Configuration & Customization Guide (`docs/CONFIGURATION.md`)**](docs/CONFIGURATION.md): Complete settings reference, LLM provider setup, **Knowledge Domain (`knowledgeDomain`) customization**, and vault exclusions.
 - [**User Guide (`docs/USER_GUIDE.md`)**](docs/USER_GUIDE.md): Canvas interaction controls, gesture reference, right glassmorphic panel, mini-radar sidebar, and AI synthesis workflow.
+- [**Manual Integration Testing (`docs/TESTING.md`)**](docs/TESTING.md): Repeatable synthetic-note procedure to verify Qdrant and Memgraph sync end-to-end, independent of the plugin's own UI.
 
 ---
 
