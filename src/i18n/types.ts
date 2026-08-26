@@ -72,6 +72,7 @@ export interface TranslationKeys {
   lblVisualStyle: string;
   lblEdgeHops: string;
   edgeHopsAll: string;
+  edgeHopsUnlimited: string;
   styleMonochrome: string;
   styleMuted: string;
   styleInk: string;

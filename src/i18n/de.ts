@@ -80,6 +80,7 @@ export const de: TranslationKeys = {
   lblVisualStyle: "Darstellung",
   lblEdgeHops: "Kanten-Radius",
   edgeHopsAll: "Alle",
+  edgeHopsUnlimited: "Unbegrenzt (ganzer Pfad)",
   styleMonochrome: "Monochrom",
   styleMuted: "Gedämpfte Typ-Farben",
   styleInk: "Tinte & Fokus-Glow",

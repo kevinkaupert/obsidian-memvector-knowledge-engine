@@ -25,11 +25,18 @@ const VISUAL_STYLE_OPTIONS: { id: MemVectorSettings["scatterVisualStyle"]; label
   { id: "ink", labelKey: "styleInk", fallback: "Tinte & Fokus-Glow" },
 ];
 
+// "999" stands in for "unlimited": computeHopReachableNodeIds's BFS already
+// stops as soon as its frontier is exhausted, so any vault's actual
+// connected-component diameter is reached long before 999 iterations - no
+// separate "infinite" code path needed.
+const UNLIMITED_HOPS = 999;
+
 const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] => [
   { id: "0", label: t.edgeHopsAll },
   { id: "1", label: "1" },
   { id: "2", label: "2" },
   { id: "3", label: "3" },
+  { id: String(UNLIMITED_HOPS), label: t.edgeHopsUnlimited },
 ];
 
 const PROJECTION_OPTIONS: { id: ProjectionMode; labelKey: keyof TranslationKeys; fallback: string }[] = [
