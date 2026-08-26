@@ -1,18 +1,21 @@
+import type { ScatterVisualStyle } from "../../../settings/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 
-const EDGE_COLORS: Record<string, string> = {
-  PROVES: "#10b981",
-  REQUIRES: "#3b82f6",
-  IMPLIES: "#8b5cf6",
-  DEFINES: "#06b6d4",
-  EXTENDS: "#6366f1",
-  CONTRADICTS: "#ef4444",
-  USES: "#f59e0b",
+const EDGE_COLORS_MUTED: Record<string, string> = {
+  PROVES: "#6fae8e",
+  REQUIRES: "#6f93c9",
+  IMPLIES: "#a897c9",
+  DEFINES: "#6fb8c9",
+  EXTENDS: "#8890c9",
+  CONTRADICTS: "#c97f7f",
+  USES: "#c9a25e",
 };
 
-/** Renders every edge whenever the "Kanten anzeigen" toggle is on (dimmed by default), highlighting those touching a selected or hovered node - so relations stay visible/clickable without requiring a selection first. */
+const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
+
+/** Renders every edge whenever "Kanten anzeigen" is on, highlighting those touching a selected/hovered node - so relations stay visible/clickable without requiring a selection first. */
 export function drawEdges(
   ctx: CanvasRenderingContext2D,
   nodeMap: Map<string, ScatterNode>,
@@ -21,7 +24,9 @@ export function drawEdges(
   hoveredNode: ScatterNode | null,
   zoom: number,
   pan: PanState,
-  themeTextNormal: string
+  themeTextNormal: string,
+  themeAccent: string,
+  style: ScatterVisualStyle
 ): void {
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
@@ -32,27 +37,23 @@ export function drawEdges(
     const tgtNode = nodeMap.get(edge.tgtId);
     if (!srcNode || !tgtNode) return;
 
-    const isSrcSelected = activeNodeIds.has(srcNode.id);
-    const isTgtSelected = activeNodeIds.has(tgtNode.id);
+    const isActive = activeNodeIds.has(srcNode.id) || activeNodeIds.has(tgtNode.id);
+    const baseColor = style === "muted" ? EDGE_COLORS_MUTED[edge.relType] || NEUTRAL_EDGE : NEUTRAL_EDGE;
+    const edgeColor = isActive ? themeAccent : baseColor;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);
-    const edgeColor = EDGE_COLORS[edge.relType] || "#94a3b8";
 
     ctx.save();
     ctx.beginPath();
     ctx.moveTo(p1.x, p1.y);
     ctx.lineTo(p2.x, p2.y);
-    ctx.strokeStyle = isSrcSelected || isTgtSelected ? edgeColor : "rgba(148, 163, 184, 0.35)";
-    ctx.lineWidth = isSrcSelected || isTgtSelected ? 2.5 : 1.2;
-    if (isSrcSelected || isTgtSelected) {
-      ctx.shadowColor = edgeColor;
-      ctx.shadowBlur = 8;
-    }
+    ctx.strokeStyle = edgeColor;
+    ctx.lineWidth = isActive ? 2 : 1;
     ctx.stroke();
 
     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-    const headLen = 10 * zoom;
+    const headLen = 9 * zoom;
     const arrowX = p2.x - 12 * zoom * Math.cos(angle);
     const arrowY = p2.y - 12 * zoom * Math.sin(angle);
     ctx.beginPath();
@@ -63,7 +64,7 @@ export function drawEdges(
     ctx.fillStyle = edgeColor;
     ctx.fill();
 
-    if (isSrcSelected || isTgtSelected || zoom > 0.8) {
+    if (isActive || zoom > 0.8) {
       const midX = (p1.x + p2.x) / 2;
       const midY = (p1.y + p2.y) / 2;
       const rawDesc = edge.desc || "";

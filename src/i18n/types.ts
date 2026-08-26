@@ -63,6 +63,10 @@ export interface TranslationKeys {
   lblShowEdges: string;
   lblLasso: string;
   lblProjection: string;
+  lblVisualStyle: string;
+  styleMonochrome: string;
+  styleMuted: string;
+  styleInk: string;
   projClouds: string;
   projUmap: string;
   projNode2Vec: string;

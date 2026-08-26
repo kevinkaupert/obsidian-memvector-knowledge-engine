@@ -179,6 +179,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       hoveredNode: this.hoveredNode,
       isDraggingLasso: this.isDraggingLasso,
       lassoPath: this.lassoPath,
+      scatterVisualStyle: this.settings.scatterVisualStyle,
     });
   }
 

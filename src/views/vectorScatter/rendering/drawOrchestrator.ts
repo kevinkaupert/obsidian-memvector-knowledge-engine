@@ -1,3 +1,4 @@
+import type { ScatterVisualStyle } from "../../../settings/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
@@ -15,6 +16,7 @@ export interface DrawState {
   hoveredNode: ScatterNode | null;
   isDraggingLasso: boolean;
   lassoPath: { x: number; y: number }[];
+  scatterVisualStyle: ScatterVisualStyle;
 }
 
 function drawGrid(ctx: CanvasRenderingContext2D, width: number, height: number, zoom: number, pan: PanState): void {
@@ -59,19 +61,20 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
   const computedStyle = containerEl ? getComputedStyle(containerEl) : null;
   const themeTextNormal = computedStyle?.getPropertyValue("--text-normal")?.trim() || "#f8fafc";
   const themeTextMuted = computedStyle?.getPropertyValue("--text-muted")?.trim() || "#cbd5e1";
+  const themeAccent = computedStyle?.getPropertyValue("--interactive-accent")?.trim() || "#38bdf8";
 
   drawGrid(ctx, width, height, state.zoom, state.pan);
 
   const nodeMap = new Map<string, ScatterNode>();
   state.nodes.forEach((n) => nodeMap.set(n.id.toLowerCase(), n));
 
-  drawClusters(ctx, state.nodes, width, height, state.zoom, state.pan, state.projectionMode);
+  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle, state.selectedNodeIds, state.hoveredNode);
 
   if (state.showEdges && state.relationEdges.length > 0) {
-    drawEdges(ctx, nodeMap, state.relationEdges, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal);
+    drawEdges(ctx, nodeMap, state.relationEdges, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeAccent, state.scatterVisualStyle);
   }
 
-  drawNodes(ctx, state.nodes, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeTextMuted);
+  drawNodes(ctx, state.nodes, state.selectedNodeIds, state.hoveredNode, state.zoom, state.pan, themeTextNormal, themeTextMuted, themeAccent, state.scatterVisualStyle);
 
   if (state.isDraggingLasso) {
     drawLasso(ctx, state.lassoPath);

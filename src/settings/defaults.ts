@@ -40,4 +40,5 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   pendingMemgraphRelations: [],
   enrichSynthesisContext: false,
   includeAgentsGuidelines: false,
+  scatterVisualStyle: "ink",
 };

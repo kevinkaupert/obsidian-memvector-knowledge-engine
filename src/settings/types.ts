@@ -1,5 +1,7 @@
 export type LlmProvider = "ollama" | "claude" | "deepseek" | "openai" | "openrouter" | "custom";
 export type KnowledgeDomain = "general" | "math";
+/** Vector-graph rendering theme: "monochrome" (neutral dots, color only on selection), "muted" (desaturated per-type colors + one soft glow per cluster), "ink" (outline-only dots, cluster glow only for the cluster containing the current selection/hover). */
+export type ScatterVisualStyle = "monochrome" | "muted" | "ink";
 
 /**
  * Per-provider API keys. Replaces the legacy single `deepseekApiKey` field
@@ -55,6 +57,8 @@ export interface MemVectorSettings {
 
   /** Relations created while Memgraph was unreachable - retried on next successful connection. */
   pendingMemgraphRelations: PendingMemgraphRelation[];
+
+  scatterVisualStyle: ScatterVisualStyle;
 }
 
 export interface RelationGraphNode {

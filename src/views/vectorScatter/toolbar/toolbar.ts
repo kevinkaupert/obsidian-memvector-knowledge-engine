@@ -2,6 +2,7 @@ import { Notice } from "obsidian";
 import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
+import type { MemVectorSettings } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
 import type { ProjectionMode } from "../layout/projections";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
@@ -17,6 +18,12 @@ export interface ToolbarHandles {
   statusText: HTMLElement;
   updateSelectionUI(): void;
 }
+
+const VISUAL_STYLE_OPTIONS: { id: MemVectorSettings["scatterVisualStyle"]; labelKey: keyof TranslationKeys; fallback: string }[] = [
+  { id: "monochrome", labelKey: "styleMonochrome", fallback: "Monochrom" },
+  { id: "muted", labelKey: "styleMuted", fallback: "Gedämpfte Typ-Farben" },
+  { id: "ink", labelKey: "styleInk", fallback: "Tinte & Fokus-Glow" },
+];
 
 const PROJECTION_OPTIONS: { id: ProjectionMode; labelKey: keyof TranslationKeys; fallback: string }[] = [
   { id: "cloud", labelKey: "projClouds", fallback: "Themen-Wolken" },
@@ -73,6 +80,18 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     (newMode) => {
       ctx.projectionMode = newMode as ProjectionMode;
       ctx.applyLayout();
+      ctx.redraw();
+    }
+  );
+
+  createDropdown(
+    ansichtBody,
+    t.lblVisualStyle,
+    VISUAL_STYLE_OPTIONS.map((s) => ({ id: s.id, label: t[s.labelKey] || s.fallback })),
+    ctx.settings.scatterVisualStyle || "ink",
+    async (newStyle) => {
+      ctx.settings.scatterVisualStyle = newStyle as MemVectorSettings["scatterVisualStyle"];
+      await ctx.saveSettings();
       ctx.redraw();
     }
   );
