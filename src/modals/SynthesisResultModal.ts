@@ -1,4 +1,5 @@
 import { Component, MarkdownRenderer, Modal, Notice, type App } from "obsidian";
+import { ensureParentFolder } from "../ensureFolder";
 import { getTranslation } from "../i18n";
 import type { DomElementInfoCompat } from "../obsidianCompat";
 import type { MemVectorSettings } from "../settings/types";
@@ -88,6 +89,7 @@ generated:
 
 ${this.synthesisText}
 `;
+      await ensureParentFolder(this.app, fileName);
       await this.app.vault.create(fileName, frontmatter);
       new Notice(`${t.noticeSynthSaved} '${fileName}' ${t.noticeSynthSavedSuffix}`);
       this.close();
