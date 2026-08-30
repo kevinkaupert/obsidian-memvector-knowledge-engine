@@ -27,7 +27,7 @@ export class MathWikiSettingTab extends PluginSettingTab {
     renderGeneralSection(containerEl, this.host, t, rerender);
     renderLlmProviderSection(containerEl, this.app, this.host, t, rerender);
     renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
-    renderQdrantSection(containerEl, this.app, this.host, t);
+    renderQdrantSection(containerEl, this.app, this.host, t, rerender);
     renderMemgraphSection(containerEl, this.app, this.host, t, rerender);
   }
 }

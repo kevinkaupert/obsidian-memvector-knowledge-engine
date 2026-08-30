@@ -1,42 +1,62 @@
 import { Notice, SecretComponent, Setting, type App } from "obsidian";
-import { testQdrantConnection } from "../../sync/qdrant/connectionTest";
-import { syncVaultToQdrant } from "../../sync/qdrant/qdrantSync";
+import { getVectorStore } from "../../sync/storeFactory";
+import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import type { TranslationKeys } from "../../i18n";
 import { getQdrantApiKey, setQdrantApiKey } from "../secrets";
 import type { SettingsHost } from "../types";
 
-export function renderQdrantSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys): void {
+export function renderQdrantSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const { settings } = host;
   containerEl.createEl("h3", { text: t.secQdrant });
+  const isLocal = settings.vectorBackend === "sqlite";
 
   new Setting(containerEl)
-    .setName(t.qdrantUrlName)
-    .setDesc(t.qdrantUrlDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("http://localhost:6333")
-        .setValue(settings.qdrantUrl || "http://localhost:6333")
+    .setName(t.vectorBackendName)
+    .setDesc(t.vectorBackendDesc)
+    .addDropdown((dropdown) =>
+      dropdown
+        .addOption("qdrant", t.vectorBackendQdrant)
+        .addOption("sqlite", t.vectorBackendSqlite)
+        .setValue(settings.vectorBackend)
         .onChange(async (value) => {
-          settings.qdrantUrl = value.trim();
+          settings.vectorBackend = value as "qdrant" | "sqlite";
           await host.saveSettings();
+          rerender();
         })
     );
 
-  new Setting(containerEl)
-    .setName(t.qdrantCollName)
-    .setDesc(t.qdrantCollDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("obsidian_wiki_vectors")
-        .setValue(settings.qdrantCollection || "obsidian_wiki_vectors")
-        .onChange(async (value) => {
-          settings.qdrantCollection = value.trim();
-          await host.saveSettings();
-        })
-    );
+  if (isLocal) {
+    containerEl.createEl("p", { text: t.vectorBackendLocalInfo, cls: "setting-item-description" });
+  } else {
+    new Setting(containerEl)
+      .setName(t.qdrantUrlName)
+      .setDesc(t.qdrantUrlDesc)
+      .addText((text) =>
+        text
+          .setPlaceholder("http://localhost:6333")
+          .setValue(settings.qdrantUrl || "http://localhost:6333")
+          .onChange(async (value) => {
+            settings.qdrantUrl = value.trim();
+            await host.saveSettings();
+          })
+      );
 
-  const qdrantKeySetting = new Setting(containerEl).setName(t.qdrantKeyName).setDesc(t.qdrantKeyDesc);
-  new SecretComponent(app, qdrantKeySetting.controlEl).setValue(getQdrantApiKey(app)).onChange((value) => setQdrantApiKey(app, value.trim()));
+    new Setting(containerEl)
+      .setName(t.qdrantCollName)
+      .setDesc(t.qdrantCollDesc)
+      .addText((text) =>
+        text
+          .setPlaceholder("obsidian_wiki_vectors")
+          .setValue(settings.qdrantCollection || "obsidian_wiki_vectors")
+          .onChange(async (value) => {
+            settings.qdrantCollection = value.trim();
+            await host.saveSettings();
+          })
+      );
+
+    const qdrantKeySetting = new Setting(containerEl).setName(t.qdrantKeyName).setDesc(t.qdrantKeyDesc);
+    new SecretComponent(app, qdrantKeySetting.controlEl).setValue(getQdrantApiKey(app)).onChange((value) => setQdrantApiKey(app, value.trim()));
+  }
 
   new Setting(containerEl)
     .setName(t.qdrantAutoSyncName)
@@ -48,57 +68,59 @@ export function renderQdrantSection(containerEl: HTMLElement, app: App, host: Se
       })
     );
 
+  const syncButtonText = isLocal ? "Jetzt Vault lokal indizieren" : "Jetzt Vault in Qdrant synchronisieren";
   new Setting(containerEl)
-    .setName("Gesamtes Vault in Qdrant indizieren")
-    .setDesc("Berechnet Embeddings für alle Notizen im Vault und lädt sie direkt in die Qdrant Vektor-Datenbank.")
+    .setName("Gesamtes Vault indizieren")
+    .setDesc("Berechnet Embeddings für alle Notizen im Vault und lädt sie in die gewählte Vektor-Datenbank.")
     .addButton((btn) =>
       btn
-        .setButtonText("Jetzt Vault in Qdrant synchronisieren")
+        .setButtonText(syncButtonText)
         .setCta()
         .onClick(async () => {
           btn.setButtonText("Synchronisiere Vault...");
           btn.setDisabled(true);
           try {
-            new Notice(`🚀 Starte Qdrant-Synchronisation für ${app.vault.getMarkdownFiles().length} Notizen...`);
-            const result = await syncVaultToQdrant(app, settings);
+            new Notice(`🚀 Starte Vektor-Synchronisation für ${app.vault.getMarkdownFiles().length} Notizen...`);
+            const result = await syncVaultVectors(app, settings, getVectorStore(app, settings));
             if (result.syncedCount > 0) {
               btn.setButtonText("✅ Synchronisiert!");
-              new Notice(`✅ Qdrant erfolgreich mit ${result.syncedCount} Notizen befüllt!`);
+              new Notice(`✅ ${result.syncedCount} Notizen erfolgreich indiziert!`);
             } else {
               new Notice("⚠️ Keine Embeddings generiert (Ollama prüfen).");
             }
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
-            new Notice(`❌ Qdrant Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+            new Notice(`❌ Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             setTimeout(() => {
-              btn.setButtonText("Jetzt Vault in Qdrant synchronisieren");
+              btn.setButtonText(syncButtonText);
               btn.setDisabled(false);
             }, 3000);
           }
         })
     );
 
+  const testButtonText = isLocal ? "Lokale Vektor-Datenbank testen" : "Qdrant Verbindung testen";
   new Setting(containerEl)
-    .setName("Qdrant-Verbindung testen")
-    .setDesc("Prüft die Erreichbarkeit der Qdrant Vektor-Datenbank.")
+    .setName(testButtonText)
+    .setDesc(isLocal ? "Prüft, ob die lokale SQLite-Datei geöffnet werden kann." : "Prüft die Erreichbarkeit der Qdrant Vektor-Datenbank.")
     .addButton((btn) =>
       btn
-        .setButtonText("Qdrant Verbindung testen")
+        .setButtonText(testButtonText)
         .setCta()
         .onClick(async () => {
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            await testQdrantConnection(settings.qdrantUrl, getQdrantApiKey(app));
+            await getVectorStore(app, settings).testConnection();
             btn.setButtonText("✅ Erfolgreich!");
-            new Notice("✅ Qdrant ist erreichbar!");
+            new Notice(isLocal ? "✅ Lokale Vektor-Datenbank ist verfügbar!" : "✅ Qdrant ist erreichbar!");
           } catch (err) {
             btn.setButtonText("❌ Fehlgeschlagen");
-            new Notice(`❌ Qdrant-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+            new Notice(`❌ Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             setTimeout(() => {
-              btn.setButtonText("Qdrant Verbindung testen");
+              btn.setButtonText(testButtonText);
               btn.setDisabled(false);
             }, 3000);
           }

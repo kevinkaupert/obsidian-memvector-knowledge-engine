@@ -66,9 +66,14 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 
 ---
 
-### Section 4 & 5: Qdrant & Memgraph Connections
-- **Qdrant Vector DB:** Syncs embeddings to Qdrant collection.
-- **Memgraph Graph DB:** Syncs the vault graph and relation edges (`wiki/relations/`) via the **Bolt protocol** (`bolt://host:port`, default `bolt://localhost:7687`), not HTTP.
+### Section 4 & 5: Vector & Graph Database Connections
+
+Both sections now start with a **backend dropdown**, chosen independently:
+
+- **Vector Backend:** **Qdrant** (syncs embeddings to a Qdrant collection over REST) or **Local (SQLite)** - embeddings stored in the plugin's own local file, brute-force cosine search, no server needed. Switching hides the URL/API-key fields for whichever isn't selected.
+- **Graph Backend:** **Memgraph** (syncs the vault graph and relation edges under `wiki/relations/` via the **Bolt protocol**, `bolt://host:port`, default `bolt://localhost:7687` - not HTTP) or **Local (SQLite)** - notes/edges in the same local file, multi-hop neighbor lookups via a recursive SQL query instead of Cypher.
+
+The local file (`memvector-local.sqlite`, shared by both if you pick Local for each) lives under `.obsidian/plugins/obsidian-memvector-knowledge-engine/` - it's gitignored like `data.json`, and switching backends doesn't migrate data between them: re-run the sync button for whichever backend you just switched to.
 
 ---
 

@@ -1,7 +1,5 @@
 import { TFile, type App } from "obsidian";
-import { searchSimilar } from "../../sync/qdrant/qdrantClient";
-import { getGraphStore } from "../../sync/storeFactory";
-import { getQdrantApiKey } from "../../settings/secrets";
+import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
 import { toSlug } from "../../noteSlug";
 import { stripFrontmatter } from "../../noteContent";
@@ -12,7 +10,7 @@ export interface EnrichedNote {
   title: string;
   path: string;
   content: string;
-  sources: ("qdrant" | "memgraph")[];
+  sources: ("vector" | "graph")[];
 }
 
 function averageEmbedding(vectors: number[][]): number[] | null {
@@ -25,26 +23,25 @@ function averageEmbedding(vectors: number[][]): number[] | null {
   return sum.map((v) => v / vectors.length);
 }
 
-async function fetchQdrantNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
+async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const embeddings = selected.map((n) => n.embedding).filter((e): e is number[] => !!e && e.length > 0);
   const queryVector = averageEmbedding(embeddings);
   if (!queryVector) return found;
 
-  const baseUrl = (settings.qdrantUrl || "http://localhost:6333").replace(/\/+$/, "");
-  const hits = await searchSimilar(baseUrl, settings.qdrantCollection || "obsidian_wiki_vectors", getQdrantApiKey(app), queryVector, limit + selected.length);
+  const hits = await getVectorStore(app, settings).search(queryVector, limit + selected.length);
 
   for (const hit of hits) {
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
     const id = toSlug(hit.payload.title || path);
-    found.set(id, { id, title: hit.payload.title, path, content: hit.payload.content || "", sources: ["qdrant"] });
+    found.set(id, { id, title: hit.payload.title, path, content: hit.payload.content || "", sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;
 }
 
-async function fetchMemgraphNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
+async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => toSlug(n.id));
   const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, 2, limit + selected.length);
@@ -56,46 +53,47 @@ async function fetchMemgraphNeighbors(app: App, settings: MemVectorSettings, sel
     if (file instanceof TFile) {
       content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
     }
-    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content, sources: ["memgraph"] });
+    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content, sources: ["graph"] });
     if (found.size >= limit) break;
   }
   return found;
 }
 
 /**
- * Hybrid GraphRAG context: pulls in notes the user didn't select, via Qdrant
- * vector similarity (needs embeddings already computed on the selected
- * nodes - "Vektoren berechnen") and Memgraph graph-neighborhood (needs a
- * synced graph). Either leg is skipped silently if its precondition isn't
- * met or its database is unreachable - partial enrichment beats failing the
- * whole synthesis.
+ * Hybrid GraphRAG context: pulls in notes the user didn't select, via vector
+ * similarity (needs embeddings already computed on the selected nodes -
+ * "Vektoren berechnen") and graph-neighborhood (needs a synced graph).
+ * Either leg is skipped silently if its precondition isn't met or its
+ * backend is unreachable - partial enrichment beats failing the whole
+ * synthesis. Works the same regardless of which backend (Qdrant/Memgraph or
+ * local SQLite) is currently configured for each.
  */
 export async function enrichContext(app: App, settings: MemVectorSettings, selected: ScatterNode[], limitPerSource = 4): Promise<EnrichedNote[]> {
   const merged = new Map<string, EnrichedNote>();
 
-  const [qdrantResult, memgraphResult] = await Promise.allSettled([
-    fetchQdrantNeighbors(app, settings, selected, limitPerSource),
-    fetchMemgraphNeighbors(app, settings, selected, limitPerSource),
+  const [vectorResult, graphResult] = await Promise.allSettled([
+    fetchVectorNeighbors(app, settings, selected, limitPerSource),
+    fetchGraphNeighbors(app, settings, selected, limitPerSource),
   ]);
 
-  if (qdrantResult.status === "fulfilled") {
-    qdrantResult.value.forEach((note, id) => merged.set(id, note));
+  if (vectorResult.status === "fulfilled") {
+    vectorResult.value.forEach((note, id) => merged.set(id, note));
   } else {
-    console.warn("MemVector: Qdrant context enrichment skipped", qdrantResult.reason);
+    console.warn("MemVector: vector context enrichment skipped", vectorResult.reason);
   }
 
-  if (memgraphResult.status === "fulfilled") {
-    memgraphResult.value.forEach((note, id) => {
+  if (graphResult.status === "fulfilled") {
+    graphResult.value.forEach((note, id) => {
       const existing = merged.get(id);
       if (existing) {
-        existing.sources.push("memgraph");
+        existing.sources.push("graph");
         if (!existing.content && note.content) existing.content = note.content;
       } else {
         merged.set(id, note);
       }
     });
   } else {
-    console.warn("MemVector: Memgraph context enrichment skipped", memgraphResult.reason);
+    console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
   }
 
   return Array.from(merged.values());

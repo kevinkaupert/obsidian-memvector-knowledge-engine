@@ -53,6 +53,11 @@ export interface TranslationKeys {
   radarCountDesc: string;
 
   secQdrant: string;
+  vectorBackendName: string;
+  vectorBackendDesc: string;
+  vectorBackendQdrant: string;
+  vectorBackendSqlite: string;
+  vectorBackendLocalInfo: string;
   qdrantUrlName: string;
   qdrantUrlDesc: string;
   qdrantCollName: string;

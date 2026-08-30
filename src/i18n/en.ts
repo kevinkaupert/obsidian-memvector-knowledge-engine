@@ -58,7 +58,12 @@ export const en: TranslationKeys = {
   radarCountDesc: "Number of nearest vector notes (X) that the mini-radar automatically scales to when opened.",
 
   // Section 4: Qdrant
-  secQdrant: "4. Qdrant Vector Database Connection",
+  secQdrant: "4. Vector Database (Qdrant or local)",
+  vectorBackendName: "Vector Backend",
+  vectorBackendDesc: "Choose where embeddings are stored and searched.",
+  vectorBackendQdrant: "Qdrant (server)",
+  vectorBackendSqlite: "Local (SQLite, no server needed)",
+  vectorBackendLocalInfo: "Local file: .obsidian/plugins/obsidian-memvector-knowledge-engine/memvector-local.sqlite",
   qdrantUrlName: "Qdrant Server URL",
   qdrantUrlDesc: "HTTP URL of your Qdrant instance (e.g., http://localhost:6333 or cloud URL).",
   qdrantCollName: "Qdrant Collection Name",
