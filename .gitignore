@@ -6,5 +6,6 @@ dist/
 .vscode/
 data.json
 data.json.*.bak
+memvector-local.sqlite
 main.new.js
 main.js.old-backup

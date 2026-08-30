@@ -1,6 +1,6 @@
 import { TFile, type App } from "obsidian";
-import { fetchGraphNeighbors } from "../../sync/memgraph/graphNeighbors";
 import { searchSimilar } from "../../sync/qdrant/qdrantClient";
+import { getGraphStore } from "../../sync/storeFactory";
 import { getQdrantApiKey } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { toSlug } from "../../noteSlug";
@@ -47,7 +47,7 @@ async function fetchQdrantNeighbors(app: App, settings: MemVectorSettings, selec
 async function fetchMemgraphNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => toSlug(n.id));
-  const neighbors = await fetchGraphNeighbors(app, settings, ids, 2, limit + selected.length);
+  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, 2, limit + selected.length);
 
   for (const neighbor of neighbors) {
     if (selected.some((s) => s.path === neighbor.path)) continue;

@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import type { MemVectorSettings, PendingMemgraphRelation } from "../../settings/types";
+import { getGraphStore } from "../storeFactory";
 import type { TypedEdgeInput } from "./cypherBuilder";
-import { pushRelationEdges } from "./relationSync";
 
 /** Queues relation edges that couldn't be pushed live (Memgraph unreachable at save time). */
 export function enqueuePendingRelations(settings: MemVectorSettings, edges: TypedEdgeInput[]): void {
@@ -23,7 +23,7 @@ export async function flushPendingMemgraphRelations(
   const pending = settings.pendingMemgraphRelations;
   if (pending.length === 0) return 0;
 
-  await pushRelationEdges(app, settings, pending);
+  await getGraphStore(app, settings).upsertTypedEdges(pending);
   const flushedCount = pending.length;
   settings.pendingMemgraphRelations = [];
   await saveSettings();

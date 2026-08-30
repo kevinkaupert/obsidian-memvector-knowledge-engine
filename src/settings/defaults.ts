@@ -23,16 +23,19 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   synthesisLinkMode: "suggested_section",
   cloudNamingMode: "centroid",
 
+  graphBackend: "memgraph",
+  vectorBackend: "qdrant",
+
   qdrantUrl: "http://localhost:6333",
   qdrantCollection: "obsidian_wiki_vectors",
   autoSyncQdrant: false,
 
   // Bolt endpoint (was previously an inert HTTP-Cypher URL that no working
   // sync path ever actually reached — see settings/secrets.ts's sibling,
-  // sync/memgraph/memgraphSync.ts, for the real client).
+  // sync/vaultGraphSync.ts, for the real client).
   memgraphUrl: "bolt://localhost:7687",
   memgraphUser: "",
-  autoSyncMemgraph: false,
+  autoSyncGraph: false,
   pendingMemgraphRelations: [],
   enrichSynthesisContext: false,
   includeAgentsGuidelines: false,

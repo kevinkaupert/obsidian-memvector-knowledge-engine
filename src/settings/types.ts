@@ -33,13 +33,17 @@ export interface MemVectorSettings {
   synthesisLinkMode: string;
   cloudNamingMode: string;
 
+  /** "sqlite" needs no external server - graph/vectors live in a local file under the plugin folder instead of Memgraph/Qdrant. */
+  graphBackend: "memgraph" | "sqlite";
+  vectorBackend: "qdrant" | "sqlite";
+
   qdrantUrl: string;
   qdrantCollection: string;
   autoSyncQdrant: boolean;
 
   memgraphUrl: string;
   memgraphUser: string;
-  autoSyncMemgraph: boolean;
+  autoSyncGraph: boolean;
 
   /** Hybrid GraphRAG: pull Qdrant-similar + Memgraph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;

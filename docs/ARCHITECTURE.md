@@ -81,6 +81,13 @@ The "Darstellung" dropdown's projection selector switches between 7 independent 
   - **OpenRouter** (`openrouter.ai/api/v1`)
   - **Custom Endpoints** (LM Studio, vLLM, LocalAI)
 
-### 2.5. External Database Connections (Optional)
-- **Qdrant Vector Database:** Syncs dense embeddings to a remote/local Qdrant collection for multi-device vector search.
-- **Memgraph Graph Database:** Pushes structured relationships (`type: relation`, `Voraussetzung: [[...]]`, `Impliziert: [[...]]`) directly into Memgraph over the **Bolt protocol**, via `neo4j-driver-lite` (Memgraph documents Bolt-driver compatibility with the standard Neo4j drivers). An earlier version of this plugin attempted this over a plain HTTP `/db/data/cypher` endpoint (an old, removed Neo4j REST route Memgraph never implemented), which silently never worked and fell back to copying Cypher to the clipboard while still reporting success — that path has been replaced entirely.
+### 2.5. Pluggable Graph/Vector Storage Backends
+
+The relationship graph and the vector index each sit behind a small interface (`sync/graphStore.ts`'s `GraphStore`, `sync/vectorStore.ts`'s `VectorStore`) so the plugin doesn't have to talk to Memgraph/Qdrant directly - `sync/storeFactory.ts` is the one place that picks an implementation based on the `graphBackend`/`vectorBackend` settings, chosen independently:
+
+- **Graph Backend**
+  - **Memgraph** (`memgraph/memgraphGraphStore.ts`): pushes structured relationships directly into Memgraph over the **Bolt protocol** via `neo4j-driver-lite` (Memgraph documents Bolt-driver compatibility with the standard Neo4j drivers). An earlier version of this plugin attempted this over a plain HTTP `/db/data/cypher` endpoint (an old, removed Neo4j REST route Memgraph never implemented), which silently never worked and fell back to copying Cypher to the clipboard while still reporting success - that path has been replaced entirely.
+  - **Local (SQLite)** (`sqlite/sqliteGraphStore.ts`): no external server - a `notes`/`edges` table in a single file under the plugin folder (`memvector-local.sqlite`), with multi-hop neighbor lookups done via a `WITH RECURSIVE` CTE instead of Cypher. Runs on `sql.js` (SQLite compiled to WASM) rather than a native addon like `better-sqlite3`, specifically to avoid needing prebuilt binaries matched to Obsidian's exact bundled Electron/Node ABI per OS/arch - `sql.js` has no native-binding risk, at the cost of manually (de)serializing the whole DB file via `app.vault.adapter.readBinary`/`writeBinary` after every write (`sqlite/sqliteDb.ts`).
+- **Vector Backend**
+  - **Qdrant Vector Database:** Syncs dense embeddings to a remote/local Qdrant collection for multi-device vector search.
+  - **Local (SQLite)**: embeddings stored in the same local SQLite file, with brute-force cosine similarity computed in JS at query time - fast enough at personal-vault scale (hundreds to a few thousand notes). ChromaDB was considered and rejected: the `chromadb` npm package is an HTTP client that still requires a running Chroma server, so it wouldn't reduce operational complexity versus Qdrant at all.

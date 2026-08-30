@@ -58,7 +58,7 @@ export default class MemVectorPlugin extends Plugin {
 
   /** Best-effort: relations created while Memgraph was unreachable get retried once it's back, without blocking startup. */
   private tryFlushPendingMemgraphRelations(): void {
-    if (!this.settings.autoSyncMemgraph || this.settings.pendingMemgraphRelations.length === 0) return;
+    if (!this.settings.autoSyncGraph || this.settings.pendingMemgraphRelations.length === 0) return;
     flushPendingMemgraphRelations(this.app, this.settings, () => this.saveSettings())
       .then((count) => {
         if (count > 0) new Notice(`✅ ${count} zuvor ausstehende Beziehung(en) mit Memgraph synchronisiert.`);

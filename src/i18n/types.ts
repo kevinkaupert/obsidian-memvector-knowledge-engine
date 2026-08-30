@@ -63,6 +63,11 @@ export interface TranslationKeys {
   qdrantAutoSyncDesc: string;
 
   secMemgraph: string;
+  graphBackendName: string;
+  graphBackendDesc: string;
+  graphBackendMemgraph: string;
+  graphBackendSqlite: string;
+  graphBackendLocalInfo: string;
   memgraphUrlName: string;
   memgraphUrlDesc: string;
   memgraphUserName: string;
