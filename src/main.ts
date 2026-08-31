@@ -6,12 +6,14 @@ import type { MemVectorSettings } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
+import { setPluginId } from "./sync/sqlite/sqliteDb";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
   private sidebarView: MathWikiSidebarView | null = null;
 
   async onload(): Promise<void> {
+    setPluginId(this.manifest.id);
     console.log("Loading MemVector Knowledge Engine Plugin...");
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
