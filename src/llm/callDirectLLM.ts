@@ -48,13 +48,14 @@ export async function callDirectLLM(
       if (cleanKey && cleanKey !== "ollama") {
         headers["Authorization"] = `Bearer ${cleanKey}`;
       }
-      const isReasoning = /^(deepseek-reasoner|o1|o3)/i.test((modelName || "").trim());
+      const isReasoning = /(reasoner|r1|o1|o3)/i.test((modelName || "").trim());
       payload = {
         model: modelName || PROVIDER_DEFAULT_MODELS.ollama,
         messages: [
           ...(systemPrompt && systemPrompt.trim() ? [{ role: "system", content: systemPrompt.trim() }] : []),
           { role: "user", content: prompt || "Hallo" },
         ],
+        stream: false,
       };
       if (!isReasoning && typeof temperature === "number") {
         payload.temperature = Math.max(0, Math.min(2, temperature));
@@ -86,7 +87,40 @@ export async function callDirectLLM(
         }
         return blocks?.[0]?.text || "Keine Antwort von Claude erhalten.";
       }
-      return data.choices?.[0]?.message?.content || data.choices?.[0]?.message?.reasoning || "Keine Antwort vom LLM erhalten.";
+      const ans =
+        data.choices?.[0]?.message?.content ||
+        data.choices?.[0]?.message?.reasoning ||
+        data.message?.content ||
+        data.response;
+      if (ans && typeof ans === "string") return ans;
+      return "Keine Antwort vom LLM erhalten.";
+    }
+
+    // Native Ollama /api/chat fallback if /v1/chat/completions failed
+    if (url.includes("11434") || url.includes("localhost") || url.includes("127.0.0.1")) {
+      const nativeUrl = url.replace(/\/v1\/chat\/completions$/, "/api/chat");
+      if (nativeUrl !== url) {
+        try {
+          const nativeRes = await requestUrl({
+            url: nativeUrl,
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: payload.model,
+              messages: payload.messages,
+              stream: false,
+            }),
+            throwOnError: false,
+          });
+          if (nativeRes.status === 200) {
+            const nData = nativeRes.json;
+            const nAns = nData?.message?.content || nData?.response;
+            if (nAns && typeof nAns === "string") return nAns;
+          }
+        } catch {
+          // fallback failed, continue to standard error reporting
+        }
+      }
     }
 
     let errMsg = "";
