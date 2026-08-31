@@ -228,8 +228,9 @@ export async function runSynthesis(
   try {
     rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt, settings.llmProvider);
   } catch (err) {
-    setHoverText("❌ Synthese fehlgeschlagen");
-    new Notice(`❌ MemVector LLM-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    setHoverText(`❌ ${msg.slice(0, 70)}`);
+    new Notice(`❌ MemVector LLM-Fehler: ${msg}`, 10000);
     return;
   }
 

@@ -48,14 +48,17 @@ export async function callDirectLLM(
       if (cleanKey && cleanKey !== "ollama") {
         headers["Authorization"] = `Bearer ${cleanKey}`;
       }
+      const isReasoning = /^(deepseek-reasoner|o1|o3)/i.test((modelName || "").trim());
       payload = {
         model: modelName || PROVIDER_DEFAULT_MODELS.ollama,
         messages: [
           ...(systemPrompt && systemPrompt.trim() ? [{ role: "system", content: systemPrompt.trim() }] : []),
           { role: "user", content: prompt || "Hallo" },
         ],
-        temperature: temperature ?? 0.1,
       };
+      if (!isReasoning && typeof temperature === "number") {
+        payload.temperature = Math.max(0, Math.min(2, temperature));
+      }
     }
 
     const response = await requestUrl({
@@ -84,32 +87,31 @@ export async function callDirectLLM(
       return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
     }
 
-    let errMsg = response.text;
+    let errMsg = "";
     try {
       const errJson = response.json;
-      if (errJson?.error?.message) errMsg = errJson.error.message;
+      if (typeof errJson?.error === "string") errMsg = errJson.error;
+      else if (errJson?.error?.message) errMsg = errJson.error.message;
+      else if (errJson?.message) errMsg = errJson.message;
     } catch {
-      // response body wasn't JSON; keep the raw text as errMsg
+      // not JSON
     }
+    if (!errMsg) errMsg = response.text || `HTTP ${response.status}`;
 
     if (response.status === 400) {
-      throw new Error(`HTTP 400 Bad Request: ${errMsg || "Ungültige Parameter oder ungültiger Modellname für Claude"}`);
+      throw new Error(`HTTP 400 Bad Request: ${errMsg}`);
     } else if (response.status === 402) {
       throw new Error(
-        `HTTP 402 Payment Required (Guthaben aufgebraucht): ${errMsg || "Bitte lade Guthaben auf platform.deepseek.com auf oder schalte auf lokales Ollama um."}`
+        `HTTP 402 Payment Required: ${errMsg || "Guthaben aufgebraucht. Bitte lade Guthaben auf oder schalte auf lokales Ollama um."}`
       );
     } else if (response.status === 401) {
-      throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${url}`);
+      throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${url}. ${errMsg}`);
     } else if (response.status === 404) {
-      throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${url}`);
+      throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${url}. ${errMsg}`);
     } else {
-      throw new Error(`HTTP ${response.status}: ${errMsg || "LLM-Anfrage fehlgeschlagen"}`);
+      throw new Error(`HTTP ${response.status}: ${errMsg}`);
     }
   } catch (err) {
-    // Re-throw rather than returning this as if it were the LLM's answer - callDirectLLM used to
-    // swallow every failure (network-level *and* the HTTP-status errors thrown above) into a plain
-    // string, so a down Ollama server produced a "successful" synthesis whose content was just the
-    // error message. synthesis.ts's own try/catch already exists specifically to handle a real throw.
-    throw new Error(`LLM Verbindungsfehler zu '${apiBase}': ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`${err instanceof Error ? err.message : String(err)}`);
   }
 }

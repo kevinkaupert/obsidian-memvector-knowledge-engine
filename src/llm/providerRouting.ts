@@ -10,14 +10,12 @@ export function detectProvider(apiBase: string, modelName: string, llmProvider =
   const rawProvider = (llmProvider || "").toLowerCase().trim();
 
   if (rawProvider === "openrouter" || rawBase.includes("openrouter")) return "openrouter";
-  if (rawProvider === "deepseek" || rawBase.includes("deepseek")) return "deepseek";
-  if (rawProvider === "openai" || rawBase.includes("openai")) return "openai";
-  if (
-    rawProvider === "claude" ||
-    rawBase.includes("anthropic") ||
-    rawModel.includes("claude") ||
-    rawModel.includes("sonnet")
-  ) {
+  if (rawProvider === "claude" || rawBase.includes("anthropic")) return "anthropic";
+  if (rawProvider === "deepseek" || rawBase.includes("deepseek.com")) return "deepseek";
+  if (rawProvider === "openai" || rawBase.includes("openai.com")) return "openai";
+  if (rawProvider === "ollama") return "generic";
+
+  if (rawModel.includes("claude") || rawModel.includes("sonnet")) {
     return "anthropic";
   }
   return "generic";
