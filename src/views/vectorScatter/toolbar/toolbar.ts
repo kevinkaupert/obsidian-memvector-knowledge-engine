@@ -55,8 +55,12 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     placeholder: t.searchPlaceholder,
   });
   searchInput.style.cssText =
-    "display:block; width:calc(100% - 24px); margin:4px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal);";
+    "display:block; width:calc(100% - 24px); margin:4px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1)); outline:none; background:var(--background-primary, var(--background-secondary)); color:var(--text-normal); user-select:text; -webkit-user-select:text; cursor:text;";
+  searchInput.onmousedown = (e) => e.stopPropagation();
+  searchInput.onmouseup = (e) => e.stopPropagation();
+  searchInput.onclick = (e) => e.stopPropagation();
   searchInput.onkeydown = (e) => {
+    e.stopPropagation();
     if (e.key === "Enter" && searchInput.value.trim()) {
       ctx.searchNote(searchInput.value.trim());
     }
@@ -65,10 +69,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   const filterInput = filterBody.createEl("input", {
     type: "text",
     placeholder: "-path:schema -file:index...",
-    value: ctx.settings.vectorSearchExclusions || "",
   });
+  filterInput.value = ctx.settings.vectorSearchExclusions || "";
   filterInput.style.cssText =
-    "display:block; width:calc(100% - 24px); margin:4px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal);";
+    "display:block; width:calc(100% - 24px); margin:4px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1)); outline:none; background:var(--background-primary, var(--background-secondary)); color:var(--text-normal); user-select:text; -webkit-user-select:text; cursor:text;";
+  filterInput.onmousedown = (e) => e.stopPropagation();
+  filterInput.onmouseup = (e) => e.stopPropagation();
+  filterInput.onclick = (e) => e.stopPropagation();
+  filterInput.onkeydown = (e) => e.stopPropagation();
 
   let filterDebounce: number | null = null;
   filterInput.oninput = () => {
@@ -80,7 +88,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       await ctx.scanVaultNotes(val);
       statusText.setText(`${ctx.nodes.length}`);
       ctx.redraw();
-    }, 200);
+    }, 250);
   };
 
   // ── Ansicht ───────────────────────────────────────────────────────────
@@ -140,7 +148,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     placeholder: t.synthPromptPlaceholder,
   });
   promptInput.style.cssText =
-    "display:block; width:calc(100% - 24px); margin:6px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; min-height:56px; resize:vertical; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal); font-family:inherit;";
+    "display:block; width:calc(100% - 24px); margin:6px 12px 8px; box-sizing:border-box; font-size:0.76em; padding:6px 10px; min-height:56px; resize:vertical; border-radius:6px; border:1px solid var(--background-modifier-border, rgba(255,255,255,0.1)); outline:none; background:var(--background-primary, var(--background-secondary)); color:var(--text-normal); font-family:inherit; user-select:text; -webkit-user-select:text; cursor:text;";
+  promptInput.onmousedown = (e) => e.stopPropagation();
+  promptInput.onmouseup = (e) => e.stopPropagation();
+  promptInput.onclick = (e) => e.stopPropagation();
+  promptInput.onkeydown = (e) => e.stopPropagation();
 
   createToggle(syntheseBody, t.synthEnrichToggle, ctx.settings.enrichSynthesisContext, async (on) => {
     ctx.settings.enrichSynthesisContext = on;

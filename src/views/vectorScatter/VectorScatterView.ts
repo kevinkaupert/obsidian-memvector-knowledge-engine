@@ -125,7 +125,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       boxShadow: "0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3))",
       overflow: "hidden",
       transition: "opacity 0.2s ease, transform 0.2s ease",
-      userSelect: "none",
     });
 
     this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
