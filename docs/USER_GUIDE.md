@@ -19,6 +19,13 @@ Open the main 2D Vector Graph by clicking the **dot-network icon** in the left r
 └───────────────────────────────────────────────────────────────┘
 ```
 
+> The note-type labels/colors above (Theorem, Definition, Concept, ...)
+> come from a folder/filename convention (`/theorems/`, `/definitions/`, ...)
+> baked in as a STEM-flavored example (`activeNoteScoring.ts`). Notes that
+> don't match any of those patterns default to "Concept" - so nothing
+> breaks for a non-math vault, it just doesn't get the extra color coding
+> unless you adopt similar folder names for your own domain's types.
+
 ### Canvas Interaction Controls
 
 | Action | Control / Gesture |

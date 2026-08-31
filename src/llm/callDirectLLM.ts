@@ -105,6 +105,10 @@ export async function callDirectLLM(
       throw new Error(`HTTP ${response.status}: ${errMsg || "LLM-Anfrage fehlgeschlagen"}`);
     }
   } catch (err) {
-    return `LLM Verbindungsfehler zu '${apiBase}': ${err instanceof Error ? err.message : String(err)}`;
+    // Re-throw rather than returning this as if it were the LLM's answer - callDirectLLM used to
+    // swallow every failure (network-level *and* the HTTP-status errors thrown above) into a plain
+    // string, so a down Ollama server produced a "successful" synthesis whose content was just the
+    // error message. synthesis.ts's own try/catch already exists specifically to handle a real throw.
+    throw new Error(`LLM Verbindungsfehler zu '${apiBase}': ${err instanceof Error ? err.message : String(err)}`);
   }
 }

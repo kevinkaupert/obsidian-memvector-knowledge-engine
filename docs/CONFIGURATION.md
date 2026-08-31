@@ -18,6 +18,12 @@ The settings menu is organized into 5 clean sections:
 
 ### Section 1: General
 - **Language / Sprache:** Choose UI language (`Deutsch` / `English`). All setting titles, descriptions, dropdown options, and notices translate automatically when toggled.
+- **Path & File Exclusions (`vectorSearchExclusions`):** `-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-` (default). Notes matching these are skipped by the vector scan.
+- **Unselected Label Opacity:** How faded the title label of a non-selected, non-connected note is in the graph view (default `35%`).
+- **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar (default `10`).
+- **Relation Vocabulary File (`relationVocabularyPath`):** Vault path to the relation-type definitions used by the Relation Builder - see Section 3.5 below (default `wiki/relation-types.json`).
+- **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is on (default `AGENTS.md, meta/PROFILE.md`).
+- **Synthesis Link Mode / Cloud Naming Mode:** How synthesis output auto-links concepts, and how topic clusters in the graph view are named.
 
 ---
 
@@ -59,10 +65,41 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 - **`general` (Universal Notebook):** Term frequency + semantic clustering for PKM, research, and code.
 - **`math` (Mathematics & Formal Sciences):** LaTeX formula extraction & 15x feature weighting for formal definitions, theorems, and proofs.
 
-#### Vault Exclusions & Mini-Radar Count
+---
 
-- **Path & File Exclusions (`vectorSearchExclusions`):** `-path: schema -file:index -file:log -file:README`
-- **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in sidebar (Default: `10`).
+### Section 3.5: Relation Vocabulary (which relation types exist, set in the General section)
+
+The Relation Builder's type dropdown is **not hardcoded** - it's read from a vault file (default `wiki/relation-types.json`, path configurable via `relationVocabularyPath` in the General section). If the file doesn't exist yet, it's created automatically the first time you open the Relation Builder, seeded with a bundled STEM (math/formal-sciences) preset: 13 canonical labels (`IMPLIES`, `REQUIRES`, `EQUIVALENT_TO`, `GENERALIZES`, `SPECIALIZES`, `EXTENDS`, `REDUCES_TO`, `CONSTRUCTS`, `EMBEDS_IN`, `REFUTES`, `CONFLICTS_WITH`, `INDEPENDENT_OF`, `ANALOGOUS_TO`) behind 37 everyday terms.
+
+From that point on, the file is yours to edit - rename, remove, or add terms for any domain:
+
+```json
+{
+  "terms": [
+    { "key": "relTreats", "label": "TREATS", "term": "treats", "category": "Clinical", "bidirectional": false, "reversed": false, "suggest": true },
+    { "key": "relContraindicated", "label": "CONTRAINDICATED_WITH", "term": "is contraindicated with", "category": "Clinical", "bidirectional": true, "reversed": false }
+  ]
+}
+```
+
+- `key`: stable identifier, used internally - never shown to the user.
+- `label`: the canonical relationship type stored in the graph database and shown on edges.
+- `term`: the dropdown display text, in any language.
+- `category`: dropdown group heading.
+- `bidirectional`: renders/queries the edge in both directions.
+- `reversed`: swaps source/target at save time for terms whose natural reading runs backwards (e.g. "follows from").
+- `suggest` (optional): include this term's label in the lean set offered to the LLM edge-suggestion feature below. If nothing in the file sets it, every unique label is offered.
+
+Editing the file only changes what's *offered* going forward - existing relation notes and graph edges keep whatever label they were saved with.
+
+#### AI-Assisted Edge Typing
+
+In the Relation Builder, each edge row has two optional buttons next to its type dropdown:
+
+- **🔍 Suggest:** sends the two notes' titles and a short excerpt to your configured LLM (Section 2), asking it to pick the best-fitting label from the vocabulary's `suggest`-flagged subset, with a one-sentence reason and an optional counterexample. Picking a result updates the dropdown and, if the description field is empty, pre-fills it with the reason.
+- **✓ Verify:** re-checks whichever type is currently selected against the two notes, and reports whether the LLM thinks the claim holds.
+
+Both reuse your existing LLM provider/model settings - there's no separate model to configure. The prompt is kept deliberately short (no restated instructions, short excerpts) so it also works well with a small local model when you'd rather not use your main synthesis model for a simple classification task.
 
 ---
 

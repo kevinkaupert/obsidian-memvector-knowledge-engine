@@ -1,13 +1,15 @@
 # MemVector Knowledge Engine — System Architecture
 
-**Version:** 1.6.3  
-**License:** MIT  
+**Version:** 1.11.0
+**License:** MIT
 
 ---
 
 ## 1. Overview
 
-**MemVector Knowledge Engine** is a local-first, privacy-focused Obsidian plugin designed to visualize, search, and synthesize complex Markdown knowledge vaults using **2D Vector Embeddings**, **Graph Databases (Memgraph)**, and **Large Language Models (Ollama, Anthropic Claude, OpenAI, DeepSeek)**.
+**MemVector Knowledge Engine** is a local-first, privacy-focused Obsidian plugin designed to visualize, search, and synthesize complex Markdown knowledge vaults using **2D Vector Embeddings**, a **Graph Database** (Memgraph or local SQLite), and **Large Language Models (Ollama, Anthropic Claude, OpenAI, DeepSeek)**.
+
+The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) example configuration - a 13-label relation vocabulary and LaTeX-aware embedding weighting - but nothing about the storage layer, the relation types, or the LLM prompts assumes mathematics specifically. See §2.6 for how the relation vocabulary is externalized to a vault file rather than hardcoded.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -18,7 +20,7 @@
              ▼                                               ▼
 ┌───────────────────────────┐                   ┌───────────────────────────┐
 │     2D Vector Engine      │                   │    Graph Database Sync    │
-│  (PCA / UMAP Projection)  │                   │     (Memgraph Cypher)     │
+│  (PCA / UMAP Projection)  │                   │  (Memgraph or local SQLite)│
 └────────────┬──────────────┘                   └────────────┬──────────────┘
              │                                               │
              ├───────────────────────┬───────────────────────┤
@@ -36,7 +38,7 @@
 ### 2.1. 2D Vector Space Engine
 - **Dense Vector Embedding:** Vectorizes notes using local embeddings (`bge-m3` via Ollama) or feature-extracted term/formula vectors.
 - **Dimensionality Reduction:** Projects high-dimensional embeddings onto a 2D Cartesian coordinate space $(x, y)$.
-- **Feature Weighting:** Distinguishes between **General Knowledge Vaults** (PKM, research, code) and **Mathematical Vaults** (LaTeX definitions, theorems, proofs).
+- **Feature Weighting:** The `knowledgeDomain` setting distinguishes between **General Knowledge Vaults** (PKM, research, code) and **Mathematical Vaults** (LaTeX definitions, theorems, proofs) - a user choice, not a fixed mode. `general` is the default for new installs.
 
 #### Projection Modes (`layout/projections.ts`)
 
@@ -91,3 +93,21 @@ The relationship graph and the vector index each sit behind a small interface (`
 - **Vector Backend**
   - **Qdrant Vector Database:** Syncs dense embeddings to a remote/local Qdrant collection for multi-device vector search.
   - **Local (SQLite)**: embeddings stored in the same local SQLite file, with brute-force cosine similarity computed in JS at query time - fast enough at personal-vault scale (hundreds to a few thousand notes). ChromaDB was considered and rejected: the `chromadb` npm package is an HTTP client that still requires a running Chroma server, so it wouldn't reduce operational complexity versus Qdrant at all.
+
+### 2.6. Relation Vocabulary & LLM Edge-Type Suggestions
+
+Relation types are **not hardcoded** in the plugin - they're defined by a plain JSON file in the vault (`relationVocabulary/loadRelationVocabulary.ts`, default path `wiki/relation-types.json`, configurable in Settings). Each entry (`RelationTermDef`, `relationVocabulary/types.ts`) is `{ key, label, term, category, bidirectional, reversed, suggest? }`:
+
+- `label` is the canonical Cypher/graph relationship type (e.g. `IMPLIES`, or `TREATS` for a medical vault); several `term`s can consolidate to one `label`.
+- `term` is the display text shown in the Relation Builder dropdown, in whatever language the vault author wrote it in.
+- `reversed` swaps src/tgt at save time for terms whose natural reading runs backwards (e.g. "follows from").
+- `suggest: true` opts a term's label into the lean subset offered to the LLM edge-suggestion feature (see below); if no term in the file sets this, every unique label is offered instead.
+
+If the file doesn't exist yet, it's auto-created on first use of the Relation Builder with a bundled STEM preset (13 labels, 37 English terms - `relationVocabulary/defaultVocabulary.ts`) as a starting point. From then on the file is authoritative; the constant is never read again for that vault. This is why `drawEdges.ts`'s edge colors are assigned by hashing the label string rather than a per-label lookup table - colors need to work for whatever labels a vault actually defines, not just the bundled 13.
+
+**LLM edge-type suggestions** (`relationVocabulary/llmSuggestPrompt.ts` for the pure prompt/parsing logic, `llmSuggestRequest.ts` for the actual LLM call): in the Relation Builder, each edge row has a 🔍 (suggest) and ✓ (verify) button.
+
+- 🔍 sends a short prompt - the two notes' titles and a ~220-character frontmatter-stripped excerpt each, plus the `suggest`-flagged label list with their `term` text as a one-line hint - and parses a `LABEL:`/`REASON:`/`COUNTEREXAMPLE:` response back into a dropdown selection (falling back to "Custom" with the raw label if it isn't in the vocabulary) and, if the description field is still empty, pre-fills it with the reason.
+- ✓ re-sends the *currently selected* type as a claim (`CLAIM: (A) -[LABEL]-> (B)`) and asks the LLM to confirm or refute it with a one-sentence reason and an optional counterexample.
+
+Both reuse whichever LLM provider/model/key is already configured in Settings (Section 2) - there's no separate hardcoded model for this feature. The prompt is deliberately kept lean (short excerpts, no restated task description in the system prompt) so it also works well with a small local model (e.g. a 1.5B-parameter one) where the main synthesis model might be larger.

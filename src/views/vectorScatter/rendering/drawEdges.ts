@@ -4,24 +4,42 @@ import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 
-/** The 13 standardized labels from relationTermMapping.ts - anything else (older vault relation files) falls back to NEUTRAL_EDGE. */
-const EDGE_COLORS_MUTED: Record<string, string> = {
-  IMPLIES: "#a897c9",
-  REQUIRES: "#6f93c9",
-  EQUIVALENT_TO: "#6fb8c9",
-  GENERALIZES: "#6fae8e",
-  SPECIALIZES: "#8fae6f",
-  EXTENDS: "#8890c9",
-  REDUCES_TO: "#c9a25e",
-  CONSTRUCTS: "#c98f6f",
-  EMBEDS_IN: "#6fc9a2",
-  REFUTES: "#c97f7f",
-  CONFLICTS_WITH: "#d96f6f",
-  INDEPENDENT_OF: "#9098a3",
-  ANALOGOUS_TO: "#c98fae",
-};
+/**
+ * Relation labels are vault-defined (relationVocabulary/*), not a fixed set, so
+ * colors are assigned deterministically from a hash of the label rather than a
+ * hardcoded per-label map - any vocabulary (STEM, medicine, law, ...) gets
+ * stable, distinct-ish colors without the plugin needing to know its labels.
+ */
+const EDGE_COLOR_PALETTE = [
+  "#a897c9",
+  "#6f93c9",
+  "#6fb8c9",
+  "#6fae8e",
+  "#8fae6f",
+  "#8890c9",
+  "#c9a25e",
+  "#c98f6f",
+  "#6fc9a2",
+  "#c97f7f",
+  "#d96f6f",
+  "#9098a3",
+  "#c98fae",
+];
 
 const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
+
+function hashLabel(label: string): number {
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) {
+    hash = (hash * 31 + label.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function colorForLabel(label: string): string {
+  if (!label) return NEUTRAL_EDGE;
+  return EDGE_COLOR_PALETTE[hashLabel(label) % EDGE_COLOR_PALETTE.length];
+}
 
 function drawArrowhead(ctx: CanvasRenderingContext2D, from: { x: number; y: number }, to: { x: number; y: number }, zoom: number, color: string): void {
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -63,7 +81,7 @@ export function drawEdges(
     if (!srcNode || !tgtNode) return;
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
 
-    const edgeColor = style === "muted" ? EDGE_COLORS_MUTED[edge.relType] || NEUTRAL_EDGE : themeAccent;
+    const edgeColor = style === "muted" ? colorForLabel(edge.relType) : themeAccent;
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);

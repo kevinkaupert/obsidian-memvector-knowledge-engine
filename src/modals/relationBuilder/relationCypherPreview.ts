@@ -1,5 +1,5 @@
 import type { RelationNode } from "./relationEdgeBuilder";
-import type { ResolvedRelationEdge } from "./relationTermMapping";
+import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 
 /**
  * This is a *different* Cypher shape than sync/memgraph/cypherBuilder.ts:

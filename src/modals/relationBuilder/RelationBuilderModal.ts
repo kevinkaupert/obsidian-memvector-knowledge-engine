@@ -3,22 +3,23 @@ import { getTranslation } from "../../i18n";
 import { enqueuePendingRelations } from "../../sync/memgraph/pendingRelationsQueue";
 import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
-import { buildRelationCategories, type RelationCategory } from "./relationCategories";
+import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { buildRelationCategories, type RelationCategory } from "../../relationVocabulary/buildCategories";
+import { defaultTermForLabel, resolveEdgesForSave } from "../../relationVocabulary/resolveTerm";
+import type { RelationTermDef } from "../../relationVocabulary/types";
+import { requestEdgeSuggestion, requestEdgeVerification } from "../../relationVocabulary/llmSuggestRequest";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
 import { writeRelationFile } from "./relationFileWriter";
-import { defaultTermForLabel, resolveEdgesForSave } from "./relationTermMapping";
-
-const DEFAULT_TERM_KEY = "relBasedOn";
 
 export class RelationBuilderModal extends Modal {
   private focalIndex = 0;
   private topology: EdgeTopology = "FOCAL_TO_REST";
-  private relType = DEFAULT_TERM_KEY;
+  private relType = "";
   private edgeRelTypes: Record<number, string> = {};
   private relDesc = "";
-  /** True when editing an edge whose stored label predates the 13-term vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
+  /** True when editing an edge whose stored label isn't in the current vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
   private isCustomFallback = false;
 
   constructor(
@@ -29,17 +30,7 @@ export class RelationBuilderModal extends Modal {
     private readonly onSaved?: () => void
   ) {
     super(app);
-    if (initialEdge) {
-      const termKey = defaultTermForLabel(initialEdge.relType);
-      if (termKey) {
-        this.relType = termKey;
-      } else {
-        this.relType = initialEdge.relType;
-        this.isCustomFallback = true;
-        this.edgeRelTypes[0] = "CUSTOM";
-      }
-      this.relDesc = initialEdge.description;
-    }
+    if (initialEdge) this.relDesc = initialEdge.description;
   }
 
   onOpen(): void {
@@ -52,11 +43,34 @@ export class RelationBuilderModal extends Modal {
     contentEl.style.maxHeight = "90vh";
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "24px";
+    const lang = this.host.settings.language || "de";
+    const t = getTranslation(lang);
+    contentEl.createEl("p", { text: t.relLoadingVocabulary, attr: { style: "color: var(--text-muted); font-size: 0.9em;" } });
+
+    loadRelationVocabulary(this.app, this.host.settings).then((defs) => {
+      if (!this.relType) this.relType = defs[0]?.key || "CUSTOM";
+      if (this.initialEdge) {
+        const termKey = defaultTermForLabel(defs, this.initialEdge.relType);
+        if (termKey) {
+          this.relType = termKey;
+        } else {
+          this.relType = this.initialEdge.relType;
+          this.isCustomFallback = true;
+          this.edgeRelTypes[0] = "CUSTOM";
+        }
+      }
+      this.renderBody(defs);
+    });
+  }
+
+  private renderBody(defs: RelationTermDef[]): void {
+    const { contentEl } = this;
+    contentEl.empty();
 
     const lang = this.host.settings.language || "de";
     const t = getTranslation(lang);
     const count = this.selectedNodes.length;
-    const categories = buildRelationCategories(t);
+    const categories = buildRelationCategories(defs, t.relCustom);
 
     this.renderHeader(contentEl, t, count);
 
@@ -111,12 +125,12 @@ export class RelationBuilderModal extends Modal {
     const generate = (): RelationEdgeDraft[] => generateEdges(this.selectedNodes, this.topology, this.focalIndex);
 
     const updateCypherPreview = () => {
-      const resolved = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
+      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
       cypherBox.setText(buildRelationCypherPreview(resolved, this.relDesc));
     };
 
-    const createSingleDropdown = (parent: HTMLElement, edgeIdx: number): HTMLSelectElement => {
-      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || DEFAULT_TERM_KEY;
+    const createSingleDropdown = (parent: HTMLElement, edgeIdx: number, edge: RelationEdgeDraft): HTMLSelectElement => {
+      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType;
       const select = parent.createEl("select", {
         attr: { style: "font-size: 0.78em; font-weight: 600; padding: 4px 6px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid rgba(56, 189, 248, 0.3); cursor: pointer; min-width: 0; width: auto; max-width: 140px; text-align: center;" },
       });
@@ -133,6 +147,61 @@ export class RelationBuilderModal extends Modal {
         updateFlowPreview();
         updateCypherPreview();
       };
+
+      const iconBtnStyle =
+        "font-size: 0.78em; padding: 3px 6px; border-radius: 4px; cursor: pointer; background: var(--background-primary); border: 1px solid var(--background-modifier-border); flex-shrink: 0; line-height: 1;";
+
+      const suggestBtn = parent.createEl("button", { text: "🔍", attr: { title: t.relSuggestType, style: iconBtnStyle } });
+      suggestBtn.onclick = async () => {
+        suggestBtn.disabled = true;
+        suggestBtn.textContent = "⏳";
+        try {
+          const suggestion = await requestEdgeSuggestion(this.app, this.host.settings, defs, edge.src, edge.tgt);
+          if (!suggestion) {
+            new Notice(t.relSuggestNoResult);
+            return;
+          }
+          const termKey = defaultTermForLabel(defs, suggestion.label);
+          this.edgeRelTypes[edgeIdx] = termKey || "CUSTOM";
+          if (!termKey) customInput.value = suggestion.label;
+          if (!this.relDesc.trim() && suggestion.reason) {
+            this.relDesc = suggestion.reason;
+            descArea.value = suggestion.reason;
+          }
+          updateFlowPreview();
+          updateCypherPreview();
+          const cx = suggestion.counterexample ? ` ⚠️ ${suggestion.counterexample}` : "";
+          new Notice(`💡 ${suggestion.label}: ${suggestion.reason}${cx}`);
+        } catch (err) {
+          new Notice(`❌ ${t.relSuggestError}: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          suggestBtn.disabled = false;
+          suggestBtn.textContent = "🔍";
+        }
+      };
+
+      const verifyBtn = parent.createEl("button", { text: "✓", attr: { title: t.relSuggestVerify, style: iconBtnStyle } });
+      verifyBtn.onclick = async () => {
+        const resolved = resolveEdgesForSave(defs, [edge], { 0: this.edgeRelTypes[edgeIdx] || this.relType }, this.relType)[0];
+        verifyBtn.disabled = true;
+        verifyBtn.textContent = "⏳";
+        try {
+          const result = await requestEdgeVerification(this.app, this.host.settings, resolved.label, resolved.src, resolved.tgt);
+          if (!result) {
+            new Notice(t.relSuggestNoResult);
+            return;
+          }
+          const icon = result.valid ? "✅" : "⚠️";
+          const cx = result.counterexample ? ` — ${result.counterexample}` : "";
+          new Notice(`${icon} ${resolved.label}: ${result.reason}${cx}`);
+        } catch (err) {
+          new Notice(`❌ ${t.relSuggestError}: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          verifyBtn.disabled = false;
+          verifyBtn.textContent = "✓";
+        }
+      };
+
       return select;
     };
 
@@ -236,7 +305,7 @@ export class RelationBuilderModal extends Modal {
     updateFlowPreview();
     updateCypherPreview();
 
-    this.renderFooter(contentEl, t, generate);
+    this.renderFooter(contentEl, t, defs, generate);
   }
 
   private renderHeader(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, count: number): void {
@@ -259,7 +328,7 @@ export class RelationBuilderModal extends Modal {
     listEl: HTMLElement,
     e: RelationEdgeDraft,
     idx: number,
-    createSingleDropdown: (parent: HTMLElement, edgeIdx: number) => HTMLSelectElement
+    createSingleDropdown: (parent: HTMLElement, edgeIdx: number, edge: RelationEdgeDraft) => HTMLSelectElement
   ): void {
     const cleanSrc = e.src.title.replace(/[\r\n]+/g, " ").trim();
     const cleanTgt = e.tgt.title.replace(/[\r\n]+/g, " ").trim();
@@ -306,7 +375,7 @@ export class RelationBuilderModal extends Modal {
     arrowL.textContent = "→";
     arrowL.style.fontSize = "1em";
     arrowL.style.color = "var(--text-faint)";
-    createSingleDropdown(center, idx);
+    createSingleDropdown(center, idx, e);
     const arrowR = center.createEl("span");
     arrowR.textContent = "→";
     arrowR.style.fontSize = "1em";
@@ -329,7 +398,7 @@ export class RelationBuilderModal extends Modal {
     tgtDiv.textContent = cleanTgt;
   }
 
-  private renderFooter(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, generate: () => RelationEdgeDraft[]): void {
+  private renderFooter(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, defs: RelationTermDef[], generate: () => RelationEdgeDraft[]): void {
     const btnRow = contentEl.createEl("div", { attr: { style: "display: flex; gap: 12px; justify-content: flex-end; align-items: center;" } });
     this.renderDeleteButton(btnRow, t);
     const cancelBtn = btnRow.createEl("button", { text: t.relCancelBtn });
@@ -345,12 +414,12 @@ export class RelationBuilderModal extends Modal {
       saveBtn.disabled = true;
       saveBtn.setText(t.relSaving);
 
-      const resolvedEdges = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
+      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
       let createdCount = 0;
       const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
       for (const e of resolvedEdges) {
         const path = relationFilePath(e);
-        const content = buildRelationFileContent(e, this.relDesc, t);
+        const content = buildRelationFileContent(e, this.relDesc, t, this.host.settings.graphBackend);
         try {
           await writeRelationFile(this.app, path, content);
           createdCount++;
