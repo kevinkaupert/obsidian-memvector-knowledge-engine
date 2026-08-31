@@ -83,6 +83,19 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
     );
 
   new Setting(containerEl)
+    .setName(t.relVocabPathName)
+    .setDesc(t.relVocabPathDesc)
+    .addText((text) =>
+      text
+        .setPlaceholder("wiki/relation-types.json")
+        .setValue(settings.relationVocabularyPath || "")
+        .onChange(async (value) => {
+          settings.relationVocabularyPath = value;
+          await host.saveSettings();
+        })
+    );
+
+  new Setting(containerEl)
     .setName(t.linkModeName)
     .setDesc(t.linkModeDesc)
     .addDropdown((dropdown) =>

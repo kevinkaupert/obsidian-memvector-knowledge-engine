@@ -2,10 +2,17 @@
 
 ## What this is
 
-Until this feature, Qdrant and Memgraph were **write-only**: the plugin
-pushed embeddings and the note graph into them, but nothing ever read that
-data back into the LLM synthesis feature. The "AI Co-Pilot" only ever saw
-the notes you manually selected in the 2D graph — nothing more.
+Until this feature, the vector and graph stores were **write-only**: the
+plugin pushed embeddings and the note graph into them, but nothing ever
+read that data back into the LLM synthesis feature. The "AI Co-Pilot" only
+ever saw the notes you manually selected in the 2D graph — nothing more.
+
+This works the same regardless of which storage backends you've picked
+(Qdrant/Memgraph or the local SQLite equivalents — see
+`docs/CONFIGURATION.md` §"Section 4 & 5") — the descriptions and examples
+below use Qdrant/Memgraph since that's what the original synthetic test
+ran against, but `contextEnrichment.ts` goes through the same
+backend-agnostic `VectorStore`/`GraphStore` interfaces either way.
 
 The `enrichSynthesisContext` setting (a toggle in the Synthesis toolbar
 section, off by default; UI label is localized, `t.synthEnrichToggle` in

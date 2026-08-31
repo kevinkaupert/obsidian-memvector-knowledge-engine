@@ -3,22 +3,22 @@ import { getTranslation } from "../../i18n";
 import { enqueuePendingRelations } from "../../sync/memgraph/pendingRelationsQueue";
 import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
-import { buildRelationCategories, type RelationCategory } from "./relationCategories";
+import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { buildRelationCategories, type RelationCategory } from "../../relationVocabulary/buildCategories";
+import { defaultTermForLabel, resolveEdgesForSave } from "../../relationVocabulary/resolveTerm";
+import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
 import { writeRelationFile } from "./relationFileWriter";
-import { defaultTermForLabel, resolveEdgesForSave } from "./relationTermMapping";
-
-const DEFAULT_TERM_KEY = "relBasedOn";
 
 export class RelationBuilderModal extends Modal {
   private focalIndex = 0;
   private topology: EdgeTopology = "FOCAL_TO_REST";
-  private relType = DEFAULT_TERM_KEY;
+  private relType = "";
   private edgeRelTypes: Record<number, string> = {};
   private relDesc = "";
-  /** True when editing an edge whose stored label predates the 13-term vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
+  /** True when editing an edge whose stored label isn't in the current vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
   private isCustomFallback = false;
 
   constructor(
@@ -29,17 +29,7 @@ export class RelationBuilderModal extends Modal {
     private readonly onSaved?: () => void
   ) {
     super(app);
-    if (initialEdge) {
-      const termKey = defaultTermForLabel(initialEdge.relType);
-      if (termKey) {
-        this.relType = termKey;
-      } else {
-        this.relType = initialEdge.relType;
-        this.isCustomFallback = true;
-        this.edgeRelTypes[0] = "CUSTOM";
-      }
-      this.relDesc = initialEdge.description;
-    }
+    if (initialEdge) this.relDesc = initialEdge.description;
   }
 
   onOpen(): void {
@@ -52,11 +42,34 @@ export class RelationBuilderModal extends Modal {
     contentEl.style.maxHeight = "90vh";
     contentEl.style.overflowY = "auto";
     contentEl.style.padding = "24px";
+    const lang = this.host.settings.language || "de";
+    const t = getTranslation(lang);
+    contentEl.createEl("p", { text: t.relLoadingVocabulary, attr: { style: "color: var(--text-muted); font-size: 0.9em;" } });
+
+    loadRelationVocabulary(this.app, this.host.settings).then((defs) => {
+      if (!this.relType) this.relType = defs[0]?.key || "CUSTOM";
+      if (this.initialEdge) {
+        const termKey = defaultTermForLabel(defs, this.initialEdge.relType);
+        if (termKey) {
+          this.relType = termKey;
+        } else {
+          this.relType = this.initialEdge.relType;
+          this.isCustomFallback = true;
+          this.edgeRelTypes[0] = "CUSTOM";
+        }
+      }
+      this.renderBody(defs);
+    });
+  }
+
+  private renderBody(defs: RelationTermDef[]): void {
+    const { contentEl } = this;
+    contentEl.empty();
 
     const lang = this.host.settings.language || "de";
     const t = getTranslation(lang);
     const count = this.selectedNodes.length;
-    const categories = buildRelationCategories(t);
+    const categories = buildRelationCategories(defs, t.relCustom);
 
     this.renderHeader(contentEl, t, count);
 
@@ -111,12 +124,12 @@ export class RelationBuilderModal extends Modal {
     const generate = (): RelationEdgeDraft[] => generateEdges(this.selectedNodes, this.topology, this.focalIndex);
 
     const updateCypherPreview = () => {
-      const resolved = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
+      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
       cypherBox.setText(buildRelationCypherPreview(resolved, this.relDesc));
     };
 
     const createSingleDropdown = (parent: HTMLElement, edgeIdx: number): HTMLSelectElement => {
-      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType || DEFAULT_TERM_KEY;
+      const currentVal = this.edgeRelTypes[edgeIdx] || this.relType;
       const select = parent.createEl("select", {
         attr: { style: "font-size: 0.78em; font-weight: 600; padding: 4px 6px; border-radius: 4px; background: var(--background-secondary); color: var(--interactive-accent, #38bdf8); border: 1px solid rgba(56, 189, 248, 0.3); cursor: pointer; min-width: 0; width: auto; max-width: 140px; text-align: center;" },
       });
@@ -236,7 +249,7 @@ export class RelationBuilderModal extends Modal {
     updateFlowPreview();
     updateCypherPreview();
 
-    this.renderFooter(contentEl, t, generate);
+    this.renderFooter(contentEl, t, defs, generate);
   }
 
   private renderHeader(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, count: number): void {
@@ -329,7 +342,7 @@ export class RelationBuilderModal extends Modal {
     tgtDiv.textContent = cleanTgt;
   }
 
-  private renderFooter(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, generate: () => RelationEdgeDraft[]): void {
+  private renderFooter(contentEl: HTMLElement, t: ReturnType<typeof getTranslation>, defs: RelationTermDef[], generate: () => RelationEdgeDraft[]): void {
     const btnRow = contentEl.createEl("div", { attr: { style: "display: flex; gap: 12px; justify-content: flex-end; align-items: center;" } });
     this.renderDeleteButton(btnRow, t);
     const cancelBtn = btnRow.createEl("button", { text: t.relCancelBtn });
@@ -345,12 +358,12 @@ export class RelationBuilderModal extends Modal {
       saveBtn.disabled = true;
       saveBtn.setText(t.relSaving);
 
-      const resolvedEdges = resolveEdgesForSave(generate(), this.edgeRelTypes, this.relType, t);
+      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
       let createdCount = 0;
       const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
       for (const e of resolvedEdges) {
         const path = relationFilePath(e);
-        const content = buildRelationFileContent(e, this.relDesc, t);
+        const content = buildRelationFileContent(e, this.relDesc, t, this.host.settings.graphBackend);
         try {
           await writeRelationFile(this.app, path, content);
           createdCount++;

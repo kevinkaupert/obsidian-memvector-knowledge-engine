@@ -53,6 +53,9 @@ export interface MemVectorSettings {
   /** Comma-separated vault paths to load for includeAgentsGuidelines - defaults to AGENTS.md, meta/PROFILE.md. */
   agentsGuidelinePaths: string;
 
+  /** Vault path to the relation-type vocabulary file (relationVocabulary/loadRelationVocabulary.ts). Auto-created with a bundled STEM preset on first use - fully editable/replaceable for any other domain. */
+  relationVocabularyPath: string;
+
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
 
