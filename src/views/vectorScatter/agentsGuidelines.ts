@@ -5,10 +5,8 @@ import type { MemVectorSettings } from "../../settings/types";
 /** Vault-level "how an agent should compile knowledge here" documents - configurable in Settings, loaded only if present, never required. */
 const DEFAULT_CANDIDATE_PATHS = ["AGENTS.md", "meta/PROFILE.md"];
 
-/** Per-file char budget. Many local LLMs (e.g. Ollama) serve well under their architectural
- * context size (often 4096 tokens) unless explicitly reconfigured, so this stays small enough
- * to leave headroom for the actual note content and question in the rest of the prompt. */
-const MAX_CHARS_PER_FILE = 2400;
+/** Per-file char budget for guidelines to keep prompt compact and prevent context overflows. */
+const MAX_CHARS_PER_FILE = 500;
 
 function parseCandidatePaths(raw: string | undefined): string[] {
   const paths = (raw || "")

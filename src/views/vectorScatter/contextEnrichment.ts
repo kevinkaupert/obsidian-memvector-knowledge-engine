@@ -60,7 +60,7 @@ async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selec
         content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
       }
     }
-    found.set(id, { id, title: hit.payload.title || id, path, content, sources: ["vector"] });
+    found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, 200), sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;
@@ -76,9 +76,9 @@ async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, select
     let content = "";
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (file instanceof TFile) {
-      content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
+      content = stripFrontmatter(await app.vault.read(file)).slice(0, 200);
     }
-    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content, sources: ["graph"] });
+    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, 200), sources: ["graph"] });
     if (found.size >= limit) break;
   }
   return found;
@@ -86,14 +86,14 @@ async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, select
 
 /**
  * Hybrid GraphRAG context: pulls in notes the user didn't select, via vector
- * similarity (needs embeddings already computed on the selected nodes -
+ * similarity (needs embeddings already computed on the selected notes -
  * "Vektoren berechnen") and graph-neighborhood (needs a synced graph).
  * Either leg is skipped silently if its precondition isn't met or its
  * backend is unreachable - partial enrichment beats failing the whole
  * synthesis. Works the same regardless of which backend (Qdrant/Memgraph or
  * local SQLite) is currently configured for each.
  */
-export async function enrichContext(app: App, settings: MemVectorSettings, selected: ScatterNode[], limitPerSource = 4): Promise<EnrichedNote[]> {
+export async function enrichContext(app: App, settings: MemVectorSettings, selected: ScatterNode[], limitPerSource = 2): Promise<EnrichedNote[]> {
   const merged = new Map<string, EnrichedNote>();
 
   const [vectorResult, graphResult] = await Promise.allSettled([

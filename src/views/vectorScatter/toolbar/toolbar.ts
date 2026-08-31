@@ -165,10 +165,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   });
 
   const fullModelName = ctx.settings.modelName || "LLM";
-  const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} ${t.secSynthesis} (0)`, null);
+  const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} ${t.secSynthesis} (0)`, null, true);
   synthesizeBtn.title = `LLM Model: ${fullModelName}`;
   synthesizeBtn.disabled = true;
-  synthesizeBtn.style.opacity = "0.35";
+  synthesizeBtn.style.opacity = "0.4";
   synthesizeBtn.style.cursor = "not-allowed";
   synthesizeBtn.onclick = () => ctx.runSynthesis((text) => hoverBar.setText(text), promptInput.value);
 

@@ -131,21 +131,37 @@ export function createSlider(
   return input;
 }
 
-export function createActionBtn(parent: HTMLElement, label: string, onClick: (() => void) | null): HTMLButtonElement {
+export function createActionBtn(parent: HTMLElement, label: string, onClick: (() => void) | null, isPrimary = false): HTMLButtonElement {
   const btn = parent.createEl("button", { text: label });
+  const bgDefault = isPrimary
+    ? "linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2))"
+    : "var(--background-modifier-form-field, rgba(255, 255, 255, 0.05))";
+  const bgHover = isPrimary
+    ? "linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(59, 130, 246, 0.35))"
+    : "var(--background-modifier-hover, rgba(255, 255, 255, 0.12))";
+  const borderColor = isPrimary
+    ? "rgba(6, 182, 212, 0.45)"
+    : "var(--background-modifier-border, rgba(255, 255, 255, 0.1))";
+  const textColor = isPrimary ? "var(--interactive-accent, #38bdf8)" : "var(--text-normal, #f1f5f9)";
+
   btn.style.cssText = `
-    width:100%; text-align:left; padding:7px 12px; background:transparent;
-    border:none; border-top:1px solid var(--background-modifier-border, rgba(255,255,255,0.05));
-    color:var(--text-muted, #94a3b8); font-size:0.8em; cursor:pointer;
-    transition: color 0.15s ease, background 0.15s ease;
+    display: block; width: calc(100% - 24px); margin: 4px 12px; padding: 6px 12px;
+    background: ${bgDefault}; border: 1px solid ${borderColor};
+    border-radius: 6px; color: ${textColor}; font-size: 0.78em; font-weight: ${isPrimary ? "600" : "500"};
+    text-align: center; cursor: pointer; box-sizing: border-box; outline: none;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   `;
   btn.onmouseenter = () => {
-    btn.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))";
-    btn.style.color = "var(--text-normal, #f1f5f9)";
+    if (!btn.disabled) {
+      btn.style.background = bgHover;
+      btn.style.borderColor = isPrimary ? "rgba(6, 182, 212, 0.7)" : "var(--text-muted, rgba(255,255,255,0.25))";
+      btn.style.transform = "translateY(-1px)";
+    }
   };
   btn.onmouseleave = () => {
-    btn.style.background = "transparent";
-    btn.style.color = "var(--text-muted, #94a3b8)";
+    btn.style.background = bgDefault;
+    btn.style.borderColor = borderColor;
+    btn.style.transform = "translateY(0)";
   };
   if (onClick) btn.onclick = onClick;
   return btn;
@@ -153,19 +169,9 @@ export function createActionBtn(parent: HTMLElement, label: string, onClick: (()
 
 export function setActionBtnEnabled(btn: HTMLButtonElement, enabled: boolean): void {
   btn.disabled = !enabled;
-  btn.style.opacity = enabled ? "1" : "0.35";
+  btn.style.opacity = enabled ? "1" : "0.4";
   btn.style.cursor = enabled ? "pointer" : "not-allowed";
-  if (enabled) {
-    btn.onmouseenter = () => {
-      btn.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))";
-      btn.style.color = "var(--text-normal, #f1f5f9)";
-    };
-    btn.onmouseleave = () => {
-      btn.style.background = "transparent";
-      btn.style.color = "var(--text-muted, #94a3b8)";
-    };
-  } else {
-    btn.onmouseenter = null;
-    btn.onmouseleave = null;
+  if (!enabled) {
+    btn.style.transform = "translateY(0)";
   }
 }

@@ -35,116 +35,105 @@ function buildPrompt(
 ): string {
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
-  const formulasLabel = lang === "de" ? "Formeln" : "Formulas";
   const excerptLabel = lang === "de" ? "Auszug" : "Excerpt";
 
   const notesSummary = selected
     .map(
-      (n, idx) => `
-### ${noteLabel} ${idx + 1}: [${n.type.toUpperCase()}] ${n.title}
+      (n, idx) => `### ${noteLabel} ${idx + 1}: ${n.title} (${n.type})
 ${pathLabel}: ${n.path}
-${formulasLabel}: ${n.latexFormulas.map((f) => `$${f}$`).join(", ")}
-${excerptLabel}:
-${n.content}
-`
+${n.latexFormulas && n.latexFormulas.length > 0 ? `Formeln: ${n.latexFormulas.slice(0, 3).map((f) => `$${f}$`).join(", ")}\n` : ""}${excerptLabel}:
+${n.content.slice(0, 350)}`
     )
-    .join("\n---\n");
+    .join("\n\n");
 
-  const { block: enrichedBlock, linkLines: enrichedLinkLines } = buildEnrichedSection(enriched, lang);
-  const notesListStr = [selected.map((n) => `- ${noteLabel}: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n"), enrichedLinkLines]
-    .filter(Boolean)
-    .join("\n");
-
+  const { block: enrichedBlock } = buildEnrichedSection(enriched, lang);
   const trimmedQuestion = customQuestion?.trim();
+
   if (trimmedQuestion) {
     return lang === "de"
-      ? `Du bist ein führender ${isMath ? "mathematischer Tutor" : "Wissens-Synthesizer"} und KI-Co-Pilot für ein Obsidian Knowledge-Wiki.
-Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
+      ? `Du bist ein erfahrener KI-Assistent für Wissenssynthese in Obsidian.
+Analysiere folgende ${selected.length} ausgewählte Notizen aus dem Vault:
 
-${notesSummary}
-${enrichedBlock}
-Verfügbare Notiz-WikiLinks:
-${notesListStr}
+${notesSummary}${enrichedBlock}
 
-Beantworte präzise ${promptLang} die folgende Frage des Nutzers zu diesen ${selected.length} Notizen:
+Aufgabe: Beantworte präzise auf Deutsch die folgende Frage zu diesen Notizen:
 "${trimmedQuestion}"
 
-STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
-1. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Satz oder Begriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] STATT bloßer Fettschrift (**...**)!
-2. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe oder Notiznamen. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
-      : `You are a leading ${isMath ? "mathematical tutor" : "knowledge synthesizer"} and AI co-pilot for an Obsidian knowledge wiki.
-The user has selected the following ${selected.length} notes in the 2D vector space:
+Richtlinien:
+- Strukturiere die Antwort klar und verständlich.
+- Verknüpfe zentrale Fachbegriffe und Notiztitel mit Obsidian WikiLinks: [[Notizname]].`
+      : `You are an expert AI knowledge synthesis assistant for Obsidian.
+Analyze the following ${selected.length} selected notes from the vault:
 
-${notesSummary}
-${enrichedBlock}
-Available note WikiLinks:
-${notesListStr}
+${notesSummary}${enrichedBlock}
 
-Answer precisely ${promptLang} the user's following question about these ${selected.length} notes:
+Task: Answer precisely in English the following question about these notes:
 "${trimmedQuestion}"
 
-STRICT FORMATTING AND LINKING RULES:
-1. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, theorem, or concept INSTEAD of bold text (**...**)!
-2. PROHIBITION: Do NOT use bold text (**term**) for technical terms or note names. Replace bold with real Obsidian WikiLinks [[...]].`;
+Guidelines:
+- Structure the response clearly and concisely.
+- Link core concepts and note titles using Obsidian WikiLinks: [[Note Name]].`;
   }
 
   if (isMath) {
     return lang === "de"
-      ? `Du bist ein führender mathematischer Tutor und KI-Co-Pilot für ein Obsidian Studium-Wiki.
-Der Benutzer hat folgende ${selected.length} mathematische Notizen im 2D-Vektorraum selektiert:
+      ? `Du bist ein mathematischer Tutor für ein Obsidian Knowledge-Wiki.
+Analysiere den Zusammenhang zwischen folgenden ${selected.length} mathematischen Notizen:
 
-${notesSummary}
-${enrichedBlock}
-Verfügbare Notiz-WikiLinks:
-${notesListStr}
+${notesSummary}${enrichedBlock}
 
-STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
-1. Erläutere präzise ${promptLang} den mathematischen Zusammenhang, die Brücke und den roten Faden zwischen diesen ${selected.length} Notizen.
-2. Zeige, wie sie sich gegenseitig ergänzen, wo Vorbedingungen/Beweisschritte vorliegen und welche mathematische Identität oder Struktur sie verbindet.
-3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Satz, Beweistrick oder Begriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] (wie z. B. [[disjunktion|Disjunktion]], [[gauss-summenformel|Gaußsche Summenformel]]) STATT bloßer Fettschrift (**...**)!
-4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für mathematische Begriffe oder Notiznamen. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
-      : `You are a leading mathematical tutor and AI co-pilot for an Obsidian study wiki.
-The user has selected the following ${selected.length} mathematical notes in the 2D vector space:
+Aufgabe: Erstelle eine fundierte mathematische Synthese auf Deutsch:
+1. **Kernzusammenhang & Intuition**: Welcher rote Faden und welche mathematische Idee verbindet diese Notizen?
+2. **Formale Brücke**: Welche Definitionen, Voraussetzungen oder Sätze bauen aufeinander auf?
+3. **Didaktische Quintessenz**: Was ist die wichtigste Erkenntnis aus dieser Verknüpfung?
 
-${notesSummary}
-${enrichedBlock}
-Available note WikiLinks:
-${notesListStr}
+Richtlinien:
+- Formuliere präzise, verständlich und mathematisch sauber.
+- Verwende für Fachbegriffe und Notiznamen Obsidian-WikiLinks im Format [[Begriffsname]].
+- Formeln sauber in LaTeX ($...$ oder $$...$$) setzen.`
+      : `You are a mathematical tutor for an Obsidian knowledge wiki.
+Analyze the relationship between the following ${selected.length} mathematical notes:
 
-STRICT FORMATTING AND LINKING RULES:
-1. Explain precisely ${promptLang} the mathematical relationship, bridge, and common thread between these ${selected.length} notes.
-2. Show how they complement each other, where preconditions/proof steps exist, and what mathematical identity or structure connects them.
-3. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, theorem, proof technique, or concept INSTEAD of bold text (**...**)!
-4. PROHIBITION: Do NOT use bold text (**term**) for mathematical terms or note names. Replace bold with real Obsidian WikiLinks [[...]].`;
+${notesSummary}${enrichedBlock}
+
+Task: Create a structured mathematical synthesis in English:
+1. **Core Intuition & Connection**: What common thread connects these notes?
+2. **Formal Bridge**: Which definitions, preconditions, or theorems build on each other?
+3. **Takeaway**: What is the key insight from this connection?
+
+Guidelines:
+- Be precise, clear, and mathematically rigorous.
+- Link key terms and note names with Obsidian WikiLinks [[Concept Name]].
+- Format formulas cleanly in LaTeX ($...$ or $$...$$).`;
   }
 
   return lang === "de"
-    ? `Du bist ein führender Wissens-Synthesizer und KI-Co-Pilot für Obsidian Knowledge Vaults.
-Der Benutzer hat folgende ${selected.length} Notizen im 2D-Vektorraum selektiert:
+    ? `Du bist ein erfahrener KI-Assistent für Wissenssynthese in Obsidian.
+Analysiere den Zusammenhang zwischen folgenden ${selected.length} Notizen:
 
-${notesSummary}
-${enrichedBlock}
-Verfügbare Notiz-WikiLinks:
-${notesListStr}
+${notesSummary}${enrichedBlock}
 
-STRIKTE VORGABE FÜR FORMATIERUNG UND VERLINKUNGEN:
-1. Erläutere präzise ${promptLang} den inhaltlichen Zusammenhang, die Kerngedanken und den roten Faden zwischen diesen ${selected.length} Notizen.
-2. Zeige, wie die Konzepte aufeinander aufbauen, sich ergänzen oder verschiedene Blickwinkel einnehmen.
-3. WICHTIGE WIKILINK-REGEL: Verwende FÜR JEDEN Fachbegriff, Notiz-Titel, Konzept oder Schlüsselbegriff AUSNAHMSLOS Obsidian WikiLinks im Format [[dateistem|Angezeigter Begriff]] STATT bloßer Fettschrift (**...**)!
-4. VERBOT: Verwende KEINE bloße Fettschrift (**Begriff**) für Fachbegriffe. Ersetze Fettschrift durch echte Obsidian WikiLinks [[...]].`
-    : `You are a leading knowledge synthesizer and AI co-pilot for Obsidian Knowledge Vaults.
-The user has selected the following ${selected.length} notes in the 2D vector space:
+Aufgabe: Erstelle eine strukturierte Wissenssynthese auf Deutsch:
+1. **Kernzusammenhang**: Welcher übergeordnete Gedanke verbindet diese Notizen?
+2. **Querverbindungen**: Wie ergänzen sich die behandelten Aspekte oder bauen aufeinander auf?
+3. **Fazit / Synergie**: Welche neue Erkenntnis ergibt sich aus der gemeinsamen Betrachtung?
 
-${notesSummary}
-${enrichedBlock}
-Available note WikiLinks:
-${notesListStr}
+Richtlinien:
+- Strukturiere die Antwort mit klaren Abschnitten.
+- Verknüpfe zentrale Begriffe mit Obsidian WikiLinks [[Begriffsname]].`
+    : `You are an expert AI knowledge synthesis assistant for Obsidian.
+Analyze the relationship between the following ${selected.length} notes:
 
-STRICT FORMATTING AND LINKING RULES:
-1. Explain precisely ${promptLang} the content relationship, core ideas, and common thread between these ${selected.length} notes.
-2. Show how the concepts build on each other, complement each other, or offer different perspectives.
-3. IMPORTANT WIKILINK RULE: Use Obsidian WikiLinks in the format [[file-stem|Display Name]] for EVERY technical term, note title, concept, or key term INSTEAD of bold text (**...**)!
-4. PROHIBITION: Do NOT use bold text (**term**) for technical terms. Replace bold with real Obsidian WikiLinks [[...]].`;
+${notesSummary}${enrichedBlock}
+
+Task: Create a structured knowledge synthesis in English:
+1. **Core Connection**: What overarching idea connects these notes?
+2. **Cross-Links**: How do these concepts complement or build on each other?
+3. **Takeaway / Synergy**: What new insight arises from viewing them together?
+
+Guidelines:
+- Structure the response with clear headings.
+- Link key concepts with Obsidian WikiLinks [[Concept Name]].`;
 }
 
 function buildVaultTitleMap(app: App): Map<string, string> {
@@ -164,9 +153,19 @@ function buildVaultTitleMap(app: App): Map<string, string> {
   return map;
 }
 
+function formatThinkingBlocks(raw: string): string {
+  if (!raw.includes("<think>")) return raw;
+  return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking) => {
+    const cleanThinking = thinking.trim();
+    if (!cleanThinking) return "";
+    return `\n> [!note]- 💡 Gedankengang des Modells\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
+  });
+}
+
 function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): string {
+  const cleaned = formatThinkingBlocks(raw);
   const prospectiveTerms = new Set<string>();
-  let text = raw.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
+  let text = cleaned.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
     const cleanTerm = term.trim();
     if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || cleanTerm.startsWith("#")) return match;
 
