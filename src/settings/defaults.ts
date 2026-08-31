@@ -13,8 +13,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   modelName: "deepseek-r1:7b",
   temperature: 0.1,
 
-  vectorSearchExclusions:
-    "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks",
+  vectorSearchExclusions: "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-",
   weightVector: 50,
   weightWikiLinks: 30,
   weightFolder: 10,
@@ -40,6 +39,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   enrichSynthesisContext: false,
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
+  relationVocabularyPath: "wiki/relation-types.json",
   scatterVisualStyle: "ink",
   unselectedLabelOpacity: 0.35,
 };
