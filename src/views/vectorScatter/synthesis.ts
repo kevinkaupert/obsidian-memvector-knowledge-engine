@@ -25,24 +25,29 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: 
   return { block, linkLines };
 }
 
+import { getContextBudget, type ContextBudget } from "../../llm/modelTiers";
+
 function buildPrompt(
   selected: ScatterNode[],
   isMath: boolean,
   lang: string,
   promptLang: string,
   customQuestion?: string,
-  enriched: EnrichedNote[] = []
+  enriched: EnrichedNote[] = [],
+  budget?: ContextBudget
 ): string {
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
   const excerptLabel = lang === "de" ? "Auszug" : "Excerpt";
+  const maxNoteLen = budget?.selectedNoteContentLength ?? 400;
+  const isFrontier = budget?.tier === "frontier";
 
   const notesSummary = selected
     .map(
       (n, idx) => `### ${noteLabel} ${idx + 1}: ${n.title} (${n.type})
 ${pathLabel}: ${n.path}
-${n.latexFormulas && n.latexFormulas.length > 0 ? `Formeln: ${n.latexFormulas.slice(0, 3).map((f) => `$${f}$`).join(", ")}\n` : ""}${excerptLabel}:
-${n.content.slice(0, 350)}`
+${n.latexFormulas && n.latexFormulas.length > 0 ? `Formeln: ${n.latexFormulas.slice(0, isFrontier ? 10 : 3).map((f) => `$${f}$`).join(", ")}\n` : ""}${excerptLabel}:
+${n.content.slice(0, maxNoteLen)}`
     )
     .join("\n\n");
 
@@ -82,9 +87,9 @@ Analysiere den Zusammenhang zwischen folgenden ${selected.length} mathematischen
 
 ${notesSummary}${enrichedBlock}
 
-Aufgabe: Erstelle eine fundierte mathematische Synthese auf Deutsch:
+Aufgabe: Erstelle eine ${isFrontier ? "tiefgehende, mathematisch präzise" : "fundierte"} mathematische Synthese auf Deutsch:
 1. **Kernzusammenhang & Intuition**: Welcher rote Faden und welche mathematische Idee verbindet diese Notizen?
-2. **Formale Brücke**: Welche Definitionen, Voraussetzungen oder Sätze bauen aufeinander auf?
+2. **Formale ${isFrontier ? "& Beweis-" : ""}Brücke**: Welche Definitionen, Voraussetzungen oder Sätze bauen aufeinander auf?${isFrontier ? " Wie greifen die Voraussetzungen ineinander?" : ""}
 3. **Didaktische Quintessenz**: Was ist die wichtigste Erkenntnis aus dieser Verknüpfung?
 
 Richtlinien:
@@ -96,9 +101,9 @@ Analyze the relationship between the following ${selected.length} mathematical n
 
 ${notesSummary}${enrichedBlock}
 
-Task: Create a structured mathematical synthesis in English:
+Task: Create a ${isFrontier ? "deep, mathematically rigorous" : "structured"} mathematical synthesis in English:
 1. **Core Intuition & Connection**: What common thread connects these notes?
-2. **Formal Bridge**: Which definitions, preconditions, or theorems build on each other?
+2. **Formal ${isFrontier ? "& Proof " : ""}Bridge**: Which definitions, preconditions, or theorems build on each other?
 3. **Takeaway**: What is the key insight from this connection?
 
 Guidelines:
@@ -201,24 +206,32 @@ export async function runSynthesis(
   const temperature = settings.temperature ?? 0.1;
   const lang = settings.language || "de";
   const t = getTranslation(lang);
+  const budget = getContextBudget(modelName, settings.llmProvider);
 
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
-    setHoverText("🔎 Suche verwandten Kontext (Vektoren + Graph)...");
-    enriched = await enrichContext(app, settings, selected);
+    setHoverText(`🔎 Suche verwandten Kontext (${budget.tier})...`);
+    enriched = await enrichContext(
+      app,
+      settings,
+      selected,
+      budget.maxNeighborsPerSource,
+      budget.neighborExcerptLength,
+      budget.maxTotalEnriched
+    );
   }
 
-  setHoverText(`${modelName} ...`);
+  setHoverText(`${modelName} (${budget.tier.toUpperCase()}) ...`);
 
-  let prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched);
+  let prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched, budget);
 
   if (settings.includeAgentsGuidelines) {
-    const guidelines = await loadAgentsGuidelines(app, settings);
+    const guidelines = await loadAgentsGuidelines(app, settings, budget.guidelinesCharBudget);
     if (guidelines) {
       const header =
         lang === "de"
-          ? `Befolge bei deiner Antwort zusätzlich strikt die folgenden projektinternen Wissens-Kompilierungsregeln dieses Vaults, soweit sie auf eine Textantwort anwendbar sind (ignoriere Anweisungen zu Skripten/Dateioperationen, die du nicht ausführen kannst):\n\n${guidelines}\n\n---\n\n`
-          : `Additionally, strictly follow this vault's own knowledge-compilation house rules below, wherever applicable to a text answer (ignore instructions about scripts/file operations you cannot execute):\n\n${guidelines}\n\n---\n\n`;
+          ? `Befolge bei deiner Antwort zusätzlich die folgenden projektinternen Wissens-Kompilierungsregeln dieses Vaults, soweit sie auf eine Textantwort anwendbar sind:\n\n${guidelines}\n\n---\n\n`
+          : `Additionally, strictly follow this vault's own knowledge-compilation house rules below, wherever applicable to a text answer:\n\n${guidelines}\n\n---\n\n`;
       prompt = header + prompt;
     }
   }

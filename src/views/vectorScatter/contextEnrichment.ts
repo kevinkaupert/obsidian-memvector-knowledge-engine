@@ -23,7 +23,13 @@ function averageEmbedding(vectors: number[][]): number[] | null {
   return sum.map((v) => v / vectors.length);
 }
 
-async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
+async function fetchVectorNeighbors(
+  app: App,
+  settings: MemVectorSettings,
+  selected: ScatterNode[],
+  limit: number,
+  excerptLength: number
+): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const store = getVectorStore(app, settings);
 
@@ -57,16 +63,22 @@ async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selec
     if (!content) {
       const file = app.vault.getAbstractFileByPath(path);
       if (file instanceof TFile) {
-        content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
+        content = stripFrontmatter(await app.vault.read(file));
       }
     }
-    found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, 200), sources: ["vector"] });
+    found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, excerptLength), sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;
 }
 
-async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
+async function fetchGraphNeighbors(
+  app: App,
+  settings: MemVectorSettings,
+  selected: ScatterNode[],
+  limit: number,
+  excerptLength: number
+): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => toSlug(n.id));
   const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, 2, limit + selected.length);
@@ -76,9 +88,9 @@ async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, select
     let content = "";
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (file instanceof TFile) {
-      content = stripFrontmatter(await app.vault.read(file)).slice(0, 200);
+      content = stripFrontmatter(await app.vault.read(file));
     }
-    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, 200), sources: ["graph"] });
+    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, excerptLength), sources: ["graph"] });
     if (found.size >= limit) break;
   }
   return found;
@@ -86,19 +98,21 @@ async function fetchGraphNeighbors(app: App, settings: MemVectorSettings, select
 
 /**
  * Hybrid GraphRAG context: pulls in notes the user didn't select, via vector
- * similarity (needs embeddings already computed on the selected notes -
- * "Vektoren berechnen") and graph-neighborhood (needs a synced graph).
- * Either leg is skipped silently if its precondition isn't met or its
- * backend is unreachable - partial enrichment beats failing the whole
- * synthesis. Works the same regardless of which backend (Qdrant/Memgraph or
- * local SQLite) is currently configured for each.
+ * similarity and graph-neighborhood with dynamic budgeting based on the model tier.
  */
-export async function enrichContext(app: App, settings: MemVectorSettings, selected: ScatterNode[], limitPerSource = 2): Promise<EnrichedNote[]> {
+export async function enrichContext(
+  app: App,
+  settings: MemVectorSettings,
+  selected: ScatterNode[],
+  limitPerSource = 2,
+  excerptLength = 200,
+  maxTotal = 4
+): Promise<EnrichedNote[]> {
   const merged = new Map<string, EnrichedNote>();
 
   const [vectorResult, graphResult] = await Promise.allSettled([
-    fetchVectorNeighbors(app, settings, selected, limitPerSource),
-    fetchGraphNeighbors(app, settings, selected, limitPerSource),
+    fetchVectorNeighbors(app, settings, selected, limitPerSource, excerptLength),
+    fetchGraphNeighbors(app, settings, selected, limitPerSource, excerptLength),
   ]);
 
   if (vectorResult.status === "fulfilled") {
@@ -114,12 +128,14 @@ export async function enrichContext(app: App, settings: MemVectorSettings, selec
         existing.sources.push("graph");
         if (!existing.content && note.content) existing.content = note.content;
       } else {
-        merged.set(id, note);
+        if (merged.size < maxTotal) {
+          merged.set(id, note);
+        }
       }
     });
   } else {
     console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
   }
 
-  return Array.from(merged.values());
+  return Array.from(merged.values()).slice(0, maxTotal);
 }
