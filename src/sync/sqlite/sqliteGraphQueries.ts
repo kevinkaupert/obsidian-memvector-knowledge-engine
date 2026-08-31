@@ -22,7 +22,7 @@ export function buildNeighborQuery(nodeIds: string[], hops: number, limit: numbe
       UNION
       SELECT e.src, r.hop + 1 FROM edges e JOIN reachable r ON e.tgt = r.id WHERE r.hop < ?
     )
-    SELECT DISTINCT n.id AS id, n.title AS title, n.path AS path
+    SELECT DISTINCT n.id AS id, n.title AS title, n.path AS path, r.hop AS hops
     FROM reachable r JOIN notes n ON n.id = r.id
     WHERE r.hop > 0 AND r.id NOT IN (${excludeSeeds})
     LIMIT ?;

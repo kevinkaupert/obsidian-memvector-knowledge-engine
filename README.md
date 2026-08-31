@@ -1,19 +1,15 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-1.11.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-118%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen)
 
-A local-first, privacy-focused **2D Vector Space Visualizer, Graph Engine & AI Co-Pilot** for Obsidian.
+A 100% local-first, privacy-focused **2D Vector Space Visualizer, SQLite Graph Engine & Hybrid GraphRAG AI Co-Pilot** for Obsidian.
 
-It turns a vault of Markdown notes into an explorable 2D map, lets you draw typed relationships between notes (with an optional local LLM suggesting which type fits), and synthesizes new knowledge from selections using any OpenAI-compatible LLM. Everything can run **fully local and offline** — a bundled SQLite backend stands in for both the vector index and the graph database, so external servers (Qdrant, Memgraph) are optional, not required.
-
-The plugin ships with a STEM (math/formal-sciences) example configuration — a 13-label relation vocabulary, LaTeX-aware embeddings — because that's what it was originally built for. None of it is hardcoded: the relation types are a plain file in your vault that you can rewrite for medicine, law, project management, or anything else, and every domain-specific behavior is a setting, not an assumption.
-
-![MemVector Knowledge Engine Overview](assets/plugin_overview.png)
+It turns your Markdown vault into an explorable 2D semantic map with real vector distances, lets you establish typed relationships between notes, and synthesizes structured knowledge from note selections using any OpenAI-compatible LLM. Everything runs **fully local, offline, and zero-setup** via a bundled SQLite backend (`sql.js`).
 
 ---
 
@@ -21,37 +17,36 @@ The plugin ships with a STEM (math/formal-sciences) example configuration — a 
 
 Detailed documentation is available in the [`docs/`](docs/) directory:
 
-- [**System Architecture (`docs/ARCHITECTURE.md`)**](docs/ARCHITECTURE.md): Component map, 2D vector reduction, storage backends, and LLM integrations.
-- [**Configuration & Customization Guide (`docs/CONFIGURATION.md`)**](docs/CONFIGURATION.md): Complete settings reference, LLM provider setup, relation vocabulary customization, and vault exclusions.
-- [**User Guide (`docs/USER_GUIDE.md`)**](docs/USER_GUIDE.md): Canvas interaction controls, gesture reference, right glassmorphic panel, mini-radar sidebar, and AI synthesis workflow.
-- [**Manual Integration Testing (`docs/TESTING.md`)**](docs/TESTING.md): Repeatable synthetic-note procedure to verify Qdrant and Memgraph sync end-to-end, independent of the plugin's own UI.
-- [**Hybrid GraphRAG Context Enrichment (`docs/GRAPHRAG.md`)**](docs/GRAPHRAG.md): How and why the synthesis feature pulls in vector-similar and graph-neighboring notes as extra LLM context, with synthetic proof it actually finds context a single-source approach would miss.
+- [**Roadmap & Deferred Features (`docs/ROADMAP.md`)**](docs/ROADMAP.md): Overview of v0.1 capabilities and future milestones.
+- [**System Architecture (`docs/ARCHITECTURE.md`)**](docs/ARCHITECTURE.md): Component map, 2D vector reduction, SQLite storage, and LLM integrations.
+- [**Configuration Guide (`docs/CONFIGURATION.md`)**](docs/CONFIGURATION.md): Complete settings reference, provider setup, vocabulary customization, and vault exclusions.
+- [**User Guide (`docs/USER_GUIDE.md`)**](docs/USER_GUIDE.md): Canvas interaction controls, gesture reference, mini-radar sidebar, and AI synthesis workflow.
+- [**Hybrid GraphRAG Context Enrichment (`docs/GRAPHRAG.md`)**](docs/GRAPHRAG.md): How the synthesis feature enriches prompts with vector-similar and graph-neighboring notes.
 
 ---
 
-## Key Features
+## 🌟 Key Features (v0.1.0)
 
-- **2D MemVector Graph View:** High-performance HTML5 Canvas with 7 layout algorithms, real-time query filtering, and smooth trackpad pan/zoom.
-- **Relation Builder:** Draw typed relationships between notes from a fully customizable vocabulary file.
-- **Selection-Based AI Synthesis:** Lasso select or Cmd-click target nodes in the 2D plot to trigger AI knowledge synthesis using any configured LLM (Ollama, Anthropic Claude, OpenAI, DeepSeek, OpenRouter).
-- **Fully local option:** Run the graph and vector index on a bundled SQLite backend — no Docker, no external server, nothing to configure beyond enabling it.
-- **Active Note Mini-Radar (Sidebar):** Renders a relative 2D cutout view centered on your active note with polar distance rings and nearest-neighbor navigation.
-- **Domain-agnostic by design:** Relation types and feature weighting are driven by your own configuration and vault content — the bundled STEM preset is a starting point, not a limitation.
-- **Multi-Language Support (i18n):** Full UI and settings translation in German and English.
-- **Pluggable storage backends:** Qdrant + Memgraph for multi-device sync, or local SQLite for zero-setup offline use — chosen independently for graph and vector storage.
-- **Hybrid GraphRAG Context Enrichment:** Optional toggle that augments the AI synthesis prompt with notes you didn't select — found via vector similarity *and* graph neighborhood (1-2 hops), merged and clearly separated from your actual selection. See [`docs/GRAPHRAG.md`](docs/GRAPHRAG.md) for how and why.
+- **100% Local-First & Zero-Setup (SQLite via WASM):** All note embeddings and graph edges are stored locally in `.obsidian/plugins/obsidian-memvector-knowledge-engine/memvector-local.sqlite`. No Docker, no database servers, no network setup needed.
+- **GraphVektor 2D Canvas:** Real physical force simulation combining genuine cosine vector similarity, WikiLinks, and typed relationship edges.
+- **Active Note Mini-Radar (Sidebar):** Renders polar distance rings centered on the active note where radial distance directly reflects true vector cosine distance $(1 - \text{similarity})$.
+- **Hybrid GraphRAG Knowledge Synthesis:** Multi-hop graph traversal and semantic vector retrieval loaded directly into the AI synthesis prompt.
+- **Typed Relation Builder:** Cmd-click or lasso-select notes to establish structured semantic relationships with custom vocabularies (`wiki/relation-types.json`).
+- **Flexible LLM & Embedding Providers:** Connect to local Ollama or cloud providers (Anthropic Claude, OpenAI, DeepSeek, OpenRouter, Custom REST) with secure key storage in Obsidian Secret Storage.
 
 ---
 
-## Installation & Setup
+## Installation & Quickstart
 
-1. Copy `main.js`, `manifest.json`, and `sql-wasm.wasm` to `<your-vault>/.obsidian/plugins/obsidian-memvector-knowledge-engine/`.
+1. Build or copy `main.js`, `manifest.json`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/obsidian-memvector-knowledge-engine/`.
 2. Enable **MemVector Knowledge Engine** in **Obsidian Settings** → **Community Plugins**.
-3. Configure your preferred LLM Provider in Plugin Settings — Ollama (local, free) works out of the box if it's running.
-4. For the graph and vector storage, either leave the defaults (Memgraph + Qdrant, for multi-device sync) or switch both dropdowns to **Local (SQLite)** in Settings for a zero-server setup. See [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
+3. In Plugin Settings, choose your Embedding and LLM provider (Ollama works out of the box with `bge-m3`).
+4. Click **"Gesamtes Vault lokal indizieren"** to compute embeddings and graph topology.
+5. Open the 2D Graph from the ribbon icon or command palette.
 
 ---
 
 ## License
 
 Distributed under the [MIT License](LICENSE).
+

@@ -1,33 +1,10 @@
 import type { ScatterNode } from "../types";
 
-function getLLMTopicLabel(cloudNodes: ScatterNode[], fallbackTitle: string): string {
-  const text = cloudNodes.map((n) => `${n.title} ${(n.latexFormulas || []).join(" ")}`.toLowerCase()).join(" ");
-  if (text.includes("disjunktion") || text.includes("konjunktion") || text.includes("aequivalenz") || text.includes("implikation") || text.includes("bior")) {
-    return "Aussagenlogik & Operatoren";
-  }
-  if (text.includes("gauss") || text.includes("summe") || text.includes("induktion") || text.includes("arithmet")) {
-    return "Arithmetik & Summenformeln";
-  }
-  if (text.includes("menge") || text.includes("teilmenge") || text.includes("vereinigung") || text.includes("schnitt")) {
-    return "Mengenlehre & Relationen";
-  }
-  if (text.includes("integral") || text.includes("ableitung") || text.includes("grenzwert") || text.includes("stetig")) {
-    return "Analysis & Funktionsterme";
-  }
-  if (cloudNodes.length >= 2) {
-    return `${cloudNodes[0].title} & ${cloudNodes[1].title}`;
-  }
-  return fallbackTitle;
-}
-
 /**
- * Assigns each node to one of `sqrt(n)`-many "topic cloud" centroids by
- * highest similarity, then labels each cloud (either by its centroid's
- * title, or - for cloudNamingMode "llm" - a keyword-heuristic label; despite
- * the name this isn't an actual LLM call, matching the original).
- * Mutates cloudId/cloudLabel on each node, same as the original.
+ * Assigns each node to one of `sqrt(n)`-many topic cluster centroids by
+ * highest hybrid similarity, and sets cloudId and cloudLabel (centroid's title).
  */
-export function assignClouds(nodes: ScatterNode[], matrix: number[][], useLlmLabels: boolean): void {
+export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
   const n = nodes.length;
   if (n === 0) return;
 
@@ -49,23 +26,7 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][], useLlmLab
       }
     });
     node.cloudId = bestCloud;
-  });
-
-  const cloudNodesMap = new Map<number, ScatterNode[]>();
-  nodes.forEach((n2) => {
-    const cloudId = n2.cloudId as number;
-    if (!cloudNodesMap.has(cloudId)) cloudNodesMap.set(cloudId, []);
-    cloudNodesMap.get(cloudId)!.push(n2);
-  });
-
-  nodes.forEach((node) => {
-    const cloudId = node.cloudId as number;
-    const fallback = centroids[cloudId]?.title || `Thema ${cloudId + 1}`;
-    if (useLlmLabels) {
-      const cNodes = cloudNodesMap.get(cloudId) || [];
-      node.cloudLabel = getLLMTopicLabel(cNodes, fallback);
-    } else {
-      node.cloudLabel = fallback;
-    }
+    node.cloudLabel = centroids[bestCloud]?.title || `Cluster ${bestCloud + 1}`;
   });
 }
+

@@ -1,6 +1,10 @@
-import { sanitizeRelType } from "../sync/memgraph/cypherBuilder";
 import type { RelationEdgeDraft, RelationNode } from "../modals/relationBuilder/relationEdgeBuilder";
 import type { RelationTermDef } from "./types";
+
+export function sanitizeRelType(rel: string): string {
+  const cleaned = (rel || "REQUIRES").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_").replace(/^_+|_+$/g, "");
+  return cleaned || "REQUIRES";
+}
 
 export function resolveRelationTerm(defs: RelationTermDef[], termKey: string): RelationTermDef | null {
   return defs.find((d) => d.key === termKey) ?? null;

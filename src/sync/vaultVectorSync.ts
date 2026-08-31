@@ -3,6 +3,7 @@ import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { stripFrontmatter } from "../noteContent";
 import { getEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
+import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -10,32 +11,19 @@ export interface VectorSyncResult {
   syncedCount: number;
 }
 
-/**
- * Bugfix (found while extracting this from main.js:1483-1563): the original
- * handler checked `embedding.length > 0` and pushed `vector: embedding`
- * directly, but `fetchEmbedding()` resolves an `{ embedding, error }` object,
- * not a bare array. `.length` on that object is always `undefined`, so the
- * sync button never synced a single note, it just always reported "no
- * embeddings generated" regardless of whether the embedding call actually
- * succeeded.
- *
- * Backend-agnostic: scans + embeds the vault once, then hands the points to
- * whichever VectorStore (Qdrant or local SQLite) is currently configured.
- */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const vaultFiles = app.vault.getMarkdownFiles();
   const embeddingApiKey = getEmbeddingApiKey(app);
 
   const points: VectorPoint[] = [];
   for (const file of vaultFiles) {
+    if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
     const rawContent = await app.vault.read(file);
     if (!rawContent.trim()) continue;
-    // Bugfix: a note with a long frontmatter block (big `sources:`/`tags:`
-    // list) could have its entire embedding computed from YAML noise
-    // instead of actual content - strip it before truncating.
     const content = stripFrontmatter(rawContent);
+    const sampleText = `${file.basename}\n${content}`.slice(0, 1500);
 
-    const { embedding } = await fetchEmbedding(content.slice(0, 1000), settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
+    const { embedding } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
 
     if (embedding && embedding.length > 0) {
       points.push({
@@ -52,3 +40,4 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
   return { totalFiles: vaultFiles.length, syncedCount: points.length };
 }
+

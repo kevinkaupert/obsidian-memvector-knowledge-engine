@@ -1,14 +1,8 @@
 export type LlmProvider = "ollama" | "claude" | "deepseek" | "openai" | "openrouter" | "custom";
 export type KnowledgeDomain = "general" | "math";
-/** Vector-graph rendering theme: "monochrome" (neutral dots, color only on selection), "muted" (desaturated per-type colors + one soft glow per cluster), "ink" (outline-only dots, cluster glow only for the cluster containing the current selection/hover). */
+/** Vector-graph rendering theme: "monochrome" (neutral dots, color only on selection), "muted" (desaturated per-type colors), "ink" (outline-only dots, glow for connected notes). */
 export type ScatterVisualStyle = "monochrome" | "muted" | "ink";
 
-/**
- * Per-provider API keys, keyed the same way settings/secrets.ts's secretStorage
- * IDs are derived. Only used as an in-memory shape during one-time migration
- * out of the legacy plaintext `apiKeys` settings field - actual keys now live
- * in Obsidian's app.secretStorage (since 1.11.4), never in data.json.
- */
 export type ApiKeyMap = Partial<Record<LlmProvider, string>>;
 
 export interface MemVectorSettings {
@@ -25,27 +19,9 @@ export interface MemVectorSettings {
   temperature: number;
 
   vectorSearchExclusions: string;
-  weightVector: number;
-  weightWikiLinks: number;
-  weightFolder: number;
-  weightSemantics: number;
   radarNoteCount: number;
-  synthesisLinkMode: string;
-  cloudNamingMode: string;
 
-  /** "sqlite" needs no external server - graph/vectors live in a local file under the plugin folder instead of Memgraph/Qdrant. */
-  graphBackend: "memgraph" | "sqlite";
-  vectorBackend: "qdrant" | "sqlite";
-
-  qdrantUrl: string;
-  qdrantCollection: string;
-  autoSyncQdrant: boolean;
-
-  memgraphUrl: string;
-  memgraphUser: string;
-  autoSyncGraph: boolean;
-
-  /** Hybrid GraphRAG: pull Qdrant-similar + Memgraph-neighbor notes into the LLM synthesis prompt as extra context. */
+  /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
 
   /** Include the vault's own AGENTS.md / meta/PROFILE.md (if present) as house-style guidance in the synthesis prompt. */
@@ -59,11 +35,8 @@ export interface MemVectorSettings {
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
 
-  /** Relations created while Memgraph was unreachable - retried on next successful connection. */
-  pendingMemgraphRelations: PendingMemgraphRelation[];
-
   scatterVisualStyle: ScatterVisualStyle;
-  /** Opacity (0-1) for the title label of any note that is neither selected/hovered nor connected to it - keeps a dense graph's labels from being visually overwhelming while a focus is active. */
+  /** Opacity (0-1) for the title label of any note that is neither selected/hovered nor connected to it. */
   unselectedLabelOpacity: number;
 }
 
@@ -74,20 +47,8 @@ export interface RelationGraphNode {
   type: string;
 }
 
-export interface PendingMemgraphRelation {
-  src: RelationGraphNode;
-  tgt: RelationGraphNode;
-  relType: string;
-  description: string;
-  bidirectional?: boolean;
-  originalTerm?: string;
-  queuedAt: string;
-}
-
 /**
  * Minimal shape settings-tab sections need from the plugin instance.
- * Kept separate from the concrete plugin class to avoid settings/* importing
- * back up from main.ts.
  */
 export interface SettingsHost {
   settings: MemVectorSettings;

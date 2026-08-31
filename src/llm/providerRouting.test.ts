@@ -6,9 +6,14 @@ describe("detectProvider", () => {
     expect(detectProvider("https://api.anthropic.com/v1", "some-model")).toBe("anthropic");
   });
 
-  it("detects Anthropic by model name containing 'claude' or 'sonnet'", () => {
+  it("detects Anthropic by model name containing 'claude' or 'sonnet' when provider is not OpenRouter", () => {
     expect(detectProvider("http://localhost:11434/v1", "claude-sonnet-5")).toBe("anthropic");
     expect(detectProvider("http://localhost:11434/v1", "anthropic/claude-sonnet-5")).toBe("anthropic");
+  });
+
+  it("prioritizes OpenRouter provider setting even when model contains 'claude'", () => {
+    expect(detectProvider("https://openrouter.ai/api/v1", "anthropic/claude-3.5-sonnet", "openrouter")).toBe("openrouter");
+    expect(detectProvider("https://openrouter.ai/api/v1", "anthropic/claude-3.5-sonnet")).toBe("openrouter");
   });
 
   it("detects Anthropic by an explicit llmProvider hint even without base-URL/model clues", () => {
@@ -21,8 +26,9 @@ describe("detectProvider", () => {
     expect(detectProvider("https://openrouter.ai/api/v1", "")).toBe("openrouter");
   });
 
-  it("falls back to generic for anything else (e.g. Ollama)", () => {
+  it("falls back to generic for anything else (e.g. Ollama or custom)", () => {
     expect(detectProvider("http://localhost:11434/v1", "deepseek-r1:7b")).toBe("generic");
+    expect(detectProvider("http://custom-server:8000/v1", "my-model", "custom")).toBe("generic");
   });
 });
 

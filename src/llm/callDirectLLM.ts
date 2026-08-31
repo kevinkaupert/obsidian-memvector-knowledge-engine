@@ -16,11 +16,12 @@ export async function callDirectLLM(
   apiKey: string,
   modelName: string,
   temperature = 0.1,
-  systemPrompt = DEFAULT_SYSTEM_PROMPT
+  systemPrompt = DEFAULT_SYSTEM_PROMPT,
+  llmProvider = ""
 ): Promise<string> {
   try {
     const cleanKey = (apiKey || "").trim();
-    const provider = detectProvider(apiBase, modelName);
+    const provider = detectProvider(apiBase, modelName, llmProvider);
     const url = buildChatCompletionsUrl(provider, apiBase);
     const headers: Record<string, string> = { "Content-Type": "application/json" };
 

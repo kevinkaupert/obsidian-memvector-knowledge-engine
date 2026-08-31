@@ -21,7 +21,7 @@ export interface CanvasInteractionRefs {
 }
 
 /** Wires pan/zoom/lasso-select/click-select/double-click-to-open on the canvas. Mirrors the original's mutation-of-`this` closures via `ctx`. */
-export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInteractionRefs): void {
+export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInteractionRefs): () => void {
   const { canvas, canvasWrap, hoverBar, updateSelectionUI } = refs;
 
   let wasDragging = false;
@@ -104,7 +104,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     }
   });
 
-  window.addEventListener("mouseup", () => {
+  const onMouseUp = () => {
     if (ctx.isDraggingPan) {
       ctx.isDraggingPan = false;
       canvas.style.cursor = ctx.lassoSelectMode ? "crosshair" : "grab";
@@ -123,7 +123,9 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.lassoPath = [];
       updateSelectionUI();
     }
-  });
+  };
+
+  window.addEventListener("mouseup", onMouseUp);
 
   canvas.addEventListener("click", (e) => {
     if (wasDragging) {
@@ -138,9 +140,12 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
 
     if (clicked) {
       ctx.focusSidebar(clicked);
-      if (e.metaKey || e.ctrlKey) {
-        if (ctx.selectedNodeIds.has(clicked.id)) ctx.selectedNodeIds.delete(clicked.id);
-        else ctx.selectedNodeIds.add(clicked.id);
+      if (e.shiftKey || e.metaKey || e.ctrlKey) {
+        if (ctx.selectedNodeIds.has(clicked.id)) {
+          ctx.selectedNodeIds.delete(clicked.id);
+        } else {
+          ctx.selectedNodeIds.add(clicked.id);
+        }
         updateSelectionUI();
       } else {
         ctx.selectedNodeIds.clear();
@@ -175,4 +180,8 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.app.workspace.openLinkText(clicked.id, clicked.path, true);
     }
   });
+
+  return () => {
+    window.removeEventListener("mouseup", onMouseUp);
+  };
 }

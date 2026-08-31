@@ -19,8 +19,6 @@ export interface RelationTermDef {
   bidirectional: boolean;
   /** True when the natural reading reverses the UI-selected src->tgt direction (e.g. "follows from": A follows from B means B->A). */
   reversed: boolean;
-  /** Opt-in: include this term's label in the lean label list offered to the local LLM for edge-type suggestions. If no term in the whole vocabulary sets this, all unique labels are offered instead. */
-  suggest?: boolean;
 }
 
 export interface RelationVocabularyFile {

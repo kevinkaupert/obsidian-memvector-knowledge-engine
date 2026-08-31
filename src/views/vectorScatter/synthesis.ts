@@ -164,39 +164,27 @@ function buildVaultTitleMap(app: App): Map<string, string> {
   return map;
 }
 
-function linkifySynthesis(raw: string, linkMode: string, vaultTitleMap: Map<string, string>): string {
-  if (linkMode === "existing_only" || linkMode === "suggested_section") {
-    const prospectiveTerms = new Set<string>();
-    let text = raw.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
-      const cleanTerm = term.trim();
-      if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || cleanTerm.startsWith("#")) return match;
-
-      const slug = toSlug(cleanTerm);
-      const existingBasename = vaultTitleMap.get(slug) || vaultTitleMap.get(cleanTerm.toLowerCase());
-      if (existingBasename) return `[[${existingBasename}|${cleanTerm}]]`;
-
-      prospectiveTerms.add(cleanTerm);
-      return cleanTerm;
-    });
-
-    if (linkMode === "suggested_section" && prospectiveTerms.size > 0) {
-      text += "\n\n### 💡 Vorgeschlagene neue Notizen (Wissenslücken)\n";
-      prospectiveTerms.forEach((term) => {
-        text += `- [[${toSlug(term)}|${term}]] *(Notiz noch nicht im Vault vorhanden)*\n`;
-      });
-    }
-    return text;
-  }
-
-  // "all_concepts": convert every **Term** into [[slug|Term]]
-  return raw.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
+function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): string {
+  const prospectiveTerms = new Set<string>();
+  let text = raw.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
     const cleanTerm = term.trim();
-    if (cleanTerm.length > 2 && !cleanTerm.includes("\n") && !cleanTerm.startsWith("#")) {
-      const slug = toSlug(cleanTerm);
-      if (slug) return `[[${slug}|${cleanTerm}]]`;
-    }
-    return match;
+    if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || cleanTerm.startsWith("#")) return match;
+
+    const slug = toSlug(cleanTerm);
+    const existingBasename = vaultTitleMap.get(slug) || vaultTitleMap.get(cleanTerm.toLowerCase());
+    if (existingBasename) return `[[${existingBasename}|${cleanTerm}]]`;
+
+    prospectiveTerms.add(cleanTerm);
+    return cleanTerm;
   });
+
+  if (prospectiveTerms.size > 0) {
+    text += "\n\n### 💡 Vorgeschlagene neue Notizen (Wissenslücken)\n";
+    prospectiveTerms.forEach((term) => {
+      text += `- [[${toSlug(term)}|${term}]] *(Notiz noch nicht im Vault vorhanden)*\n`;
+    });
+  }
+  return text;
 }
 
 export async function runSynthesis(
@@ -210,8 +198,6 @@ export async function runSynthesis(
 
   const modelName = settings.modelName || "LLM";
   const apiBase = settings.apiBaseUrl || "http://localhost:11434/v1";
-  // Bugfix #3 follow-through: was reading the legacy shared `deepseekApiKey`
-  // field directly; now reads the current provider's own key.
   const apiKey = getApiKeyFor(app, settings.llmProvider);
   const temperature = settings.temperature ?? 0.1;
   const lang = settings.language || "de";
@@ -219,7 +205,7 @@ export async function runSynthesis(
 
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
-    setHoverText("🔎 Suche verwandten Kontext (Qdrant + Memgraph)...");
+    setHoverText("🔎 Suche verwandten Kontext (Vektoren + Graph)...");
     enriched = await enrichContext(app, settings, selected);
   }
 
@@ -240,7 +226,7 @@ export async function runSynthesis(
 
   let rawSynthesisText: string;
   try {
-    rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt);
+    rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt, settings.llmProvider);
   } catch (err) {
     setHoverText("❌ Synthese fehlgeschlagen");
     new Notice(`❌ MemVector LLM-Fehler: ${err instanceof Error ? err.message : String(err)}`);
@@ -248,8 +234,7 @@ export async function runSynthesis(
   }
 
   const vaultTitleMap = buildVaultTitleMap(app);
-  const linkMode = settings.synthesisLinkMode || "suggested_section";
-  const synthesisText = linkifySynthesis(rawSynthesisText, linkMode, vaultTitleMap);
+  const synthesisText = linkifySynthesis(rawSynthesisText, vaultTitleMap);
 
   new SynthesisResultModal(app, selected, synthesisText, modelName, settings).open();
   setHoverText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);

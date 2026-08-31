@@ -4,8 +4,6 @@ import { DEFAULT_SETTINGS } from "./defaults";
 import {
   getApiKeyFor,
   getEmbeddingApiKey,
-  getMemgraphPassword,
-  getQdrantApiKey,
   migrateSecretsToSecretStorage,
   migrateSettings,
   setApiKeyFor,
@@ -45,7 +43,7 @@ describe("migrateSettings", () => {
 });
 
 describe("getApiKeyFor / setApiKeyFor", () => {
-  it("switching providers no longer wipes previously entered keys (the original bug scenario)", () => {
+  it("switching providers no longer wipes previously entered keys", () => {
     const app = fakeApp();
     setApiKeyFor(app, "openai", "sk-openai-fake");
     setApiKeyFor(app, "claude", "sk-ant-fake");
@@ -72,28 +70,26 @@ describe("migrateSecretsToSecretStorage", () => {
     expect(getApiKeyFor(app, "claude")).toBe("sk-ant-legacy");
   });
 
-  it("migrates every entry of a legacy apiKeys map, embedding/qdrant keys, and the memgraph password", () => {
+  it("migrates every entry of a legacy apiKeys map and embedding keys", () => {
     const app = fakeApp();
     const settings = { ...DEFAULT_SETTINGS };
     const migrated = migrateSecretsToSecretStorage(
       app,
-      { apiKeys: { claude: "sk-ant", openai: "sk-oai" }, embeddingApiKey: "emb-key", qdrantApiKey: "qd-key", memgraphPassword: "mg-pass" },
+      { apiKeys: { claude: "sk-ant", openai: "sk-oai" }, embeddingApiKey: "emb-key" },
       settings
     );
     expect(migrated).toBe(true);
     expect(getApiKeyFor(app, "claude")).toBe("sk-ant");
     expect(getApiKeyFor(app, "openai")).toBe("sk-oai");
     expect(getEmbeddingApiKey(app)).toBe("emb-key");
-    expect(getQdrantApiKey(app)).toBe("qd-key");
-    expect(getMemgraphPassword(app)).toBe("mg-pass");
   });
 
   it("does not overwrite a secret that's already present, and reports nothing migrated", () => {
-    const app = fakeApp({ "memvector-qdrant-api-key": "already-set" });
+    const app = fakeApp({ "memvector-embedding-api-key": "already-set" });
     const settings = { ...DEFAULT_SETTINGS };
-    const migrated = migrateSecretsToSecretStorage(app, { qdrantApiKey: "should-not-apply" }, settings);
+    const migrated = migrateSecretsToSecretStorage(app, { embeddingApiKey: "should-not-apply" }, settings);
     expect(migrated).toBe(false);
-    expect(getQdrantApiKey(app)).toBe("already-set");
+    expect(getEmbeddingApiKey(app)).toBe("already-set");
   });
 
   it("returns false for a fresh install with nothing to migrate", () => {
@@ -101,3 +97,4 @@ describe("migrateSecretsToSecretStorage", () => {
     expect(migrateSecretsToSecretStorage(app, {}, DEFAULT_SETTINGS)).toBe(false);
   });
 });
+

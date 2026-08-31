@@ -94,33 +94,4 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
           await host.saveSettings();
         })
     );
-
-  new Setting(containerEl)
-    .setName(t.linkModeName)
-    .setDesc(t.linkModeDesc)
-    .addDropdown((dropdown) =>
-      dropdown
-        .addOption("suggested_section", t.linkModeSuggested)
-        .addOption("existing_only", t.linkModeExistingOnly)
-        .addOption("all_concepts", t.linkModeAllConcepts)
-        .setValue(settings.synthesisLinkMode || "suggested_section")
-        .onChange(async (value) => {
-          settings.synthesisLinkMode = value;
-          await host.saveSettings();
-        })
-    );
-
-  new Setting(containerEl)
-    .setName(t.cloudNamingName)
-    .setDesc(t.cloudNamingDesc)
-    .addDropdown((dropdown) =>
-      dropdown
-        .addOption("centroid", t.cloudNamingCentroid)
-        .addOption("llm", t.cloudNamingLlm)
-        .setValue(settings.cloudNamingMode || "centroid")
-        .onChange(async (value) => {
-          settings.cloudNamingMode = value;
-          await host.saveSettings();
-        })
-    );
 }

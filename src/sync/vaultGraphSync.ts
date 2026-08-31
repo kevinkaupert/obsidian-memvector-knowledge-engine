@@ -13,7 +13,11 @@ export function extractVaultGraph(app: App): { nodes: GraphNode[]; edges: GraphE
 
     const cache = app.metadataCache.getFileCache(file);
     for (const link of cache?.links ?? []) {
-      const targetSlug = toNodeSlug(link.link.split("#")[0]);
+      const rawLink = link.link.split("#")[0].trim();
+      if (!rawLink) continue;
+      const destFile = app.metadataCache.getFirstLinkpathDest(rawLink, file.path);
+      const targetBasename = destFile ? destFile.basename : (rawLink.split("/").pop() || rawLink);
+      const targetSlug = toNodeSlug(targetBasename);
       if (targetSlug) {
         edges.push({ src: slug, tgt: targetSlug, type: "LINKS_TO" });
       }

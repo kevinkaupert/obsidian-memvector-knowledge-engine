@@ -54,36 +54,6 @@ export interface TranslationKeys {
   radarCountName: string;
   radarCountDesc: string;
 
-  secQdrant: string;
-  vectorBackendName: string;
-  vectorBackendDesc: string;
-  vectorBackendQdrant: string;
-  vectorBackendSqlite: string;
-  vectorBackendLocalInfo: string;
-  qdrantUrlName: string;
-  qdrantUrlDesc: string;
-  qdrantCollName: string;
-  qdrantCollDesc: string;
-  qdrantKeyName: string;
-  qdrantKeyDesc: string;
-  qdrantAutoSyncName: string;
-  qdrantAutoSyncDesc: string;
-
-  secMemgraph: string;
-  graphBackendName: string;
-  graphBackendDesc: string;
-  graphBackendMemgraph: string;
-  graphBackendSqlite: string;
-  graphBackendLocalInfo: string;
-  memgraphUrlName: string;
-  memgraphUrlDesc: string;
-  memgraphUserName: string;
-  memgraphUserDesc: string;
-  memgraphPassName: string;
-  memgraphPassDesc: string;
-  memgraphAutoSyncName: string;
-  memgraphAutoSyncDesc: string;
-
   secFilter: string;
   secView: string;
   secActions: string;

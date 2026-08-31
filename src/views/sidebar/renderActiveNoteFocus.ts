@@ -138,23 +138,21 @@ export async function renderActiveNoteFocus(
     const centerX = width / 2;
     const centerY = height / 2;
     const activePos = getNode2DPosition(app, activeFile, activeContent);
+    const maxRadius = Math.min(width, height) * 0.42;
 
-    const neighborNodes: RadarNode[] = topNeighbors.map((item) => {
+    const neighborNodes: RadarNode[] = topNeighbors.map((item, idx) => {
       const nPos = getNode2DPosition(app, item.file as TFile, item.content);
-      const dx = nPos.x - activePos.x;
-      const dy = nPos.y - activePos.y;
-      return { ...item, dx, dy, dist: Math.hypot(dx, dy), x: 0, y: 0 };
+      const rawDx = nPos.x - activePos.x;
+      const rawDy = nPos.y - activePos.y;
+      const angle = Math.hypot(rawDx, rawDy) > 1e-3 ? Math.atan2(rawDy, rawDx) : (idx / (topNeighbors!.length || 1)) * Math.PI * 2;
+      
+      // True polar distance: score in [0, 1] -> distance in [0, 1]
+      const score = Math.max(0, Math.min(1, item.score));
+      const polarDist = (1 - score) * maxRadius;
+      const dx = Math.cos(angle) * polarDist;
+      const dy = Math.sin(angle) * polarDist;
+      return { ...item, dx, dy, dist: polarDist, x: 0, y: 0 };
     });
-
-    const framedNeighbors = neighborNodes.slice(0, countX);
-    let maxDist = 0;
-    framedNeighbors.forEach((n) => {
-      if (n.dist > maxDist) maxDist = n.dist;
-    });
-    if (maxDist === 0) maxDist = 1;
-
-    const maxRadius = Math.min(width, height) * 0.38;
-    const baseScale = maxRadius / maxDist;
 
     let radarZoom = 1.0;
     let radarPan = { x: 0, y: 0 };
@@ -165,9 +163,8 @@ export async function renderActiveNoteFocus(
       ctx.clearRect(0, 0, width, height);
       const cX = centerX + radarPan.x;
       const cY = centerY + radarPan.y;
-      const effectiveScale = baseScale * radarZoom;
 
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.08)";
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 3]);
       [0.25, 0.5, 0.75, 1.0].forEach((rRatio) => {
@@ -176,7 +173,7 @@ export async function renderActiveNoteFocus(
         ctx.stroke();
       });
 
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.15)";
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
       ctx.lineWidth = 1;
       ctx.setLineDash([3, 3]);
       ctx.beginPath();
@@ -202,16 +199,16 @@ export async function renderActiveNoteFocus(
       ctx.stroke();
 
       neighborNodes.forEach((node) => {
-        node.x = cX + node.dx * effectiveScale;
-        node.y = cY + node.dy * effectiveScale;
+        node.x = cX + node.dx * radarZoom;
+        node.y = cY + node.dy * radarZoom;
       });
 
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
-      const miniHeatRadius = 45 * radarZoom;
+      const miniHeatRadius = 35 * radarZoom;
       neighborNodes.forEach((node) => {
         const grad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, miniHeatRadius);
-        grad.addColorStop(0, "rgba(6, 182, 212, 0.22)");
+        grad.addColorStop(0, "rgba(6, 182, 212, 0.25)");
         grad.addColorStop(0.5, "rgba(59, 130, 246, 0.08)");
         grad.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx.fillStyle = grad;
@@ -222,7 +219,7 @@ export async function renderActiveNoteFocus(
       ctx.restore();
 
       neighborNodes.forEach((node) => {
-        const dotRadius = Math.max(3.5, 4.5 * Math.sqrt(radarZoom));
+        const dotRadius = Math.max(3.5, 5 * Math.sqrt(radarZoom));
         ctx.beginPath();
         ctx.arc(node.x, node.y, dotRadius, 0, Math.PI * 2);
         ctx.fillStyle = TYPE_COLORS[node.type] || "#94a3b8";
@@ -235,7 +232,7 @@ export async function renderActiveNoteFocus(
       ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
       ctx.font = "9px monospace";
       ctx.textAlign = "left";
-      ctx.fillText("PROJ: 2D VECTOR SPACE", 8, 14);
+      ctx.fillText("POLAR: VEKTOR DISTANZ", 8, 14);
       ctx.textAlign = "right";
       ctx.fillText(`N=${neighborNodes.length}`, width - 8, 14);
     };

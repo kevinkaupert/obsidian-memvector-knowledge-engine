@@ -2,6 +2,9 @@ import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import type { TranslationKeys } from "../../i18n";
 import { getEmbeddingApiKey, setEmbeddingApiKey } from "../secrets";
+import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
+import { syncVaultVectors } from "../../sync/vaultVectorSync";
+import { syncVaultGraph } from "../../sync/vaultGraphSync";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 
 interface EmbeddingProviderDefaults {
@@ -129,4 +132,35 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
         })
     );
   }
+
+  new Setting(containerEl)
+    .setName("Gesamtes Vault lokal indizieren")
+    .setDesc("Berechnet Embeddings und Graph-Verknüpfungen für alle Notizen und speichert sie in der lokalen SQLite-Datenbank.")
+    .addButton((btn) =>
+      btn
+        .setButtonText("Jetzt Vault lokal indizieren")
+        .setCta()
+        .onClick(async () => {
+          btn.setButtonText("Indiziere Vault...");
+          btn.setDisabled(true);
+          try {
+            const totalFiles = app.vault.getMarkdownFiles().length;
+            new Notice(`🚀 Starte lokale Vektor- und Graph-Indizierung für ${totalFiles} Notizen...`);
+            const vectorStore = getVectorStore(app, settings);
+            const graphStore = getGraphStore(app, settings);
+            const vecResult = await syncVaultVectors(app, settings, vectorStore);
+            const graphResult = await syncVaultGraph(app, graphStore);
+            btn.setButtonText("✅ Indiziert!");
+            new Notice(`✅ ${vecResult.syncedCount} Vektoren & ${graphResult.edgeCount} Kanten erfolgreich in lokaler SQLite gespeichert!`);
+          } catch (err) {
+            btn.setButtonText("❌ Fehlgeschlagen");
+            new Notice(`❌ Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            setTimeout(() => {
+              btn.setButtonText("Jetzt Vault lokal indizieren");
+              btn.setDisabled(false);
+            }, 3000);
+          }
+        })
+    );
 }

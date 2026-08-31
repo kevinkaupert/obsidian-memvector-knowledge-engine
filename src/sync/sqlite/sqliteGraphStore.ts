@@ -73,6 +73,11 @@ export class SqliteGraphStore implements GraphStore {
     if (nodeIds.length === 0) return [];
     const db = await getLocalDb(this.app);
     const { sql, params } = buildNeighborQuery(nodeIds, Math.max(1, Math.trunc(hops)), Math.max(1, Math.trunc(limit)));
-    return execToRows(db.exec(sql, params)).map((r) => ({ id: String(r.id), title: String(r.title), path: String(r.path) }));
+    return execToRows(db.exec(sql, params)).map((r) => ({
+      id: String(r.id),
+      title: String(r.title),
+      path: String(r.path),
+      hops: Number(r.hops) || 1,
+    }));
   }
 }

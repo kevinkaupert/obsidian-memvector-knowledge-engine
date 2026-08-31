@@ -1,7 +1,7 @@
 {
   "name": "obsidian-memvector-knowledge-engine",
-  "version": "1.11.0",
-  "description": "2D vector-space graph, Qdrant + Memgraph sync, and AI co-pilot for Obsidian — use Ollama, Anthropic Claude, OpenAI, DeepSeek, or OpenRouter.",
+  "version": "0.1.0",
+  "description": "Local-first 2D vector-space graph, SQLite storage, and hybrid GraphRAG AI co-pilot for Obsidian.",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --watch",
@@ -15,17 +15,14 @@
     "obsidian-plugin",
     "memvector",
     "vector-search",
-    "qdrant",
-    "memgraph",
-    "cypher",
     "knowledge-graph",
-    "deepseek-r1",
-    "bge-m3"
+    "graphrag",
+    "sqlite",
+    "local-first"
   ],
   "author": "Kevin Mike Kaupert",
   "license": "MIT",
   "dependencies": {
-    "neo4j-driver-lite": "^5.24.0",
     "sql.js": "^1.14.2"
   },
   "devDependencies": {

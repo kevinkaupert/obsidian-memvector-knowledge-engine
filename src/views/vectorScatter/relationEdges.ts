@@ -19,8 +19,12 @@ export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
       const tgtMatch = yaml.match(/^target_note:\s*["']?\[?\[?([^\]"'\n|]+)/m);
       const typeMatch = yaml.match(/^relation_type:\s*["']?([^"'\n]+)/m);
       const bidirectionalMatch = yaml.match(/^bidirectional:\s*(true|false)/m);
-      const descMatch = content.match(/## Didaktischer \/ Fachlicher Grund\n([\s\S]*?)(?=\n##|$)/i);
-      const desc = descMatch ? descMatch[1].trim().replace(/\n+/g, " ") : "";
+      const descFmMatch = yaml.match(/^description:\s*["']?([^"\n\r]+)["']?/m);
+      let desc = descFmMatch ? descFmMatch[1].trim() : "";
+      if (!desc) {
+        const descMatch = content.match(/## (?:Didaktischer \/ Fachlicher Grund|Didactic \/ Academic Reason|Reason|Grund)\n([\s\S]*?)(?=\n##|$)/i);
+        desc = descMatch ? descMatch[1].trim().replace(/\n+/g, " ") : "";
+      }
 
       if (srcMatch && tgtMatch) {
         const srcId = srcMatch[1].trim().toLowerCase();

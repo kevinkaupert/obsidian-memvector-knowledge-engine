@@ -1,6 +1,5 @@
 import { Modal, Notice, TFile, type App } from "obsidian";
 import { getTranslation } from "../../i18n";
-import { enqueuePendingRelations } from "../../sync/memgraph/pendingRelationsQueue";
 import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
@@ -363,7 +362,7 @@ export class RelationBuilderModal extends Modal {
       const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
       for (const e of resolvedEdges) {
         const path = relationFilePath(e);
-        const content = buildRelationFileContent(e, this.relDesc, t, this.host.settings.graphBackend);
+        const content = buildRelationFileContent(e, this.relDesc, t);
         try {
           await writeRelationFile(this.app, path, content);
           createdCount++;
@@ -375,21 +374,11 @@ export class RelationBuilderModal extends Modal {
 
       new Notice(`${createdCount} ${t.relSaveSuccess}`);
 
-      if (this.host.settings.autoSyncGraph && typedEdges.length > 0) {
+      if (typedEdges.length > 0) {
         try {
           await getGraphStore(this.app, this.host.settings).upsertTypedEdges(typedEdges);
-          new Notice(`✅ ${typedEdges.length} Beziehung(en) direkt synchronisiert.`);
         } catch (err) {
-          // Retrying later only makes sense for a temporarily-unreachable network backend - a local SQLite write failing won't self-resolve that way.
-          if (this.host.settings.graphBackend === "memgraph") {
-            enqueuePendingRelations(this.host.settings, typedEdges);
-            await this.host.saveSettings();
-            new Notice(
-              `⚠️ Memgraph gerade nicht erreichbar: ${err instanceof Error ? err.message : String(err)} — wird automatisch nachgeholt, sobald die Verbindung wieder da ist.`
-            );
-          } else {
-            new Notice(`❌ Lokale Graph-Datenbank Fehler: ${err instanceof Error ? err.message : String(err)}`);
-          }
+          console.error("SQLite Graph Fehler:", err);
         }
       }
 
@@ -422,16 +411,14 @@ export class RelationBuilderModal extends Modal {
       }
 
       const [srcNode, tgtNode] = this.selectedNodes;
-      if (this.host.settings.autoSyncGraph) {
+      if (srcNode && tgtNode) {
         try {
           await getGraphStore(this.app, this.host.settings).deleteEdge(srcNode.id, tgtNode.id, initialEdge.relType);
-          new Notice(`🗑️ ${t.relDeleteSuccess}`);
         } catch (err) {
-          new Notice(`⚠️ ${t.relDeleteSyncWarning}: ${err instanceof Error ? err.message : String(err)}`);
+          console.error("Fehler beim Löschen der SQLite-Kante:", err);
         }
-      } else {
-        new Notice(`🗑️ ${t.relDeleteSuccess}`);
       }
+      new Notice(`🗑️ ${t.relDeleteSuccess}`);
 
       this.onSaved?.();
       this.close();

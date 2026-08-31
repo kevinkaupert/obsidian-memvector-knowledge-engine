@@ -1,4 +1,5 @@
 import { stripFrontmatter } from "../../noteContent";
+import { shouldIncludeFile } from "../vectorScatter/vaultScan";
 
 export interface NoteFileLike {
   path: string;
@@ -26,8 +27,10 @@ export interface ScoredNote {
 
 const EXCLUDED_NAME_SUBSTRINGS = ["index", "log", "README", "AGENTS", "PROFILE", "canvas-"];
 
-/** Hardcoded exclusion list for the sidebar radar - separate from settings.vectorSearchExclusions (used by the vector-scatter view). */
-export function shouldExcludeFromRadar(file: NoteFileLike): boolean {
+export function shouldExcludeFromRadar(file: NoteFileLike, exclusions?: string): boolean {
+  if (exclusions) {
+    return !shouldIncludeFile(file as any, exclusions);
+  }
   return file.path.includes("schema") || EXCLUDED_NAME_SUBSTRINGS.some((s) => file.name.includes(s));
 }
 

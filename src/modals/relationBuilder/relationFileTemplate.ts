@@ -1,5 +1,4 @@
 import type { TranslationKeys } from "../../i18n";
-import { buildRelationCypherPreview } from "./relationCypherPreview";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 
 export function relationFilePath(edge: ResolvedRelationEdge): string {
@@ -9,8 +8,7 @@ export function relationFilePath(edge: ResolvedRelationEdge): string {
 export function buildRelationFileContent(
   edge: ResolvedRelationEdge,
   description: string,
-  t: TranslationKeys,
-  graphBackend: "memgraph" | "sqlite" = "memgraph"
+  t: TranslationKeys
 ): string {
   const descText = description || `${t.relDefaultDesc} ${edge.label} ${t.relBetween} [[${edge.src.id}|${edge.src.title}]] ${t.relAnd} [[${edge.tgt.id}|${edge.tgt.title}]].`;
   const bidirectionalText = edge.bidirectional ? t.relBidirectionalYes : t.relBidirectionalNo;
@@ -44,18 +42,6 @@ target_note: "[[${edge.tgt.id}|${edge.tgt.title}]]"
 
 ## ${t.relFileReason}
 ${descText}
-${graphBackend === "sqlite" ? "" : buildMemgraphCypherSection(edge, description)}`;
-}
-
-function buildMemgraphCypherSection(edge: ResolvedRelationEdge, description: string): string {
-  const cypherText = buildRelationCypherPreview([edge], description);
-  return `
-
-## Cypher (Memgraph)
-Wird automatisch mit Memgraph synchronisiert (falls verbunden). Zum manuellen Ausführen in Memgraph Lab:
-
-\`\`\`cypher
-${cypherText}
-\`\`\`
 `;
 }
+

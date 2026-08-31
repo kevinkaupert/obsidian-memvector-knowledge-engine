@@ -3,9 +3,8 @@ import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
 import { getEmbeddingApiKey } from "../../../settings/secrets";
-import type { MemVectorSettings } from "../../../settings/types";
+import type { MemVectorSettings, ScatterVisualStyle } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
-import type { ProjectionMode } from "../layout/projections";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
 export interface ToolbarRefs {
@@ -26,10 +25,6 @@ const VISUAL_STYLE_OPTIONS: { id: MemVectorSettings["scatterVisualStyle"]; label
   { id: "ink", labelKey: "styleInk", fallback: "Tinte & Fokus-Glow" },
 ];
 
-// "999" stands in for "unlimited": computeHopReachableNodeIds's BFS already
-// stops as soon as its frontier is exhausted, so any vault's actual
-// connected-component diameter is reached long before 999 iterations - no
-// separate "infinite" code path needed.
 const UNLIMITED_HOPS = 999;
 
 const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] => [
@@ -38,16 +33,6 @@ const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] =
   { id: "2", label: "2" },
   { id: "3", label: "3" },
   { id: String(UNLIMITED_HOPS), label: t.edgeHopsUnlimited },
-];
-
-const PROJECTION_OPTIONS: { id: ProjectionMode; labelKey: keyof TranslationKeys; fallback: string }[] = [
-  { id: "cloud", labelKey: "projClouds", fallback: "Themen-Wolken" },
-  { id: "umap", labelKey: "projUmap", fallback: "UMAP Manifold" },
-  { id: "graphTopology", labelKey: "projGraphTopology", fallback: "Graph-Topology" },
-  { id: "formula", labelKey: "projFormula", fallback: "Formel-Symbole" },
-  { id: "semantic", labelKey: "projSemanticAnchors", fallback: "LLM Themen-Landkarte" },
-  { id: "flow", labelKey: "projFlow", fallback: "Abhängigkeits-Fluss" },
-  { id: "graph", labelKey: "projGraph", fallback: "Reiner Graph" },
 ];
 
 export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: TranslationKeys): ToolbarHandles {
@@ -100,17 +85,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   // ── Ansicht ───────────────────────────────────────────────────────────
   const ansichtBody = createSection(toolbarEl, t.secView, true);
-  createDropdown(
-    ansichtBody,
-    t.lblProjection,
-    PROJECTION_OPTIONS.map((p) => ({ id: p.id, label: t[p.labelKey] || p.fallback })),
-    ctx.projectionMode || "cloud",
-    (newMode) => {
-      ctx.projectionMode = newMode as ProjectionMode;
-      ctx.applyLayout();
-      ctx.redraw();
-    }
-  );
 
   createDropdown(
     ansichtBody,

@@ -42,12 +42,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   relationEdges: RelationEdge[] = [];
   nodeSpacing = 160;
   cloudSpacing = 320;
-  projectionMode: ProjectionMode = "cloud";
+  projectionMode: ProjectionMode = "graphvector";
 
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
   private canvasWrap!: HTMLElement;
   private resizeObserver: ResizeObserver | null = null;
+  private interactionCleanup: (() => void) | null = null;
   private toolbarHandles: ToolbarHandles | null = null;
   private searchHighlight: { nodeId: string; startedAt: number } | null = null;
   private searchAnimHandle: number | null = null;
@@ -151,7 +152,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     this.resizeObserver.observe(canvasWrap);
     this.pan = { x: canvasWrap.clientWidth / 2, y: canvasWrap.clientHeight / 2 };
 
-    wireCanvasInteraction(this, {
+    this.interactionCleanup = wireCanvasInteraction(this, {
       canvas,
       canvasWrap,
       hoverBar,
@@ -163,6 +164,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   onClose(): Promise<void> {
+    this.interactionCleanup?.();
+    this.interactionCleanup = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     if (this.searchAnimHandle !== null) cancelAnimationFrame(this.searchAnimHandle);
@@ -212,7 +215,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   applyLayout(): void {
-    applyVectorLayout(this.nodes, this.settings, this.projectionMode, this.nodeSpacing, this.cloudSpacing, this.relationEdges);
+    applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges);
   }
 
   async loadRelationEdges(): Promise<void> {

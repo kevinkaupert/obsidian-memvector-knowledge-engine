@@ -2,8 +2,6 @@ import { PluginSettingTab, type App, type Plugin } from "obsidian";
 import { getTranslation } from "../i18n";
 import { renderGeneralSection } from "./sections/generalSection";
 import { renderLlmProviderSection } from "./sections/llmProviderSection";
-import { renderMemgraphSection } from "./sections/memgraphSection";
-import { renderQdrantSection } from "./sections/qdrantSection";
 import { renderVectorFilterSection } from "./sections/vectorFilterSection";
 import type { SettingsHost } from "./types";
 
@@ -25,9 +23,8 @@ export class MathWikiSettingTab extends PluginSettingTab {
     containerEl.createEl("p", { text: t.settingsDesc, cls: "setting-item-description" });
 
     renderGeneralSection(containerEl, this.host, t, rerender);
-    renderLlmProviderSection(containerEl, this.app, this.host, t, rerender);
     renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
-    renderQdrantSection(containerEl, this.app, this.host, t, rerender);
-    renderMemgraphSection(containerEl, this.app, this.host, t, rerender);
+    renderLlmProviderSection(containerEl, this.app, this.host, t, rerender);
   }
 }
+

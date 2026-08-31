@@ -25,11 +25,29 @@ function averageEmbedding(vectors: number[][]): number[] | null {
 
 async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selected: ScatterNode[], limit: number): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
-  const embeddings = selected.map((n) => n.embedding).filter((e): e is number[] => !!e && e.length > 0);
-  const queryVector = averageEmbedding(embeddings);
+  const store = getVectorStore(app, settings);
+
+  const rawEmbeddings: number[][] = [];
+  for (const n of selected) {
+    if (n.embedding && n.embedding.length > 0) {
+      rawEmbeddings.push(n.embedding);
+    } else {
+      try {
+        const stored = await store.getVector(n.path);
+        if (stored && stored.length > 0) {
+          n.embedding = stored;
+          rawEmbeddings.push(stored);
+        }
+      } catch {
+        // Stored vector not available
+      }
+    }
+  }
+
+  const queryVector = averageEmbedding(rawEmbeddings);
   if (!queryVector) return found;
 
-  const hits = await getVectorStore(app, settings).search(queryVector, limit + selected.length);
+  const hits = await store.search(queryVector, limit + selected.length);
 
   for (const hit of hits) {
     const path = hit.payload?.path;

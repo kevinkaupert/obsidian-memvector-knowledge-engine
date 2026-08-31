@@ -1,4 +1,5 @@
 import type { MemVectorSettings } from "./types";
+import { PROVIDER_DEFAULT_MODELS } from "../llm/modelDefaults";
 
 export const DEFAULT_SETTINGS: MemVectorSettings = {
   language: "de",
@@ -10,36 +11,17 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
 
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",
-  modelName: "deepseek-r1:7b",
+  modelName: PROVIDER_DEFAULT_MODELS.ollama,
   temperature: 0.1,
 
   vectorSearchExclusions: "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-",
-  weightVector: 50,
-  weightWikiLinks: 30,
-  weightFolder: 10,
-  weightSemantics: 10,
   radarNoteCount: 10,
-  synthesisLinkMode: "suggested_section",
-  cloudNamingMode: "centroid",
 
-  graphBackend: "memgraph",
-  vectorBackend: "qdrant",
-
-  qdrantUrl: "http://localhost:6333",
-  qdrantCollection: "obsidian_wiki_vectors",
-  autoSyncQdrant: false,
-
-  // Bolt endpoint (was previously an inert HTTP-Cypher URL that no working
-  // sync path ever actually reached — see settings/secrets.ts's sibling,
-  // sync/vaultGraphSync.ts, for the real client).
-  memgraphUrl: "bolt://localhost:7687",
-  memgraphUser: "",
-  autoSyncGraph: false,
-  pendingMemgraphRelations: [],
-  enrichSynthesisContext: false,
+  enrichSynthesisContext: true,
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
   relationVocabularyPath: "wiki/relation-types.json",
   scatterVisualStyle: "ink",
   unselectedLabelOpacity: 0.35,
 };
+

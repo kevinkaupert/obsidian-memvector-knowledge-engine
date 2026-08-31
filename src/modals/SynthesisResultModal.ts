@@ -71,8 +71,13 @@ export class SynthesisResultModal extends Modal {
         .map((n) => n.id)
         .join("-")
         .slice(0, 50)
-        .toLowerCase();
-      const fileName = `wiki/synthesis/synthese-${slug}.md`;
+      let finalPath = `wiki/synthesis/synthese-${slug}.md`;
+      let counter = 1;
+      while (this.app.vault.getAbstractFileByPath(finalPath)) {
+        finalPath = `wiki/synthesis/synthese-${slug}-${counter}.md`;
+        counter++;
+      }
+
       const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
       const frontmatter = `---
 type: synthesis
@@ -89,10 +94,16 @@ generated:
 
 ${this.synthesisText}
 `;
-      await ensureParentFolder(this.app, fileName);
-      await this.app.vault.create(fileName, frontmatter);
-      new Notice(`${t.noticeSynthSaved} '${fileName}' ${t.noticeSynthSavedSuffix}`);
-      this.close();
+      try {
+        await ensureParentFolder(this.app, finalPath);
+        await this.app.vault.create(finalPath, frontmatter);
+        new Notice(`${t.noticeSynthSaved} '${finalPath}' ${t.noticeSynthSavedSuffix}`);
+        this.close();
+      } catch (err) {
+        saveBtn.disabled = false;
+        saveBtn.setText(t.synthSaveBtn);
+        new Notice(`❌ Fehler beim Speichern: ${err instanceof Error ? err.message : String(err)}`);
+      }
     };
   }
 }
