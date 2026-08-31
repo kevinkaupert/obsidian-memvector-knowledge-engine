@@ -1,0 +1,36 @@
+{
+  "name": "obsidian-memvector-knowledge-engine",
+  "version": "0.1.0",
+  "description": "Local-first 2D vector-space graph, SQLite storage, and hybrid GraphRAG AI co-pilot for Obsidian.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --watch",
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --minify",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "memvector",
+    "vector-search",
+    "knowledge-graph",
+    "graphrag",
+    "sqlite",
+    "local-first"
+  ],
+  "author": "Kevin Mike Kaupert",
+  "license": "MIT",
+  "dependencies": {
+    "sql.js": "^1.14.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/sql.js": "^1.4.11",
+    "esbuild": "^0.28.2",
+    "obsidian": "^1.5.7",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.11"
+  }
+}

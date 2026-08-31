@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-memvector-knowledge-engine",
+  "name": "MemVector Knowledge Engine",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Local-first 2D vector-space graph, SQLite storage, and hybrid GraphRAG AI co-pilot for Obsidian.",
+  "author": "Kevin Mike Kaupert",
+  "authorUrl": "https://github.com/kevinkaupert",
+  "isDesktopOnly": true
+}
