@@ -62,15 +62,17 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
   new Setting(containerEl)
     .setName(t.embedApiBaseName)
     .setDesc(t.embedApiBaseDesc)
-    .addText((text) =>
+    .addText((text) => {
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.minWidth = "260px";
       text
         .setPlaceholder("http://localhost:11434/v1")
         .setValue(settings.embeddingApiBaseUrl || "http://localhost:11434/v1")
         .onChange(async (value) => {
           settings.embeddingApiBaseUrl = value.trim();
           await host.saveSettings();
-        })
-    );
+        });
+    });
 
   const embedKeySetting = new Setting(containerEl).setName(t.embedApiKeyName).setDesc(t.embedApiKeyDesc);
   new SecretComponent(app, embedKeySetting.controlEl).setValue(getEmbeddingApiKey(app)).onChange((value) => setEmbeddingApiKey(app, value.trim()));

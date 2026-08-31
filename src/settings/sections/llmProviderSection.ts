@@ -54,15 +54,17 @@ export function renderLlmProviderSection(
   new Setting(containerEl)
     .setName(t.apiBaseUrlName)
     .setDesc(t.apiBaseUrlDesc)
-    .addText((text) =>
+    .addText((text) => {
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.minWidth = "260px";
       text
         .setPlaceholder("http://localhost:11434/v1")
         .setValue(settings.apiBaseUrl || "")
         .onChange(async (value) => {
           settings.apiBaseUrl = value.trim();
           await host.saveSettings();
-        })
-    );
+        });
+    });
 
   const apiKeySetting = new Setting(containerEl).setName(t.apiKeyName).setDesc(t.apiKeyDesc);
   new SecretComponent(app, apiKeySetting.controlEl)

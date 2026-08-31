@@ -27,15 +27,20 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
   new Setting(containerEl)
     .setName(t.exclusionsName)
     .setDesc(t.exclusionsDesc)
-    .addText((text) =>
+    .addTextArea((text) => {
+      text.inputEl.rows = 3;
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.minWidth = "300px";
+      text.inputEl.style.fontFamily = "var(--font-monospace, monospace)";
+      text.inputEl.style.fontSize = "0.85em";
       text
-        .setPlaceholder("-path:schema -file:index -file:log -file:README")
+        .setPlaceholder("-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-")
         .setValue(settings.vectorSearchExclusions || "")
         .onChange(async (value) => {
           settings.vectorSearchExclusions = value;
           await host.saveSettings();
-        })
-    );
+        });
+    });
 
   new Setting(containerEl)
     .setName(t.labelOpacityName)
@@ -54,7 +59,8 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
   new Setting(containerEl)
     .setName(t.radarCountName)
     .setDesc(t.radarCountDesc)
-    .addText((text) =>
+    .addText((text) => {
+      text.inputEl.style.width = "80px";
       text
         .setPlaceholder("10")
         .setValue(String(settings.radarNoteCount || 10))
@@ -64,34 +70,43 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
             settings.radarNoteCount = num;
             await host.saveSettings();
           }
-        })
-    );
+        });
+    });
 
   new Setting(containerEl).setName(t.secGeneralSynthesis).setHeading();
 
   new Setting(containerEl)
     .setName(t.agentsPathsName)
     .setDesc(t.agentsPathsDesc)
-    .addText((text) =>
+    .addTextArea((text) => {
+      text.inputEl.rows = 2;
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.minWidth = "300px";
+      text.inputEl.style.fontFamily = "var(--font-monospace, monospace)";
+      text.inputEl.style.fontSize = "0.85em";
       text
         .setPlaceholder("AGENTS.md, meta/PROFILE.md")
         .setValue(settings.agentsGuidelinePaths || "")
         .onChange(async (value) => {
           settings.agentsGuidelinePaths = value;
           await host.saveSettings();
-        })
-    );
+        });
+    });
 
   new Setting(containerEl)
     .setName(t.relVocabPathName)
     .setDesc(t.relVocabPathDesc)
-    .addText((text) =>
+    .addText((text) => {
+      text.inputEl.style.width = "100%";
+      text.inputEl.style.minWidth = "300px";
+      text.inputEl.style.fontFamily = "var(--font-monospace, monospace)";
+      text.inputEl.style.fontSize = "0.85em";
       text
         .setPlaceholder("wiki/relation-types.json")
         .setValue(settings.relationVocabularyPath || "")
         .onChange(async (value) => {
           settings.relationVocabularyPath = value;
           await host.saveSettings();
-        })
-    );
+        });
+    });
 }
