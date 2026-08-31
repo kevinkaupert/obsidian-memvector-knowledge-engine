@@ -1,4 +1,5 @@
 import type { RelationEdge, ScatterNode } from "../types";
+import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
 
 export type ProjectionMode = "graphvector";
@@ -17,40 +18,49 @@ function hashString(s: string): number {
   return hash;
 }
 
-/**
- * GraphVektor Unified Projection: A physical force-directed relaxation layout
- * that smoothly balances dense vector embeddings (semantic similarity),
- * WikiLinks, and typed multi-hop graph relationship edges.
- */
 export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
 
-  const targetSpacing = nodeSpacing || 180;
-  const initialRadius = (cloudSpacing || 400) * 0.7;
+  if (nodes.some((n) => n.cloudId === undefined)) {
+    assignClouds(nodes, matrix);
+  }
+
+  const targetSpacing = nodeSpacing || 200;
+  const clusterRadius = cloudSpacing || 600;
   const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges);
 
-  // 1. Initial layout: golden-ratio spiral distribution with deterministic jitter
-  const phi = (1 + Math.sqrt(5)) / 2;
+  // 1. Determine number of semantic clusters
+  const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
+  const cloudAngleStep = (Math.PI * 2) / numClouds;
+
+  // 2. Initial placement: anchor each node around its cluster centroid
   nodes.forEach((node, i) => {
-    const angle = i * 2 * Math.PI * (1 - 1 / phi);
-    const r = Math.sqrt((i + 1) / n) * initialRadius;
+    const cId = node.cloudId !== undefined ? node.cloudId : i % numClouds;
+    const cAngle = cId * cloudAngleStep;
+    const cX = Math.cos(cAngle) * clusterRadius;
+    const cY = Math.sin(cAngle) * clusterRadius;
+
     const hash = hashString(node.id);
-    const jitterX = (Math.abs(hash) % 40) - 20;
-    const jitterY = (Math.abs(hash >> 3) % 40) - 20;
-    node.x = Math.cos(angle) * r + jitterX;
-    node.y = Math.sin(angle) * r + jitterY;
+    const offsetX = ((Math.abs(hash) % (targetSpacing * 1.5)) - targetSpacing * 0.75);
+    const offsetY = ((Math.abs(hash >> 3) % (targetSpacing * 1.5)) - targetSpacing * 0.75);
+
+    node.anchorX = cX + offsetX;
+    node.anchorY = cY + offsetY;
+    node.x = node.anchorX;
+    node.y = node.anchorY;
   });
 
-  // 2. Iterative Force Simulation
-  const iterations = 50;
+  // 3. Iterative Force Simulation
+  const iterations = 45;
   for (let iter = 0; iter < iterations; iter++) {
-    const alpha = 0.6 * (1 - iter / iterations);
+    const alpha = 0.5 * (1 - iter / iterations);
 
     for (let i = 0; i < n; i++) {
       const nodeA = nodes[i];
-      let fx = 0;
-      let fy = 0;
+      // Soft spring pulling towards cluster anchor
+      let fx = (nodeA.anchorX! - nodeA.x) * 0.1;
+      let fy = (nodeA.anchorY! - nodeA.y) * 0.1;
 
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
@@ -62,9 +72,9 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
         // Check if edge is explicitly repulsive (e.g. CONFLICTS_WITH)
         const pairKey = `${Math.min(i, j)}-${Math.max(i, j)}`;
         if (repel.has(pairKey)) {
-          const minDist = targetSpacing * 2.0;
+          const minDist = targetSpacing * 2.2;
           if (dist < minDist) {
-            const push = ((minDist - dist) / dist) * 0.4;
+            const push = ((minDist - dist) / dist) * 0.5;
             fx -= dx * push;
             fy -= dy * push;
           }
@@ -78,14 +88,14 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
 
         if (combinedWeight > 0.08) {
           // Attractive force towards ideal distance
-          const idealDist = targetSpacing * Math.max(0.25, 1 - combinedWeight * 0.75);
+          const idealDist = targetSpacing * (1 - Math.min(0.85, combinedWeight * 0.7));
           const delta = dist - idealDist;
-          const pull = (delta / dist) * combinedWeight * 0.3;
+          const pull = (delta / dist) * combinedWeight * 0.25;
           fx += dx * pull;
           fy += dy * pull;
-        } else if (dist < targetSpacing * 0.6) {
+        } else if (dist < targetSpacing * 0.65) {
           // Repulsive force to prevent overlap of unrelated nodes
-          const push = ((targetSpacing * 0.6 - dist) / dist) * 0.25;
+          const push = ((targetSpacing * 0.65 - dist) / dist) * 0.25;
           fx -= dx * push;
           fy -= dy * push;
         }

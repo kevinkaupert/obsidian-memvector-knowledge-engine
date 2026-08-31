@@ -66,7 +66,7 @@ export function drawClusters(
     });
   }
 
-  if (!projectionMode || projectionMode === "cloud") {
+  if (!projectionMode || projectionMode === "cloud" || projectionMode === "graphvector") {
     hulls.forEach((hull) => {
       const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
       const labelColor = style === "muted" ? palette.labelColor : "rgba(148, 163, 184, 0.85)";

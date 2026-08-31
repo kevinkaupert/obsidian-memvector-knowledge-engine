@@ -172,13 +172,50 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     return Promise.resolve();
   }
 
+  private hasFittedView = false;
+
   private handleResize(): void {
     const w = this.canvasWrap.clientWidth || 800;
     const h = this.canvasWrap.clientHeight || 600;
     this.canvas.width = w * window.devicePixelRatio;
     this.canvas.height = h * window.devicePixelRatio;
     this.canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    if (!this.hasFittedView && this.nodes.length > 0 && w > 100) {
+      this.fitToView();
+      this.hasFittedView = true;
+    }
     this.redraw();
+  }
+
+  fitToView(): void {
+    if (!this.canvasWrap || this.nodes.length === 0) return;
+    const w = this.canvasWrap.clientWidth || 800;
+    const h = this.canvasWrap.clientHeight || 600;
+
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+
+    for (const node of this.nodes) {
+      if (node.x < minX) minX = node.x;
+      if (node.x > maxX) maxX = node.x;
+      if (node.y < minY) minY = node.y;
+      if (node.y > maxY) maxY = node.y;
+    }
+
+    const bboxW = Math.max(100, maxX - minX + 260);
+    const bboxH = Math.max(100, maxY - minY + 260);
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+
+    const scaleX = (w * 0.85) / bboxW;
+    const scaleY = (h * 0.85) / bboxH;
+    this.zoom = Math.min(1.2, Math.max(0.2, Math.min(scaleX, scaleY)));
+    this.pan = {
+      x: w / 2 - centerX * this.zoom,
+      y: h / 2 - centerY * this.zoom,
+    };
   }
 
   redraw(): void {
@@ -212,6 +249,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     this.nodes = await scanVaultNotesPure(this.app, filterOverride, this.settings.vectorSearchExclusions);
     this.applyLayout();
     await this.loadRelationEdges();
+    this.fitToView();
+    this.redraw();
   }
 
   applyLayout(): void {

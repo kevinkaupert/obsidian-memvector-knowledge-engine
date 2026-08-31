@@ -174,6 +174,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.redraw();
   };
 
+  createActionBtn(aktionenBody, "Ganzansicht zentrieren", () => {
+    (ctx as any).fitToView?.();
+    ctx.redraw();
+  });
+
   const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
   const calcVectorsBtn = createActionBtn(aktionenBody, t.btnCalcVectors, null);
   calcVectorsBtn.title = `Embedding Model: ${embedModelLabel}`;
