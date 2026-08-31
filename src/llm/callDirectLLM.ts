@@ -61,6 +61,8 @@ export async function callDirectLLM(
       }
     }
 
+    console.log("MemVector: Sende Synthese-Request an:", url, "Modell:", payload.model);
+
     const response = await requestUrl({
       url,
       method: "POST",
@@ -84,7 +86,7 @@ export async function callDirectLLM(
         }
         return blocks?.[0]?.text || "Keine Antwort von Claude erhalten.";
       }
-      return data.choices?.[0]?.message?.content || "Keine Antwort vom LLM erhalten.";
+      return data.choices?.[0]?.message?.content || data.choices?.[0]?.message?.reasoning || "Keine Antwort vom LLM erhalten.";
     }
 
     let errMsg = "";
@@ -98,8 +100,10 @@ export async function callDirectLLM(
     }
     if (!errMsg) errMsg = response.text || `HTTP ${response.status}`;
 
+    console.error("MemVector: LLM Request fehlgeschlagen. Status:", response.status, "URL:", url, "Details:", errMsg);
+
     if (response.status === 400) {
-      throw new Error(`HTTP 400 Bad Request: ${errMsg}`);
+      throw new Error(`HTTP 400 Bad Request (${url}): ${errMsg}`);
     } else if (response.status === 402) {
       throw new Error(
         `HTTP 402 Payment Required: ${errMsg || "Guthaben aufgebraucht. Bitte lade Guthaben auf oder schalte auf lokales Ollama um."}`
