@@ -20,7 +20,7 @@ The settings menu is organized into 5 clean sections:
 - **Language / Sprache:** Choose UI language (`Deutsch` / `English`). All setting titles, descriptions, dropdown options, and notices translate automatically when toggled.
 - **Path & File Exclusions (`vectorSearchExclusions`):** `-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-` (default). Notes matching these are skipped by the vector scan.
 - **Unselected Label Opacity:** How faded the title label of a non-selected, non-connected note is in the graph view (default `35%`).
-- **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar (default `10`).
+- **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar (default `10`). Uses a real vector-store lookup against whichever backend is configured (Section 4) once the active note has been synced; falls back to a local word/formula-overlap heuristic otherwise.
 - **Relation Vocabulary File (`relationVocabularyPath`):** Vault path to the relation-type definitions used by the Relation Builder - see Section 3.5 below (default `wiki/relation-types.json`).
 - **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is on (default `AGENTS.md, meta/PROFILE.md`).
 - **Synthesis Link Mode / Cloud Naming Mode:** How synthesis output auto-links concepts, and how topic clusters in the graph view are named.

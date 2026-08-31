@@ -71,5 +71,5 @@ Open the sidebar view by clicking the **function-square icon** in the ribbon bar
 
 - **Active Note Focus:** Automatically tracks whatever Markdown note is open in Obsidian.
 - **Breadcrumb & Title:** Displays folder path and active file title.
-- **Mini-Radar Canvas:** Interactive 2D cutout view centered at $(0,0)$ on the active note, showing polar distance rings and framing the top $X$ nearest vector neighbors.
+- **Mini-Radar Canvas:** Interactive 2D cutout view centered at $(0,0)$ on the active note, showing polar distance rings and framing the top $X$ nearest vector neighbors. Uses the active note's real embedding for these neighbors once it's been synced (run "BGE-M3 Vektoren berechnen" first); falls back to a text-overlap heuristic otherwise, so it still works before you've synced anything.
 - **Nearest Neighbors List:** Collapsible details list of top nearest notes with similarity scores (click to open note).
