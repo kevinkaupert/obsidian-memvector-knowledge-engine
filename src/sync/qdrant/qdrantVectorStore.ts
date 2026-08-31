@@ -3,7 +3,7 @@ import { getQdrantApiKey } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import type { VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { testQdrantConnection } from "./connectionTest";
-import { ensureCollection, searchSimilar, upsertPoints, type QdrantPoint } from "./qdrantClient";
+import { ensureCollection, getPointVector, searchSimilar, upsertPoints, type QdrantPoint } from "./qdrantClient";
 import { pointIdForPath } from "./pointId";
 
 /** VectorStore backed by a real Qdrant server over REST - thin wrapper around the existing client (unchanged internally). Point IDs are plain strings (the note path) at the interface level; Qdrant needs a numeric/UUID ID, so pointIdForPath's hash is applied here rather than leaking that detail to callers. */
@@ -38,5 +38,9 @@ export class QdrantVectorStore implements VectorStore {
 
   search(vector: number[], limit: number): Promise<VectorSearchHit[]> {
     return searchSimilar(this.baseUrl(), this.collection(), this.apiKey(), vector, limit);
+  }
+
+  getVector(id: string): Promise<number[] | null> {
+    return getPointVector(this.baseUrl(), this.collection(), this.apiKey(), pointIdForPath(id));
   }
 }

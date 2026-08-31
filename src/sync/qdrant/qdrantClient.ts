@@ -42,6 +42,23 @@ export async function upsertPoints(baseUrl: string, collection: string, apiKey: 
   }
 }
 
+/** Fetches a single already-upserted point's own stored vector by id - null if it doesn't exist (e.g. that note hasn't been synced yet). */
+export async function getPointVector(baseUrl: string, collection: string, apiKey: string, id: number): Promise<number[] | null> {
+  const res = await requestUrl({
+    url: `${baseUrl}/collections/${collection}/points`,
+    method: "POST",
+    headers: buildHeaders(apiKey),
+    body: JSON.stringify({ ids: [id], with_vector: true, with_payload: false }),
+    throwOnError: false,
+  });
+  if (res.status !== 200) {
+    throw new Error(`Qdrant Point-Abruf Fehler: HTTP ${res.status}: ${res.text || "Punkt konnte nicht abgerufen werden"}`);
+  }
+  const result = res.json?.result;
+  const vector = Array.isArray(result) ? result[0]?.vector : undefined;
+  return Array.isArray(vector) ? vector : null;
+}
+
 export interface QdrantSearchHit {
   score: number;
   payload: { path: string; title: string; content: string };

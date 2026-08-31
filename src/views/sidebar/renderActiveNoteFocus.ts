@@ -1,8 +1,45 @@
-import type { App, TFile } from "obsidian";
+import { TFile, type App } from "obsidian";
 import type { DomElementInfoCompat } from "../../obsidianCompat";
+import { getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
-import { rankCandidates, shouldExcludeFromRadar, type ScoredNote } from "./activeNoteScoring";
+import { classifyNoteType, extractFormulas, rankCandidates, shouldExcludeFromRadar, type ScoredNote } from "./activeNoteScoring";
 import { getNode2DPosition } from "./nodePosition";
+
+/**
+ * Tries the real vector index first (semantic nearest-neighbors via whichever
+ * backend is configured), falling back to null if the active note hasn't been
+ * synced yet or the backend is unreachable - callers fall back to the local
+ * word/formula-overlap heuristic (rankCandidates) in that case, so the radar
+ * never just breaks for an unsynced vault.
+ */
+async function findVectorNeighbors(app: App, settings: MemVectorSettings, activeFile: TFile, limit: number): Promise<ScoredNote[] | null> {
+  try {
+    const store = getVectorStore(app, settings);
+    const activeVector = await store.getVector(activeFile.path);
+    if (!activeVector) return null;
+
+    const hits = await store.search(activeVector, limit + 1);
+    const seen = new Set<string>([activeFile.path]);
+    const neighbors: ScoredNote[] = [];
+    for (const hit of hits) {
+      if (seen.has(hit.payload.path)) continue;
+      const file = app.vault.getAbstractFileByPath(hit.payload.path);
+      if (!(file instanceof TFile)) continue;
+      seen.add(hit.payload.path);
+      neighbors.push({
+        file,
+        type: classifyNoteType(file.path, file.name),
+        score: hit.score,
+        formulas: extractFormulas(hit.payload.content || ""),
+        content: hit.payload.content || "",
+      });
+    }
+    return neighbors.length > 0 ? neighbors : null;
+  } catch (err) {
+    console.warn("Vector-based radar neighbors unavailable, falling back to local scoring:", err);
+    return null;
+  }
+}
 
 const TYPE_COLORS: Record<string, string> = {
   definition: "#3b82f6",
@@ -78,16 +115,19 @@ export async function renderActiveNoteFocus(
 
   try {
     const activeContent = await app.vault.read(activeFile);
-    const candidateFiles = app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path && !shouldExcludeFromRadar(f));
-
-    const candidates: { file: TFile; content: string }[] = [];
-    for (const f of candidateFiles) {
-      candidates.push({ file: f, content: await app.vault.read(f) });
-    }
-
-    const scores = rankCandidates(activeContent, candidates);
     const countX = pluginSettings?.radarNoteCount || 10;
-    const topNeighbors = scores.slice(0, Math.max(15, countX));
+    const wantCount = Math.max(15, countX);
+
+    let topNeighbors = pluginSettings ? await findVectorNeighbors(app, pluginSettings, activeFile, wantCount) : null;
+
+    if (!topNeighbors) {
+      const candidateFiles = app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path && !shouldExcludeFromRadar(f));
+      const candidates: { file: TFile; content: string }[] = [];
+      for (const f of candidateFiles) {
+        candidates.push({ file: f, content: await app.vault.read(f) });
+      }
+      topNeighbors = rankCandidates(activeContent, candidates).slice(0, wantCount);
+    }
 
     const width = radarWrap.clientWidth || 260;
     const height = 260;

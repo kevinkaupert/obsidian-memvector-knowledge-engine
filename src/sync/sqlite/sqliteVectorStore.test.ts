@@ -69,4 +69,18 @@ describe("SqliteVectorStore", () => {
     const hits = await reopened.search([1, 0], 10);
     expect(hits.map((h) => h.payload.path)).toEqual(["a.md"]);
   });
+
+  describe("getVector", () => {
+    it("returns a synced point's own vector", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 2, 3])]);
+      expect(await store.getVector("a")).toEqual([1, 2, 3]);
+    });
+
+    it("returns null for an id that hasn't been synced", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0])]);
+      expect(await store.getVector("unsynced")).toBeNull();
+    });
+  });
 });

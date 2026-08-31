@@ -22,4 +22,6 @@ export interface VectorStore {
   testConnection(): Promise<void>;
   syncPoints(points: VectorPoint[]): Promise<void>;
   search(vector: number[], limit: number): Promise<VectorSearchHit[]>;
+  /** Looks up a single already-synced point's own embedding by id (note path) - null if it hasn't been synced yet. Lets a caller search "by note" without re-computing an embedding. */
+  getVector(id: string): Promise<number[] | null>;
 }
