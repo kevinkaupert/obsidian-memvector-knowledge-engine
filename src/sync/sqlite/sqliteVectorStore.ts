@@ -26,7 +26,7 @@ export class SqliteVectorStore implements VectorStore {
 
   async getVector(id: string): Promise<number[] | null> {
     const db = await getLocalDb(this.app);
-    const result = db.exec("SELECT vector FROM vectors WHERE id = ?", [id]);
+    const result = db.exec("SELECT vector FROM vectors WHERE id = ? OR path = ?", [id, id]);
     if (result.length === 0 || result[0].values.length === 0) return null;
     return JSON.parse(String(result[0].values[0][0])) as number[];
   }

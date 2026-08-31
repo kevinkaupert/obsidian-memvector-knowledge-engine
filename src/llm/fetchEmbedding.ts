@@ -12,37 +12,16 @@ export async function fetchEmbedding(
   modelName = "bge-m3"
 ): Promise<EmbeddingResult> {
   const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
-
-  if (cleanBase.includes("11434")) {
-    const rawOllamaBase = cleanBase.replace(/\/v1$/, "");
-    try {
-      const res = await requestUrl({
-        url: `${rawOllamaBase}/api/embeddings`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelName, prompt: text.slice(0, 2000) }),
-        throwOnError: false,
-      });
-      if (res.status === 200 && res.json?.embedding) {
-        return { embedding: res.json.embedding, error: null };
-      } else if (res.status === 404) {
-        return {
-          embedding: null,
-          error: `Modell '${modelName}' nicht in Ollama gefunden. Bitte im Terminal ausführen: 'ollama pull ${modelName}'`,
-        };
-      }
-    } catch {
-      // fall through to the generic /v1/embeddings path below
-    }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey && apiKey !== "ollama") {
+    headers["Authorization"] = `Bearer ${apiKey}`;
   }
 
+  // 1. Standard OpenAI-compatible /v1/embeddings endpoint
+  const standardUrl = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
   try {
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey && apiKey !== "ollama") {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
     const res = await requestUrl({
-      url: `${cleanBase}/embeddings`,
+      url: standardUrl,
       method: "POST",
       headers,
       body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
@@ -50,13 +29,33 @@ export async function fetchEmbedding(
     });
     if (res.status === 200) {
       const vec = res.json?.data?.[0]?.embedding || res.json?.embedding;
-      if (vec) return { embedding: vec, error: null };
+      if (Array.isArray(vec) && vec.length > 0) return { embedding: vec, error: null };
     }
-    return { embedding: null, error: `API HTTP ${res.status}: ${res.text || "Embedding fehlgeschlagen"}` };
-  } catch (err) {
-    return {
-      embedding: null,
-      error: `Verbindungsfehler zu '${cleanBase}': ${err instanceof Error ? err.message : String(err)}`,
-    };
+  } catch {
+    // fallback to Ollama native /api/embed if running locally
   }
+
+  // 2. Ollama native fallback
+  if (cleanBase.includes("11434") || cleanBase.includes("localhost") || cleanBase.includes("127.0.0.1")) {
+    const rawOllamaBase = cleanBase.replace(/\/v1$/, "");
+    try {
+      const res = await requestUrl({
+        url: `${rawOllamaBase}/api/embed`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
+        throwOnError: false,
+      });
+      if (res.status === 200 && Array.isArray(res.json?.embeddings?.[0])) {
+        return { embedding: res.json.embeddings[0], error: null };
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  return {
+    embedding: null,
+    error: `Embedding fehlgeschlagen für Modell '${modelName}' an '${cleanBase}'`,
+  };
 }
