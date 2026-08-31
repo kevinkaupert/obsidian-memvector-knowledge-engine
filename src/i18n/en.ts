@@ -88,8 +88,8 @@ export const en: TranslationKeys = {
   btnClearSel: "Clear Selection",
   hoverHint: "Hover over vector nodes. Hold Shift + drag or Cmd-Click to select.",
   secSynthesis: "Synthesis",
-  synthPromptPlaceholder: 'Custom question (optional) – e.g. "How do these points fit into the overall network?"',
-  synthEnrichToggle: "Enrich context from Qdrant + Memgraph",
+  synthPromptPlaceholder: 'Custom prompt (optional) – e.g. "How do these notes connect to the broader network?"',
+  synthEnrichToggle: "Enrich context via GraphRAG (Vector + Graph)",
   synthAgentsToggle: "Include agent guidelines (AGENTS.md)",
   relModalEditTitle: "Edit Relation",
 

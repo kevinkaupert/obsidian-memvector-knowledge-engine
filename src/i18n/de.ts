@@ -89,7 +89,7 @@ export const de: TranslationKeys = {
   hoverHint: "Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.",
   secSynthesis: "Synthese",
   synthPromptPlaceholder: 'Eigene Frage (optional) – z. B. "Wie fügen sich diese Punkte ins Gesamtnetz ein?"',
-  synthEnrichToggle: "Kontext aus Qdrant + Memgraph anreichern",
+  synthEnrichToggle: "Kontext per GraphRAG anreichern (Vektor + Graph)",
   synthAgentsToggle: "Agenten-Richtlinien (AGENTS.md) einbeziehen",
   relModalEditTitle: "Beziehung bearbeiten",
 

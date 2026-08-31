@@ -53,7 +53,14 @@ async function fetchVectorNeighbors(app: App, settings: MemVectorSettings, selec
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
     const id = toSlug(hit.payload.title || path);
-    found.set(id, { id, title: hit.payload.title, path, content: hit.payload.content || "", sources: ["vector"] });
+    let content = hit.payload.content || "";
+    if (!content) {
+      const file = app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) {
+        content = stripFrontmatter(await app.vault.read(file)).slice(0, 500);
+      }
+    }
+    found.set(id, { id, title: hit.payload.title || id, path, content, sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;

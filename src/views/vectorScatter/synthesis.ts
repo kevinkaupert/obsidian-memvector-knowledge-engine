@@ -14,8 +14,8 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: 
 
   const heading =
     lang === "de"
-      ? "Automatisch gefundene, thematisch/strukturell verwandte Notizen (NICHT vom Nutzer ausgewählt - nur Hintergrundkontext, per Vektor-Ähnlichkeit in Qdrant und/oder Graph-Nachbarschaft in Memgraph gefunden; Fokus bleibt auf den oben ausgewählten Notizen):"
-      : "Automatically found, topically/structurally related notes (NOT selected by the user - background context only, found via Qdrant vector similarity and/or Memgraph graph neighborhood; the focus stays on the notes selected above):";
+      ? "Automatisch per GraphRAG gefundene, verwandte Notizen (NICHT vom Nutzer ausgewählt - nur Hintergrundkontext aus semantischer Vektor-Ähnlichkeit und Multi-Hop-Graph-Beziehungen; der Fokus bleibt auf den oben ausgewählten Notizen):"
+      : "Automatically found related notes via GraphRAG (NOT selected by the user - background context only, retrieved via semantic vector similarity and multi-hop graph relationships; focus stays on the notes selected above):";
 
   const block = `\n${heading}\n${enriched
     .map((n) => `- [${n.sources.join("+")}] "${n.title}": ${n.content.slice(0, 300)}`)
