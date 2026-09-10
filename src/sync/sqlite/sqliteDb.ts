@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_tgt ON edges(tgt);
 CREATE TABLE IF NOT EXISTS vectors (id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT);
 `;
 
-let activePluginId = "obsidian-memvector-knowledge-engine";
+let activePluginId = "memvector-knowledge-engine";
 
 export function setPluginId(id: string): void {
   activePluginId = id;

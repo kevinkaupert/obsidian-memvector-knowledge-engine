@@ -8,7 +8,7 @@ import { SqliteVectorStore } from "./sqliteVectorStore";
 /** Same fake app.vault.adapter pattern as sqliteGraphStore.test.ts - real sql.js engine, no Obsidian instance needed. */
 function fakeApp(files: Map<string, ArrayBuffer> = new Map()): App {
   const configDir = ".obsidian";
-  const wasmPath = `${configDir}/plugins/obsidian-memvector-knowledge-engine/sql-wasm.wasm`;
+  const wasmPath = `${configDir}/plugins/memvector-knowledge-engine/sql-wasm.wasm`;
   if (!files.has(wasmPath)) {
     const wasmBytes = readFileSync(resolve(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
     files.set(wasmPath, wasmBytes.buffer.slice(wasmBytes.byteOffset, wasmBytes.byteOffset + wasmBytes.byteLength));

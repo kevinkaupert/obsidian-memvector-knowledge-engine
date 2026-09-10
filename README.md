@@ -29,7 +29,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 
 ## Key Features (v0.1.0)
 
-- **100% Local-First & Zero-Setup (SQLite via WASM):** All note embeddings and graph edges are stored locally in `.obsidian/plugins/obsidian-memvector-knowledge-engine/memvector-local.sqlite`. No Docker, no database servers, no network setup needed.
+- **100% Local-First & Zero-Setup (SQLite via WASM):** All note embeddings and graph edges are stored locally in `.obsidian/plugins/memvector-knowledge-engine/memvector-local.sqlite`. No Docker, no database servers, no network setup needed.
 - **GraphVektor 2D Canvas:** Real physical force simulation combining genuine cosine vector similarity, WikiLinks, and typed relationship edges.
 - **Active Note Mini-Radar (Sidebar):** Renders polar distance rings centered on the active note where radial distance directly reflects true vector cosine distance $(1 - \text{similarity})$.
 - **Hybrid GraphRAG Knowledge Synthesis:** Multi-hop graph traversal and semantic vector retrieval loaded directly into the AI synthesis prompt.
@@ -40,7 +40,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 
 ## Installation & Quickstart
 
-1. Build or copy `main.js`, `manifest.json`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/obsidian-memvector-knowledge-engine/`.
+1. Build or copy `main.js`, `manifest.json`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/memvector-knowledge-engine/`.
 2. Enable **MemVector Knowledge Engine** in **Obsidian Settings** → **Community Plugins**.
 3. In Plugin Settings, choose your Embedding and LLM provider (Ollama works out of the box with `bge-m3`).
 4. Click **"Gesamtes Vault lokal indizieren"** to compute embeddings and graph topology.

@@ -92,7 +92,7 @@ You can edit this file at any time to customize the vocabulary for any domain (m
 ## 3. Storage Layer (Local SQLite via WASM)
 
 All note embeddings and graph relationships are stored in:
-`<vault>/.obsidian/plugins/obsidian-memvector-knowledge-engine/memvector-local.sqlite`
+`<vault>/.obsidian/plugins/memvector-knowledge-engine/memvector-local.sqlite`
 
 - **Database Engine:** `sql.js` (SQLite compiled to WebAssembly), requiring zero external processes or Docker containers.
 - **Tables:**
