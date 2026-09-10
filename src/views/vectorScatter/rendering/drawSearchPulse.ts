@@ -15,14 +15,14 @@ export function drawSearchPulse(
 ): void {
   const phase = (elapsedMs % PULSE_PERIOD_MS) / PULSE_PERIOD_MS;
   const pos = worldToScreen(node.x, node.y, zoom, pan);
-  const radius = (10 + phase * 22) * zoom;
+  const radius = Math.max(7, (10 + phase * 22) * zoom);
 
   ctx.save();
   ctx.globalAlpha = 0.85 * (1 - phase);
   ctx.beginPath();
   ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
   ctx.strokeStyle = accentColor;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = Math.max(1.5, 2.5 * zoom);
   ctx.stroke();
   ctx.restore();
 }

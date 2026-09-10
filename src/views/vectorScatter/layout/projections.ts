@@ -77,24 +77,26 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
         const dx = nodeB.x - nodeA.x;
         const dy = nodeB.y - nodeA.y;
         const dist = Math.hypot(dx, dy) || 1;
+        const ux = dx / dist;
+        const uy = dy / dist;
 
         // Check if edge is explicitly repulsive (e.g. CONFLICTS_WITH)
         const pairKey = `${Math.min(i, j)}-${Math.max(i, j)}`;
         if (repel.has(pairKey)) {
           const minDist = targetSpacing * 2.5;
           if (dist < minDist) {
-            const push = ((minDist - dist) / dist) * 0.6;
-            fx -= dx * push;
-            fy -= dy * push;
+            const pushMag = Math.min(targetSpacing * 0.6, (minDist - dist) * 0.5);
+            fx -= ux * pushMag;
+            fy -= uy * pushMag;
           }
           continue;
         }
 
         // Hard collision clearance: guarantee dots and labels never overlap
         if (dist < collisionDist) {
-          const push = ((collisionDist - dist) / dist) * 0.6;
-          fx -= dx * push;
-          fy -= dy * push;
+          const pushMag = Math.min(targetSpacing, (collisionDist - dist) * 0.8);
+          fx -= ux * pushMag;
+          fy -= uy * pushMag;
         }
 
         // Blend semantic similarity (0-1) with graph topology weight (0-1.5)
@@ -106,19 +108,28 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
           // Attractive force towards ideal distance
           const idealDist = targetSpacing * (1.35 - Math.min(0.65, combinedWeight * 0.65));
           const delta = dist - idealDist;
-          const pull = (delta / dist) * Math.min(0.5, combinedWeight * 0.35);
-          fx += dx * pull;
-          fy += dy * pull;
+          const pullMag = Math.max(-targetSpacing * 0.4, Math.min(targetSpacing * 0.4, delta * combinedWeight * 0.25));
+          fx += ux * pullMag;
+          fy += uy * pullMag;
         } else if (dist < targetSpacing * 1.5) {
           // Repulsive force to keep unrelated nodes well-separated
-          const push = ((targetSpacing * 1.5 - dist) / dist) * 0.35;
-          fx -= dx * push;
-          fy -= dy * push;
+          const pushMag = Math.min(targetSpacing * 0.3, (targetSpacing * 1.5 - dist) * 0.15);
+          fx -= ux * pushMag;
+          fy -= uy * pushMag;
         }
       }
 
-      nodeA.x += fx * alpha;
-      nodeA.y += fy * alpha;
+      // Step-size clamping to prevent numerical instability or exponential runaway
+      const totalF = Math.hypot(fx, fy);
+      const move = totalF * alpha;
+      const maxMove = Math.min(targetSpacing * 0.25, 80);
+      if (move > maxMove && totalF > 0) {
+        nodeA.x += (fx / totalF) * maxMove;
+        nodeA.y += (fy / totalF) * maxMove;
+      } else {
+        nodeA.x += fx * alpha;
+        nodeA.y += fy * alpha;
+      }
     }
   }
 }

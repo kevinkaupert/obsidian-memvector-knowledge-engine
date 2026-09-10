@@ -104,5 +104,29 @@ describe("applyGraphVectorProjection", () => {
       }
     }
   });
+
+  it("handles 100 notes at maximum spacing without exploding coordinates", () => {
+    const N = 100;
+    const nodes = Array.from({ length: N }, (_, i) => makeNode(`Node_${i}`));
+    const matrix = Array.from({ length: N }, () => Array(N).fill(0.25));
+    for (let i = 0; i < N; i++) matrix[i][i] = 1.0;
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 1600,
+      cloudSpacing: 3000,
+      relationEdges: [],
+    });
+
+    for (const node of nodes) {
+      expect(Number.isFinite(node.x)).toBe(true);
+      expect(Number.isFinite(node.y)).toBe(true);
+      expect(Number.isNaN(node.x)).toBe(false);
+      expect(Number.isNaN(node.y)).toBe(false);
+      expect(Math.abs(node.x)).toBeLessThan(25000);
+      expect(Math.abs(node.y)).toBeLessThan(25000);
+    }
+  });
 });
 

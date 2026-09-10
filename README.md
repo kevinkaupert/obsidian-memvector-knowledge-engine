@@ -5,7 +5,7 @@
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.5.0-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-105%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen)
 
 A 100% local-first, privacy-focused **2D Vector Space Visualizer, SQLite Graph Engine & Hybrid GraphRAG AI Co-Pilot** for Obsidian.
 

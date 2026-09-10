@@ -65,7 +65,7 @@ export function drawNodes(
     const isHovered = hoveredNode === node;
     const isActive = isSelected || isHovered;
     const tally = !isActive ? relationTallies.get(node.id) : undefined;
-    const radius = (isSelected ? 8 : 6) * zoom;
+    const radius = Math.max(3.5, (isSelected ? 8 : 6) * zoom);
 
     if (style === "ink") {
       if (tally) drawHalo(ctx, pos.x, pos.y, radius + 5, relationColor(ctx, tally, pos.x, pos.y, radius + 5, themeAccent));
@@ -75,9 +75,14 @@ export function drawNodes(
         ctx.fillStyle = themeAccent;
         ctx.fill();
       } else {
-        ctx.lineWidth = tally ? 1.75 : 1.25;
-        ctx.strokeStyle = tally ? relationColor(ctx, tally, pos.x, pos.y, radius, themeAccent) : NEUTRAL_RING;
-        ctx.stroke();
+        if (zoom < 0.35) {
+          ctx.fillStyle = tally ? relationColor(ctx, tally, pos.x, pos.y, radius, themeAccent) : NEUTRAL_DOT;
+          ctx.fill();
+        } else {
+          ctx.lineWidth = tally ? 1.75 : 1.25;
+          ctx.strokeStyle = tally ? relationColor(ctx, tally, pos.x, pos.y, radius, themeAccent) : NEUTRAL_RING;
+          ctx.stroke();
+        }
       }
     } else {
       if (isActive) drawHalo(ctx, pos.x, pos.y, radius + 6, themeAccent);
@@ -93,7 +98,7 @@ export function drawNodes(
       }
     }
 
-    if (zoom > 0.45 || isActive || tally) {
+    if (zoom > 0.22 || isActive || tally) {
       let titleText = node.title;
       if (titleText.length > 22 && !isActive && zoom < 1.1) {
         titleText = `${titleText.slice(0, 20)}…`;
@@ -106,7 +111,7 @@ export function drawNodes(
       ctx.fillStyle = isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillText(titleText, pos.x, pos.y + 12 * zoom + 1);
+      ctx.fillText(titleText, pos.x, pos.y + Math.max(8, 12 * zoom + 1));
       ctx.restore();
     }
   });
