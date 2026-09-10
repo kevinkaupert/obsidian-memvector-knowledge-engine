@@ -2,10 +2,10 @@
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
+![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.5.0-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-99%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-104%20passing-brightgreen)
 
 A 100% local-first, privacy-focused **2D Vector Space Visualizer, SQLite Graph Engine & Hybrid GraphRAG AI Co-Pilot** for Obsidian.
 
@@ -13,7 +13,7 @@ It turns your Markdown vault into an explorable 2D semantic map with real vector
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 Detailed documentation is available in the [`docs/`](docs/) directory:
 
@@ -25,7 +25,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 
 ---
 
-## 🌟 Key Features (v0.1.0)
+## Key Features (v0.1.0)
 
 - **100% Local-First & Zero-Setup (SQLite via WASM):** All note embeddings and graph edges are stored locally in `.obsidian/plugins/obsidian-memvector-knowledge-engine/memvector-local.sqlite`. No Docker, no database servers, no network setup needed.
 - **GraphVektor 2D Canvas:** Real physical force simulation combining genuine cosine vector similarity, WikiLinks, and typed relationship edges.

@@ -4,7 +4,7 @@ Dieses Dokument führt alle bewusst für den stabilen **v0.1 Public Release** re
 
 ---
 
-## 📌 Status v0.1.0 (Public Core)
+## Status v0.1.0 (Public Core)
 
 Die Version **v0.1.0** konzentriert sich auf maximale Stabilität, Portabilität und Zero-Setup-Nutzung:
 * **100% Local-First SQLite-Backend** (`sql.js`): Vektoren und Graph-Topologie ohne externe Server in `memvector-local.sqlite`.
@@ -15,7 +15,7 @@ Die Version **v0.1.0** konzentriert sich auf maximale Stabilität, Portabilität
 
 ---
 
-## 🛣️ Zukünftige Erweiterungen & Roadmap (v0.2+)
+## Zukünftige Erweiterungen & Roadmap (v0.2+)
 
 ### 1. Optionale Remote-Server-Adapter (Enterprise / >50k Notizen)
 * **Qdrant Vector Database Adapter**: Optionales Backend für extrem große Vaults (>50.000 Notizen), bei denen In-Memory-WASM an Performancegrenzen stößt.

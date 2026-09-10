@@ -49,9 +49,9 @@ Expected resulting graph: 3 nodes, 2 `LINKS_TO` edges (`testkonzept-a → testko
 
 In Obsidian: **Settings → MemVector Knowledge Engine**:
 
-1. Qdrant section → **"Qdrant-Verbindung testen"** → expect ✅.
+1. Qdrant section → **"Qdrant-Verbindung testen"** → expect `[OK]`.
 2. Qdrant section → **"Jetzt Vault in Qdrant synchronisieren"**.
-3. Memgraph section → **"Memgraph Verbindung testen"** → expect ✅.
+3. Memgraph section → **"Memgraph Verbindung testen"** → expect `[OK]`.
 4. Memgraph section → **"Jetzt Vault-Graph in Memgraph synchronisieren"**.
 
 ## 3. Verify independently (don't trust the Notice alone)

@@ -8,7 +8,7 @@ Open the main 2D Vector Graph by clicking the **dot-network icon** in the left r
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
-│ [MemVector Graph View]                            [Panel ⚙]   │
+│ [MemVector Graph View]                              [Panel]   │
 │                                                               │
 │          • Theorem (Green)                                    │
 │                     • Concept (Yellow)                        │

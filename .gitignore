@@ -7,5 +7,8 @@ dist/
 data.json
 data.json.*.bak
 memvector-local.sqlite
+*.sqlite*
+*.tmp
 main.new.js
 main.js.old-backup
+

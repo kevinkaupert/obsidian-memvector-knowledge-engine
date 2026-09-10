@@ -20,6 +20,14 @@
     "sqlite",
     "local-first"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues"
+  },
+  "homepage": "https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine#readme",
   "author": "Kevin Mike Kaupert",
   "license": "MIT",
   "dependencies": {
