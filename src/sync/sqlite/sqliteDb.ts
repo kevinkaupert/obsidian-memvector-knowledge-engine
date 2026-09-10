@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import initSqlJs, { type Database } from "sql.js";
+import { getEmbeddedWasmBinary } from "./embeddedWasm";
 const DB_FILENAME = "memvector-local.sqlite";
 const WASM_FILENAME = "sql-wasm.wasm";
 
@@ -31,8 +32,22 @@ export function localDbPath(app: App): string {
 let cached: { app: App; db: Promise<Database> } | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
 
+/** Initializes sql.js engine with disk or embedded fallback WASM, then opens or creates the local database. */
 async function openDb(app: App): Promise<Database> {
-  const wasmBinary = await app.vault.adapter.readBinary(`${pluginDirPath(app)}/${WASM_FILENAME}`);
+  const wasmPath = `${pluginDirPath(app)}/${WASM_FILENAME}`;
+  let wasmBinary: ArrayBuffer;
+  if (await app.vault.adapter.exists(wasmPath)) {
+    wasmBinary = await app.vault.adapter.readBinary(wasmPath);
+  } else {
+    const embedded = getEmbeddedWasmBinary();
+    const buffer = embedded.buffer.slice(embedded.byteOffset, embedded.byteOffset + embedded.byteLength) as ArrayBuffer;
+    wasmBinary = buffer;
+    try {
+      await app.vault.adapter.writeBinary(wasmPath, buffer);
+    } catch {
+      // Non-fatal if writing fallback to disk fails
+    }
+  }
   const SQL = await initSqlJs({ wasmBinary });
 
   const dbPath = localDbPath(app);
