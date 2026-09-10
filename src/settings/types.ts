@@ -38,6 +38,10 @@ export interface MemVectorSettings {
   scatterVisualStyle: ScatterVisualStyle;
   /** Opacity (0-1) for the title label of any note that is neither selected/hovered nor connected to it. */
   unselectedLabelOpacity: number;
+  /** Distance scaling multiplier between individual nodes in the 2D scatter view. */
+  scatterNodeSpacing?: number;
+  /** Distance scaling between semantic cluster clouds in the 2D scatter view. */
+  scatterCloudSpacing?: number;
 }
 
 export interface RelationGraphNode {

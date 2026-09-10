@@ -38,7 +38,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
 
       if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
         const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-        const newZoom = Math.max(0.2, Math.min(8, ctx.zoom * zoomFactor));
+        const newZoom = Math.max(0.05, Math.min(8, ctx.zoom * zoomFactor));
         ctx.pan.x = mouseX - (mouseX - ctx.pan.x) * (newZoom / ctx.zoom);
         ctx.pan.y = mouseY - (mouseY - ctx.pan.y) * (newZoom / ctx.zoom);
         ctx.zoom = newZoom;

@@ -40,8 +40,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   showEdges = false;
   edgeHops = 1;
   relationEdges: RelationEdge[] = [];
-  nodeSpacing = 160;
-  cloudSpacing = 320;
+  nodeSpacing = 350;
+  cloudSpacing = 800;
   projectionMode: ProjectionMode = "graphvector";
 
   private canvas!: HTMLCanvasElement;
@@ -144,6 +144,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       zIndex: "10",
     });
 
+    this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
+    this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
+
     const t = getTranslation(this.settings.language || "de");
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
@@ -211,7 +214,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
 
     const scaleX = (w * 0.85) / bboxW;
     const scaleY = (h * 0.85) / bboxH;
-    this.zoom = Math.min(1.2, Math.max(0.2, Math.min(scaleX, scaleY)));
+    this.zoom = Math.min(1.2, Math.max(0.05, Math.min(scaleX, scaleY)));
     this.pan = {
       x: w / 2 - centerX * this.zoom,
       y: h / 2 - centerY * this.zoom,

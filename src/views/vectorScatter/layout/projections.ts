@@ -18,6 +18,9 @@ function hashString(s: string): number {
   return hash;
 }
 
+/**
+ * Purpose: Simulates physical 2D layout forces balancing cosine similarity, graph edges, and anti-collision clearances.
+ */
 export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
@@ -26,41 +29,47 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
     assignClouds(nodes, matrix);
   }
 
-  const targetSpacing = nodeSpacing || 200;
-  const clusterRadius = cloudSpacing || 600;
+  const targetSpacing = nodeSpacing || 350;
+  const clusterRadius = cloudSpacing || 800;
   const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges);
 
   // 1. Determine number of semantic clusters
   const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
   const cloudAngleStep = (Math.PI * 2) / numClouds;
 
-  // 2. Initial placement: anchor each node around its cluster centroid
+  // 2. Initial placement: spread nodes evenly around cluster centroid via golden spiral
+  const clusterCounts = new Map<number, number>();
   nodes.forEach((node, i) => {
     const cId = node.cloudId !== undefined ? node.cloudId : i % numClouds;
     const cAngle = cId * cloudAngleStep;
     const cX = Math.cos(cAngle) * clusterRadius;
     const cY = Math.sin(cAngle) * clusterRadius;
 
-    const hash = hashString(node.id);
-    const offsetX = ((Math.abs(hash) % (targetSpacing * 1.5)) - targetSpacing * 0.75);
-    const offsetY = ((Math.abs(hash >> 3) % (targetSpacing * 1.5)) - targetSpacing * 0.75);
+    const k = clusterCounts.get(cId) || 0;
+    clusterCounts.set(cId, k + 1);
 
-    node.anchorX = cX + offsetX;
-    node.anchorY = cY + offsetY;
-    node.x = node.anchorX;
-    node.y = node.anchorY;
+    // Sunflower / phyllotaxis spiral distribution around centroid to prevent initial clumping
+    const phi = k * 2.399963;
+    const r = k === 0 ? 0 : targetSpacing * Math.sqrt(k) * 0.75;
+
+    node.anchorX = cX;
+    node.anchorY = cY;
+    node.x = cX + Math.cos(phi) * r;
+    node.y = cY + Math.sin(phi) * r;
   });
 
   // 3. Iterative Force Simulation
-  const iterations = 45;
+  const collisionDist = Math.max(80, targetSpacing * 0.55);
+  const iterations = 50;
+
   for (let iter = 0; iter < iterations; iter++) {
     const alpha = 0.5 * (1 - iter / iterations);
 
     for (let i = 0; i < n; i++) {
       const nodeA = nodes[i];
-      // Soft spring pulling towards cluster anchor
-      let fx = (nodeA.anchorX! - nodeA.x) * 0.1;
-      let fy = (nodeA.anchorY! - nodeA.y) * 0.1;
+      // Gentle centering towards cluster anchor
+      let fx = (nodeA.anchorX! - nodeA.x) * 0.03;
+      let fy = (nodeA.anchorY! - nodeA.y) * 0.03;
 
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
@@ -72,13 +81,20 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
         // Check if edge is explicitly repulsive (e.g. CONFLICTS_WITH)
         const pairKey = `${Math.min(i, j)}-${Math.max(i, j)}`;
         if (repel.has(pairKey)) {
-          const minDist = targetSpacing * 2.2;
+          const minDist = targetSpacing * 2.5;
           if (dist < minDist) {
-            const push = ((minDist - dist) / dist) * 0.5;
+            const push = ((minDist - dist) / dist) * 0.6;
             fx -= dx * push;
             fy -= dy * push;
           }
           continue;
+        }
+
+        // Hard collision clearance: guarantee dots and labels never overlap
+        if (dist < collisionDist) {
+          const push = ((collisionDist - dist) / dist) * 0.6;
+          fx -= dx * push;
+          fy -= dy * push;
         }
 
         // Blend semantic similarity (0-1) with graph topology weight (0-1.5)
@@ -88,14 +104,14 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
 
         if (combinedWeight > 0.08) {
           // Attractive force towards ideal distance
-          const idealDist = targetSpacing * (1 - Math.min(0.85, combinedWeight * 0.7));
+          const idealDist = targetSpacing * (1.35 - Math.min(0.65, combinedWeight * 0.65));
           const delta = dist - idealDist;
-          const pull = (delta / dist) * combinedWeight * 0.25;
+          const pull = (delta / dist) * Math.min(0.5, combinedWeight * 0.35);
           fx += dx * pull;
           fy += dy * pull;
-        } else if (dist < targetSpacing * 0.65) {
-          // Repulsive force to prevent overlap of unrelated nodes
-          const push = ((targetSpacing * 0.65 - dist) / dist) * 0.25;
+        } else if (dist < targetSpacing * 1.5) {
+          // Repulsive force to keep unrelated nodes well-separated
+          const push = ((targetSpacing * 1.5 - dist) / dist) * 0.35;
           fx -= dx * push;
           fy -= dy * push;
         }

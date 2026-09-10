@@ -4,6 +4,9 @@ import { assignClouds } from "./cloudAssignment";
 import { applyGraphVectorProjection } from "./projections";
 import { buildSimilarityMatrix } from "./similarity";
 
+/**
+ * Purpose: Computes similarity matrix, clusters, and applies 2D vector force projection to scatter nodes.
+ */
 export function applyVectorLayout(
   nodes: ScatterNode[],
   settings: MemVectorSettings,
@@ -27,8 +30,8 @@ export function applyVectorLayout(
   applyGraphVectorProjection({
     nodes,
     matrix,
-    nodeSpacing: nodeSpacing || 160,
-    cloudSpacing: cloudSpacing || 320,
+    nodeSpacing: nodeSpacing || settings.scatterNodeSpacing || 350,
+    cloudSpacing: cloudSpacing || settings.scatterCloudSpacing || 800,
     relationEdges,
   });
 }

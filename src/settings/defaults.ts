@@ -23,5 +23,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   relationVocabularyPath: "wiki/relation-types.json",
   scatterVisualStyle: "ink",
   unselectedLabelOpacity: 0.35,
+  scatterNodeSpacing: 350,
+  scatterCloudSpacing: 800,
 };
 

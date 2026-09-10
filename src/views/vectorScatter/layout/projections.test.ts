@@ -79,4 +79,30 @@ describe("applyGraphVectorProjection", () => {
     const distAB = Math.hypot(nodeA.x - nodeB.x, nodeA.y - nodeB.y);
     expect(distAB).toBeGreaterThan(150);
   });
+
+  it("maintains spacious separation between nodes when nodeSpacing is increased", () => {
+    const nodes = [makeNode("N1"), makeNode("N2"), makeNode("N3"), makeNode("N4")];
+    const matrix = [
+      [1.0, 0.4, 0.4, 0.4],
+      [0.4, 1.0, 0.4, 0.4],
+      [0.4, 0.4, 1.0, 0.4],
+      [0.4, 0.4, 0.4, 1.0],
+    ];
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 1000,
+      cloudSpacing: 2000,
+      relationEdges: [],
+    });
+
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const dist = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+        expect(dist).toBeGreaterThan(450);
+      }
+    }
+  });
 });
+

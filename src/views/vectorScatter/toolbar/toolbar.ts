@@ -108,16 +108,24 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     }
   );
 
-  if (ctx.nodeSpacing === 160) ctx.nodeSpacing = 220;
-  if (ctx.cloudSpacing === 320) ctx.cloudSpacing = 550;
+  if (!ctx.nodeSpacing || ctx.nodeSpacing < 250) {
+    ctx.nodeSpacing = ctx.settings.scatterNodeSpacing || 350;
+  }
+  if (!ctx.cloudSpacing || ctx.cloudSpacing < 500) {
+    ctx.cloudSpacing = ctx.settings.scatterCloudSpacing || 800;
+  }
 
-  createSlider(ansichtBody, "Punkt-Abstand", 100, 450, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
+  createSlider(ansichtBody, "Punkt-Abstand", 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, async (newVal) => {
     ctx.nodeSpacing = newVal;
+    ctx.settings.scatterNodeSpacing = newVal;
+    await ctx.saveSettings();
     ctx.applyLayout();
     ctx.redraw();
   });
-  createSlider(ansichtBody, "Wolken-Abstand", 250, 1100, 50, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
+  createSlider(ansichtBody, "Wolken-Abstand", 300, 3000, 50, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, async (newVal) => {
     ctx.cloudSpacing = newVal;
+    ctx.settings.scatterCloudSpacing = newVal;
+    await ctx.saveSettings();
     ctx.applyLayout();
     ctx.redraw();
   });
