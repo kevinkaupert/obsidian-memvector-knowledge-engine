@@ -1,7 +1,7 @@
 {
   "name": "obsidian-memvector-knowledge-engine",
   "version": "0.1.0",
-  "description": "Local-first 2D vector-space graph, SQLite storage, and hybrid GraphRAG AI co-pilot for Obsidian.",
+  "description": "Local-first 2D vector-space graph, SQLite graph engine, and hybrid GraphRAG AI co-pilot for Obsidian — powered by Ollama, Anthropic Claude, OpenAI, or DeepSeek.",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=node --outfile=main.js --watch",
