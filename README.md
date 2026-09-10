@@ -11,6 +11,8 @@ A 100% local-first, privacy-focused **2D Vector Space Visualizer, SQLite Graph E
 
 It turns your Markdown vault into an explorable 2D semantic map with real vector distances, lets you establish typed relationships between notes, and synthesizes structured knowledge from note selections using any OpenAI-compatible LLM. Everything runs **fully local, offline, and zero-setup** via a bundled SQLite backend (`sql.js`).
 
+<img width="1406" height="1043" alt="Bildschirmfoto 2026-09-10 um 20 54 57" src="https://github.com/user-attachments/assets/c4d5c823-3802-46cb-91c6-a8c3cc71441e" />
+
 ---
 
 ## Documentation
