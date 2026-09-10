@@ -1,12 +1,8 @@
-# Manual Integration Testing: Qdrant + Memgraph
+# Manual Integration Testing: Qdrant + Memgraph (Remote Backends)
 
-This procedure only applies if you're using the **Qdrant/Memgraph** backends
-(Settings → Vector/Graph Backend). If you're on the **Local (SQLite)**
-backend instead, there's no external service to verify against — sync
-failures surface directly as a `Notice` from the same-process SQLite write,
-and the automated test suite (`sqliteGraphStore.test.ts`,
-`sqliteVectorStore.test.ts`) already exercises that code path against a real
-`sql.js` engine.
+> [!NOTE]
+> This integration testing procedure applies when using external **Qdrant / Memgraph** servers (supported via the backend architecture planned for v0.2+).
+> For the default **Local (SQLite)** engine in v0.1.0, all tests run locally via Vitest (`npm test`) without any external dependencies.
 
 The plugin's own success `Notice`s aren't proof anything actually landed in the
 external database — this repo's own history has a case where a sync button

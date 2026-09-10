@@ -13,6 +13,8 @@ import { renderActiveNoteFocus } from "./renderActiveNoteFocus";
  * only members anything actually calls.
  */
 export class MathWikiSidebarView extends ItemView {
+  private currentRenderId = 0;
+
   constructor(
     leaf: WorkspaceLeaf,
     private readonly getSettings: () => MemVectorSettings
@@ -39,11 +41,13 @@ export class MathWikiSidebarView extends ItemView {
   async renderView(focusFile?: TFile): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement | undefined;
     if (!container) return;
+
+    const renderId = ++this.currentRenderId;
     container.empty();
 
     const header = container.createEl("h3", { text: "MemVector Co-Pilot" });
     header.style.marginBottom = "15px";
 
-    await renderActiveNoteFocus(this.app, container, this.getSettings(), focusFile);
+    await renderActiveNoteFocus(this.app, container, this.getSettings(), focusFile, () => renderId === this.currentRenderId);
   }
 }

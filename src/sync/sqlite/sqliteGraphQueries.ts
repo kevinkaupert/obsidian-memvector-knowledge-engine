@@ -11,6 +11,10 @@ export interface SqlQuery {
  * === 0 - `VALUES ()` with zero rows isn't valid SQL.
  */
 export function buildNeighborQuery(nodeIds: string[], hops: number, limit: number): SqlQuery {
+  if (nodeIds.length === 0) {
+    return { sql: "", params: [] };
+  }
+
   const seedValues = nodeIds.map(() => "(?)").join(", ");
   const excludeSeeds = nodeIds.map(() => "?").join(", ");
 

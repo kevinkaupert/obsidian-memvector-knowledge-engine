@@ -1,13 +1,13 @@
 # MemVector Knowledge Engine — System Architecture
 
-**Version:** 1.11.0
+**Version:** 0.1.0
 **License:** MIT
 
 ---
 
 ## 1. Overview
 
-**MemVector Knowledge Engine** is a local-first, privacy-focused Obsidian plugin designed to visualize, search, and synthesize complex Markdown knowledge vaults using **2D Vector Embeddings**, a **Graph Database** (Memgraph or local SQLite), and **Large Language Models (Ollama, Anthropic Claude, OpenAI, DeepSeek)**.
+**MemVector Knowledge Engine** is a local-first, privacy-focused Obsidian plugin designed to visualize, search, and synthesize complex Markdown knowledge vaults using **2D Vector Embeddings**, a **Local Graph & Vector Database** (powered by local SQLite via `sql.js`), and **Large Language Models (Ollama, Anthropic Claude, OpenAI, DeepSeek, OpenRouter)**.
 
 The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) example configuration - a 13-label relation vocabulary and LaTeX-aware embedding weighting - but nothing about the storage layer, the relation types, or the LLM prompts assumes mathematics specifically. See §2.6 for how the relation vocabulary is externalized to a vault file rather than hardcoded.
 
@@ -19,8 +19,8 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
              ┌───────────────────────┴───────────────────────┐
              ▼                                               ▼
 ┌───────────────────────────┐                   ┌───────────────────────────┐
-│     2D Vector Engine      │                   │    Graph Database Sync    │
-│  (PCA / UMAP Projection)  │                   │  (Memgraph or local SQLite)│
+│     2D Vector Engine      │                   │  Local SQLite Engine      │
+│  (PCA / UMAP Projection)  │                   │  (memvector-local.sqlite) │
 └────────────┬──────────────┘                   └────────────┬──────────────┘
              │                                               │
              ├───────────────────────┬───────────────────────┤
@@ -83,16 +83,18 @@ The "Darstellung" dropdown's projection selector switches between 7 independent 
   - **OpenRouter** (`openrouter.ai/api/v1`)
   - **Custom Endpoints** (LM Studio, vLLM, LocalAI)
 
-### 2.5. Pluggable Graph/Vector Storage Backends
+### 2.5. Pluggable Graph/Vector Storage Architecture
 
-The relationship graph and the vector index each sit behind a small interface (`sync/graphStore.ts`'s `GraphStore`, `sync/vectorStore.ts`'s `VectorStore`) so the plugin doesn't have to talk to Memgraph/Qdrant directly - `sync/storeFactory.ts` is the one place that picks an implementation based on the `graphBackend`/`vectorBackend` settings, chosen independently:
+The relationship graph and the vector index sit behind uniform interfaces (`sync/graphStore.ts`'s `GraphStore`, `sync/vectorStore.ts`'s `VectorStore`).
 
-- **Graph Backend**
-  - **Memgraph** (`memgraph/memgraphGraphStore.ts`): pushes structured relationships directly into Memgraph over the **Bolt protocol** via `neo4j-driver-lite` (Memgraph documents Bolt-driver compatibility with the standard Neo4j drivers). An earlier version of this plugin attempted this over a plain HTTP `/db/data/cypher` endpoint (an old, removed Neo4j REST route Memgraph never implemented), which silently never worked and fell back to copying Cypher to the clipboard while still reporting success - that path has been replaced entirely.
-  - **Local (SQLite)** (`sqlite/sqliteGraphStore.ts`): no external server - a `notes`/`edges` table in a single file under the plugin folder (`memvector-local.sqlite`), with multi-hop neighbor lookups done via a `WITH RECURSIVE` CTE instead of Cypher. Runs on `sql.js` (SQLite compiled to WASM) rather than a native addon like `better-sqlite3`, specifically to avoid needing prebuilt binaries matched to Obsidian's exact bundled Electron/Node ABI per OS/arch - `sql.js` has no native-binding risk, at the cost of manually (de)serializing the whole DB file via `app.vault.adapter.readBinary`/`writeBinary` after every write (`sqlite/sqliteDb.ts`).
-- **Vector Backend**
-  - **Qdrant Vector Database:** Syncs dense embeddings to a remote/local Qdrant collection for multi-device vector search.
-  - **Local (SQLite)**: embeddings stored in the same local SQLite file, with brute-force cosine similarity computed in JS at query time - fast enough at personal-vault scale (hundreds to a few thousand notes). ChromaDB was considered and rejected: the `chromadb` npm package is an HTTP client that still requires a running Chroma server, so it wouldn't reduce operational complexity versus Qdrant at all.
+- **Local SQLite Engine (Active in v0.1.0):**
+  - **Local Graph Store** (`sqlite/sqliteGraphStore.ts`): zero external dependencies. Notes and edges are stored in `memvector-local.sqlite` in the plugin directory. Multi-hop neighbor lookups are computed using recursive SQL CTEs (`WITH RECURSIVE`).
+  - **Local Vector Store** (`sqlite/sqliteVectorStore.ts`): dense BGE-M3 embeddings are persisted in SQLite and cosine similarity search is computed locally in JavaScript.
+  - **WASM Database (`sql.js`)** (`sqlite/sqliteDb.ts`): runs pure SQLite compiled to WebAssembly, eliminating native binary compatibility issues with Obsidian Electron runtimes. The database is cleanly serialized to `memvector-local.sqlite` via Obsidian's vault adapter.
+
+- **Remote Backends (Planned for v0.2+, see `ROADMAP.md`):**
+  - **Memgraph Graph Database**: direct graph queries over the Bolt protocol.
+  - **Qdrant Vector Database**: distributed vector search collection for multi-device workflows.
 
 ### 2.6. Relation Vocabulary
 

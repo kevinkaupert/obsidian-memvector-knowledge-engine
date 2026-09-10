@@ -6,5 +6,5 @@
  * body content for the similarity calc to compare against.
  */
 export function stripFrontmatter(content: string): string {
-  return content.replace(/^---\n[\s\S]*?\n---\n?/, "");
+  return content.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
 }

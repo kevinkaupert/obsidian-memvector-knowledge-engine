@@ -16,14 +16,29 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   const embeddingApiKey = getEmbeddingApiKey(app);
 
   const points: VectorPoint[] = [];
-  for (const file of vaultFiles) {
+  let consecutiveErrors = 0;
+  let firstErrorMsg: string | null = null;
+
+  for (let i = 0; i < vaultFiles.length; i++) {
+    const file = vaultFiles[i];
     if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
-    const rawContent = await app.vault.read(file);
+    const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
     const content = stripFrontmatter(rawContent);
     const sampleText = `${file.basename}\n${content}`.slice(0, 1500);
 
-    const { embedding } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
+    const { embedding, error } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
+
+    if (error) {
+      consecutiveErrors++;
+      if (!firstErrorMsg) firstErrorMsg = error;
+      if (consecutiveErrors >= 3 || (points.length === 0 && consecutiveErrors >= 1)) {
+        throw new Error(`Embedding-Fehler (${settings.embeddingModel}): ${firstErrorMsg}`);
+      }
+      continue;
+    }
+
+    consecutiveErrors = 0;
 
     if (embedding && embedding.length > 0) {
       points.push({

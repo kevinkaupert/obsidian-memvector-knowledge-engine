@@ -7,12 +7,7 @@ plugin pushed embeddings and the note graph into them, but nothing ever
 read that data back into the LLM synthesis feature. The "AI Co-Pilot" only
 ever saw the notes you manually selected in the 2D graph — nothing more.
 
-This works the same regardless of which storage backends you've picked
-(Qdrant/Memgraph or the local SQLite equivalents — see
-`docs/CONFIGURATION.md` §"Section 4 & 5") — the descriptions and examples
-below use Qdrant/Memgraph since that's what the original synthetic test
-ran against, but `contextEnrichment.ts` goes through the same
-backend-agnostic `VectorStore`/`GraphStore` interfaces either way.
+In v0.1.0, this operates 100% locally via the integrated SQLite storage engine (`memvector-local.sqlite`), while remaining backend-agnostic through the `VectorStore` and `GraphStore` interfaces (remote Qdrant / Memgraph connectors planned for v0.2+).
 
 The `enrichSynthesisContext` setting (a toggle in the Synthesis toolbar
 section, off by default; UI label is localized, `t.synthEnrichToggle` in
@@ -24,40 +19,39 @@ adds them to the prompt as background context.
 
 1. Select one or more notes in the 2D vector graph, as usual.
 2. Turn on the enrichment toggle in the Synthesis section of the floating
-   toolbar (labelled "Kontext aus Qdrant + Memgraph anreichern" in German,
-   "Enrich context from Qdrant + Memgraph" in English).
+   toolbar (labelled "Kontext aus Vektoren + Graph anreichern" in German,
+   "Enrich context from vectors + graph" in English).
 3. Click the synthesize button (with or without a custom question in the
    text field above it).
 4. Before the LLM call, the plugin runs two lookups in parallel:
-   - **Qdrant**: averages the embedding vectors of your selected notes and
-     runs a similarity search against the whole vault's embeddings (needs
-     the "calculate vectors" action to have been run at least once, so the selected
-     notes actually have embeddings).
-   - **Memgraph**: finds notes within 1–2 graph-hops of your selected
-     notes — via plain WikiLinks *and* any typed relations you've created
-     with the Relation Builder.
+   - **Vector Store (SQLite)**: averages the embedding vectors of your selected notes and
+     runs a cosine similarity search against the whole vault's stored embeddings (requires
+     "Vektoren berechnen" to have been executed at least once).
+   - **Graph Store (SQLite CTEs)**: finds notes within 1–2 graph-hops of your selected
+     notes — traversing plain WikiLinks *and* any typed relations created with the Relation Builder.
 5. Results from both are merged (a note found by both is tagged as such)
    and appended to the prompt as a clearly-labelled "automatically found,
    related notes - background context only" section, separate from your
    actual selection. The LLM is instructed to keep its focus on the notes
    you selected and use the extra context only as background.
-6. Either lookup is skipped silently (not a hard failure) if its database
-   is unreachable or its precondition isn't met (e.g. no embeddings yet) -
+6. Either lookup is skipped silently (not a hard failure) if its precondition isn't met (e.g. no embeddings yet) -
    partial enrichment beats breaking the whole synthesis call.
 
 ## Why this actually helps (not just "sounds nice")
 
 Vector similarity and graph structure catch **different kinds of misses**:
 
-- **Qdrant catches semantic-but-unlinked notes.** Two notes can be about
+- **Vector similarity catches semantic-but-unlinked notes.** Two notes can be about
   the same underlying idea without ever WikiLinking each other - maybe you
   wrote them weeks apart and forgot the connection existed. Graph
   traversal will never find that note (there's no edge to walk); vector
   similarity will, because the *content* is close in embedding space.
-- **Memgraph catches structurally-linked-but-not-content-similar notes.**
+- **Graph traversal catches structurally-linked-but-not-content-similar notes.**
   A definition and a theorem that depends on it (`REQUIRES`) or two
   notions you explicitly marked as `IS_OPPOSITE_OF` via the Relation
   Builder might use completely different vocabulary and not look
+  "similar" in embedding space at all - but they're clearly relevant, and
+  the graph knows it explicitly because you told it so.
   "similar" in embedding space at all - but they're clearly relevant, and
   the graph knows it explicitly because you told it so.
 
@@ -112,14 +106,9 @@ are never raw user text, only internally-computed integers).
 
 ## Relevant files
 
-- `src/views/vectorScatter/contextEnrichment.ts` - orchestrates both legs,
-  merges results, degrades gracefully.
-- `src/sync/qdrant/qdrantClient.ts` (`searchSimilar`) - the Qdrant vector
-  search call (the read half of what was previously write-only).
-- `src/sync/memgraph/graphNeighbors.ts` (`fetchGraphNeighbors`) - the
-  Memgraph graph-traversal call.
-- `src/sync/memgraph/neo4jDriverAdapter.ts` (`query()`) - generic read-query
-  capability added to the Bolt connection wrapper (previously it only
-  supported write statements via `runStatements()`).
-- `src/views/vectorScatter/synthesis.ts` (`buildEnrichedSection`) - folds
-  the enrichment results into the LLM prompt.
+- `src/views/vectorScatter/contextEnrichment.ts` - orchestrates both legs (vector similarity + graph hops), merges results, degrades gracefully.
+- `src/sync/sqlite/sqliteVectorStore.ts` (`search`) - local SQLite cosine similarity vector search.
+- `src/sync/sqlite/sqliteGraphQueries.ts` (`fetchGraphNeighborsSqlite`) - local SQLite CTE graph-traversal query.
+- `src/sync/qdrant/qdrantClient.ts` (`searchSimilar`) - remote Qdrant vector search adapter (v0.2+).
+- `src/sync/memgraph/graphNeighbors.ts` (`fetchGraphNeighbors`) - remote Memgraph graph-traversal adapter (v0.2+).
+- `src/views/vectorScatter/synthesis.ts` (`buildEnrichedSection`) - folds the enrichment results into the LLM prompt.

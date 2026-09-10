@@ -92,17 +92,28 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
   for (const file of files) {
     if (!shouldIncludeFile(file, query)) continue;
 
-    const content = await app.vault.read(file);
-    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+    const content = await app.vault.cachedRead(file);
+    const fileCache = app.metadataCache.getFileCache(file);
+    const fm = fileCache?.frontmatter;
     let type: ScatterNoteType = "concept";
     let title = file.basename;
 
-    if (frontmatterMatch) {
-      const yaml = frontmatterMatch[1];
-      const typeMatch = yaml.match(/^type:\s*(.+)$/m);
-      if (typeMatch) type = typeMatch[1].trim().toLowerCase() as ScatterNoteType;
-      const titleMatch = yaml.match(/^title:\s*(.+)$/m);
-      if (titleMatch) title = titleMatch[1].trim().replace(/^['"]|['"]$/g, "");
+    if (fm) {
+      if (typeof fm.type === "string" && fm.type.trim()) {
+        type = fm.type.trim().toLowerCase() as ScatterNoteType;
+      }
+      if (typeof fm.title === "string" && fm.title.trim()) {
+        title = fm.title.trim().replace(/^['"]|['"]$/g, "");
+      }
+    } else {
+      const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+      if (frontmatterMatch) {
+        const yaml = frontmatterMatch[1];
+        const typeMatch = yaml.match(/^type:\s*(.+)$/m);
+        if (typeMatch) type = typeMatch[1].trim().toLowerCase() as ScatterNoteType;
+        const titleMatch = yaml.match(/^title:\s*(.+)$/m);
+        if (titleMatch) title = titleMatch[1].trim().replace(/^['"]|['"]$/g, "");
+      }
     }
 
     const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());

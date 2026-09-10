@@ -47,18 +47,22 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 
 ### Panel Sections
 
-1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and status.
+1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and note count.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
-3. **Ansicht (View Toggles):**
+3. **Darstellung (Visual & Layout Controls):**
    - **Projektion:** Switches between 7 layout algorithms (Themen-Wolken, Abhängigkeits-Fluss, Reiner Graph, UMAP Manifold, Graph-Topology, Formel-Symbole, LLM Themen-Landkarte) - see `docs/ARCHITECTURE.md` §2.1 for what each one is actually based on.
-   - **Darstellung:** Selects the visual style (Monochrom / Gedämpfte Typ-Farben / Tinte & Fokus-Glow).
-   - **Kanten anzeigen (Show Edges):** Toggle relationship edge rendering between notes, plus a **Kanten-Radius** selector (1/2/3 hops, "Alle", or "Unbegrenzt") controlling how far from the current selection edges are shown.
+   - **Farbmodus / Stil:** Selects the visual style (Monochrom / Gedämpfte Typ-Farben / Tinte & Fokus-Glow).
+   - **Kanten & Radius:** Toggle relationship edge rendering, set **Kanten-Radius** (1/2/3 hops, "Alle", or "Unbegrenzt"), and filter by edge types.
+   - **Layout-Abstände:** Sliders for dynamic **Knoten-Abstand** (node spacing) and **Wolken-Abstand** (cluster spacing).
    - **Lasso-Auswahl (Lasso Select):** Switch cursor to crosshair for freehand loop selection without holding Shift.
-4. **Aktionen (Actions):**
+4. **Synthese (AI Co-Pilot & GraphRAG):**
+   - **Frage / Anweisung:** Custom synthesis prompt field.
+   - **Kontext-Anreicherung:** Toggle hybrid GraphRAG context enrichment from vector similarity and graph hops.
+   - **`<Model>` Synthese ($N$):** Triggers AI Knowledge Synthesis for selected notes.
+5. **Aktionen (Actions):**
    - **Vault scannen:** Trigger full note re-scan.
-   - **BGE-M3 Vektoren berechnen:** Re-calculate dense embeddings.
-   - **Beziehung erstellen (≥2 wählen):** Open Modal to create a new relation note between selected nodes.
-   - **`<Model>` Synthese ($N$):** Triggers AI Knowledge Synthesis for user-selected nodes.
+   - **BGE-M3 Vektoren berechnen:** Compute and persist dense BGE-M3 embeddings in SQLite.
+   - **Beziehung erstellen (≥2 wählen):** Open Modal to create a new typed relation note between selected nodes.
    - **Auswahl leeren:** Clear current node selection.
 
 ---

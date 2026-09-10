@@ -43,13 +43,13 @@ export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorS
   }
 
   try {
-    const raw = await app.vault.read(existing);
+    const raw = await app.vault.cachedRead(existing);
     const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
     const terms = Array.isArray(parsed.terms) ? parsed.terms.filter(isValidTerm) : [];
     if (terms.length === 0) throw new Error("no valid terms");
     return terms;
   } catch (err) {
-    new Notice(`⚠️ ${path} konnte nicht gelesen werden (${err instanceof Error ? err.message : String(err)}) - verwende Standard-Vokabular.`);
+    new Notice(`[WARN] ${path} konnte nicht gelesen werden (${err instanceof Error ? err.message : String(err)}) - verwende Standard-Vokabular.`);
     return DEFAULT_RELATION_VOCABULARY;
   }
 }

@@ -29,6 +29,7 @@ export function localDbPath(app: App): string {
 }
 
 let cached: { app: App; db: Promise<Database> } | null = null;
+let persistQueue: Promise<void> = Promise.resolve();
 
 async function openDb(app: App): Promise<Database> {
   const wasmBinary = await app.vault.adapter.readBinary(`${pluginDirPath(app)}/${WASM_FILENAME}`);
@@ -48,9 +49,28 @@ export async function getLocalDb(app: App): Promise<Database> {
   return cached.db;
 }
 
-/** sql.js keeps the whole database in WASM memory - nothing reaches disk until this is called. Cheap enough to call after every mutating operation given how infrequent they are (a sync button, a relation save/delete), not a hot path. */
+/** sql.js keeps the whole database in WASM memory - serialized to disk sequentially to avoid write race conditions. */
 export async function persistLocalDb(app: App, db: Database): Promise<void> {
   const bytes = db.export();
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  await app.vault.adapter.writeBinary(localDbPath(app), buffer);
+  persistQueue = persistQueue.then(async () => {
+    await app.vault.adapter.writeBinary(localDbPath(app), buffer);
+  }).catch((err) => {
+    console.error("MemVector: Failed to persist local SQLite DB:", err);
+  });
+  await persistQueue;
+}
+
+/** Closes the active database connection and frees WASM memory when the plugin unloads. */
+export async function closeLocalDb(): Promise<void> {
+  if (cached) {
+    const entry = cached;
+    cached = null;
+    try {
+      const db = await entry.db;
+      db.close();
+    } catch (err) {
+      console.warn("MemVector: Error closing SQLite database:", err);
+    }
+  }
 }

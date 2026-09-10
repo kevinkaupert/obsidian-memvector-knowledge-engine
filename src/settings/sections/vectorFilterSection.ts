@@ -89,8 +89,8 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
           btn.setDisabled(true);
           try {
             const models = await fetchProviderModels(settings.embeddingApiBaseUrl, getEmbeddingApiKey(app));
-            btn.setButtonText("✅ Erfolgreich!");
-            new Notice(`✅ Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            btn.setButtonText("[OK] Erfolgreich!");
+            new Notice(`[OK] Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {
               settings.fetchedEmbedModels = models;
               if (!models.includes(settings.embeddingModel)) {
@@ -100,8 +100,8 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
               rerender();
             }
           } catch (err) {
-            btn.setButtonText("❌ Fehlgeschlagen");
-            new Notice(`❌ Embedding-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+            btn.setButtonText("[ERROR] Fehlgeschlagen");
+            new Notice(`[ERROR] Embedding-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             setTimeout(() => {
               btn.setButtonText("Verbindung testen & Modelle laden");
@@ -147,16 +147,16 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
           btn.setDisabled(true);
           try {
             const totalFiles = app.vault.getMarkdownFiles().length;
-            new Notice(`🚀 Starte lokale Vektor- und Graph-Indizierung für ${totalFiles} Notizen...`);
+            new Notice(`[INFO] Starte lokale Vektor- und Graph-Indizierung für ${totalFiles} Notizen...`);
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore);
-            btn.setButtonText("✅ Indiziert!");
-            new Notice(`✅ ${vecResult.syncedCount} Vektoren & ${graphResult.edgeCount} Kanten erfolgreich in lokaler SQLite gespeichert!`);
+            btn.setButtonText("[OK] Indiziert!");
+            new Notice(`[OK] ${vecResult.syncedCount} Vektoren & ${graphResult.edgeCount} Kanten erfolgreich in lokaler SQLite gespeichert!`);
           } catch (err) {
-            btn.setButtonText("❌ Fehlgeschlagen");
-            new Notice(`❌ Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+            btn.setButtonText("[ERROR] Fehlgeschlagen");
+            new Notice(`[ERROR] Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             setTimeout(() => {
               btn.setButtonText("Jetzt Vault lokal indizieren");

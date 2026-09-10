@@ -63,7 +63,7 @@ async function fetchVectorNeighbors(
     if (!content) {
       const file = app.vault.getAbstractFileByPath(path);
       if (file instanceof TFile) {
-        content = stripFrontmatter(await app.vault.read(file));
+        content = stripFrontmatter(await app.vault.cachedRead(file));
       }
     }
     found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, excerptLength), sources: ["vector"] });
@@ -88,7 +88,7 @@ async function fetchGraphNeighbors(
     let content = "";
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (file instanceof TFile) {
-      content = stripFrontmatter(await app.vault.read(file));
+      content = stripFrontmatter(await app.vault.cachedRead(file));
     }
     found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, excerptLength), sources: ["graph"] });
     if (found.size >= limit) break;

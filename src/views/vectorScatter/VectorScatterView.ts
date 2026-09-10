@@ -176,9 +176,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   private handleResize(): void {
     const w = this.canvasWrap.clientWidth || 800;
     const h = this.canvasWrap.clientHeight || 600;
-    this.canvas.width = w * window.devicePixelRatio;
-    this.canvas.height = h * window.devicePixelRatio;
-    this.canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const dpr = window.devicePixelRatio || 1;
+    this.canvas.width = w * dpr;
+    this.canvas.height = h * dpr;
+    this.canvasCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (!this.hasFittedView && this.nodes.length > 0 && w > 100) {
       this.fitToView();
       this.hasFittedView = true;

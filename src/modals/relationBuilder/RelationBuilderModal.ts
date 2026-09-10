@@ -418,7 +418,7 @@ export class RelationBuilderModal extends Modal {
           console.error("Fehler beim Löschen der SQLite-Kante:", err);
         }
       }
-      new Notice(`🗑️ ${t.relDeleteSuccess}`);
+      new Notice(`[OK] ${t.relDeleteSuccess}`);
 
       this.onSaved?.();
       this.close();

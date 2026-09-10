@@ -3,6 +3,8 @@ import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
 import { getEmbeddingApiKey } from "../../../settings/secrets";
+import { getVectorStore } from "../../../sync/storeFactory";
+import type { VectorPoint } from "../../../sync/vectorStore";
 import type { MemVectorSettings, ScatterVisualStyle } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
@@ -244,7 +246,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
   const total = ctx.nodes.length;
   if (total === 0) {
     hoverBar.style.color = "var(--text-warning, #f59e0b)";
-    hoverBar.setText("⚠️ Keine Notizen im Vault zum Berechnen von Vektoren gefunden.");
+    hoverBar.setText("[WARN] Keine Notizen im Vault zum Berechnen von Vektoren gefunden.");
     return;
   }
 
@@ -254,11 +256,12 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   let successCount = 0;
   let lastError: string | null = null;
+  const points: VectorPoint[] = [];
 
   for (let i = 0; i < total; i++) {
     const node = ctx.nodes[i];
     hoverBar.style.color = "var(--text-muted)";
-    hoverBar.setText(`⚙️ Berechne Embeddings mit '${embedModel}' (${i + 1}/${total}): ${node.title}...`);
+    hoverBar.setText(`[INFO] Berechne Embeddings mit '${embedModel}' (${i + 1}/${total}): ${node.title}...`);
 
     const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
     const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);
@@ -266,12 +269,26 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     if (res.error) {
       lastError = res.error;
       hoverBar.style.color = "var(--text-error, #f87171)";
-      hoverBar.setText(`⚠️ Embedding Fehler (${i + 1}/${total}): ${res.error}`);
-      new Notice(`Embedding Fehler: ${res.error}`, 8000);
+      hoverBar.setText(`[ERROR] Embedding Fehler (${i + 1}/${total}): ${res.error}`);
+      new Notice(`[ERROR] Embedding Fehler: ${res.error}`, 8000);
       break;
     } else if (res.embedding) {
       node.embedding = res.embedding;
+      points.push({
+        id: node.path,
+        vector: res.embedding,
+        payload: { path: node.path, title: node.title, content: node.content.slice(0, 500) },
+      });
       successCount++;
+    }
+  }
+
+  if (points.length > 0) {
+    try {
+      const vectorStore = getVectorStore(ctx.app, ctx.settings);
+      await vectorStore.syncPoints(points);
+    } catch (syncErr) {
+      console.error("MemVector: Failed to persist calculated vectors to SQLite:", syncErr);
     }
   }
 
@@ -284,9 +301,9 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     ctx.applyLayout();
     ctx.redraw();
     hoverBar.style.color = "var(--text-muted)";
-    hoverBar.setText(`✅ ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
+    hoverBar.setText(`[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
     statusText.setText(`${total} | Vektoren OK`);
-    new Notice(`✅ ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
+    new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
   } else if (lastError) {
     statusText.setText(`Fehler (${successCount}/${total})`);
   }

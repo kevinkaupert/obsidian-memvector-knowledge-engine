@@ -83,8 +83,8 @@ export function renderLlmProviderSection(
           btn.setDisabled(true);
           try {
             const models = await fetchProviderModels(settings.apiBaseUrl, getApiKeyFor(app, settings.llmProvider), settings.llmProvider);
-            btn.setButtonText("✅ Erfolgreich!");
-            new Notice(`✅ LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            btn.setButtonText("[OK] Erfolgreich!");
+            new Notice(`[OK] LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {
               settings.fetchedLlmModels = models;
               if (!models.includes(settings.modelName)) {
@@ -94,8 +94,8 @@ export function renderLlmProviderSection(
               rerender();
             }
           } catch (err) {
-            btn.setButtonText("❌ Fehlgeschlagen");
-            new Notice(`❌ LLM-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+            btn.setButtonText("[ERROR] Fehlgeschlagen");
+            new Notice(`[ERROR] LLM-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             setTimeout(() => {
               btn.setButtonText("Verbindung testen & Modelle laden");

@@ -6,11 +6,22 @@ import type { MemVectorSettings } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
-import { setPluginId } from "./sync/sqlite/sqliteDb";
+import { setPluginId, closeLocalDb } from "./sync/sqlite/sqliteDb";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
   private sidebarView: MathWikiSidebarView | null = null;
+  private sidebarDebounceTimer: number | null = null;
+
+  private triggerSidebarRender(): void {
+    if (this.sidebarDebounceTimer !== null) {
+      window.clearTimeout(this.sidebarDebounceTimer);
+    }
+    this.sidebarDebounceTimer = window.setTimeout(() => {
+      this.sidebarDebounceTimer = null;
+      this.sidebarView?.renderView();
+    }, 80);
+  }
 
   async onload(): Promise<void> {
     setPluginId(this.manifest.id);
@@ -45,12 +56,12 @@ export default class MemVectorPlugin extends Plugin {
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {
-        this.sidebarView?.renderView();
+        this.triggerSidebarRender();
       })
     );
     this.registerEvent(
       this.app.workspace.on("file-open", () => {
-        this.sidebarView?.renderView();
+        this.triggerSidebarRender();
       })
     );
   }
@@ -100,6 +111,11 @@ export default class MemVectorPlugin extends Plugin {
   }
 
   onunload(): void {
+    if (this.sidebarDebounceTimer !== null) {
+      window.clearTimeout(this.sidebarDebounceTimer);
+      this.sidebarDebounceTimer = null;
+    }
+    void closeLocalDb();
     console.log("Unloading MemVector Knowledge Engine Plugin.");
   }
 }

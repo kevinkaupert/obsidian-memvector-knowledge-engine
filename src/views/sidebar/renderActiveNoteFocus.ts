@@ -64,7 +64,8 @@ export async function renderActiveNoteFocus(
   app: App,
   container: HTMLElement,
   pluginSettings: MemVectorSettings | undefined,
-  focusFile?: TFile
+  focusFile?: TFile,
+  isCurrent?: () => boolean
 ): Promise<void> {
   const activeFile = focusFile || app.workspace.getActiveFile();
   if (!activeFile) return;
@@ -114,26 +115,32 @@ export async function renderActiveNoteFocus(
   } as DomElementInfoCompat);
 
   try {
-    const activeContent = await app.vault.read(activeFile);
+    const activeContent = await app.vault.cachedRead(activeFile);
+    if (isCurrent && !isCurrent()) return;
+
     const countX = pluginSettings?.radarNoteCount || 10;
     const wantCount = Math.max(15, countX);
 
     let topNeighbors = pluginSettings ? await findVectorNeighbors(app, pluginSettings, activeFile, wantCount) : null;
+    if (isCurrent && !isCurrent()) return;
 
     if (!topNeighbors) {
-      const candidateFiles = app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path && !shouldExcludeFromRadar(f));
+      const exclusions = pluginSettings?.vectorSearchExclusions;
+      const candidateFiles = app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path && !shouldExcludeFromRadar(f, exclusions));
       const candidates: { file: TFile; content: string }[] = [];
       for (const f of candidateFiles) {
-        candidates.push({ file: f, content: await app.vault.read(f) });
+        candidates.push({ file: f, content: await app.vault.cachedRead(f) });
       }
+      if (isCurrent && !isCurrent()) return;
       topNeighbors = rankCandidates(activeContent, candidates).slice(0, wantCount);
     }
 
     const width = radarWrap.clientWidth || 260;
     const height = 260;
-    canvas.width = width * window.devicePixelRatio;
-    canvas.height = height * window.devicePixelRatio;
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const centerX = width / 2;
     const centerY = height / 2;

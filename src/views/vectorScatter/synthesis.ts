@@ -163,8 +163,25 @@ function formatThinkingBlocks(raw: string): string {
   return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking) => {
     const cleanThinking = thinking.trim();
     if (!cleanThinking) return "";
-    return `\n> [!note]- 💡 Gedankengang des Modells\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
+    return `\n> [!note]- Gedankengang des Modells\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
   });
+}
+
+const STRUCTURAL_KEYWORDS = new Set([
+  "definition", "satz", "theorem", "lemma", "korollar", "corollary", "proposition",
+  "beweis", "proof", "beweisidee", "beweisschritt", "schritt", "step", "hinweis", "note", "anmerkung", "remark",
+  "kernzusammenhang", "intuition", "querverbindungen", "fazit", "takeaway", "synergie",
+  "didaktische quintessenz", "formale brücke", "zusammenfassung", "summary", "beispiel", "example",
+  "voraussetzung", "voraussetzungen", "precondition", "preconditions", "wichtig", "important", "ziel", "ausgangspunkt"
+]);
+
+function isStructuralMarker(term: string): boolean {
+  const trimmed = term.trim();
+  if (trimmed.endsWith(":") || trimmed.startsWith("#")) return true;
+  if (/^\d+[\.\)]\s*/.test(trimmed)) return true;
+  const lower = trimmed.toLowerCase().replace(/[:\d\.\-_]/g, "").trim();
+  if (STRUCTURAL_KEYWORDS.has(lower)) return true;
+  return false;
 }
 
 function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): string {
@@ -172,18 +189,23 @@ function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): stri
   const prospectiveTerms = new Set<string>();
   let text = cleaned.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
     const cleanTerm = term.trim();
-    if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || cleanTerm.startsWith("#")) return match;
+    if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || isStructuralMarker(cleanTerm)) {
+      return match;
+    }
 
     const slug = toSlug(cleanTerm);
     const existingBasename = vaultTitleMap.get(slug) || vaultTitleMap.get(cleanTerm.toLowerCase());
     if (existingBasename) return `[[${existingBasename}|${cleanTerm}]]`;
 
-    prospectiveTerms.add(cleanTerm);
-    return cleanTerm;
+    // Only suggest clean concept names as knowledge gaps (letters/numbers/hyphens only)
+    if (/^[a-zA-Z0-9äöüÄÖÜß\s\-]+$/.test(cleanTerm) && cleanTerm.length >= 3 && cleanTerm.length <= 60) {
+      prospectiveTerms.add(cleanTerm);
+    }
+    return match;
   });
 
   if (prospectiveTerms.size > 0) {
-    text += "\n\n### 💡 Vorgeschlagene neue Notizen (Wissenslücken)\n";
+    text += "\n\n### [Vorschlag] Neue Notizen (Wissenslücken)\n";
     prospectiveTerms.forEach((term) => {
       text += `- [[${toSlug(term)}|${term}]] *(Notiz noch nicht im Vault vorhanden)*\n`;
     });
@@ -210,7 +232,7 @@ export async function runSynthesis(
 
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
-    setHoverText(`🔎 Suche verwandten Kontext (${budget.tier})...`);
+    setHoverText(`[INFO] Suche verwandten Kontext (${budget.tier})...`);
     enriched = await enrichContext(
       app,
       settings,
@@ -241,8 +263,8 @@ export async function runSynthesis(
     rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt, settings.llmProvider);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    setHoverText(`❌ ${msg.slice(0, 70)}`);
-    new Notice(`❌ MemVector LLM-Fehler: ${msg}`, 10000);
+    setHoverText(`[ERROR] ${msg.slice(0, 70)}`);
+    new Notice(`[ERROR] MemVector LLM-Fehler: ${msg}`, 10000);
     return;
   }
 
