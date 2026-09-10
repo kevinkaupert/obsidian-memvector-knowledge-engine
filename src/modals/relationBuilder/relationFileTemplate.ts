@@ -1,8 +1,9 @@
 import type { TranslationKeys } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
+import { toSlug } from "../../noteSlug";
 
 export function relationFilePath(edge: ResolvedRelationEdge): string {
-  return `wiki/relations/rel-${edge.src.id}-to-${edge.tgt.id}.md`;
+  return `wiki/relations/rel-${toSlug(edge.src.id)}-to-${toSlug(edge.tgt.id)}.md`;
 }
 
 export function buildRelationFileContent(
@@ -15,7 +16,7 @@ export function buildRelationFileContent(
 
   return `---
 type: relation
-title: "${edge.src.title} ➔ ${edge.tgt.title} (${edge.label})"
+title: "${edge.src.title} -> ${edge.tgt.title} (${edge.label})"
 description: "${descText.replace(/"/g, '\\"')}"
 status: draft
 sources:
@@ -32,7 +33,7 @@ source_note: "[[${edge.src.id}|${edge.src.title}]]"
 target_note: "[[${edge.tgt.id}|${edge.tgt.title}]]"
 ---
 
-# ${t.relFileHeading}: [[${edge.src.id}|${edge.src.title}]] ➤ [[${edge.tgt.id}|${edge.tgt.title}]]
+# ${t.relFileHeading}: [[${edge.src.id}|${edge.src.title}]] -> [[${edge.tgt.id}|${edge.tgt.title}]]
 
 - **${t.relFileType}:** \`${edge.label}\`
 - **${t.relFileOriginalTerm}:** ${edge.originalTerm}

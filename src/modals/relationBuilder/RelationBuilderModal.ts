@@ -11,6 +11,14 @@ import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
 import { writeRelationFile } from "./relationFileWriter";
 
+export interface InitialRelationEdge {
+  relType: string;
+  description: string;
+  path: string;
+  srcId?: string;
+  tgtId?: string;
+}
+
 export class RelationBuilderModal extends Modal {
   private focalIndex = 0;
   private topology: EdgeTopology = "FOCAL_TO_REST";
@@ -24,7 +32,7 @@ export class RelationBuilderModal extends Modal {
     app: App,
     private readonly host: SettingsHost,
     private selectedNodes: RelationNode[],
-    private readonly initialEdge?: { relType: string; description: string; path: string },
+    private readonly initialEdge?: InitialRelationEdge,
     private readonly onSaved?: () => void
   ) {
     super(app);
@@ -51,6 +59,7 @@ export class RelationBuilderModal extends Modal {
         const termKey = defaultTermForLabel(defs, this.initialEdge.relType);
         if (termKey) {
           this.relType = termKey;
+          this.edgeRelTypes[0] = termKey;
         } else {
           this.relType = this.initialEdge.relType;
           this.isCustomFallback = true;
@@ -360,15 +369,59 @@ export class RelationBuilderModal extends Modal {
       const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
       let createdCount = 0;
       const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
-      for (const e of resolvedEdges) {
-        const path = relationFilePath(e);
+
+      // If updating an existing edge, delete the old edge from SQLite so we don't leave stale duplicate edges
+      if (this.initialEdge) {
+        const oldSrc = (this.initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
+        const oldTgt = (this.initialEdge.tgtId || this.selectedNodes[1]?.id || "").toLowerCase();
+        const oldType = this.initialEdge.relType;
+        if (oldSrc && oldTgt && oldType) {
+          try {
+            const store = getGraphStore(this.app, this.host.settings);
+            await store.deleteEdge(oldSrc, oldTgt, oldType);
+            await store.deleteEdge(oldTgt, oldSrc, oldType);
+          } catch (err) {
+            console.warn("MemVector: Failed to delete old SQLite edge during update:", err);
+          }
+        }
+      }
+
+      for (let idx = 0; idx < resolvedEdges.length; idx++) {
+        const e = resolvedEdges[idx];
+        let targetPath: string;
+
+        if (this.initialEdge && idx === 0) {
+          const oldSrc = (this.initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
+          const isDirectionPreserved = e.src.id.toLowerCase() === oldSrc;
+
+          if (isDirectionPreserved) {
+            // Update the existing relation file in-place to avoid duplicate files
+            targetPath = this.initialEdge.path;
+          } else {
+            // Direction was swapped: write to new path and trash the old file
+            targetPath = relationFilePath(e);
+            if (targetPath !== this.initialEdge.path) {
+              const oldFile = this.app.vault.getAbstractFileByPath(this.initialEdge.path);
+              if (oldFile instanceof TFile) {
+                try {
+                  await this.app.fileManager.trashFile(oldFile);
+                } catch (trashErr) {
+                  console.warn("MemVector: Could not trash old relation file on direction swap:", trashErr);
+                }
+              }
+            }
+          }
+        } else {
+          targetPath = relationFilePath(e);
+        }
+
         const content = buildRelationFileContent(e, this.relDesc, t);
         try {
-          await writeRelationFile(this.app, path, content);
+          await writeRelationFile(this.app, targetPath, content);
           createdCount++;
           typedEdges.push({ src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc, bidirectional: e.bidirectional, originalTerm: e.originalTerm });
         } catch (err) {
-          console.error(`${t.relSaveError} ${path}:`, err);
+          console.error(`${t.relSaveError} ${targetPath}:`, err);
         }
       }
 
@@ -410,10 +463,13 @@ export class RelationBuilderModal extends Modal {
         }
       }
 
-      const [srcNode, tgtNode] = this.selectedNodes;
-      if (srcNode && tgtNode) {
+      const oldSrc = (initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
+      const oldTgt = (initialEdge.tgtId || this.selectedNodes[1]?.id || "").toLowerCase();
+      if (oldSrc && oldTgt) {
         try {
-          await getGraphStore(this.app, this.host.settings).deleteEdge(srcNode.id, tgtNode.id, initialEdge.relType);
+          const store = getGraphStore(this.app, this.host.settings);
+          await store.deleteEdge(oldSrc, oldTgt, initialEdge.relType);
+          await store.deleteEdge(oldTgt, oldSrc, initialEdge.relType);
         } catch (err) {
           console.error("Fehler beim Löschen der SQLite-Kante:", err);
         }

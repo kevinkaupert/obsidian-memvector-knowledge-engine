@@ -293,7 +293,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       this.app,
       this,
       [srcNode, tgtNode],
-      { relType: edge.relType, description: edge.desc, path: edge.path },
+      { relType: edge.relType, description: edge.desc, path: edge.path, srcId: edge.srcId, tgtId: edge.tgtId },
       () => this.refreshRelationEdges()
     ).open();
   }
