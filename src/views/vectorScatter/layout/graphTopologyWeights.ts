@@ -36,7 +36,7 @@ function edgeWeightForType(relType: string): number {
 export function computeGraphTopologyWeights(nodes: ScatterNode[], relationEdges: RelationEdge[]): GraphTopologyWeights {
   const n = nodes.length;
   const idToIndex = new Map(nodes.map((node, i) => [node.id.toLowerCase(), i]));
-  const adjacency: Map<number, number>[] = nodes.map(() => new Map());
+  const adjacency: Map<number, number>[] = nodes.map(() => new Map<number, number>());
   const repel = new Set<string>();
 
   const addEdge = (i: number, j: number, weight: number): void => {

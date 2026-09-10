@@ -84,65 +84,27 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   async onOpen(): Promise<void> {
-    this.containerEl.style.position = "relative";
+    this.containerEl.addClass("memvector-relative-container");
     const container = (this.containerEl.children[1] as HTMLElement | undefined) || this.containerEl;
     container.empty();
     container.addClass("math-vector-scatter-container");
-    Object.assign(container.style, {
-      display: "flex",
-      flexDirection: "column",
-      height: "100%",
-      width: "100%",
-      background: "var(--background-primary)",
-      position: "relative",
-      overflow: "hidden",
-    });
 
-    const canvasWrap = container.createEl("div");
-    Object.assign(canvasWrap.style, { flex: "1", position: "relative", width: "100%", height: "100%", overflow: "hidden" });
+    const canvasWrap = container.createDiv({ cls: "memvector-canvas-wrap" });
     this.canvasWrap = canvasWrap;
 
-    const canvas = canvasWrap.createEl("canvas");
-    Object.assign(canvas.style, { width: "100%", height: "100%", display: "block", cursor: "grab" });
+    const canvas = canvasWrap.createEl("canvas", { cls: "memvector-canvas" });
     this.canvas = canvas;
     const canvasCtx = canvas.getContext("2d");
     if (!canvasCtx) return;
     this.canvasCtx = canvasCtx;
 
-    const toolbarEl = canvasWrap.createEl("div");
-    Object.assign(toolbarEl.style, {
-      position: "absolute",
-      top: "12px",
-      right: "12px",
-      zIndex: "20",
-      display: "flex",
-      flexDirection: "column",
-      width: "220px",
-      borderRadius: "12px",
-      background: "var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)))",
-      backdropFilter: "blur(20px)",
-      border: "1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)))",
-      boxShadow: "0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3))",
-      overflow: "hidden",
-      transition: "opacity 0.2s ease, transform 0.2s ease",
-    });
+    const toolbarEl = canvasWrap.createDiv({ cls: "memvector-toolbar" });
 
     this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
-      const isVisible = toolbarEl.style.opacity !== "0";
-      toolbarEl.style.opacity = isVisible ? "0" : "1";
-      toolbarEl.style.pointerEvents = isVisible ? "none" : "auto";
-      toolbarEl.style.transform = isVisible ? "translateY(-6px) scale(0.97)" : "translateY(0) scale(1)";
+      toolbarEl.classList.toggle("is-hidden");
     });
 
-    const hoverBar = container.createEl("div");
-    Object.assign(hoverBar.style, {
-      padding: "6px 12px",
-      borderTop: "1px solid var(--border-color, rgba(255, 255, 255, 0.08))",
-      background: "var(--background-secondary, rgba(15, 23, 42, 0.9))",
-      fontSize: "0.85em",
-      color: "var(--text-muted)",
-      zIndex: "10",
-    });
+    const hoverBar = container.createDiv({ cls: "memvector-hoverbar-container memvector-hoverbar" });
 
     this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
     this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
@@ -331,14 +293,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     const tick = (): void => {
       this.redraw();
       if (performance.now() - startedAt < SEARCH_PULSE_DURATION_MS) {
-        this.searchAnimHandle = requestAnimationFrame(tick);
+        this.searchAnimHandle = window.requestAnimationFrame(tick);
       } else {
         this.searchHighlight = null;
         this.searchAnimHandle = null;
         this.redraw();
       }
     };
-    this.searchAnimHandle = requestAnimationFrame(tick);
+    this.searchAnimHandle = window.requestAnimationFrame(tick);
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {

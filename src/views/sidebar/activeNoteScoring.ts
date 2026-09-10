@@ -29,7 +29,7 @@ const EXCLUDED_NAME_SUBSTRINGS = ["index", "log", "README", "AGENTS", "PROFILE",
 
 export function shouldExcludeFromRadar(file: NoteFileLike, exclusions?: string): boolean {
   if (exclusions) {
-    return !shouldIncludeFile(file as any, exclusions);
+    return !shouldIncludeFile(file, exclusions);
   }
   return file.path.includes("schema") || EXCLUDED_NAME_SUBSTRINGS.some((s) => file.name.includes(s));
 }

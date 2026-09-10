@@ -1,6 +1,6 @@
 {
   "name": "obsidian-memvector-knowledge-engine",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first 2D vector-space graph, SQLite graph engine, and hybrid GraphRAG AI co-pilot for Obsidian — powered by Ollama, Anthropic Claude, OpenAI, or DeepSeek.",
   "main": "main.js",
   "scripts": {
@@ -36,7 +36,11 @@
   "devDependencies": {
     "@types/node": "^20.14.0",
     "@types/sql.js": "^1.4.11",
+    "@typescript-eslint/eslint-plugin": "^8.70.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "^1.5.7",
     "typescript": "^5.5.4",
     "vitest": "^4.1.11"

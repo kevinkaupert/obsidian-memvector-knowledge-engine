@@ -24,8 +24,7 @@ export class SynthesisResultModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.style.maxHeight = "80vh";
-    contentEl.style.overflowY = "auto";
+    contentEl.addClass("memvector-synthesis-modal");
 
     const lang = this.settings?.language || "de";
     const t = getTranslation(lang);
@@ -33,33 +32,22 @@ export class SynthesisResultModal extends Modal {
     contentEl.createEl("h2", { text: `${t.synthModalTitle} (${this.modelName})` });
     contentEl.createEl("p", {
       text: `${t.synthLinkedNotes} ${this.selectedNodes.map((n) => n.title).join(", ")}`,
-      style: "color: var(--text-muted); font-size: 0.9em;",
-    } as DomElementInfoCompat);
-
-    const resultBox = contentEl.createEl("div", { cls: "markdown-rendered" });
-    Object.assign(resultBox.style, {
-      background: "var(--background-secondary)",
-      padding: "16px",
-      borderRadius: "8px",
-      fontSize: "0.95em",
-      margin: "12px 0",
-      maxHeight: "500px",
-      overflowY: "auto",
-      lineHeight: "1.6",
+      cls: "memvector-muted-text",
     });
+
+    const resultBox = contentEl.createDiv({ cls: "markdown-rendered memvector-synthesis-box" });
 
     // The bundled obsidian types declare Modal as `implements HistoryHandler`
     // only, not `extends Component`, even though the real runtime class does
     // extend Component (which is exactly why passing `this` here works).
     void MarkdownRenderer.render(this.app, this.synthesisText, resultBox, "", this as unknown as Component);
 
-    const btnRow = contentEl.createEl("div");
-    Object.assign(btnRow.style, { display: "flex", gap: "10px", justifyContent: "flex-end" });
+    const btnRow = contentEl.createDiv({ cls: "memvector-synthesis-actions" });
 
     const saveBtn = btnRow.createEl("button", {
       text: t.synthSaveBtn,
-      style: "background: var(--interactive-accent); color: var(--text-on-accent);",
-    } as DomElementInfoCompat);
+      cls: "mod-cta",
+    });
 
     const closeBtn = btnRow.createEl("button", { text: t.synthCloseBtn });
     closeBtn.onclick = () => this.close();

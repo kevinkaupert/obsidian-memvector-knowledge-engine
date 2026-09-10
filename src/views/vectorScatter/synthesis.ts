@@ -149,7 +149,7 @@ function buildVaultTitleMap(app: App): Map<string, string> {
     map.set(basename.toLowerCase(), basename);
 
     const cache = app.metadataCache.getFileCache(file);
-    const aliases = cache?.frontmatter?.aliases;
+    const aliases: unknown = cache?.frontmatter?.aliases;
     if (aliases) {
       const list: unknown[] = Array.isArray(aliases) ? aliases : [aliases];
       list.forEach((al) => map.set(String(al).toLowerCase(), basename));
@@ -160,7 +160,7 @@ function buildVaultTitleMap(app: App): Map<string, string> {
 
 function formatThinkingBlocks(raw: string): string {
   if (!raw.includes("<think>")) return raw;
-  return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking) => {
+  return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking: string) => {
     const cleanThinking = thinking.trim();
     if (!cleanThinking) return "";
     return `\n> [!note]- Gedankengang des Modells\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
@@ -178,8 +178,8 @@ const STRUCTURAL_KEYWORDS = new Set([
 function isStructuralMarker(term: string): boolean {
   const trimmed = term.trim();
   if (trimmed.endsWith(":") || trimmed.startsWith("#")) return true;
-  if (/^\d+[\.\)]\s*/.test(trimmed)) return true;
-  const lower = trimmed.toLowerCase().replace(/[:\d\.\-_]/g, "").trim();
+  if (/^\d+[.)]\s*/.test(trimmed)) return true;
+  const lower = trimmed.toLowerCase().replace(/[:\d._-]/g, "").trim();
   if (STRUCTURAL_KEYWORDS.has(lower)) return true;
   return false;
 }
@@ -198,7 +198,7 @@ function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): stri
     if (existingBasename) return `[[${existingBasename}|${cleanTerm}]]`;
 
     // Only suggest clean concept names as knowledge gaps (letters/numbers/hyphens only)
-    if (/^[a-zA-Z0-9äöüÄÖÜß\s\-]+$/.test(cleanTerm) && cleanTerm.length >= 3 && cleanTerm.length <= 60) {
+    if (/^[a-zA-Z0-9äöüÄÖÜß\s-]+$/.test(cleanTerm) && cleanTerm.length >= 3 && cleanTerm.length <= 60) {
       prospectiveTerms.add(cleanTerm);
     }
     return match;

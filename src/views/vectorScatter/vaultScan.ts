@@ -17,7 +17,7 @@ const DEFAULT_EXCLUSIONS =
   "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks";
 
 /** Obsidian Graph-View-style include/exclude query: `-path:x -file:y term`. */
-export function shouldIncludeFile(file: TFile, queryStr: string): boolean {
+export function shouldIncludeFile(file: { path: string; name: string; basename: string }, queryStr: string): boolean {
   if (!queryStr || !queryStr.trim()) return true;
 
   const tokens = queryStr.trim().split(/\s+/);

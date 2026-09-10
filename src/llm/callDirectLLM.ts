@@ -10,6 +10,27 @@ interface AnthropicContentBlock {
   text?: string;
 }
 
+interface LlmChoice {
+  message?: {
+    content?: string;
+    reasoning?: string;
+  };
+}
+
+interface LlmResponseData {
+  content?: AnthropicContentBlock[];
+  choices?: LlmChoice[];
+  message?: {
+    content?: string;
+  };
+  response?: string;
+}
+
+interface LlmErrorResponse {
+  error?: string | { message?: string };
+  message?: string;
+}
+
 export async function callDirectLLM(
   prompt: string,
   apiBase: string,
@@ -62,8 +83,6 @@ export async function callDirectLLM(
       }
     }
 
-    console.log("MemVector: Sende Synthese-Request an:", url, "Modell:", payload.model);
-
     const response = await requestUrl({
       url,
       method: "POST",
@@ -73,9 +92,9 @@ export async function callDirectLLM(
     });
 
     if (response.status === 200) {
-      const data = response.json;
+      const data = response.json as LlmResponseData | null | undefined;
       if (provider === "anthropic") {
-        const blocks: AnthropicContentBlock[] | undefined = data.content;
+        const blocks: AnthropicContentBlock[] | undefined = data?.content;
         if (Array.isArray(blocks)) {
           const textBlocks = blocks
             .filter((b) => b.type === "text" || (b.text && b.type !== "thinking"))
@@ -88,10 +107,10 @@ export async function callDirectLLM(
         return blocks?.[0]?.text || "Keine Antwort von Claude erhalten.";
       }
       const ans =
-        data.choices?.[0]?.message?.content ||
-        data.choices?.[0]?.message?.reasoning ||
-        data.message?.content ||
-        data.response;
+        data?.choices?.[0]?.message?.content ||
+        data?.choices?.[0]?.message?.reasoning ||
+        data?.message?.content ||
+        data?.response;
       if (ans && typeof ans === "string") return ans;
       return "Keine Antwort vom LLM erhalten.";
     }
@@ -113,7 +132,7 @@ export async function callDirectLLM(
             throwOnError: false,
           });
           if (nativeRes.status === 200) {
-            const nData = nativeRes.json;
+            const nData = nativeRes.json as LlmResponseData | null | undefined;
             const nAns = nData?.message?.content || nData?.response;
             if (nAns && typeof nAns === "string") return nAns;
           }
@@ -125,10 +144,14 @@ export async function callDirectLLM(
 
     let errMsg = "";
     try {
-      const errJson = response.json;
-      if (typeof errJson?.error === "string") errMsg = errJson.error;
-      else if (errJson?.error?.message) errMsg = errJson.error.message;
-      else if (errJson?.message) errMsg = errJson.message;
+      const errJson = response.json as LlmErrorResponse | null | undefined;
+      if (typeof errJson?.error === "string") {
+        errMsg = errJson.error;
+      } else if (typeof errJson?.error === "object" && errJson?.error?.message) {
+        errMsg = errJson.error.message;
+      } else if (typeof errJson?.message === "string") {
+        errMsg = errJson.message;
+      }
     } catch {
       // not JSON
     }

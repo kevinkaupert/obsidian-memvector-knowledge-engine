@@ -5,6 +5,15 @@ export interface EmbeddingResult {
   error: string | null;
 }
 
+interface OpenAiEmbeddingResponse {
+  data?: Array<{ embedding?: number[] }>;
+  embedding?: number[];
+}
+
+interface OllamaEmbedResponse {
+  embeddings?: number[][];
+}
+
 export async function fetchEmbedding(
   text: string,
   apiBase: string,
@@ -28,7 +37,8 @@ export async function fetchEmbedding(
       throwOnError: false,
     });
     if (res.status === 200) {
-      const vec = res.json?.data?.[0]?.embedding || res.json?.embedding;
+      const data = res.json as OpenAiEmbeddingResponse | undefined;
+      const vec = data?.data?.[0]?.embedding ?? data?.embedding;
       if (Array.isArray(vec) && vec.length > 0) return { embedding: vec, error: null };
     }
   } catch {
@@ -46,8 +56,9 @@ export async function fetchEmbedding(
         body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
         throwOnError: false,
       });
-      if (res.status === 200 && Array.isArray(res.json?.embeddings?.[0])) {
-        return { embedding: res.json.embeddings[0], error: null };
+      const data = res.json as OllamaEmbedResponse | undefined;
+      if (res.status === 200 && Array.isArray(data?.embeddings?.[0])) {
+        return { embedding: data.embeddings[0], error: null };
       }
     } catch {
       // fallback

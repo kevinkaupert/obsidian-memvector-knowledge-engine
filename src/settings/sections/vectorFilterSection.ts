@@ -63,8 +63,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     .setName(t.embedApiBaseName)
     .setDesc(t.embedApiBaseDesc)
     .addText((text) => {
-      text.inputEl.style.width = "100%";
-      text.inputEl.style.minWidth = "260px";
+      text.inputEl.addClass("memvector-input-full");
       text
         .setPlaceholder("http://localhost:11434/v1")
         .setValue(settings.embeddingApiBaseUrl || "http://localhost:11434/v1")
@@ -103,7 +102,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             btn.setButtonText("[ERROR] Fehlgeschlagen");
             new Notice(`[ERROR] Embedding-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
-            setTimeout(() => {
+            window.setTimeout(() => {
               btn.setButtonText("Verbindung testen & Modelle laden");
               btn.setDisabled(false);
             }, 3000);
@@ -116,11 +115,13 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
 
   if (fetchedEmbed.length > 0) {
     embedModelSetting.addDropdown((dropdown) => {
-      fetchedEmbed.forEach((m) => dropdown.addOption(m, m));
+      for (const m of fetchedEmbed) {
+        dropdown.addOption(m, m);
+      }
       dropdown.setValue(settings.embeddingModel || fetchedEmbed[0]);
-      dropdown.onChange(async (val) => {
+      dropdown.onChange((val) => {
         settings.embeddingModel = val;
-        await host.saveSettings();
+        void host.saveSettings();
       });
     });
   } else {
@@ -128,9 +129,9 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
       text
         .setPlaceholder("bge-m3")
         .setValue(settings.embeddingModel || "bge-m3")
-        .onChange(async (value) => {
+        .onChange((value) => {
           settings.embeddingModel = value.trim();
-          await host.saveSettings();
+          void host.saveSettings();
         })
     );
   }
@@ -158,7 +159,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             btn.setButtonText("[ERROR] Fehlgeschlagen");
             new Notice(`[ERROR] Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
-            setTimeout(() => {
+            window.setTimeout(() => {
               btn.setButtonText("Jetzt Vault lokal indizieren");
               btn.setDisabled(false);
             }, 3000);

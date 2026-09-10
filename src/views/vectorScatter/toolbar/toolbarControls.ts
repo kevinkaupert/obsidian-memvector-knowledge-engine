@@ -3,28 +3,16 @@ export interface ToggleHandle {
 }
 
 export function createToggle(parent: HTMLElement, label: string, initialOn: boolean, onChange: (on: boolean) => void): ToggleHandle {
-  const row = parent.createEl("div");
-  row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:7px 12px; cursor:pointer;";
-
-  const lbl = row.createEl("span", { text: label });
-  lbl.style.cssText = "font-size:0.82em; color:var(--text-normal, #cbd5e1); flex:1;";
+  const row = parent.createDiv({ cls: "memvector-toggle-row" });
+  row.createSpan({ text: label, cls: "memvector-toggle-label" });
 
   let on = initialOn;
-  const track = row.createEl("div");
-  const thumb = track.createEl("div");
+  const track = row.createDiv({ cls: "memvector-toggle-track" });
+  const thumb = track.createDiv({ cls: "memvector-toggle-thumb" });
 
   const applyStyle = () => {
-    track.style.cssText = `
-      width:32px; height:17px; border-radius:9px; position:relative; flex-shrink:0;
-      background:${on ? "#06b6d4" : "var(--background-modifier-border, rgba(100,116,139,0.5))"};
-      transition: background 0.2s ease; cursor:pointer;
-      border: 1px solid ${on ? "rgba(6,182,212,0.4)" : "var(--background-modifier-border, rgba(255,255,255,0.08))"};
-    `;
-    thumb.style.cssText = `
-      width:11px; height:11px; border-radius:50%; background:#fff;
-      position:absolute; top:2px; left:${on ? "17px" : "2px"};
-      transition: left 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.4);
-    `;
+    track.toggleClass("is-on", on);
+    thumb.toggleClass("is-on", on);
   };
   applyStyle();
 
@@ -37,41 +25,25 @@ export function createToggle(parent: HTMLElement, label: string, initialOn: bool
     setState(!on);
     onChange(on);
   };
-  row.onmouseenter = () => {
-    row.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.04))";
-  };
-  row.onmouseleave = () => {
-    row.style.background = "transparent";
-  };
 
   return { setOn: setState };
 }
 
 export function createSection(parentEl: HTMLElement, title: string, defaultOpen = true): HTMLElement {
-  const section = parentEl.createEl("div");
-  section.style.cssText = "border-top:1px solid var(--background-modifier-border, rgba(255,255,255,0.06));";
+  const section = parentEl.createDiv({ cls: "memvector-toolbar-section" });
 
-  const header = section.createEl("div");
-  header.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:7px 12px; cursor:pointer; transition: background 0.15s ease;";
-  const titleEl = header.createEl("span", { text: title });
-  titleEl.style.cssText = "font-size:0.75em; font-weight:600; letter-spacing:0.04em; color:var(--text-muted, #94a3b8); text-transform:uppercase;";
-  const chevron = header.createEl("span", { text: defaultOpen ? "⌃" : "⌄" });
-  chevron.style.cssText = "font-size:0.72em; color:var(--text-faint, #475569); transition: transform 0.2s ease;";
+  const header = section.createDiv({ cls: "memvector-toolbar-section-header" });
+  header.createSpan({ text: title, cls: "memvector-toolbar-section-title" });
+  const chevron = header.createSpan({ text: defaultOpen ? "⌃" : "⌄", cls: "memvector-toolbar-section-chevron" });
 
-  const body = section.createEl("div");
-  body.style.cssText = `display:${defaultOpen ? "block" : "none"};`;
+  const body = section.createDiv({ cls: "memvector-toolbar-section-body" });
+  body.toggleClass("is-hidden", !defaultOpen);
 
   let open = defaultOpen;
   header.onclick = () => {
     open = !open;
-    body.style.display = open ? "block" : "none";
-    chevron.textContent = open ? "⌃" : "⌄";
-  };
-  header.onmouseenter = () => {
-    header.style.background = "var(--background-modifier-hover, rgba(255,255,255,0.03))";
-  };
-  header.onmouseleave = () => {
-    header.style.background = "transparent";
+    body.toggleClass("is-hidden", !open);
+    chevron.setText(open ? "⌃" : "⌄");
   };
 
   return body;
@@ -82,19 +54,21 @@ export interface DropdownOption {
   label: string;
 }
 
-export function createDropdown(parent: HTMLElement, label: string, options: DropdownOption[], initialValue: string, onChange: (value: string) => void): HTMLSelectElement {
-  const row = parent.createEl("div");
-  row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:6px 12px;";
-  const lbl = row.createEl("span", { text: label });
-  lbl.style.cssText = "font-size:0.8em; color:var(--text-muted, #94a3b8); flex:1;";
+export function createDropdown(
+  parent: HTMLElement,
+  label: string,
+  options: DropdownOption[],
+  initialValue: string,
+  onChange: (value: string) => void
+): HTMLSelectElement {
+  const row = parent.createDiv({ cls: "memvector-dropdown-row" });
+  row.createSpan({ text: label, cls: "memvector-dropdown-label" });
 
-  const select = row.createEl("select");
-  select.style.cssText =
-    "font-size:0.75em; padding:4px 8px; border-radius:6px; border:none; outline:none; box-shadow:none; background:var(--background-primary-alt, var(--background-secondary)); color:var(--text-normal); cursor:pointer;";
-  options.forEach((opt) => {
+  const select = row.createEl("select", { cls: "memvector-dropdown-select" });
+  for (const opt of options) {
     const option = select.createEl("option", { text: opt.label, value: opt.id });
     if (opt.id === initialValue) option.selected = true;
-  });
+  }
   select.onchange = () => onChange(select.value);
   return select;
 }
@@ -109,19 +83,15 @@ export function createSlider(
   displayFormatter: (val: number) => string,
   onChange: (val: number) => void
 ): HTMLInputElement {
-  const row = parent.createEl("div");
-  row.style.cssText = "display:flex; align-items:center; justify-content:space-between; padding:3px 12px; gap:8px;";
-  const lbl = row.createEl("span", { text: label });
-  lbl.style.cssText = "font-size:0.75em; color:var(--text-muted, #94a3b8); flex:1;";
-  const valText = row.createEl("span", { text: displayFormatter(initialValue) });
-  valText.style.cssText = "font-size:0.72em; font-family:var(--font-monospace); color:var(--text-normal, #f8fafc); font-weight:600; min-width:24px; text-align:right;";
+  const row = parent.createDiv({ cls: "memvector-slider-row" });
+  row.createSpan({ text: label, cls: "memvector-slider-label" });
+  const valText = row.createSpan({ text: displayFormatter(initialValue), cls: "memvector-slider-value" });
 
-  const input = row.createEl("input", { type: "range" });
+  const input = row.createEl("input", { type: "range", cls: "memvector-slider-input" });
   input.min = String(min);
   input.max = String(max);
   input.step = String(step);
   input.value = String(initialValue);
-  input.style.cssText = "width:64px; cursor:pointer; accent-color:#06b6d4; height:3px;";
 
   input.oninput = () => {
     const val = Number(input.value);
@@ -132,46 +102,12 @@ export function createSlider(
 }
 
 export function createActionBtn(parent: HTMLElement, label: string, onClick: (() => void) | null, isPrimary = false): HTMLButtonElement {
-  const btn = parent.createEl("button", { text: label });
-  const bgDefault = isPrimary
-    ? "linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2))"
-    : "var(--background-modifier-form-field, rgba(255, 255, 255, 0.05))";
-  const bgHover = isPrimary
-    ? "linear-gradient(135deg, rgba(6, 182, 212, 0.35), rgba(59, 130, 246, 0.35))"
-    : "var(--background-modifier-hover, rgba(255, 255, 255, 0.12))";
-  const borderColor = isPrimary
-    ? "rgba(6, 182, 212, 0.45)"
-    : "var(--background-modifier-border, rgba(255, 255, 255, 0.1))";
-  const textColor = isPrimary ? "var(--interactive-accent, #38bdf8)" : "var(--text-normal, #f1f5f9)";
-
-  btn.style.cssText = `
-    display: block; width: calc(100% - 24px); margin: 4px 12px; padding: 6px 12px;
-    background: ${bgDefault}; border: 1px solid ${borderColor};
-    border-radius: 6px; color: ${textColor}; font-size: 0.78em; font-weight: ${isPrimary ? "600" : "500"};
-    text-align: center; cursor: pointer; box-sizing: border-box; outline: none;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-  `;
-  btn.onmouseenter = () => {
-    if (!btn.disabled) {
-      btn.style.background = bgHover;
-      btn.style.borderColor = isPrimary ? "rgba(6, 182, 212, 0.7)" : "var(--text-muted, rgba(255,255,255,0.25))";
-      btn.style.transform = "translateY(-1px)";
-    }
-  };
-  btn.onmouseleave = () => {
-    btn.style.background = bgDefault;
-    btn.style.borderColor = borderColor;
-    btn.style.transform = "translateY(0)";
-  };
+  const btn = parent.createEl("button", { text: label, cls: "memvector-action-btn" });
+  if (isPrimary) btn.addClass("is-primary");
   if (onClick) btn.onclick = onClick;
   return btn;
 }
 
 export function setActionBtnEnabled(btn: HTMLButtonElement, enabled: boolean): void {
   btn.disabled = !enabled;
-  btn.style.opacity = enabled ? "1" : "0.4";
-  btn.style.cursor = enabled ? "pointer" : "not-allowed";
-  if (!enabled) {
-    btn.style.transform = "translateY(0)";
-  }
 }

@@ -55,8 +55,7 @@ export function renderLlmProviderSection(
     .setName(t.apiBaseUrlName)
     .setDesc(t.apiBaseUrlDesc)
     .addText((text) => {
-      text.inputEl.style.width = "100%";
-      text.inputEl.style.minWidth = "260px";
+      text.inputEl.addClass("memvector-input-full");
       text
         .setPlaceholder("http://localhost:11434/v1")
         .setValue(settings.apiBaseUrl || "")
@@ -97,7 +96,7 @@ export function renderLlmProviderSection(
             btn.setButtonText("[ERROR] Fehlgeschlagen");
             new Notice(`[ERROR] LLM-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
-            setTimeout(() => {
+            window.setTimeout(() => {
               btn.setButtonText("Verbindung testen & Modelle laden");
               btn.setDisabled(false);
             }, 3000);
@@ -110,11 +109,13 @@ export function renderLlmProviderSection(
 
   if (fetchedLlm.length > 0) {
     modelSetting.addDropdown((dropdown) => {
-      fetchedLlm.forEach((m) => dropdown.addOption(m, m));
+      for (const m of fetchedLlm) {
+        dropdown.addOption(m, m);
+      }
       dropdown.setValue(settings.modelName || fetchedLlm[0]);
-      dropdown.onChange(async (val) => {
+      dropdown.onChange((val) => {
         settings.modelName = val;
-        await host.saveSettings();
+        void host.saveSettings();
       });
     });
   } else {
@@ -122,9 +123,9 @@ export function renderLlmProviderSection(
       text
         .setPlaceholder("model-name")
         .setValue(settings.modelName || "")
-        .onChange(async (value) => {
+        .onChange((value) => {
           settings.modelName = value.trim();
-          await host.saveSettings();
+          void host.saveSettings();
         })
     );
   }
@@ -142,7 +143,6 @@ export function renderLlmProviderSection(
       slider
         .setLimits(0, 1, 0.05)
         .setValue(settings.temperature ?? 0.1)
-        .setDynamicTooltip()
         .setDisabled(isAnthropicSelected)
         .onChange(async (value) => {
           settings.temperature = value;
@@ -151,7 +151,6 @@ export function renderLlmProviderSection(
     );
 
   if (isAnthropicSelected) {
-    tempSetting.settingEl.style.opacity = "0.5";
-    tempSetting.settingEl.style.pointerEvents = "none";
+    tempSetting.settingEl.addClass("memvector-disabled-setting");
   }
 }

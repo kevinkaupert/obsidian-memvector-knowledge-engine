@@ -70,49 +70,29 @@ export async function renderActiveNoteFocus(
   const activeFile = focusFile || app.workspace.getActiveFile();
   if (!activeFile) return;
 
-  const focusBox = container.createEl("div");
-  Object.assign(focusBox.style, {
-    background: "var(--background-secondary)",
-    borderRadius: "12px",
-    padding: "12px",
-    marginBottom: "15px",
-    border: "1px solid var(--border-color)",
-  });
+  const focusBox = container.createDiv({ cls: "memvector-focus-box" });
 
   const pathParts = activeFile.path.split("/");
   const breadcrumb = pathParts.length > 1 ? pathParts.slice(0, -1).join(" > ") : "";
   if (breadcrumb) {
-    focusBox.createEl("div", {
+    focusBox.createDiv({
       text: breadcrumb,
-      style: "font-size: 0.8em; color: var(--text-muted); margin-bottom: 2px;",
-    } as DomElementInfoCompat);
+      cls: "memvector-focus-breadcrumb",
+    });
   }
-  focusBox.createEl("div", {
+  focusBox.createDiv({
     text: activeFile.name,
-    style: "font-size: 1.15em; font-weight: bold; margin-bottom: 10px; color: var(--text-normal);",
-  } as DomElementInfoCompat);
-
-  const radarWrap = focusBox.createEl("div");
-  Object.assign(radarWrap.style, {
-    position: "relative",
-    width: "100%",
-    height: "260px",
-    borderRadius: "10px",
-    background: "var(--background-primary-alt, var(--background-secondary))",
-    border: "1px solid var(--background-modifier-border, var(--border-color, rgba(255, 255, 255, 0.1)))",
-    overflow: "hidden",
-    marginBottom: "10px",
+    cls: "memvector-focus-title",
   });
 
-  const canvas = radarWrap.createEl("canvas");
-  Object.assign(canvas.style, { width: "100%", height: "100%", display: "block", cursor: "pointer" });
+  const radarWrap = focusBox.createDiv({ cls: "memvector-radar-wrap" });
+
+  const canvas = radarWrap.createEl("canvas", { cls: "memvector-radar-canvas" });
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const radarTooltip = radarWrap.createEl("div", {
-    style:
-      "position: absolute; display: none; pointer-events: none; padding: 4px 8px; border-radius: 6px; background: var(--background-secondary, #0f172a); border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.2)); color: var(--text-normal, #f1f5f9); font-size: 0.78em; font-weight: 500; font-family: var(--font-interface, sans-serif); z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.35); white-space: nowrap;",
-  } as DomElementInfoCompat);
+  const radarTooltip = radarWrap.createDiv({ cls: "memvector-radar-tooltip" });
+  radarTooltip.hidden = true;
 
   try {
     const activeContent = await app.vault.cachedRead(activeFile);
@@ -148,10 +128,10 @@ export async function renderActiveNoteFocus(
     const maxRadius = Math.min(width, height) * 0.42;
 
     const neighborNodes: RadarNode[] = topNeighbors.map((item, idx) => {
-      const nPos = getNode2DPosition(app, item.file as TFile, item.content);
+      const nPos = getNode2DPosition(app, item.file, item.content);
       const rawDx = nPos.x - activePos.x;
       const rawDy = nPos.y - activePos.y;
-      const angle = Math.hypot(rawDx, rawDy) > 1e-3 ? Math.atan2(rawDy, rawDx) : (idx / (topNeighbors!.length || 1)) * Math.PI * 2;
+      const angle = Math.hypot(rawDx, rawDy) > 1e-3 ? Math.atan2(rawDy, rawDx) : (idx / (topNeighbors.length || 1)) * Math.PI * 2;
       
       // True polar distance: score in [0, 1] -> distance in [0, 1]
       const score = Math.max(0, Math.min(1, item.score));
@@ -274,8 +254,8 @@ export async function renderActiveNoteFocus(
       isDragging = true;
       mouseDownPos = { x: e.clientX, y: e.clientY };
       dragStart = { x: e.clientX - radarPan.x, y: e.clientY - radarPan.y };
-      canvas.style.cursor = "grabbing";
-      radarTooltip.style.display = "none";
+      canvas.addClass("is-grabbing");
+      radarTooltip.hidden = true;
     };
 
     canvas.onmousemove = (e) => {
@@ -285,30 +265,30 @@ export async function renderActiveNoteFocus(
       if (isDragging) {
         radarPan.x = e.clientX - dragStart.x;
         radarPan.y = e.clientY - dragStart.y;
-        radarTooltip.style.display = "none";
+        radarTooltip.hidden = true;
         drawRadar();
       } else {
         const found = neighborNodes.find((n) => Math.hypot(mx - n.x, my - n.y) <= 16);
         canvas.title = found ? found.file.name : "";
         if (found) {
           radarTooltip.setText(found.file.name);
-          radarTooltip.style.display = "block";
+          radarTooltip.hidden = false;
           radarTooltip.style.left = `${Math.max(5, Math.min(mx + 10, width - 140))}px`;
           radarTooltip.style.top = `${Math.max(5, my - 28)}px`;
         } else {
-          radarTooltip.style.display = "none";
+          radarTooltip.hidden = true;
         }
       }
     };
 
     canvas.onmouseleave = () => {
-      radarTooltip.style.display = "none";
+      radarTooltip.hidden = true;
     };
 
     canvas.onmouseup = () => {
       if (isDragging) {
         isDragging = false;
-        canvas.style.cursor = "pointer";
+        canvas.removeClass("is-grabbing");
       }
     };
 
@@ -326,42 +306,26 @@ export async function renderActiveNoteFocus(
       const my = e.clientY - rect.top;
       const found = neighborNodes.find((n) => Math.hypot(mx - n.x, my - n.y) <= 14);
       if (found) {
-        app.workspace.openLinkText(found.file.basename, found.file.path, true);
+        void app.workspace.openLinkText(found.file.basename, found.file.path, true);
       }
     };
 
-    const detailsEl = focusBox.createEl("details");
+    const detailsEl = focusBox.createEl("details", { cls: "memvector-radar-details" });
     detailsEl.open = true;
-    detailsEl.style.marginTop = "8px";
     detailsEl.createEl("summary", {
       text: "Nahestehende Notizen",
-      style: "cursor: pointer; font-size: 0.85em; color: var(--text-muted); font-weight: 500;",
-    } as DomElementInfoCompat);
+      cls: "memvector-muted-text",
+    });
 
-    const listContainer = detailsEl.createEl("div");
-    listContainer.style.marginTop = "8px";
+    const listContainer = detailsEl.createDiv({ cls: "memvector-radar-list" });
 
     topNeighbors.slice(0, 5).forEach((item, idx) => {
-      const row = listContainer.createEl("div");
-      Object.assign(row.style, {
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "4px 8px",
-        margin: "3px 0",
-        borderRadius: "4px",
-        background: "var(--background-primary)",
-        cursor: "pointer",
-        fontSize: "0.85em",
-      });
-
-      const nameSpan = row.createEl("span", { text: `${idx + 1}. ${item.file.basename}` });
-      nameSpan.style.color = "var(--text-accent)";
-      const scoreSpan = row.createEl("span", { text: item.score.toFixed(3) });
-      scoreSpan.style.color = "var(--text-muted)";
+      const row = listContainer.createDiv({ cls: "memvector-radar-row" });
+      row.createSpan({ text: `${idx + 1}. ${item.file.basename}`, cls: "memvector-radar-name" });
+      row.createSpan({ text: item.score.toFixed(3), cls: "memvector-radar-score" });
 
       row.onclick = () => {
-        app.workspace.openLinkText(item.file.basename, item.file.path, true);
+        void app.workspace.openLinkText(item.file.basename, item.file.path, true);
       };
     });
   } catch (err) {

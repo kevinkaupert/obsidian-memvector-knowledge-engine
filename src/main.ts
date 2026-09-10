@@ -19,13 +19,12 @@ export default class MemVectorPlugin extends Plugin {
     }
     this.sidebarDebounceTimer = window.setTimeout(() => {
       this.sidebarDebounceTimer = null;
-      this.sidebarView?.renderView();
+      void this.sidebarView?.renderView();
     }, 80);
   }
 
   async onload(): Promise<void> {
     setPluginId(this.manifest.id);
-    console.log("Loading MemVector Knowledge Engine Plugin...");
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
 
@@ -37,10 +36,10 @@ export default class MemVectorPlugin extends Plugin {
     this.registerView(MATH_VECTOR_SCATTER_VIEW_TYPE, (leaf: WorkspaceLeaf) => new VectorScatterView(leaf, this));
 
     this.addRibbonIcon("function-square", "MemVector Co-Pilot Seitenleiste", () => {
-      this.activateSidebarView();
+      void this.activateSidebarView();
     });
     this.addRibbonIcon("dot-network", "MemVector 2D Vektorraum", () => {
-      this.activateVectorScatterView();
+      void this.activateVectorScatterView();
     });
 
     this.addCommand({
@@ -76,7 +75,7 @@ export default class MemVectorPlugin extends Plugin {
         leaf = rightLeaf;
       }
     }
-    if (leaf) workspace.revealLeaf(leaf);
+    if (leaf) await workspace.revealLeaf(leaf);
   }
 
   async activateVectorScatterView(): Promise<void> {
@@ -86,16 +85,16 @@ export default class MemVectorPlugin extends Plugin {
       leaf = workspace.getLeaf(true);
       if (leaf) await leaf.setViewState({ type: MATH_VECTOR_SCATTER_VIEW_TYPE, active: true });
     }
-    if (leaf) workspace.revealLeaf(leaf);
+    if (leaf) await workspace.revealLeaf(leaf);
   }
 
   /** Lets the graph's click handler show a note's radar in the sidebar without switching the actual editor tab. */
   focusSidebarNote(file: TFile): void {
-    this.sidebarView?.renderView(file);
+    void this.sidebarView?.renderView(file);
   }
 
   async loadSettings(): Promise<void> {
-    const raw = await this.loadData();
+    const raw: unknown = await this.loadData();
     this.settings = migrateSettings(raw);
     // One-time move of any plaintext secrets left over from before 1.6.1
     // (per-provider LLM keys, the legacy shared deepseekApiKey, the
@@ -116,6 +115,5 @@ export default class MemVectorPlugin extends Plugin {
       this.sidebarDebounceTimer = null;
     }
     void closeLocalDb();
-    console.log("Unloading MemVector Knowledge Engine Plugin.");
   }
 }

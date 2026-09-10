@@ -1,8 +1,8 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-0.1.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.5.0-7c3aed)
+![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 ![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen)

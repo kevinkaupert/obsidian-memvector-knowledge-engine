@@ -7,9 +7,19 @@ interface RawModelEntry {
   name?: string;
 }
 
+interface RawModelResponse {
+  data?: (string | RawModelEntry)[];
+  models?: (string | RawModelEntry)[];
+}
+
 function parseModelList(rawText: string): string[] {
-  const data = JSON.parse(rawText || "{}");
-  const rawList: (string | RawModelEntry)[] = data?.data || data?.models || (Array.isArray(data) ? data : []);
+  const data = JSON.parse(rawText || "{}") as RawModelResponse | (string | RawModelEntry)[] | null;
+  let rawList: (string | RawModelEntry)[] = [];
+  if (Array.isArray(data)) {
+    rawList = data;
+  } else if (data && typeof data === "object") {
+    rawList = data.data || data.models || [];
+  }
   return rawList.map((m) => (typeof m === "string" ? m : m.id || m.name || "")).filter(Boolean);
 }
 
@@ -62,7 +72,7 @@ export async function fetchProviderModels(apiBaseUrl: string, apiKey: string, ll
 
   let errMsg = res.text;
   try {
-    const errJson = JSON.parse(res.text || "{}");
+    const errJson = JSON.parse(res.text || "{}") as { error?: { message?: string } } | null;
     if (errJson?.error?.message) errMsg = errJson.error.message;
   } catch {
     console.warn("MemVector: model-list error response wasn't JSON, showing raw text");

@@ -17,7 +17,7 @@ export interface CanvasInteractionRefs {
   canvas: HTMLCanvasElement;
   canvasWrap: HTMLElement;
   hoverBar: HTMLElement;
-  updateSelectionUI(): void;
+  updateSelectionUI: (this: void) => void;
 }
 
 /** Wires pan/zoom/lasso-select/click-select/double-click-to-open on the canvas. Mirrors the original's mutation-of-`this` closures via `ctx`. */
@@ -67,7 +67,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     } else {
       ctx.isDraggingPan = true;
       ctx.dragStart = { x: mouseX - ctx.pan.x, y: mouseY - ctx.pan.y };
-      canvas.style.cursor = "grabbing";
+      canvas.addClass("is-grabbing");
     }
   });
 
@@ -94,8 +94,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       if (hovered !== ctx.hoveredNode) {
         ctx.hoveredNode = hovered;
         if (hovered) {
-          const mathSample = hovered.latexFormulas.length > 0 ? ` | Formel: $${hovered.latexFormulas[0]}$` : "";
-          hoverBar.setText(`[${hovered.type.toUpperCase()}] ${hovered.title} (${hovered.path})${mathSample}`);
+          hoverBar.setText(hovered.title);
         } else {
           hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
         }
@@ -107,7 +106,12 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   const onMouseUp = () => {
     if (ctx.isDraggingPan) {
       ctx.isDraggingPan = false;
-      canvas.style.cursor = ctx.lassoSelectMode ? "crosshair" : "grab";
+      canvas.removeClass("is-grabbing");
+      if (ctx.lassoSelectMode) {
+        canvas.addClass("is-crosshair");
+      } else {
+        canvas.removeClass("is-crosshair");
+      }
     }
     if (ctx.isDraggingLasso) {
       ctx.isDraggingLasso = false;
@@ -177,7 +181,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.pan.x = canvasWrap.clientWidth / 2 - clicked.x * ctx.zoom;
       ctx.pan.y = canvasWrap.clientHeight / 2 - clicked.y * ctx.zoom;
       ctx.redraw();
-      ctx.app.workspace.openLinkText(clicked.id, clicked.path, true);
+      void ctx.app.workspace.openLinkText(clicked.id, clicked.path, true);
     }
   });
 

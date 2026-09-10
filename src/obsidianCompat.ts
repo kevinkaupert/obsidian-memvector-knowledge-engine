@@ -25,5 +25,5 @@ export interface RequestUrlParamCompat extends RequestUrlParam {
 }
 
 export function requestUrl(params: RequestUrlParamCompat): Promise<RequestUrlResponse> {
-  return obsidianRequestUrl(params as RequestUrlParam);
+  return obsidianRequestUrl(params);
 }

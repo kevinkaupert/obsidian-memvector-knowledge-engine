@@ -1,4 +1,4 @@
-import { PluginSettingTab, type App, type Plugin } from "obsidian";
+import { PluginSettingTab, Setting, type App, type Plugin } from "obsidian";
 import { getTranslation } from "../i18n";
 import { renderGeneralSection } from "./sections/generalSection";
 import { renderLlmProviderSection } from "./sections/llmProviderSection";
@@ -19,8 +19,10 @@ export class MathWikiSettingTab extends PluginSettingTab {
     const t = getTranslation(this.host.settings.language || "de");
     const rerender = () => this.display();
 
-    containerEl.createEl("h2", { text: t.settingsTitle });
-    containerEl.createEl("p", { text: t.settingsDesc, cls: "setting-item-description" });
+    new Setting(containerEl)
+      .setName("Configuration")
+      .setDesc(t.settingsDesc)
+      .setHeading();
 
     renderGeneralSection(containerEl, this.host, t, rerender);
     renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
