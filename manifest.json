@@ -1,7 +1,7 @@
 {
   "id": "memvector-knowledge-engine",
   "name": "MemVector Knowledge Engine",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.11.4",
   "description": "Local-first 2D vector-space graph, SQLite graph engine, and hybrid GraphRAG AI co-pilot powered by Ollama, Anthropic Claude, OpenAI, or DeepSeek.",
   "author": "Kevin Mike Kaupert",
