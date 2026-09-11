@@ -1,7 +1,6 @@
 import { Component, MarkdownRenderer, Modal, Notice, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
 import { getTranslation } from "../i18n";
-import type { DomElementInfoCompat } from "../obsidianCompat";
 import type { MemVectorSettings } from "../settings/types";
 
 interface SynthesisNode {

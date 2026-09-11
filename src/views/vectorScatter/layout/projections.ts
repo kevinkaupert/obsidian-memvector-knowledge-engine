@@ -12,12 +12,6 @@ export interface ProjectionParams {
   relationEdges: RelationEdge[];
 }
 
-function hashString(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) hash = (hash << 5) - hash + s.charCodeAt(i);
-  return hash;
-}
-
 /**
  * Purpose: Simulates physical 2D layout forces balancing cosine similarity, graph edges, and anti-collision clearances.
  */
