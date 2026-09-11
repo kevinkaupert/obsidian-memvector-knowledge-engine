@@ -1,5 +1,4 @@
 import { TFile, type App } from "obsidian";
-import type { DomElementInfoCompat } from "../../obsidianCompat";
 import { getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
 import { classifyNoteType, extractFormulas, rankCandidates, shouldExcludeFromRadar, type ScoredNote } from "./activeNoteScoring";

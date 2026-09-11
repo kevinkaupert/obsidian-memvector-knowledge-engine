@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, type App, type Plugin } from "obsidian";
+import { PluginSettingTab, Setting, type App, type Plugin, type SettingDefinitionItem } from "obsidian";
 import { getTranslation } from "../i18n";
 import { renderGeneralSection } from "./sections/generalSection";
 import { renderLlmProviderSection } from "./sections/llmProviderSection";
@@ -13,11 +13,28 @@ export class MathWikiSettingTab extends PluginSettingTab {
     this.host = plugin;
   }
 
+  /**
+   * Purpose: Declares settings items for Obsidian 1.13+ settings search indexing.
+   */
+  override getSettingDefinitions(): SettingDefinitionItem[] {
+    return [];
+  }
+
+  /**
+   * Purpose: Renders settings tab interface (Obsidian lifecycle display callback).
+   */
   display(): void {
+    this.renderTab();
+  }
+
+  /**
+   * Purpose: Imperatively constructs settings DOM elements for all configuration sections.
+   */
+  private renderTab(): void {
     const { containerEl } = this;
     containerEl.empty();
     const t = getTranslation(this.host.settings.language || "de");
-    const rerender = () => this.display();
+    const rerender = () => this.renderTab();
 
     new Setting(containerEl)
       .setName("Configuration")

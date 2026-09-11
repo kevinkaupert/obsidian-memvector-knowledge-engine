@@ -38,6 +38,9 @@ export class MathWikiSidebarView extends ItemView {
     await this.renderView();
   }
 
+  /**
+   * Purpose: Renders the active note focus radar and co-pilot view in the sidebar container.
+   */
   async renderView(focusFile?: TFile): Promise<void> {
     const container = this.containerEl.children[1] as HTMLElement | undefined;
     if (!container) return;
@@ -45,7 +48,7 @@ export class MathWikiSidebarView extends ItemView {
     const renderId = ++this.currentRenderId;
     container.empty();
 
-    const header = container.createEl("h3", { text: "MemVector Co-Pilot", cls: "memvector-sidebar-header" });
+    container.createEl("h3", { text: "MemVector Co-Pilot", cls: "memvector-sidebar-header" });
 
     await renderActiveNoteFocus(this.app, container, this.getSettings(), focusFile, () => renderId === this.currentRenderId);
   }

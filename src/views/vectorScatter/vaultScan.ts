@@ -1,4 +1,4 @@
-import type { App, TFile } from "obsidian";
+import type { App } from "obsidian";
 import { stripFrontmatter } from "../../noteContent";
 import type { ScatterNode, ScatterNoteType } from "./types";
 
