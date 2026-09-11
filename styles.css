@@ -260,7 +260,7 @@
   cursor: pointer;
 }
 .memvector-radar-canvas.is-grabbing {
-  cursor: grabbing !important;
+  cursor: grabbing;
 }
 
 /* ── 2D Graph Canvas & Toolbar ── */
@@ -290,10 +290,10 @@
   cursor: grab;
 }
 .memvector-canvas.is-grabbing {
-  cursor: grabbing !important;
+  cursor: grabbing;
 }
 .memvector-canvas.is-crosshair {
-  cursor: crosshair !important;
+  cursor: crosshair;
 }
 
 .memvector-toolbar-header {
@@ -635,7 +635,7 @@
   cursor: pointer;
 }
 .memvector-radar-canvas.is-grabbing {
-  cursor: grabbing !important;
+  cursor: grabbing;
 }
 .memvector-radar-tooltip {
   position: absolute;
