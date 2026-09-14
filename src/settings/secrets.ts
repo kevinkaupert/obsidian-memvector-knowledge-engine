@@ -2,26 +2,49 @@ import type { App } from "obsidian";
 import { DEFAULT_SETTINGS } from "./defaults";
 import type { ApiKeyMap, LlmProvider, MemVectorSettings } from "./types";
 
-const EMBEDDING_SECRET_ID = "memvector-embedding-api-key";
-
-function llmSecretId(provider: LlmProvider): string {
+/**
+ * Legacy fixed secret IDs from before this module resolved SecretComponent-selected
+ * names. Per Obsidian's SecretStorage contract, a SecretComponent's onChange value is
+ * the NAME of a secret, not the secret itself - settings must store that name and
+ * resolve the real value via getSecret() at request time. These fixed IDs double as
+ * the initial selected name for installs that already had a raw value stored under
+ * them by the pre-fix code, so existing keys keep working without re-entry.
+ */
+function legacyLlmSecretId(provider: LlmProvider): string {
   return `memvector-llm-key-${provider}`;
 }
+const LEGACY_EMBEDDING_SECRET_ID = "memvector-embedding-api-key";
 
-export function getApiKeyFor(app: App, provider: LlmProvider): string {
-  return app.secretStorage.getSecret(llmSecretId(provider)) ?? (provider === "ollama" ? "ollama" : "");
+/** The secret name currently selected for a provider's LLM API key - used to pre-fill its SecretComponent. */
+export function getSelectedLlmSecretName(settings: MemVectorSettings, provider: LlmProvider): string {
+  return settings.llmApiKeySecretNames?.[provider] || legacyLlmSecretId(provider);
 }
 
-export function setApiKeyFor(app: App, provider: LlmProvider, key: string): void {
-  app.secretStorage.setSecret(llmSecretId(provider), key);
+/** Records which secret name the user selected via SecretComponent for a provider's LLM API key. */
+export function setSelectedLlmSecretName(settings: MemVectorSettings, provider: LlmProvider, secretName: string): void {
+  settings.llmApiKeySecretNames = { ...settings.llmApiKeySecretNames, [provider]: secretName };
 }
 
-export function getEmbeddingApiKey(app: App): string {
-  return app.secretStorage.getSecret(EMBEDDING_SECRET_ID) ?? "ollama";
+/** Resolves the actual API key for a provider by looking up its selected secret name in SecretStorage. */
+export function resolveApiKeyFor(app: App, settings: MemVectorSettings, provider: LlmProvider): string {
+  const secretName = getSelectedLlmSecretName(settings, provider);
+  return app.secretStorage.getSecret(secretName) ?? (provider === "ollama" ? "ollama" : "");
 }
 
-export function setEmbeddingApiKey(app: App, key: string): void {
-  app.secretStorage.setSecret(EMBEDDING_SECRET_ID, key);
+/** The secret name currently selected for the embedding API key - used to pre-fill its SecretComponent. */
+export function getSelectedEmbeddingSecretName(settings: MemVectorSettings): string {
+  return settings.embeddingApiKeySecretName || LEGACY_EMBEDDING_SECRET_ID;
+}
+
+/** Records which secret name the user selected via SecretComponent for the embedding API key. */
+export function setSelectedEmbeddingSecretName(settings: MemVectorSettings, secretName: string): void {
+  settings.embeddingApiKeySecretName = secretName;
+}
+
+/** Resolves the actual embedding API key by looking up the selected secret name in SecretStorage. */
+export function resolveEmbeddingApiKey(app: App, settings: MemVectorSettings): string {
+  const secretName = getSelectedEmbeddingSecretName(settings);
+  return app.secretStorage.getSecret(secretName) ?? "ollama";
 }
 
 const LEGACY_SECRET_FIELDS = ["apiKeys", "deepseekApiKey", "embeddingApiKey", "qdrantApiKey", "memgraphPassword"];
@@ -32,6 +55,7 @@ export function migrateSettings(loaded: unknown): MemVectorSettings {
   return merged;
 }
 
+/** Migrates pre-SecretStorage plaintext settings fields into SecretStorage under the legacy fixed IDs, which resolveApiKeyFor/resolveEmbeddingApiKey fall back to until a secret is explicitly (re)selected. */
 export function migrateSecretsToSecretStorage(app: App, raw: unknown, settings: MemVectorSettings): boolean {
   const r = (raw as Record<string, unknown>) || {};
   let migrated = false;
@@ -42,17 +66,17 @@ export function migrateSecretsToSecretStorage(app: App, raw: unknown, settings: 
     legacyApiKeys[settings.llmProvider] = legacyDeepseek;
   }
   for (const [provider, key] of Object.entries(legacyApiKeys)) {
-    if (key && !app.secretStorage.getSecret(llmSecretId(provider as LlmProvider))) {
-      setApiKeyFor(app, provider as LlmProvider, key);
+    const id = legacyLlmSecretId(provider as LlmProvider);
+    if (key && !app.secretStorage.getSecret(id)) {
+      app.secretStorage.setSecret(id, key);
       migrated = true;
     }
   }
 
-  if (typeof r.embeddingApiKey === "string" && r.embeddingApiKey && !app.secretStorage.getSecret(EMBEDDING_SECRET_ID)) {
-    setEmbeddingApiKey(app, r.embeddingApiKey);
+  if (typeof r.embeddingApiKey === "string" && r.embeddingApiKey && !app.secretStorage.getSecret(LEGACY_EMBEDDING_SECRET_ID)) {
+    app.secretStorage.setSecret(LEGACY_EMBEDDING_SECRET_ID, r.embeddingApiKey);
     migrated = true;
   }
 
   return migrated;
 }
-

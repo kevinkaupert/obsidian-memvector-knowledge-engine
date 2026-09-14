@@ -2,7 +2,7 @@ import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import { PROVIDER_DEFAULT_MODELS } from "../../llm/modelDefaults";
 import type { TranslationKeys } from "../../i18n";
-import { getApiKeyFor, setApiKeyFor } from "../secrets";
+import { getSelectedLlmSecretName, resolveApiKeyFor, setSelectedLlmSecretName } from "../secrets";
 import type { LlmProvider, SettingsHost } from "../types";
 
 const PROVIDER_BASE_URLS: Record<LlmProvider, string> = {
@@ -67,8 +67,11 @@ export function renderLlmProviderSection(
 
   const apiKeySetting = new Setting(containerEl).setName(t.apiKeyName).setDesc(t.apiKeyDesc);
   new SecretComponent(app, apiKeySetting.controlEl)
-    .setValue(getApiKeyFor(app, settings.llmProvider))
-    .onChange((value) => setApiKeyFor(app, settings.llmProvider, value.trim()));
+    .setValue(getSelectedLlmSecretName(settings, settings.llmProvider))
+    .onChange(async (secretName) => {
+      setSelectedLlmSecretName(settings, settings.llmProvider, secretName);
+      await host.saveSettings();
+    });
 
   new Setting(containerEl)
     .setName("LLM-Verbindung testen & Modelle abfragen")
@@ -81,7 +84,7 @@ export function renderLlmProviderSection(
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            const models = await fetchProviderModels(settings.apiBaseUrl, getApiKeyFor(app, settings.llmProvider), settings.llmProvider);
+            const models = await fetchProviderModels(settings.apiBaseUrl, resolveApiKeyFor(app, settings, settings.llmProvider), settings.llmProvider);
             btn.setButtonText("[OK] Erfolgreich!");
             new Notice(`[OK] LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {

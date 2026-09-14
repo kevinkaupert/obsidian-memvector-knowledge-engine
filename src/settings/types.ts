@@ -18,6 +18,11 @@ export interface MemVectorSettings {
   modelName: string;
   temperature: number;
 
+  /** Per-provider name of the secret selected via SecretComponent - resolved to the actual key at request time (settings/secrets.ts). */
+  llmApiKeySecretNames?: Partial<Record<LlmProvider, string>>;
+  /** Name of the secret selected for the embedding provider via SecretComponent - resolved to the actual key at request time (settings/secrets.ts). */
+  embeddingApiKeySecretName?: string;
+
   vectorSearchExclusions: string;
   radarNoteCount: number;
 
