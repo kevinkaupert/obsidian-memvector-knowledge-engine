@@ -13,6 +13,7 @@ import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
 import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
+import { getVectorStore } from "../../sync/storeFactory";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import type { RelationEdge, ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
@@ -212,10 +213,29 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
 
   async scanVaultNotes(filterOverride?: string): Promise<void> {
     this.nodes = await scanVaultNotesPure(this.app, filterOverride, this.settings.vectorSearchExclusions);
-    this.applyLayout();
+    // Both must be in place *before* the layout pass below, or it falls back to
+    // text/link/folder heuristics for a session that already has a semantic
+    // index and typed relations on disk.
+    await this.hydrateStoredEmbeddings();
     await this.loadRelationEdges();
+    this.applyLayout();
     this.fitToView();
     this.redraw();
+  }
+
+  /** Loads each scanned node's already-computed embedding from the vector store, so a reopened/rescanned graph uses the existing semantic index instead of recomputing it through a provider. */
+  private async hydrateStoredEmbeddings(): Promise<void> {
+    if (this.nodes.length === 0) return;
+    try {
+      const store = getVectorStore(this.app, this.settings);
+      const vectors = await store.getVectors(this.nodes.map((n) => n.path));
+      this.nodes.forEach((n) => {
+        const v = vectors.get(n.path);
+        if (v) n.embedding = v;
+      });
+    } catch (err) {
+      console.warn("MemVector: Failed to hydrate stored embeddings before layout:", err);
+    }
   }
 
   applyLayout(): void {
@@ -243,7 +263,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   private refreshRelationEdges(): void {
-    void this.loadRelationEdges().then(() => this.redraw());
+    // Also re-run layout, not just re-render edges - a saved/edited/deleted
+    // relation must feed the force layout's topology weights too, not only
+    // the drawn edge lines.
+    void this.loadRelationEdges().then(() => {
+      this.applyLayout();
+      this.redraw();
+    });
   }
 
   openRelationBuilder(selected: ScatterNode[]): void {

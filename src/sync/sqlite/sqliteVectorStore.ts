@@ -31,6 +31,25 @@ export class SqliteVectorStore implements VectorStore {
     return JSON.parse(String(result[0].values[0][0])) as number[];
   }
 
+  async getVectors(ids: string[]): Promise<Map<string, number[]>> {
+    const found = new Map<string, number[]>();
+    if (ids.length === 0) return found;
+    const db = await getLocalDb(this.app);
+    const result = db.exec("SELECT id, path, vector FROM vectors");
+    if (result.length === 0) return found;
+
+    const wanted = new Set(ids);
+    const { columns, values } = result[0];
+    const idx = { id: columns.indexOf("id"), path: columns.indexOf("path"), vector: columns.indexOf("vector") };
+    for (const row of values) {
+      const id = String(row[idx.id]);
+      const path = String(row[idx.path]);
+      const key = wanted.has(id) ? id : wanted.has(path) ? path : null;
+      if (key) found.set(key, JSON.parse(String(row[idx.vector])) as number[]);
+    }
+    return found;
+  }
+
   async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
     if (currentPaths.length === 0) return { removed: 0 };
     const db = await getLocalDb(this.app);
