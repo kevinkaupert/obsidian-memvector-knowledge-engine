@@ -70,6 +70,20 @@ function scoreAgainstActive(activeWords: Set<string>, activeFormulas: Set<string
   return { score, formulas: fFormulas };
 }
 
+/**
+ * Widens the candidate pool fetched for ranking beyond the configured display
+ * count, so a low configured count still lets the ranker choose among enough
+ * candidates for a stable top selection.
+ */
+export function resolveRadarFetchCount(configuredCount: number): number {
+  return Math.max(15, configuredCount);
+}
+
+/** Trims a ranked/fetched neighbor list down to the count actually configured for display. */
+export function limitToConfiguredCount<T>(items: T[], configuredCount: number): T[] {
+  return items.slice(0, Math.max(1, configuredCount));
+}
+
 /** Ranks candidate notes by textual/formula similarity to the active note's content, highest first. */
 export function rankCandidates(
   activeContent: string,

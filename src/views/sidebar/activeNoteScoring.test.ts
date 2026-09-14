@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { classifyNoteType, extractFormulas, extractWords, rankCandidates, shouldExcludeFromRadar } from "./activeNoteScoring";
+import {
+  classifyNoteType,
+  extractFormulas,
+  extractWords,
+  limitToConfiguredCount,
+  rankCandidates,
+  resolveRadarFetchCount,
+  shouldExcludeFromRadar,
+} from "./activeNoteScoring";
 
 describe("shouldExcludeFromRadar", () => {
   it("excludes files whose path contains 'schema'", () => {
@@ -35,6 +43,33 @@ describe("extractWords / extractFormulas", () => {
 
   it("extracts LaTeX formula bodies between $ delimiters", () => {
     expect(extractFormulas("Es gilt $a + b = c$ und $$x^2$$")).toEqual(["a + b = c", "x^2"]);
+  });
+});
+
+describe("resolveRadarFetchCount", () => {
+  it("floors the fetch pool at 15 for a low configured count", () => {
+    expect(resolveRadarFetchCount(10)).toBe(15);
+  });
+
+  it("uses the configured count when it exceeds the floor", () => {
+    expect(resolveRadarFetchCount(20)).toBe(20);
+  });
+});
+
+describe("limitToConfiguredCount", () => {
+  it("trims an over-fetched pool down to the configured display count", () => {
+    const items = Array.from({ length: 15 }, (_, i) => i);
+    expect(limitToConfiguredCount(items, 10)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it("never returns fewer than 1 item even for a configured count of 0", () => {
+    const items = [1, 2, 3];
+    expect(limitToConfiguredCount(items, 0)).toEqual([1]);
+  });
+
+  it("leaves a shorter list untouched", () => {
+    const items = [1, 2];
+    expect(limitToConfiguredCount(items, 10)).toEqual([1, 2]);
   });
 });
 
