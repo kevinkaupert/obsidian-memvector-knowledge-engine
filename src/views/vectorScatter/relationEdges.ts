@@ -76,7 +76,10 @@ export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
       const cleanTgt = tgtLinkText ? resolveLinkTextToId(app, tgtLinkText, f.path) : "";
 
       if (cleanSrc && cleanTgt) {
-        const key = `${cleanSrc}->${cleanTgt}`;
+        // Must include type - SQLite keys edges by (src, tgt, type), so two
+        // different relation types in the same direction between the same
+        // pair are both real, distinct edges, not a duplicate to collapse.
+        const key = `${cleanSrc}->${cleanTgt}->${relType}`;
         if (!edgeSet.has(key)) {
           edgeSet.add(key);
           edges.push({ srcId: cleanSrc, tgtId: cleanTgt, relType, desc, title: `${cleanSrc} -> ${cleanTgt}`, path: f.path, bidirectional });

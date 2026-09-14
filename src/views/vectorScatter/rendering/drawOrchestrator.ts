@@ -16,6 +16,7 @@ export interface DrawState {
   relationEdges: RelationEdge[];
   selectedNodeIds: Set<string>;
   hoveredNode: ScatterNode | null;
+  hoveredEdge: RelationEdge | null;
   isDraggingLasso: boolean;
   lassoPath: { x: number; y: number }[];
   scatterVisualStyle: ScatterVisualStyle;
@@ -80,6 +81,7 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
       state.relationEdges,
       state.selectedNodeIds,
       state.hoveredNode,
+      state.hoveredEdge,
       state.edgeHops,
       state.zoom,
       state.pan,
