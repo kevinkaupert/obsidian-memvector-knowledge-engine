@@ -8,15 +8,22 @@ manual, real-Obsidian smoke test for the parts automated tests can't reach
 (the plugin only imports real Obsidian classes, e.g. `TFile`/`Notice`, at
 runtime — that surface has to be exercised in an actual Obsidian window).
 
-Use a disposable test vault (a throwaway folder, never your real vault) with
-`main.js`, `manifest.json`, `styles.css`, and `sql-wasm.wasm` copied into
-`.obsidian/plugins/memvector-knowledge-engine/`, then enable the plugin
-(Settings → Community plugins → turn off Restricted mode → enable MemVector).
+Use the bundled fixture vault (`testing/fixtures/smoke-test-vault/` - see its
+own `README.md` for the one-time step of copying the current plugin build
+into it) instead of building one by hand each time. It already contains
+`A.md` linking to `B.md`, and an `AGENTS.md` with a recognizable marker
+string for step 5 below.
 
-1. **Indexing.** Create two notes where one links to the other
-   (`[[Other Note]]`). Settings → MemVector → **"Jetzt Vault lokal
-   indizieren"** → expect a `[OK]` success notice with a non-zero
-   vector/edge count and no `[ERROR]` in the developer console.
+Also start `testing/mock-echo-server.js` before step 5 (it's harmless to
+have running for the earlier steps too - only step 5 actually calls it):
+
+```sh
+node testing/mock-echo-server.js 8092
+```
+
+1. **Indexing.** Settings → MemVector → **"Jetzt Vault lokal indizieren"**
+   → expect a `[OK]` success notice with a non-zero vector/edge count and no
+   `[ERROR]` in the developer console.
 2. **Restart-persistence.** Close and reopen the 2D graph view (or restart
    Obsidian). Open the developer console and run:
    ```js
@@ -33,26 +40,14 @@ Use a disposable test vault (a throwaway folder, never your real vault) with
    re-run **"Jetzt Vault lokal indizieren"**. The deleted note's edge/vector
    must be gone afterward - it must not still surface as GraphRAG context for
    the remaining note.
-5. **Synthesis prompt capture.** Point the LLM provider ("Custom REST
-   Endpoint") at a local script that logs the raw request body and returns a
-   canned response, e.g.:
-   ```js
-   // node mock-echo.js — logs the request, then answers with the exact
-   // prompt it received, so the synthesis result modal shows it directly.
-   const http = require("http");
-   http.createServer((req, res) => {
-     let body = ""; req.on("data", c => body += c);
-     req.on("end", () => {
-       console.log(body);
-       if (req.url.includes("/models")) return res.end(JSON.stringify({ data: [{ id: "mock" }] }));
-       const prompt = JSON.parse(body).messages.find(m => m.role === "user").content;
-       res.end(JSON.stringify({ choices: [{ message: { content: prompt } }] }));
-     });
-   }).listen(8092);
-   ```
-   Set `apiBaseUrl` to `http://localhost:8092/v1`, run synthesis, and read
-   the echoed prompt in the result modal to confirm GraphRAG enrichment,
-   AGENTS.md guidelines, and any free-text question actually reached it.
+5. **Synthesis prompt capture.** Set the embedding provider's base URL and
+   the LLM provider ("Custom REST Endpoint") base URL both to
+   `http://localhost:8092/v1` (the running `mock-echo-server.js`). Select
+   `A.md`, enable "Kontext aus Vektoren + Graph anreichern" and "Agenten-
+   Richtlinien einbeziehen", run synthesis. The result modal shows the exact
+   prompt the plugin sent - confirm it contains `B`'s content (GraphRAG) and
+   `SMOKETEST-AGENTS-GUIDELINE-OK` (AGENTS.md guidelines), and that a
+   free-text question typed into the synthesis field appears as the task.
 
 This whole procedure - and the finding that the plugin's own success
 `Notice`s aren't proof anything actually landed in storage - is exactly what
