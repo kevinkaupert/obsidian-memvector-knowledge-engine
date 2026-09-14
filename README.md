@@ -5,11 +5,13 @@
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-106%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-164%20passing-brightgreen)
 
 A 100% local-first, privacy-focused **2D Vector Space Visualizer, SQLite Graph Engine & Hybrid GraphRAG AI Co-Pilot** for Obsidian.
 
-It turns your Markdown vault into an explorable 2D semantic map with real vector distances, lets you establish typed relationships between notes, and synthesizes structured knowledge from note selections using any OpenAI-compatible LLM. Everything runs **fully local, offline, and zero-setup** via a bundled SQLite backend (`sql.js`).
+It turns your Markdown vault into an explorable 2D semantic map with real vector distances, lets you establish typed relationships between notes, and synthesizes structured knowledge from note selections using any OpenAI-compatible LLM.
+
+The local storage layer is genuinely zero-setup: all embeddings and graph edges live in a bundled SQLite backend (`sql.js`) inside your vault - no Docker, no database server, no network call for storage itself. Computing embeddings and running AI synthesis, however, need a configured embedding/LLM provider: either a local Ollama instance you run yourself, or a cloud provider (Anthropic Claude, OpenAI, DeepSeek, OpenRouter, custom endpoint) - in the cloud-provider case, the selected note content leaves your device as part of that request.
 
 <img width="1406" height="1043" alt="Bildschirmfoto 2026-09-10 um 20 54 57" src="https://github.com/user-attachments/assets/c4d5c823-3802-46cb-91c6-a8c3cc71441e" />
 
@@ -40,7 +42,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 
 ## Installation & Quickstart
 
-1. Build or copy `main.js`, `manifest.json`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/memvector-knowledge-engine/`.
+1. Build or copy `main.js`, `manifest.json`, `styles.css`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/memvector-knowledge-engine/`.
 2. Enable **MemVector Knowledge Engine** in **Obsidian Settings** → **Community Plugins**.
 3. In Plugin Settings, choose your Embedding and LLM provider (Ollama works out of the box with `bge-m3`).
 4. Click **"Gesamtes Vault lokal indizieren"** to compute embeddings and graph topology.
