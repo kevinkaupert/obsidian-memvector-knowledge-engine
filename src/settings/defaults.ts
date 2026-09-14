@@ -21,6 +21,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
   relationVocabularyPath: "wiki/relation-types.json",
+  synthesisContentCapChars: 0,
   scatterVisualStyle: "ink",
   unselectedLabelOpacity: 0.35,
   scatterNodeSpacing: 350,

@@ -4,8 +4,6 @@ export interface ContextBudget {
   tier: ModelTier;
   maxNeighborsPerSource: number;
   maxTotalEnriched: number;
-  neighborExcerptLength: number;
-  selectedNoteContentLength: number;
   guidelinesCharBudget: number;
   includeGraphTopology: boolean;
 }
@@ -58,8 +56,6 @@ export function getContextBudget(modelName: string | undefined, provider: string
         tier: "frontier",
         maxNeighborsPerSource: 6,
         maxTotalEnriched: 10,
-        neighborExcerptLength: 2000,
-        selectedNoteContentLength: 4000,
         guidelinesCharBudget: 8000,
         includeGraphTopology: true,
       };
@@ -68,8 +64,6 @@ export function getContextBudget(modelName: string | undefined, provider: string
         tier: "standard",
         maxNeighborsPerSource: 3,
         maxTotalEnriched: 5,
-        neighborExcerptLength: 600,
-        selectedNoteContentLength: 1200,
         guidelinesCharBudget: 1500,
         includeGraphTopology: true,
       };
@@ -79,8 +73,6 @@ export function getContextBudget(modelName: string | undefined, provider: string
         tier: "compact",
         maxNeighborsPerSource: 2,
         maxTotalEnriched: 3,
-        neighborExcerptLength: 200,
-        selectedNoteContentLength: 400,
         guidelinesCharBudget: 500,
         includeGraphTopology: false,
       };

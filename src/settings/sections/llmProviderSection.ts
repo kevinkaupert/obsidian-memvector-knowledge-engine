@@ -156,4 +156,22 @@ export function renderLlmProviderSection(
   if (isAnthropicSelected) {
     tempSetting.settingEl.addClass("memvector-disabled-setting");
   }
+
+  new Setting(containerEl)
+    .setName("Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)")
+    .setDesc(
+      "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt."
+    )
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder("0")
+        .setValue(String(settings.synthesisContentCapChars ?? 0))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.synthesisContentCapChars = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+          await host.saveSettings();
+        });
+    });
 }
