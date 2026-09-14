@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
 import { stripFrontmatter } from "../../noteContent";
+import { pathToId } from "../../noteSlug";
 import type { ScatterNode, ScatterNoteType } from "./types";
 
 const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
@@ -128,7 +129,8 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
     const baseOffset = TYPE_OFFSETS[type] || { x: 0, y: 0 };
 
     nodes.push({
-      id: file.basename,
+      id: pathToId(file.path),
+      basenameKey: file.basename.toLowerCase(),
       title,
       type,
       path: file.path,

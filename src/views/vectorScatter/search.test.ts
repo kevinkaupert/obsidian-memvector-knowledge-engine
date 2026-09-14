@@ -3,7 +3,7 @@ import { findNodesByQuery } from "./search";
 import type { ScatterNode } from "./types";
 
 function node(id: string, title: string): ScatterNode {
-  return { id, title, type: "definition", path: `${id}.md`, x: 0, y: 0, latexFormulas: [], links: [], content: "" };
+  return { id, basenameKey: id, title, type: "definition", path: `${id}.md`, x: 0, y: 0, latexFormulas: [], links: [], content: "" };
 }
 
 describe("findNodesByQuery", () => {

@@ -9,7 +9,7 @@ export interface Position2D {
 }
 
 interface ScatterNodeLike {
-  id: string;
+  path: string;
   x: number;
   y: number;
 }
@@ -49,7 +49,7 @@ export function getNode2DPosition(app: App, file: NoteFileLike, content: string)
   const scatterLeaf = app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)[0];
   const view = scatterLeaf?.view as unknown as ScatterViewLike | undefined;
   if (view?.nodes) {
-    const match = view.nodes.find((n) => n.id.toLowerCase() === file.basename.toLowerCase());
+    const match = view.nodes.find((n) => n.path === file.path);
     if (match) return { x: match.x, y: match.y };
   }
 

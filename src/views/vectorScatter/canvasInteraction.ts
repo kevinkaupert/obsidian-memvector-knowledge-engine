@@ -1,3 +1,4 @@
+import { TFile } from "obsidian";
 import type { ScatterViewContext } from "./context";
 
 function isPointInPolygon(px: number, py: number, polygon: { x: number; y: number }[]): boolean {
@@ -181,7 +182,10 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.pan.x = canvasWrap.clientWidth / 2 - clicked.x * ctx.zoom;
       ctx.pan.y = canvasWrap.clientHeight / 2 - clicked.y * ctx.zoom;
       ctx.redraw();
-      void ctx.app.workspace.openLinkText(clicked.id, clicked.path, true);
+      // Open by resolved file, not `clicked.id` - that's the canonical (path-based)
+      // storage identity, not valid WikiLink/linktext for openLinkText.
+      const file = ctx.app.vault.getAbstractFileByPath(clicked.path);
+      if (file instanceof TFile) void ctx.app.workspace.getLeaf(true).openFile(file);
     }
   });
 

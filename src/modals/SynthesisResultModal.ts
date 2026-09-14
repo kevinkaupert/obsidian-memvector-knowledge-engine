@@ -1,6 +1,7 @@
 import { Component, MarkdownRenderer, Modal, Notice, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
 import { getTranslation } from "../i18n";
+import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
 
 interface SynthesisNode {
@@ -77,7 +78,7 @@ generated:
   at: "${new Date().toISOString()}"
 ---
 
-# ${synthTitlePrefix} ${this.selectedNodes.map((n) => `[[${n.id}|${n.title}]]`).join(" & ")}
+# ${synthTitlePrefix} ${this.selectedNodes.map((n) => `[[${wikiLinkTarget(n.path)}|${n.title}]]`).join(" & ")}
 
 ${this.synthesisText}
 `;

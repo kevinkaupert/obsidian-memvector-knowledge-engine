@@ -1,0 +1,77 @@
+import type { App } from "obsidian";
+import { describe, expect, it } from "vitest";
+import { pathToId } from "../../noteSlug";
+import { loadRelationEdges } from "./relationEdges";
+
+interface FakeFile {
+  path: string;
+  basename: string;
+  frontmatter?: Record<string, unknown>;
+}
+
+/**
+ * Minimal fake of the vault/metadataCache surface loadRelationEdges needs.
+ * getFirstLinkpathDest mirrors Obsidian's own link-resolution API so the
+ * relation file's `source_note`/`target_note` WikiLink resolves to the exact
+ * target file, not a basename guess.
+ */
+function fakeApp(files: FakeFile[]): App {
+  const tfiles = files.map((f) => ({ path: f.path, basename: f.basename, name: `${f.basename}.md` }));
+
+  return {
+    vault: {
+      getMarkdownFiles: () => tfiles,
+      read: async () => "",
+    },
+    metadataCache: {
+      getFileCache: (file: { path: string }) => {
+        const src = files.find((f) => f.path === file.path);
+        return src?.frontmatter ? { frontmatter: src.frontmatter } : undefined;
+      },
+      getFirstLinkpathDest: (linktext: string) => {
+        const normalized = linktext.replace(/\.md$/i, "");
+        const byPath = tfiles.find((f) => f.path.replace(/\.md$/i, "") === normalized);
+        if (byPath) return byPath;
+        return tfiles.find((f) => f.basename === normalized) || null;
+      },
+    },
+  } as unknown as App;
+}
+
+describe("loadRelationEdges", () => {
+  it("resolves source_note/target_note WikiLinks to the same canonical id scheme as the rest of the graph (F04a)", async () => {
+    const app = fakeApp([
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      {
+        path: "wiki/relations/rel-alpha-to-beta.md",
+        basename: "rel-alpha-to-beta",
+        frontmatter: { source_note: "[[Alpha|Alpha]]", target_note: "[[Beta|Beta]]", relation_type: "REQUIRES" },
+      },
+    ]);
+
+    const edges = await loadRelationEdges(app);
+
+    expect(edges).toHaveLength(1);
+    expect(edges[0].srcId).toBe(pathToId("Alpha.md"));
+    expect(edges[0].tgtId).toBe(pathToId("Beta.md"));
+  });
+
+  it("distinguishes same-basename targets in different folders instead of colliding (F04b)", async () => {
+    const app = fakeApp([
+      { path: "Work/Overview.md", basename: "Overview" },
+      { path: "Home/Overview.md", basename: "Overview" },
+      { path: "Alpha.md", basename: "Alpha" },
+      {
+        path: "wiki/relations/rel-alpha-to-overview.md",
+        basename: "rel-alpha-to-overview",
+        frontmatter: { source_note: "[[Alpha|Alpha]]", target_note: "[[Home/Overview|Overview]]", relation_type: "REQUIRES" },
+      },
+    ]);
+
+    const edges = await loadRelationEdges(app);
+
+    expect(edges[0].tgtId).toBe(pathToId("Home/Overview.md"));
+    expect(edges[0].tgtId).not.toBe(pathToId("Work/Overview.md"));
+  });
+});

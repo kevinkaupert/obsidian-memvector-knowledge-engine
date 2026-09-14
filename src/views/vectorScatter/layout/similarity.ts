@@ -52,7 +52,8 @@ export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: Similari
   });
   const formSim = formsA.size + formsB.size > 0 ? formIntersect / Math.max(1, Math.min(formsA.size, formsB.size)) : 0;
 
-  const isWikiLinked = (a.links && a.links.includes(b.id.toLowerCase())) || (b.links && b.links.includes(a.id.toLowerCase()));
+  // WikiLinks target basenames, not the canonical (path-based) id - match on basenameKey.
+  const isWikiLinked = (a.links && a.links.includes(b.basenameKey)) || (b.links && b.links.includes(a.basenameKey));
   const linkSim = isWikiLinked ? 0.75 : 0;
 
   const folderA = a.path.split("/").slice(0, -1).join("/");

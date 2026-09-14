@@ -25,9 +25,9 @@ export function computeRelationTally(nodes: ScatterNode[], relationEdges: Relati
 
   nodes.forEach((n) => {
     if (n === focusNode) return;
-    const nId = n.id.toLowerCase();
-    if (focusLinks.has(nId)) bump(tallies, n.id, "wikilink");
-    if (n.links.some((l) => l.toLowerCase() === focusId)) bump(tallies, n.id, "wikilink");
+    // WikiLinks target basenames, not the canonical (path-based) id - match on basenameKey.
+    if (focusLinks.has(n.basenameKey)) bump(tallies, n.id, "wikilink");
+    if (n.links.some((l) => l.toLowerCase() === focusNode.basenameKey)) bump(tallies, n.id, "wikilink");
   });
 
   relationEdges.forEach((e) => {
