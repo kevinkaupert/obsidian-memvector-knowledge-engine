@@ -35,4 +35,14 @@ describe("relationFilePath", () => {
     );
     expect(a).not.toBe(b);
   });
+
+  it("stays distinct for two different relation types between the same ordered pair (F06)", () => {
+    const requires = relationFilePath(edge({ label: "REQUIRES" }));
+    const conflicts = relationFilePath(edge({ label: "CONFLICTS_WITH" }));
+    expect(requires).not.toBe(conflicts);
+  });
+
+  it("is stable for the same edge (idempotent, so re-saving without a type/direction change targets the same file)", () => {
+    expect(relationFilePath(edge())).toBe(relationFilePath(edge()));
+  });
 });

@@ -2,8 +2,16 @@ import type { TranslationKeys } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
 
+/**
+ * Includes the relation type/label, not just the endpoints - two different
+ * relation types between the same ordered pair (e.g. REQUIRES and
+ * CONFLICTS_WITH between the same notes) must land in different files, or
+ * creating the second one silently overwrites the first (F06). SQLite has
+ * always kept them as separate edges via its (src, tgt, type) primary key;
+ * the file path previously did not.
+ */
 export function relationFilePath(edge: ResolvedRelationEdge): string {
-  return `wiki/relations/rel-${toSlug(edge.src.id)}-to-${toSlug(edge.tgt.id)}.md`;
+  return `wiki/relations/rel-${toSlug(edge.src.id)}-to-${toSlug(edge.tgt.id)}-${toSlug(edge.label)}.md`;
 }
 
 export function buildRelationFileContent(

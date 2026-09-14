@@ -320,38 +320,32 @@ export class RelationBuilderModal extends Modal {
 
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
         const e = resolvedEdges[idx];
-        let targetPath: string;
-
-        if (this.initialEdge && idx === 0) {
-          const oldSrc = (this.initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
-          const isDirectionPreserved = e.src.id.toLowerCase() === oldSrc;
-
-          if (isDirectionPreserved) {
-            // Update the existing relation file in-place to avoid duplicate files
-            targetPath = this.initialEdge.path;
-          } else {
-            // Direction was swapped: write to new path and trash the old file
-            targetPath = relationFilePath(e);
-            if (targetPath !== this.initialEdge.path) {
-              const oldFile = this.app.vault.getAbstractFileByPath(this.initialEdge.path);
-              if (oldFile instanceof TFile) {
-                try {
-                  await this.app.fileManager.trashFile(oldFile);
-                } catch (trashErr) {
-                  console.warn("MemVector: Could not trash old relation file on direction swap:", trashErr);
-                }
-              }
-            }
-          }
-        } else {
-          targetPath = relationFilePath(e);
-        }
+        // relationFilePath() includes the relation type, so it naturally lands
+        // back on initialEdge.path when neither type nor direction changed
+        // (a true in-place edit), and on a fresh path otherwise - never
+        // reusing a path that actually belongs to a *different* relation (F06).
+        const targetPath = relationFilePath(e);
+        const isEditOfThisSlot = !!this.initialEdge && idx === 0 && targetPath === this.initialEdge.path;
 
         const content = buildRelationFileContent(e, this.relDesc, t);
         try {
           await writeRelationFile(this.app, targetPath, content);
           createdCount++;
           typedEdges.push({ src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc, bidirectional: e.bidirectional, originalTerm: e.originalTerm });
+
+          // Only clean up the previous file *after* the new/updated one is safely
+          // written - trashing it first would lose the relation entirely if this
+          // write then failed.
+          if (this.initialEdge && idx === 0 && !isEditOfThisSlot) {
+            const oldFile = this.app.vault.getAbstractFileByPath(this.initialEdge.path);
+            if (oldFile instanceof TFile) {
+              try {
+                await this.app.fileManager.trashFile(oldFile);
+              } catch (trashErr) {
+                console.warn("MemVector: Could not trash old relation file after type/direction change:", trashErr);
+              }
+            }
+          }
         } catch (err) {
           console.error(`${t.relSaveError} ${targetPath}:`, err);
         }
