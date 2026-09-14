@@ -72,6 +72,51 @@ describe("SqliteGraphStore", () => {
     expect(neighbors).toEqual([]);
   });
 
+  describe("syncVaultGraph reconciliation (F03)", () => {
+    it("removes a deleted note and its edge on the next full sync", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph([node("a"), node("b")], [{ src: "a", tgt: "b", type: "LINKS_TO" }]);
+
+      // b.md was deleted - a real re-index would no longer produce it or its edge.
+      await store.syncVaultGraph([node("a")], []);
+
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors).toEqual([]);
+    });
+
+    it("removes a stale edge when a WikiLink is removed, even though both notes still exist", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph([node("a"), node("b")], [{ src: "a", tgt: "b", type: "LINKS_TO" }]);
+
+      // The WikiLink to b was removed from a's body, but neither note was deleted.
+      await store.syncVaultGraph([node("a"), node("b")], []);
+
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors).toEqual([]);
+    });
+
+    it("does not touch a typed relation edge that a fresh scan wouldn't regenerate on its own, as long as it's still included in the synced edge set", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "REQUIRES", description: "" }]);
+
+      // A real full re-index includes typed-relation edges alongside WikiLink edges (vaultGraphSync.ts).
+      await store.syncVaultGraph([node("a"), node("b")], [{ src: "a", tgt: "b", type: "REQUIRES" }]);
+
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+    });
+
+    it("never deletes anything when given an empty node list, so an aborted/failed scan can't wipe valid data", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph([node("a"), node("b")], [{ src: "a", tgt: "b", type: "LINKS_TO" }]);
+
+      await store.syncVaultGraph([], []);
+
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+    });
+  });
+
   it("persists data to the on-disk file so a fresh plugin-load session can read it back", async () => {
     const files = new Map<string, ArrayBuffer>();
     await new SqliteGraphStore(fakeApp(files)).upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "REQUIRES", description: "" }]);

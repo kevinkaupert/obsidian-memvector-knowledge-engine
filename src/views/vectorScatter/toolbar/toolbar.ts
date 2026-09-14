@@ -305,6 +305,10 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     try {
       const vectorStore = getVectorStore(ctx.app, ctx.settings);
       await vectorStore.syncPoints(points);
+      // Only reconcile when every currently-scanned node was actually attempted -
+      // the loop above breaks on the first embedding error, so a partial `points`
+      // list here must never be read as "this is now the complete vault".
+      if (successCount === total) await vectorStore.reconcile(ctx.nodes.map((n) => n.path));
     } catch (syncErr) {
       console.error("MemVector: Failed to persist calculated vectors to SQLite:", syncErr);
     }

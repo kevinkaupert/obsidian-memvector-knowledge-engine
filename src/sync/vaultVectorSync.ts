@@ -16,12 +16,17 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
 
   const points: VectorPoint[] = [];
+  // Every currently-included file, regardless of whether its embedding attempt
+  // below succeeds this run - reconciliation must not delete a file's existing
+  // stored vector just because a single transient embedding call for it failed.
+  const includedPaths: string[] = [];
   let consecutiveErrors = 0;
   let firstErrorMsg: string | null = null;
 
   for (let i = 0; i < vaultFiles.length; i++) {
     const file = vaultFiles[i];
     if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
+    includedPaths.push(file.path);
     const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
     const content = stripFrontmatter(rawContent);
@@ -52,6 +57,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   if (points.length > 0) {
     await store.syncPoints(points);
   }
+  await store.reconcile(includedPaths);
 
   return { totalFiles: vaultFiles.length, syncedCount: points.length };
 }

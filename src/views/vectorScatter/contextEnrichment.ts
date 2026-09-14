@@ -58,14 +58,13 @@ async function fetchVectorNeighbors(
   for (const hit of hits) {
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
+    // A deleted note's stored vector/content can still be a stale hit here between
+    // full re-indexes (which reconcile it away) - re-check the file actually exists
+    // rather than trusting the stored payload content.
+    const file = app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) continue;
     const id = pathToId(path);
-    let content = hit.payload.content || "";
-    if (!content) {
-      const file = app.vault.getAbstractFileByPath(path);
-      if (file instanceof TFile) {
-        content = stripFrontmatter(await app.vault.cachedRead(file));
-      }
-    }
+    const content = hit.payload.content || stripFrontmatter(await app.vault.cachedRead(file));
     found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, excerptLength), sources: ["vector"] });
     if (found.size >= limit) break;
   }
@@ -85,11 +84,12 @@ async function fetchGraphNeighbors(
 
   for (const neighbor of neighbors) {
     if (selected.some((s) => s.path === neighbor.path)) continue;
-    let content = "";
+    // A stale graph edge to a since-deleted note can still surface here between
+    // full re-indexes (which reconcile it away) - skip it rather than serve empty
+    // or (if the id happens to have been reused) wrong content.
     const file = app.vault.getAbstractFileByPath(neighbor.path);
-    if (file instanceof TFile) {
-      content = stripFrontmatter(await app.vault.cachedRead(file));
-    }
+    if (!(file instanceof TFile)) continue;
+    const content = stripFrontmatter(await app.vault.cachedRead(file));
     found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, excerptLength), sources: ["graph"] });
     if (found.size >= limit) break;
   }

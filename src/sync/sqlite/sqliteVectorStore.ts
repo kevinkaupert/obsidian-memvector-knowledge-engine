@@ -31,6 +31,26 @@ export class SqliteVectorStore implements VectorStore {
     return JSON.parse(String(result[0].values[0][0])) as number[];
   }
 
+  async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
+    if (currentPaths.length === 0) return { removed: 0 };
+    const db = await getLocalDb(this.app);
+    const current = new Set(currentPaths);
+
+    const result = db.exec("SELECT path FROM vectors");
+    const existingPaths = result.length === 0 ? [] : result[0].values.map((row) => String(row[0]));
+
+    let removed = 0;
+    for (const path of existingPaths) {
+      if (!current.has(path)) {
+        db.run("DELETE FROM vectors WHERE path = ?", [path]);
+        removed++;
+      }
+    }
+
+    if (removed > 0) await persistLocalDb(this.app, db);
+    return { removed };
+  }
+
   async search(vector: number[], limit: number): Promise<VectorSearchHit[]> {
     const db = await getLocalDb(this.app);
     const result = db.exec("SELECT path, title, content, vector FROM vectors");
