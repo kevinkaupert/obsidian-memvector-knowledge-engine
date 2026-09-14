@@ -37,6 +37,15 @@ export interface MemVectorSettings {
   /** Vault path to the relation-type vocabulary file (relationVocabulary/loadRelationVocabulary.ts). Auto-created with a bundled STEM preset on first use - fully editable/replaceable for any other domain. */
   relationVocabularyPath: string;
 
+  /**
+   * Max characters of a selected note's (and, identically, a GraphRAG neighbor's)
+   * body sent into the synthesis prompt - 0 means unlimited (full note text).
+   * Simple prefix truncation when set: whatever falls after the cap is dropped,
+   * wherever it lands in the note. A smarter, context-aware allocation is a
+   * possible future improvement; this is intentionally the simple version for now.
+   */
+  synthesisContentCapChars: number;
+
   fetchedLlmModels?: string[];
   fetchedEmbedModels?: string[];
 

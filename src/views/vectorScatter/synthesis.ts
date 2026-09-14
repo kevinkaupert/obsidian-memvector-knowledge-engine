@@ -1,15 +1,16 @@
-import { Notice, type App } from "obsidian";
+import { Notice, TFile, type App } from "obsidian";
 import { resolveApiKeyFor } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { callDirectLLM } from "../../llm/callDirectLLM";
 import { getTranslation } from "../../i18n";
+import { capText, stripFrontmatter } from "../../noteContent";
 import { toSlug } from "../../noteSlug";
 import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
 import { enrichContext, type EnrichedNote } from "./contextEnrichment";
 import { loadAgentsGuidelines } from "./agentsGuidelines";
 import type { ScatterNode } from "./types";
 
-function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: string; linkLines: string } {
+function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCapChars: number): { block: string; linkLines: string } {
   if (enriched.length === 0) return { block: "", linkLines: "" };
 
   const heading =
@@ -17,8 +18,12 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: 
       ? "Automatisch per GraphRAG gefundene, verwandte Notizen (NICHT vom Nutzer ausgewählt - nur Hintergrundkontext aus semantischer Vektor-Ähnlichkeit und Multi-Hop-Graph-Beziehungen; der Fokus bleibt auf den oben ausgewählten Notizen):"
       : "Automatically found related notes via GraphRAG (NOT selected by the user - background context only, retrieved via semantic vector similarity and multi-hop graph relationships; focus stays on the notes selected above):";
 
+  // enrichContext() already applied contentCapChars when it read each neighbor's
+  // content (contextEnrichment.ts) - capping again here would silently override
+  // that with a different, hardcoded number (the actual F07 bug), so this only
+  // re-applies the same configured cap, never a second/different one.
   const block = `\n${heading}\n${enriched
-    .map((n) => `- [${n.sources.join("+")}] "${n.title}": ${n.content.slice(0, 300)}`)
+    .map((n) => `- [${n.sources.join("+")}] "${n.title}": ${capText(n.content, contentCapChars)}`)
     .join("\n")}\n`;
 
   const linkLines = enriched.map((n) => `- Notiz: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
@@ -27,11 +32,17 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string): { block: 
 
 import { getContextBudget, type ContextBudget } from "../../llm/modelTiers";
 
+interface SynthesisNoteContent extends ScatterNode {
+  /** Full current note body, freshly re-read from the vault - never the scanner's fixed-size canvas preview (vaultScan.ts caps that at 800 chars for layout/similarity purposes unrelated to synthesis quality). */
+  fullContent: string;
+}
+
 function buildPrompt(
-  selected: ScatterNode[],
+  selected: SynthesisNoteContent[],
   isMath: boolean,
   lang: string,
   promptLang: string,
+  contentCapChars: number,
   customQuestion?: string,
   enriched: EnrichedNote[] = [],
   budget?: ContextBudget
@@ -39,7 +50,6 @@ function buildPrompt(
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
   const excerptLabel = lang === "de" ? "Auszug" : "Excerpt";
-  const maxNoteLen = budget?.selectedNoteContentLength ?? 400;
   const isFrontier = budget?.tier === "frontier";
 
   const notesSummary = selected
@@ -47,11 +57,11 @@ function buildPrompt(
       (n, idx) => `### ${noteLabel} ${idx + 1}: ${n.title} (${n.type})
 ${pathLabel}: ${n.path}
 ${n.latexFormulas && n.latexFormulas.length > 0 ? `Formeln: ${n.latexFormulas.slice(0, isFrontier ? 10 : 3).map((f) => `$${f}$`).join(", ")}\n` : ""}${excerptLabel}:
-${n.content.slice(0, maxNoteLen)}`
+${capText(n.fullContent, contentCapChars)}`
     )
     .join("\n\n");
 
-  const { block: enrichedBlock } = buildEnrichedSection(enriched, lang);
+  const { block: enrichedBlock } = buildEnrichedSection(enriched, lang, contentCapChars);
   const trimmedQuestion = customQuestion?.trim();
 
   if (trimmedQuestion) {
@@ -229,23 +239,27 @@ export async function runSynthesis(
   const lang = settings.language || "de";
   const t = getTranslation(lang);
   const budget = getContextBudget(modelName, settings.llmProvider);
+  const contentCapChars = settings.synthesisContentCapChars ?? 0;
+
+  // Re-read each selected note's current full body - vaultScan.ts's ScatterNode.content
+  // is a fixed 800-char canvas preview for layout/similarity, not a synthesis source.
+  const selectedWithFullContent = await Promise.all(
+    selected.map(async (n) => {
+      const file = app.vault.getAbstractFileByPath(n.path);
+      const fullContent = file instanceof TFile ? stripFrontmatter(await app.vault.cachedRead(file)) : n.content;
+      return { ...n, fullContent };
+    })
+  );
 
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
     setHoverText(`[INFO] Suche verwandten Kontext (${budget.tier})...`);
-    enriched = await enrichContext(
-      app,
-      settings,
-      selected,
-      budget.maxNeighborsPerSource,
-      budget.neighborExcerptLength,
-      budget.maxTotalEnriched
-    );
+    enriched = await enrichContext(app, settings, selected, budget.maxNeighborsPerSource, contentCapChars, budget.maxTotalEnriched);
   }
 
   setHoverText(`${modelName} (${budget.tier.toUpperCase()}) ...`);
 
-  let prompt = buildPrompt(selected, settings.knowledgeDomain === "math", lang, t.llmPromptLang, customQuestion, enriched, budget);
+  let prompt = buildPrompt(selectedWithFullContent, settings.knowledgeDomain === "math", lang, t.llmPromptLang, contentCapChars, customQuestion, enriched, budget);
 
   if (settings.includeAgentsGuidelines) {
     const guidelines = await loadAgentsGuidelines(app, settings, budget.guidelinesCharBudget);

@@ -2,7 +2,7 @@ import { TFile, type App } from "obsidian";
 import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
 import { pathToId } from "../../noteSlug";
-import { stripFrontmatter } from "../../noteContent";
+import { capText, stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
 
 export interface EnrichedNote {
@@ -65,7 +65,7 @@ async function fetchVectorNeighbors(
     if (!(file instanceof TFile)) continue;
     const id = pathToId(path);
     const content = hit.payload.content || stripFrontmatter(await app.vault.cachedRead(file));
-    found.set(id, { id, title: hit.payload.title || id, path, content: content.slice(0, excerptLength), sources: ["vector"] });
+    found.set(id, { id, title: hit.payload.title || id, path, content: capText(content, excerptLength), sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;
@@ -90,7 +90,7 @@ async function fetchGraphNeighbors(
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (!(file instanceof TFile)) continue;
     const content = stripFrontmatter(await app.vault.cachedRead(file));
-    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: content.slice(0, excerptLength), sources: ["graph"] });
+    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: capText(content, excerptLength), sources: ["graph"] });
     if (found.size >= limit) break;
   }
   return found;
