@@ -70,6 +70,42 @@ describe("SqliteVectorStore", () => {
     expect(hits.map((h) => h.payload.path)).toEqual(["a.md"]);
   });
 
+  describe("reconcile (F03)", () => {
+    it("removes a deleted note's vector on the next full sync", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0]), point("b", [0, 1])]);
+
+      // b.md was deleted - a real re-index would no longer include it.
+      const result = await store.reconcile(["a.md"]);
+
+      expect(result.removed).toBe(1);
+      expect(await store.getVector("b")).toBeNull();
+      const hits = await store.search([0, 1], 10);
+      expect(hits.map((h) => h.payload.path)).not.toContain("b.md");
+    });
+
+    it("keeps a note's vector even if its embedding attempt failed this run, as long as it's still in the current path list", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0])]);
+
+      // a.md is still a valid, included file - just didn't get a fresh embedding this pass.
+      const result = await store.reconcile(["a.md"]);
+
+      expect(result.removed).toBe(0);
+      expect(await store.getVector("a")).toEqual([1, 0]);
+    });
+
+    it("never deletes anything when given an empty path list, so an aborted/failed sync can't wipe valid data", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0])]);
+
+      const result = await store.reconcile([]);
+
+      expect(result.removed).toBe(0);
+      expect(await store.getVector("a")).toEqual([1, 0]);
+    });
+  });
+
   describe("getVector", () => {
     it("returns a synced point's own vector", async () => {
       const store = new SqliteVectorStore(fakeApp());
