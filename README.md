@@ -17,6 +17,19 @@ The local storage layer is genuinely zero-setup: all embeddings and graph edges 
 
 ---
 
+## Status: Early-Stage (Pre-1.0)
+
+This plugin is at version `0.1.x` and under active development. The version
+number stays below `1.0.0` on purpose - it has not yet reached the stability
+and API stability that number implies. Expect rough edges, and check the
+[open issues](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues)
+before relying on it for anything critical. Several issues found by
+functional review have partial fixes with a documented residual gap rather
+than a full resolution; those are tracked openly rather than closed
+prematurely.
+
+---
+
 ## Documentation
 
 Detailed documentation is available in the [`docs/`](docs/) directory:
