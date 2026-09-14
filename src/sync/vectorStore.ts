@@ -24,6 +24,8 @@ export interface VectorStore {
   search(vector: number[], limit: number): Promise<VectorSearchHit[]>;
   /** Looks up a single already-synced point's own embedding by id (note path) - null if it hasn't been synced yet. Lets a caller search "by note" without re-computing an embedding. */
   getVector(id: string): Promise<number[] | null>;
+  /** Bulk form of getVector, for hydrating many nodes' embeddings (e.g. before a layout pass) without one query per node. Paths with no stored vector are simply absent from the result. */
+  getVectors(ids: string[]): Promise<Map<string, number[]>>;
   /**
    * Full-vault re-index cleanup: deletes any stored point whose path is not
    * in `currentPaths` (deleted/renamed/newly-excluded files) - separate from

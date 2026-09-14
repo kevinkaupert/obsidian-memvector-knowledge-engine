@@ -70,6 +70,34 @@ describe("SqliteVectorStore", () => {
     expect(hits.map((h) => h.payload.path)).toEqual(["a.md"]);
   });
 
+  describe("getVectors (F05: bulk hydration before layout)", () => {
+    it("returns every requested path that has a stored vector", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0]), point("b", [0, 1]), point("c", [1, 1])]);
+
+      const result = await store.getVectors(["a.md", "b.md"]);
+
+      expect(result.get("a.md")).toEqual([1, 0]);
+      expect(result.get("b.md")).toEqual([0, 1]);
+      expect(result.has("c.md")).toBe(false);
+    });
+
+    it("omits requested paths that were never synced, instead of erroring", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("a", [1, 0])]);
+
+      const result = await store.getVectors(["a.md", "never-synced.md"]);
+
+      expect(result.size).toBe(1);
+      expect(result.has("never-synced.md")).toBe(false);
+    });
+
+    it("returns an empty map for an empty request without querying anything", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      expect(await store.getVectors([])).toEqual(new Map());
+    });
+  });
+
   describe("reconcile (F03)", () => {
     it("removes a deleted note's vector on the next full sync", async () => {
       const store = new SqliteVectorStore(fakeApp());
