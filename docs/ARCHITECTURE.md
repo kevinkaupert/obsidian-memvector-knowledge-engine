@@ -40,21 +40,18 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
 - **Dimensionality Reduction:** Projects high-dimensional embeddings onto a 2D Cartesian coordinate space $(x, y)$.
 - **Feature Weighting:** The `knowledgeDomain` setting distinguishes between **General Knowledge Vaults** (PKM, research, code) and **Mathematical Vaults** (LaTeX definitions, theorems, proofs) - a user choice, not a fixed mode. `general` is the default for new installs.
 
-#### Projection Modes (`layout/projections.ts`)
+#### Layout Algorithm (`layout/projections.ts`)
 
-The "Darstellung" dropdown's projection selector switches between 7 independent layout algorithms, all writing into the same `(x, y)` per note:
+There is currently one layout algorithm, `graphvector`, applied via `applyGraphVectorProjection` regardless of any toolbar selection - the `ProjectionMode` type has a single variant, and `applyProjection` ignores its `mode` parameter. It's a single force simulation that already blends what used to be several separate modes:
 
-| Mode (toolbar label) | Basis |
-|---|---|
-| Themen-Wolken (`cloud`) | Force layout anchored to cluster centroids, driven by the full hybrid similarity matrix (vector + WikiLinks + folder + LLM semantics, per user-configurable weights). |
-| Abhängigkeits-Fluss (`flow`) | Static vertical rank by note type (definition → theorem → concept, etc.), no force iteration. |
-| Reiner Graph (`graph`) | Force layout driven only by the hybrid similarity matrix, fixed 120px ideal distance - no clustering, no type-based rank. |
-| UMAP Manifold (`umap`) | k-nearest-neighbor attraction + non-neighbor repulsion, approximating UMAP's local/global structure trade-off without pulling in the real `umap-js` dependency. |
-| Graph-Topology (`graphTopology`) | Connectivity-only force layout - **not** real Node2Vec (no random walks/skip-gram), despite the resemblance in spirit. See below. |
-| Formel-Symbole (`formula`) | Clusters by which family of LaTeX operators (∀, ∃, ∑, ⟹, ...) dominates a note's content. |
-| LLM Themen-Landkarte (`semantic`) | Static radial placement around `cloudId`-derived anchors (topic names from the LLM-based cloud-naming mode), no force iteration. |
+- **Cluster anchoring:** notes are grouped into semantic clusters (`assignClouds`) and placed around per-cluster centroids on a golden-spiral initial layout, similar in spirit to a "themed clouds" view.
+- **Hybrid similarity attraction:** pairwise attraction blends cosine vector similarity with the graph-topology weight below (60/40), pulling similar and well-connected notes toward an ideal distance.
+- **Graph-topology weighting** (`graphTopologyWeights.ts`, see below): typed relations and WikiLinks shape the attraction/repulsion beyond raw similarity.
+- **Collision clearance:** a hard minimum-distance push keeps dots and labels from overlapping regardless of the above.
 
-**Graph-Topology in detail** (`graphTopologyWeights.ts`): unlike every other mode, this one ignores vector similarity entirely and lays notes out purely by how they're *connected*.
+An earlier version of this plugin exposed several independently selectable projection algorithms (clustered force, plain force, a flow-rank layout, a UMAP-inspired layout, a connectivity-only layout, a formula-clustering layout, and a static LLM-topic-map layout); those were consolidated into the single blended algorithm above. Reintroducing separate selectable modes is possible future work, not a currently planned one.
+
+**Graph-topology weighting in detail** (`graphTopologyWeights.ts`): this part of the blend ignores vector similarity and weighs notes by how they're *connected*.
 
 1. Builds an undirected graph from WikiLinks (`[[...]]`) and typed Memgraph relation edges (`wiki/relations/*.md`).
 2. Runs a BFS from every node, capped at 4 hops, to get a real graph-distance instead of a flat "linked vs. not" split - a note 2-3 hops away pulls in visibly closer than a wholly disconnected one, decaying with distance.

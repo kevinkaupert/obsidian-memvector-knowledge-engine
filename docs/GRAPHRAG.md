@@ -10,17 +10,18 @@ ever saw the notes you manually selected in the 2D graph — nothing more.
 In v0.1.0, this operates 100% locally via the integrated SQLite storage engine (`memvector-local.sqlite`), while remaining backend-agnostic through the `VectorStore` and `GraphStore` interfaces (remote Qdrant / Memgraph connectors planned for v0.2+).
 
 The `enrichSynthesisContext` setting (a toggle in the Synthesis toolbar
-section, off by default; UI label is localized, `t.synthEnrichToggle` in
-`src/i18n/`) closes that loop: before calling the LLM, the plugin now
-pulls in notes you *didn't* select, from two independent sources, and
-adds them to the prompt as background context.
+section, **on by default** - `src/settings/defaults.ts`; UI label is
+localized, `t.synthEnrichToggle` in `src/i18n/`) closes that loop: before
+calling the LLM, the plugin now pulls in notes you *didn't* select, from two
+independent sources, and adds them to the prompt as background context.
 
 ## Workflow
 
 1. Select one or more notes in the 2D vector graph, as usual.
-2. Turn on the enrichment toggle in the Synthesis section of the floating
-   toolbar (labelled "Kontext aus Vektoren + Graph anreichern" in German,
-   "Enrich context from vectors + graph" in English).
+2. Make sure the enrichment toggle in the Synthesis section of the floating
+   toolbar is on (labelled "Kontext aus Vektoren + Graph anreichern" in
+   German, "Enrich context from vectors + graph" in English) - it's on by
+   default, but can be turned off per session.
 3. Click the synthesize button (with or without a custom question in the
    text field above it).
 4. Before the LLM call, the plugin runs two lookups in parallel:
@@ -58,7 +59,16 @@ Vector similarity and graph structure catch **different kinds of misses**:
 Neither source alone covers both cases. That's the actual argument for
 *hybrid* retrieval instead of picking one.
 
-### Synthetic proof (not just a claim)
+### Synthetic proof (not just a claim) — historical, pre-SQLite-migration
+
+> [!NOTE]
+> This proof predates the migration to the local SQLite engine and was run
+> against the (now removed from this codebase) Qdrant/Memgraph adapters -
+> `src/sync/qdrant/` and `src/sync/memgraph/` are not present here anymore.
+> It's kept as evidence that the *hybrid retrieval concept itself* works,
+> not as a claim about the current SQLite backend specifically. For a
+> reproducible check against the current backend, see `docs/TESTING.md`'s
+> local SQLite smoke test (step 5 captures the actual synthesis prompt).
 
 This was verified directly rather than assumed. Four disposable test
 notes were used:
@@ -108,7 +118,9 @@ are never raw user text, only internally-computed integers).
 
 - `src/views/vectorScatter/contextEnrichment.ts` - orchestrates both legs (vector similarity + graph hops), merges results, degrades gracefully.
 - `src/sync/sqlite/sqliteVectorStore.ts` (`search`) - local SQLite cosine similarity vector search.
-- `src/sync/sqlite/sqliteGraphQueries.ts` (`fetchGraphNeighborsSqlite`) - local SQLite CTE graph-traversal query.
-- `src/sync/qdrant/qdrantClient.ts` (`searchSimilar`) - remote Qdrant vector search adapter (v0.2+).
-- `src/sync/memgraph/graphNeighbors.ts` (`fetchGraphNeighbors`) - remote Memgraph graph-traversal adapter (v0.2+).
+- `src/sync/sqlite/sqliteGraphQueries.ts` (`buildNeighborQuery`) - local SQLite CTE graph-traversal query.
 - `src/views/vectorScatter/synthesis.ts` (`buildEnrichedSection`) - folds the enrichment results into the LLM prompt.
+
+Remote Qdrant/Memgraph adapters referenced in the historical proof above are
+**not present in this codebase** - they're deferred future work (see
+`ROADMAP.md`), not files you can currently open.
