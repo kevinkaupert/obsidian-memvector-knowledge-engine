@@ -64,16 +64,25 @@ export async function getLocalDb(app: App): Promise<Database> {
   return cached.db;
 }
 
-/** sql.js keeps the whole database in WASM memory - serialized to disk sequentially to avoid write race conditions. */
+/**
+ * sql.js keeps the whole database in WASM memory - serialized to disk sequentially to avoid
+ * write race conditions. The shared queue is kept always-settled so one failed write does not
+ * block subsequent writes from being attempted; the failure is instead propagated to the
+ * caller of this specific call via the returned/thrown promise.
+ */
 export async function persistLocalDb(app: App, db: Database): Promise<void> {
   const bytes = db.export();
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  persistQueue = persistQueue.then(async () => {
-    await app.vault.adapter.writeBinary(localDbPath(app), buffer);
-  }).catch((err) => {
+
+  const thisWrite = persistQueue.then(() => app.vault.adapter.writeBinary(localDbPath(app), buffer));
+  persistQueue = thisWrite.catch(() => undefined);
+
+  try {
+    await thisWrite;
+  } catch (err) {
     console.error("MemVector: Failed to persist local SQLite DB:", err);
-  });
-  await persistQueue;
+    throw err;
+  }
 }
 
 /** Closes the active database connection and frees WASM memory when the plugin unloads. */
