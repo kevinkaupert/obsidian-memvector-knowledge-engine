@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { stripFrontmatter } from "../noteContent";
-import { getEmbeddingApiKey } from "../settings/secrets";
+import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
 import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
 import type { VectorPoint, VectorStore } from "./vectorStore";
@@ -13,7 +13,7 @@ export interface VectorSyncResult {
 
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const vaultFiles = app.vault.getMarkdownFiles();
-  const embeddingApiKey = getEmbeddingApiKey(app);
+  const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
 
   const points: VectorPoint[] = [];
   let consecutiveErrors = 0;

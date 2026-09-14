@@ -1,7 +1,7 @@
 import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import type { TranslationKeys } from "../../i18n";
-import { getEmbeddingApiKey, setEmbeddingApiKey } from "../secrets";
+import { getSelectedEmbeddingSecretName, resolveEmbeddingApiKey, setSelectedEmbeddingSecretName } from "../secrets";
 import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
@@ -9,14 +9,13 @@ import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 
 interface EmbeddingProviderDefaults {
   embeddingApiBaseUrl: string;
-  embeddingApiKey: string;
   embeddingModel: string;
 }
 
 const EMBEDDING_PROVIDER_DEFAULTS: Record<string, EmbeddingProviderDefaults> = {
-  ollama: { embeddingApiBaseUrl: "http://localhost:11434/v1", embeddingApiKey: "ollama", embeddingModel: "bge-m3" },
-  openai: { embeddingApiBaseUrl: "https://api.openai.com/v1", embeddingApiKey: "", embeddingModel: "text-embedding-3-small" },
-  custom: { embeddingApiBaseUrl: "http://localhost:8000/v1", embeddingApiKey: "", embeddingModel: "custom-embed" },
+  ollama: { embeddingApiBaseUrl: "http://localhost:11434/v1", embeddingModel: "bge-m3" },
+  openai: { embeddingApiBaseUrl: "https://api.openai.com/v1", embeddingModel: "text-embedding-3-small" },
+  custom: { embeddingApiBaseUrl: "http://localhost:8000/v1", embeddingModel: "custom-embed" },
 };
 
 export function renderVectorFilterSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
@@ -51,7 +50,9 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
           settings.embeddingProvider = value as LlmProvider;
           if (defaults) {
             settings.embeddingApiBaseUrl = defaults.embeddingApiBaseUrl;
-            setEmbeddingApiKey(app, defaults.embeddingApiKey);
+            // Key itself is left untouched on provider switch - it's tied to whichever secret
+            // the user selects below, not a value this dropdown can set (resolveEmbeddingApiKey
+            // already falls back to the "ollama" placeholder when none is selected).
             settings.embeddingModel = defaults.embeddingModel;
           }
           await host.saveSettings();
@@ -74,7 +75,12 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     });
 
   const embedKeySetting = new Setting(containerEl).setName(t.embedApiKeyName).setDesc(t.embedApiKeyDesc);
-  new SecretComponent(app, embedKeySetting.controlEl).setValue(getEmbeddingApiKey(app)).onChange((value) => setEmbeddingApiKey(app, value.trim()));
+  new SecretComponent(app, embedKeySetting.controlEl)
+    .setValue(getSelectedEmbeddingSecretName(settings))
+    .onChange(async (secretName) => {
+      setSelectedEmbeddingSecretName(settings, secretName);
+      await host.saveSettings();
+    });
 
   new Setting(containerEl)
     .setName("Embedding-Verbindung testen & Modelle abfragen")
@@ -87,7 +93,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
           btn.setButtonText("Testen...");
           btn.setDisabled(true);
           try {
-            const models = await fetchProviderModels(settings.embeddingApiBaseUrl, getEmbeddingApiKey(app));
+            const models = await fetchProviderModels(settings.embeddingApiBaseUrl, resolveEmbeddingApiKey(app, settings));
             btn.setButtonText("[OK] Erfolgreich!");
             new Notice(`[OK] Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
             if (models.length > 0) {

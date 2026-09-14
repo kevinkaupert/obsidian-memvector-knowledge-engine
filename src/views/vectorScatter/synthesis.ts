@@ -1,5 +1,5 @@
 import { Notice, type App } from "obsidian";
-import { getApiKeyFor } from "../../settings/secrets";
+import { resolveApiKeyFor } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { callDirectLLM } from "../../llm/callDirectLLM";
 import { getTranslation } from "../../i18n";
@@ -224,7 +224,7 @@ export async function runSynthesis(
 
   const modelName = settings.modelName || "LLM";
   const apiBase = settings.apiBaseUrl || "http://localhost:11434/v1";
-  const apiKey = getApiKeyFor(app, settings.llmProvider);
+  const apiKey = resolveApiKeyFor(app, settings, settings.llmProvider);
   const temperature = settings.temperature ?? 0.1;
   const lang = settings.language || "de";
   const t = getTranslation(lang);
