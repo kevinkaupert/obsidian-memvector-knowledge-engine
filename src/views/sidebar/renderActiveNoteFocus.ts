@@ -1,7 +1,15 @@
 import { TFile, type App } from "obsidian";
 import { getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
-import { classifyNoteType, extractFormulas, rankCandidates, shouldExcludeFromRadar, type ScoredNote } from "./activeNoteScoring";
+import {
+  classifyNoteType,
+  extractFormulas,
+  limitToConfiguredCount,
+  rankCandidates,
+  resolveRadarFetchCount,
+  shouldExcludeFromRadar,
+  type ScoredNote,
+} from "./activeNoteScoring";
 import { getNode2DPosition } from "./nodePosition";
 
 /**
@@ -98,7 +106,7 @@ export async function renderActiveNoteFocus(
     if (isCurrent && !isCurrent()) return;
 
     const countX = pluginSettings?.radarNoteCount || 10;
-    const wantCount = Math.max(15, countX);
+    const wantCount = resolveRadarFetchCount(countX);
 
     let topNeighbors = pluginSettings ? await findVectorNeighbors(app, pluginSettings, activeFile, wantCount) : null;
     if (isCurrent && !isCurrent()) return;
@@ -113,6 +121,9 @@ export async function renderActiveNoteFocus(
       if (isCurrent && !isCurrent()) return;
       topNeighbors = rankCandidates(activeContent, candidates).slice(0, wantCount);
     }
+
+    // wantCount over-fetched for ranking quality; only the configured count is actually shown.
+    topNeighbors = limitToConfiguredCount(topNeighbors, countX);
 
     const width = radarWrap.clientWidth || 260;
     const height = 260;
@@ -318,6 +329,7 @@ export async function renderActiveNoteFocus(
 
     const listContainer = detailsEl.createDiv({ cls: "memvector-radar-list" });
 
+    // Text list is intentionally capped independently of radarNoteCount/canvas count.
     topNeighbors.slice(0, 5).forEach((item, idx) => {
       const row = listContainer.createDiv({ cls: "memvector-radar-row" });
       row.createSpan({ text: `${idx + 1}. ${item.file.basename}`, cls: "memvector-radar-name" });
