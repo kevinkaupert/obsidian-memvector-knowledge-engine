@@ -11,4 +11,5 @@ memvector-local.sqlite
 *.tmp
 main.new.js
 main.js.old-backup
+memvector-review-2026-09-14.md
 /test-vault/
