@@ -1,4 +1,4 @@
-# Release 0.1.3 — Functional Integrity, Graph Identity & GraphRAG Synthesis Overhaul
+# Release 0.1.3 — Functional Hardening, Graph Identity & GraphRAG Synthesis Overhaul
 
 > **Release Version:** `0.1.3`  
 > **Release Date:** `2026-09-14`  
@@ -9,20 +9,20 @@
 
 ## Overview
 
-This release delivers the complete resolution of the comprehensive functional audit across data durability, note and graph identity, settings correctness, and GraphRAG context synthesis.
+This release delivers significant hardening and core fixes from the comprehensive functional audit across data durability, note and graph identity, settings correctness, and GraphRAG context synthesis.
 
-Every subsystem now adheres to robust, collision-free contracts: SQLite serialization errors are strictly surfaced rather than swallowed, note identities are uniquely path-derived to eliminate folder collisions, multiple relations between note pairs fan out visually and interactively on the 2D canvas, and synthesis context now draws upon full note bodies with a user-configurable character cap.
+As an early-stage `0.1.x` release under active development, several review findings have documented partial fixes with tracked residual gaps (see [open issues](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues)) rather than full resolutions. Key improvements include surfaced SQLite serialization errors, path-derived node identities resolving same-basename folder collisions, interactive multi-relation fanning on the 2D canvas, and synthesis context sourced from full note bodies with a user-configurable character cap.
 
 ---
 
 ## Highlights
 
-- **Data Durability & Safe Persistence:** SQLite disk serialization failures (`adapter.writeBinary`) are now reliably propagated to callers, triggering visible error notices (`[ERROR] Sync-Fehler`) rather than false success states when vectors exist only in volatile WASM memory (#9). In addition, relation file modification is atomic: previous files are only cleaned up *after* new files are confirmed written (#14).
-- **Collision-Free Path Identity Across Folders:** Established a uniform, path-based node identity contract (`pathToId(path)`) across the vault scanner, graph sync, and vector store. Notes sharing identical filenames across different folders (e.g. `Work/Overview.md` vs. `Home/Overview.md`) no longer collide or overwrite each other in the graph or SQLite database (#12).
-- **Uncapped Synthesis Content & Full-Note Re-Reads:** Selected notes are freshly re-read from the vault at synthesis time instead of reusing the 800-character canvas layout preview. A new setting `synthesisContentCapChars` (defaulting to `0` / unlimited) eliminates rigid cutoffs and allows full note text to reach capable LLMs (#15).
+- **Data Durability & Safe Persistence:** SQLite disk serialization failures (`adapter.writeBinary`) are now reliably propagated to callers, triggering visible error notices (`[ERROR] Sync-Fehler`) rather than false success states when vectors exist only in volatile WASM memory (#9). In addition, relation file modification is atomic: previous files are only cleaned up *after* new files are confirmed written (#14; changing an existing relation's type to another type already present for that note pair remains tracked as an open issue).
+- **Path-Based Identity Across Folders:** Established a uniform, path-based node identity contract (`pathToId(path)`) across the vault scanner, graph sync, and vector store. Notes sharing identical filenames across different folders (e.g. `Work/Overview.md` vs. `Home/Overview.md`) no longer collide or overwrite each other in the graph or SQLite database (#12; edge cases with slug collisions on punctuation remain tracked).
+- **Uncapped Synthesis Content & Full-Note Re-Reads:** Selected notes are freshly re-read from the vault at synthesis time instead of reusing the 800-character canvas layout preview. A new setting `synthesisContentCapChars` (defaulting to `0` / unlimited) eliminates rigid cutoffs and allows full note text to reach capable LLMs (#15; vector neighbor retrieval preferring index-time payloads remains tracked).
 - **Interactive Multi-Relation Canvas:** Multiple relations connecting the same pair of notes no longer collapse into one hidden line. Connections render cleanly as a single line by default, smoothly fanning out into interactive quadratic-bezier curves on hover with individual hit-testing for every strand (#29).
 - **Semantic Graph Layout Pre-Hydration:** Stored embeddings and typed relations are loaded into memory *before* force layout calculation, ensuring the 2D canvas clusters semantically immediately upon opening rather than falling back to text heuristics (#13).
-- **Full Re-Index Reconciliation:** Re-indexing purges deleted/renamed notes, removed WikiLinks, and newly-excluded files from SQLite tables. Runtime existence checks prevent deleted notes from surfacing in GraphRAG context between index runs (#10).
+- **Full Re-Index Reconciliation:** Re-indexing purges deleted/renamed notes, removed WikiLinks, and newly-excluded files from SQLite tables. Runtime existence checks prevent deleted notes from surfacing in GraphRAG context between index runs (#10; note that vault exclusions currently apply only to vector indexing, so excluded notes can still appear as graph neighbors).
 - **Native SecretStorage Integration:** Settings strictly adhere to Obsidian's SecretStorage contract, storing secret reference names and dynamically resolving API keys at request time. Supports automatic legacy migration and live credential rotation without re-selection (#8).
 - **Testing Infrastructure:** Added a local mock echo server (`testing/mock-echo-server.js`) and a disposable test vault fixture (`testing/fixtures/smoke-test-vault`) for offline integration testing without external API dependencies (#34).
 

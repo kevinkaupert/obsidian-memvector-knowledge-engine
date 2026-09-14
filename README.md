@@ -26,7 +26,13 @@ and API stability that number implies. Expect rough edges, and check the
 before relying on it for anything critical. Several issues found by
 functional review have partial fixes with a documented residual gap rather
 than a full resolution; those are tracked openly rather than closed
-prematurely.
+prematurely. In particular, changing an existing relation's type to one
+already connecting the same note pair can silently overwrite the existing
+relation file ([#14](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues/14)).
+In addition, vault exclusion patterns currently apply only to vector
+indexing, so notes excluded from vector search can still appear as graph
+neighbors and be forwarded to cloud LLMs during GraphRAG synthesis
+([#10](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues/10)).
 
 ---
 
