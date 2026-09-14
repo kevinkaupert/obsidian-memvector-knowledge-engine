@@ -74,4 +74,27 @@ describe("loadRelationEdges", () => {
     expect(edges[0].tgtId).toBe(pathToId("Home/Overview.md"));
     expect(edges[0].tgtId).not.toBe(pathToId("Work/Overview.md"));
   });
+
+  it("loads two different relation types in the same direction between the same pair as two edges, not one (#29 root cause)", async () => {
+    const app = fakeApp([
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      {
+        path: "wiki/relations/rel-beta-to-alpha-reduces-to.md",
+        basename: "rel-beta-to-alpha-reduces-to",
+        frontmatter: { source_note: "[[Beta|Beta]]", target_note: "[[Alpha|Alpha]]", relation_type: "REDUCES_TO" },
+      },
+      {
+        path: "wiki/relations/rel-beta-to-alpha-relimplies.md",
+        basename: "rel-beta-to-alpha-relimplies",
+        frontmatter: { source_note: "[[Beta|Beta]]", target_note: "[[Alpha|Alpha]]", relation_type: "RELIMPLIES" },
+      },
+    ]);
+
+    const edges = await loadRelationEdges(app);
+
+    expect(edges).toHaveLength(2);
+    const types = edges.map((e) => e.relType).sort();
+    expect(types).toEqual(["RELIMPLIES", "REDUCES_TO"].sort());
+  });
 });

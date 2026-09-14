@@ -38,6 +38,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   lassoPath: { x: number; y: number }[] = [];
   lassoSelectMode = false;
   hoveredNode: ScatterNode | null = null;
+  hoveredEdge: RelationEdge | null = null;
   showEdges = false;
   edgeHops = 1;
   relationEdges: RelationEdge[] = [];
@@ -196,6 +197,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
       relationEdges: this.relationEdges,
       selectedNodeIds: this.selectedNodeIds,
       hoveredNode: this.hoveredNode,
+      hoveredEdge: this.hoveredEdge,
       isDraggingLasso: this.isDraggingLasso,
       lassoPath: this.lassoPath,
       scatterVisualStyle: this.settings.scatterVisualStyle,

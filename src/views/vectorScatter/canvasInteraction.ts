@@ -92,6 +92,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.redraw();
     } else {
       const hovered = ctx.hitTest(mouseX, mouseY);
+      let needsRedraw = false;
       if (hovered !== ctx.hoveredNode) {
         ctx.hoveredNode = hovered;
         if (hovered) {
@@ -99,8 +100,20 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
         } else {
           hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
         }
-        ctx.redraw();
+        needsRedraw = true;
       }
+
+      // Only shows a relation's type/description text on hover (drawEdges.ts) -
+      // otherwise several relations between the same pair would each paint
+      // their own label over one another. Suppressed while hovering a node so
+      // the two hover states never fight over the same screen position.
+      const hoveredEdge = !hovered && ctx.showEdges ? ctx.hitTestEdge(mouseX, mouseY) : null;
+      if (hoveredEdge !== ctx.hoveredEdge) {
+        ctx.hoveredEdge = hoveredEdge;
+        needsRedraw = true;
+      }
+
+      if (needsRedraw) ctx.redraw();
     }
   });
 

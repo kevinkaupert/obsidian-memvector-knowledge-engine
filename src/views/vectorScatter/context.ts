@@ -26,6 +26,7 @@ export interface ScatterViewContext {
   lassoPath: { x: number; y: number }[];
   lassoSelectMode: boolean;
   hoveredNode: ScatterNode | null;
+  hoveredEdge: RelationEdge | null;
   showEdges: boolean;
   edgeHops: number;
   relationEdges: RelationEdge[];
