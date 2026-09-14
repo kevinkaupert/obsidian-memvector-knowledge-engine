@@ -5,7 +5,7 @@ export function findNodesByQuery(nodes: ScatterNode[], query: string): ScatterNo
   const q = query.trim().toLowerCase();
   if (!q) return [];
 
-  const exact = nodes.filter((n) => n.title.toLowerCase() === q || n.id.toLowerCase() === q);
-  const rest = nodes.filter((n) => !exact.includes(n) && (n.title.toLowerCase().includes(q) || n.id.toLowerCase().includes(q)));
+  const exact = nodes.filter((n) => n.title.toLowerCase() === q || n.basenameKey === q);
+  const rest = nodes.filter((n) => !exact.includes(n) && (n.title.toLowerCase().includes(q) || n.basenameKey.includes(q)));
   return [...exact, ...rest];
 }

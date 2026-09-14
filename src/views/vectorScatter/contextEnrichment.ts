@@ -1,7 +1,7 @@
 import { TFile, type App } from "obsidian";
 import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
-import { toSlug } from "../../noteSlug";
+import { pathToId } from "../../noteSlug";
 import { stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
 
@@ -58,7 +58,7 @@ async function fetchVectorNeighbors(
   for (const hit of hits) {
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
-    const id = toSlug(hit.payload.title || path);
+    const id = pathToId(path);
     let content = hit.payload.content || "";
     if (!content) {
       const file = app.vault.getAbstractFileByPath(path);
@@ -80,7 +80,7 @@ async function fetchGraphNeighbors(
   excerptLength: number
 ): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
-  const ids = selected.map((n) => toSlug(n.id));
+  const ids = selected.map((n) => n.id);
   const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, 2, limit + selected.length);
 
   for (const neighbor of neighbors) {

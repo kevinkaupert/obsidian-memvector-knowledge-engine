@@ -3,7 +3,7 @@ import { computeFocusRelationTallies, computeRelationTally } from "./relatedNode
 import type { RelationEdge, ScatterNode } from "./types";
 
 function node(id: string, links: string[] = []): ScatterNode {
-  return { id, title: id, type: "definition", path: `${id}.md`, x: 0, y: 0, latexFormulas: [], links, content: "" };
+  return { id, basenameKey: id, title: id, type: "definition", path: `${id}.md`, x: 0, y: 0, latexFormulas: [], links, content: "" };
 }
 
 function edge(srcId: string, tgtId: string): RelationEdge {

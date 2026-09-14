@@ -5,6 +5,7 @@ import type { ScatterNode } from "../types";
 function makeNode(overrides: Partial<ScatterNode>): ScatterNode {
   return {
     id: "n",
+    basenameKey: (overrides.id as string) ?? "n",
     title: "N",
     type: "concept",
     path: "n.md",

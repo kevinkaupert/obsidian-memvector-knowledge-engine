@@ -5,6 +5,7 @@ import { applyGraphVectorProjection } from "./projections";
 function makeNode(id: string): ScatterNode {
   return {
     id,
+    basenameKey: id,
     title: id,
     path: `${id}.md`,
     x: 0,
