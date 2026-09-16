@@ -2,10 +2,10 @@ import type { MemVectorSettings } from "../../../settings/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { applyGraphVectorProjection } from "./projections";
-import { buildSimilarityMatrix } from "./similarity";
+import { buildSimilarityMatrix, rescaleSimilarityMatrix } from "./similarity";
 
 /**
- * Purpose: Computes similarity matrix, clusters, and applies 2D vector force projection to scatter nodes.
+ * Purpose: Computes similarity matrix, rescales to vault distribution, clusters, and applies 2D vector force projection to scatter nodes.
  */
 export function applyVectorLayout(
   nodes: ScatterNode[],
@@ -24,7 +24,8 @@ export function applyVectorLayout(
     semantics: 0.1,
   };
 
-  const matrix = buildSimilarityMatrix(nodes, normalized, isMath);
+  const rawMatrix = buildSimilarityMatrix(nodes, normalized, isMath);
+  const matrix = rescaleSimilarityMatrix(rawMatrix);
   assignClouds(nodes, matrix);
 
   applyGraphVectorProjection({
