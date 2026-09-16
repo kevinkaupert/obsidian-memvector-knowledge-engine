@@ -1,17 +1,10 @@
 import type { RelationTermDef } from "./types";
 
 /**
- * The plugin's bundled default: a STEM-flavored (math/formal-sciences)
- * vocabulary of 13 canonical Cypher labels behind 37 everyday terms. This is
- * only a starting point - it's written verbatim into the vault's relation
- * vocabulary file the first time it's needed, and from then on the file (not
- * this constant) is authoritative, so any vault can freely rename, remove, or
- * add terms for its own domain (medicine, law, project management, ...) in
- * whatever language it likes.
- *
- * `suggest: true` marks the lean subset offered to the local LLM for edge-type
- * suggestions - kept small on purpose so a small local model (e.g. a 1.5B
- * parameter one) can choose reliably; see relationVocabulary/llmSuggest.ts.
+ * [INFO] The plugin's bundled STEM vocabulary defining 13 canonical Cypher labels.
+ * [WARN] [TODO] Conversational phrase synonym mapping (37 everyday phrases -> 13 Cypher labels)
+ * is work-in-progress and tracked in Issue #43. The active RelationBuilder UI defaults
+ * directly to the 13 canonical types to prevent lossy remapping when creating and editing edges.
  */
 export const DEFAULT_RELATION_VOCABULARY: RelationTermDef[] = [
   // Logic & Implication

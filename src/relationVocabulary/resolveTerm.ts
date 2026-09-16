@@ -1,19 +1,31 @@
 import type { RelationEdgeDraft, RelationNode } from "../modals/relationBuilder/relationEdgeBuilder";
 import type { RelationTermDef } from "./types";
 
+/**
+ * Purpose: Sanitizes user-entered custom relation string to standard uppercase Cypher label format.
+ */
 export function sanitizeRelType(rel: string): string {
   const cleaned = (rel || "REQUIRES").trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_").replace(/^_+|_+$/g, "");
   return cleaned || "REQUIRES";
 }
 
+/**
+ * Purpose: Looks up definition by stable term key.
+ * [WARN] [TODO] Preserved for Issue #43 fine-grained conversational phrase resolution.
+ */
 export function resolveRelationTerm(defs: RelationTermDef[], termKey: string): RelationTermDef | null {
   return defs.find((d) => d.key === termKey) ?? null;
 }
 
-/** For pre-selecting a dropdown option when editing an existing edge that only has the stored canonical label - picks the first term that maps to it, or null if the label isn't in the current vocabulary (RelationBuilderModal falls back to the free-text "Custom" field in that case). */
+/**
+ * Purpose: Pre-selects dropdown option when editing an existing edge that has a stored canonical label.
+ * Resolves directly to the canonical label if present in defs, or falls back to key lookup.
+ */
 export function defaultTermForLabel(defs: RelationTermDef[], label: string): string | null {
   const upper = (label || "").toUpperCase();
-  return defs.find((d) => d.label === upper)?.key ?? null;
+  const canonicalMatch = defs.find((d) => d.label === upper);
+  if (canonicalMatch) return canonicalMatch.label;
+  return defs.find((d) => d.key === label)?.key ?? null;
 }
 
 export interface ResolvedRelationEdge {
@@ -25,11 +37,8 @@ export interface ResolvedRelationEdge {
 }
 
 /**
- * Resolves each draft edge's chosen dropdown value (a vocabulary term key, or
- * "CUSTOM") into its final Cypher label, bidirectional flag, and display term -
- * swapping src/tgt for terms whose natural reading reverses direction (e.g.
- * "follows from"). Shared by the cypher preview and the actual save, so they
- * can never disagree.
+ * Purpose: Resolves draft edges to their final Cypher label and directionality.
+ * Handles direct canonical labels (e.g. "IMPLIES") as well as legacy/conversational keys (e.g. "relImplies").
  */
 export function resolveEdgesForSave(
   defs: RelationTermDef[],
@@ -39,11 +48,17 @@ export function resolveEdgesForSave(
 ): ResolvedRelationEdge[] {
   return edges.map((e, idx) => {
     const termKey = edgeRelTypes[idx];
-    const def = termKey && termKey !== "CUSTOM" ? resolveRelationTerm(defs, termKey) : null;
+    const canonicalDef = defs.find((d) => d.label === termKey);
+    const termDef = termKey && termKey !== "CUSTOM" ? resolveRelationTerm(defs, termKey) : null;
+    const def = termDef || canonicalDef;
 
     if (!def) {
       const label = sanitizeRelType(termKey === "CUSTOM" || !termKey ? customType : termKey);
       return { src: e.src, tgt: e.tgt, label, bidirectional: false, originalTerm: customType || label };
+    }
+
+    if (canonicalDef && !termDef) {
+      return { src: e.src, tgt: e.tgt, label: canonicalDef.label, bidirectional: canonicalDef.bidirectional, originalTerm: canonicalDef.label };
     }
 
     return def.reversed
@@ -51,3 +66,4 @@ export function resolveEdgesForSave(
       : { src: e.src, tgt: e.tgt, label: def.label, bidirectional: def.bidirectional, originalTerm: def.term };
   });
 }
+
