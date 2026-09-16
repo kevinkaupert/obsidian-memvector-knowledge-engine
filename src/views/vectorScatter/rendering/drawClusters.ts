@@ -13,6 +13,9 @@ interface ClusterHull {
   label: string;
 }
 
+/**
+ * Purpose: Computes screen-space bounding radii and centroid labels for multi-node topic clusters.
+ */
 function computeClusterHulls(nodes: ScatterNode[], zoom: number, pan: PanState): ClusterHull[] {
   const groups = new Map<number, ScatterNode[]>();
   nodes.forEach((n) => {
@@ -23,6 +26,8 @@ function computeClusterHulls(nodes: ScatterNode[], zoom: number, pan: PanState):
 
   const hulls: ClusterHull[] = [];
   groups.forEach((groupNodes, cloudId) => {
+    // A single isolated note does not form a visual topic cluster halo/label
+    if (groupNodes.length < 2) return;
     const points = groupNodes.map((n) => worldToScreen(n.x, n.y, zoom, pan));
     const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
     const cy = points.reduce((s, p) => s + p.y, 0) / points.length;

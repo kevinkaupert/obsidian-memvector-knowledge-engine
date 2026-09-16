@@ -1,8 +1,7 @@
 import type { ScatterNode } from "../types";
 
 /**
- * Assigns each node to one of `sqrt(n)`-many topic cluster centroids by
- * highest hybrid similarity, and sets cloudId and cloudLabel (centroid's title).
+ * Purpose: Assigns each node to a semantic cluster centroid without over-partitioning coherent vaults.
  */
 export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
   const n = nodes.length;
@@ -30,7 +29,8 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
         bestIdx = i;
       }
     }
-    if (bestIdx === -1) break;
+    // If every remaining node is already strongly similar to an existing centroid, stop adding artificial clusters
+    if (bestIdx === -1 || (centroidIndices.length >= 2 && minMaxSim > 0.75)) break;
     centroidIndices.push(bestIdx);
   }
 

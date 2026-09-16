@@ -214,5 +214,53 @@ describe("applyGraphVectorProjection", () => {
       expect(Math.abs(node.y)).toBeLessThan(25000);
     }
   });
+
+  it("draws cross-cluster bridge notes between topics instead of stranding them across void", () => {
+    // 2 clusters of 8 notes each, plus a bridge note connected to both clusters
+    const N = 17;
+    const nodes = Array.from({ length: N }, (_, i) => makeNode(`Node_${i}`));
+    const matrix = Array.from({ length: N }, () => Array(N).fill(0));
+
+    for (let i = 0; i < 16; i++) {
+      const cI = i < 8 ? 0 : 1;
+      for (let j = 0; j < 16; j++) {
+        if (i === j) { matrix[i][j] = 1.0; continue; }
+        const cJ = j < 8 ? 0 : 1;
+        matrix[i][j] = cI === cJ ? 0.9 : 0.1;
+      }
+    }
+    // Node 16 bridges cluster 0 and cluster 1
+    matrix[16][16] = 1.0;
+    matrix[16][0] = 0.8;
+    matrix[0][16] = 0.8;
+    matrix[16][8] = 0.8;
+    matrix[8][16] = 0.8;
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 350,
+      cloudSpacing: 800,
+      relationEdges: [],
+    });
+
+    const c0Centroid = {
+      x: nodes.slice(0, 8).reduce((acc, n) => acc + n.x, 0) / 8,
+      y: nodes.slice(0, 8).reduce((acc, n) => acc + n.y, 0) / 8,
+    };
+    const c1Centroid = {
+      x: nodes.slice(8, 16).reduce((acc, n) => acc + n.x, 0) / 8,
+      y: nodes.slice(8, 16).reduce((acc, n) => acc + n.y, 0) / 8,
+    };
+    const bridge = nodes[16];
+
+    const distC0toC1 = Math.hypot(c0Centroid.x - c1Centroid.x, c0Centroid.y - c1Centroid.y);
+    const distBridgeToC0 = Math.hypot(bridge.x - c0Centroid.x, bridge.y - c0Centroid.y);
+    const distBridgeToC1 = Math.hypot(bridge.x - c1Centroid.x, bridge.y - c1Centroid.y);
+
+    // Bridge node sits comfortably between both cluster centroids rather than outside
+    expect(distBridgeToC0).toBeLessThan(distC0toC1);
+    expect(distBridgeToC1).toBeLessThan(distC0toC1);
+  });
 });
 
