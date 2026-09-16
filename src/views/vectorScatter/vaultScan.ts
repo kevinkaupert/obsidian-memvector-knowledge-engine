@@ -14,10 +14,9 @@ const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
   source: { x: 300, y: 0 },
 };
 
-const DEFAULT_EXCLUSIONS =
-  "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas- -file:Beweistricks";
-
-/** Obsidian Graph-View-style include/exclude query: `-path:x -file:y term`. */
+/**
+ * Purpose: Checks whether a file matches an Obsidian-style include/exclude query (-path:x -file:y term).
+ */
 export function shouldIncludeFile(file: { path: string; name: string; basename: string }, queryStr: string): boolean {
   if (!queryStr || !queryStr.trim()) return true;
 
@@ -85,13 +84,16 @@ function hashString(s: string): number {
   return hash;
 }
 
+/**
+ * Purpose: Scans markdown notes in the vault, filtering by global indexing exclusions and transient canvas view filter.
+ */
 export async function scanVaultNotes(app: App, filterQuery: string | undefined, defaultExclusions: string): Promise<ScatterNode[]> {
-  const query = filterQuery !== undefined ? filterQuery : defaultExclusions || DEFAULT_EXCLUSIONS;
   const files = app.vault.getMarkdownFiles();
   const nodes: ScatterNode[] = [];
 
   for (const file of files) {
-    if (!shouldIncludeFile(file, query)) continue;
+    if (defaultExclusions && !shouldIncludeFile(file, defaultExclusions)) continue;
+    if (filterQuery && !shouldIncludeFile(file, filterQuery)) continue;
 
     const content = await app.vault.cachedRead(file);
     const fileCache = app.metadataCache.getFileCache(file);

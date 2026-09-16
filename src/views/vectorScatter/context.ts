@@ -15,7 +15,7 @@ export interface ScatterViewContext {
   readonly app: App;
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
-
+  viewFilterQuery: string;
   nodes: ScatterNode[];
   selectedNodeIds: Set<string>;
   pan: PanState;

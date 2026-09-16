@@ -71,10 +71,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   const filterInput = filterBody.createEl("input", {
     type: "text",
-    placeholder: "-path:schema -file:index...",
+    placeholder: "-path:archiv tag:#mathe...",
     cls: "memvector-toolbar-input",
   });
-  filterInput.value = ctx.settings.vectorSearchExclusions || "";
+  filterInput.value = ctx.viewFilterQuery || "";
   filterInput.onmousedown = (e) => e.stopPropagation();
   filterInput.onmouseup = (e) => e.stopPropagation();
   filterInput.onclick = (e) => e.stopPropagation();
@@ -86,8 +86,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     filterDebounce = window.setTimeout(() => {
       void (async () => {
         const val = filterInput.value.trim();
-        ctx.settings.vectorSearchExclusions = val;
-        await ctx.saveSettings();
+        ctx.viewFilterQuery = val;
         await ctx.scanVaultNotes(val);
         statusText.setText(`${ctx.nodes.length}`);
         ctx.redraw();

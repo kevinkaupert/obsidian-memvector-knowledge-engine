@@ -33,7 +33,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
     text.inputEl.rows = 3;
     text.inputEl.addClass("memvector-textarea-mono");
     text
-      .setPlaceholder("-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-")
+      .setPlaceholder("-path:archiv -file:templates tag:#privat")
       .setValue(settings.vectorSearchExclusions || "")
       .onChange(async (value) => {
         settings.vectorSearchExclusions = value;
