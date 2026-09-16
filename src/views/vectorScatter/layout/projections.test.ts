@@ -47,6 +47,91 @@ describe("applyGraphVectorProjection", () => {
     expect(distAB).toBeLessThan(distBC);
   });
 
+  it("clusters nodes by topic when similarity is in realistic anisotropic range [0.65, 0.85]", () => {
+    const nodes = [
+      makeNode("A1"),
+      makeNode("A2"),
+      makeNode("A3"),
+      makeNode("B1"),
+      makeNode("B2"),
+      makeNode("B3"),
+    ];
+
+    const matrix = [
+      [1.0, 0.85, 0.85, 0.65, 0.65, 0.65],
+      [0.85, 1.0, 0.85, 0.65, 0.65, 0.65],
+      [0.85, 0.85, 1.0, 0.65, 0.65, 0.65],
+      [0.65, 0.65, 0.65, 1.0, 0.85, 0.85],
+      [0.65, 0.65, 0.65, 0.85, 1.0, 0.85],
+      [0.65, 0.65, 0.65, 0.85, 0.85, 1.0],
+    ];
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 150,
+      cloudSpacing: 400,
+      relationEdges: [],
+    });
+
+    const distA1A2 = Math.hypot(nodes[0].x - nodes[1].x, nodes[0].y - nodes[1].y);
+    const distA1B1 = Math.hypot(nodes[0].x - nodes[3].x, nodes[0].y - nodes[3].y);
+    expect(distA1A2).toBeLessThan(distA1B1);
+  });
+
+  it("measures separation ratio across clusters in multi-cluster vault", () => {
+    const N = 60;
+    const numClusters = 3;
+    const clusterSize = N / numClusters;
+    const nodes = Array.from({ length: N }, (_, i) => makeNode(`N_${i}`));
+    const matrix = Array.from({ length: N }, () => Array(N).fill(0));
+    for (let i = 0; i < N; i++) {
+      const cI = Math.floor(i / clusterSize);
+      for (let j = 0; j < N; j++) {
+        if (i === j) { matrix[i][j] = 1.0; continue; }
+        const cJ = Math.floor(j / clusterSize);
+        if (cI === cJ) {
+          matrix[i][j] = 0.78; // within cluster
+        } else {
+          matrix[i][j] = 0.72; // between clusters
+        }
+      }
+    }
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 350,
+      cloudSpacing: 800,
+      relationEdges: [],
+    });
+
+    let intraDistSum = 0;
+    let intraCount = 0;
+    let interDistSum = 0;
+    let interCount = 0;
+
+    for (let i = 0; i < N; i++) {
+      const cI = Math.floor(i / clusterSize);
+      for (let j = i + 1; j < N; j++) {
+        const cJ = Math.floor(j / clusterSize);
+        const d = Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y);
+        if (cI === cJ) {
+          intraDistSum += d;
+          intraCount++;
+        } else {
+          interDistSum += d;
+          interCount++;
+        }
+      }
+    }
+
+    const avgIntra = intraDistSum / intraCount;
+    const avgInter = interDistSum / interCount;
+    const ratio = avgInter / avgIntra;
+    expect(ratio).toBeGreaterThan(2.5);
+  });
+
   it("pushes CONFLICTS_WITH pairs further apart", () => {
     const nodeA = makeNode("A");
     const nodeB = makeNode("B");

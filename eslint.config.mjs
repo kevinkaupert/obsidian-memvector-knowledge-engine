@@ -19,6 +19,7 @@ export default defineConfig([
       "node_modules/**",
       "**/*.test.ts",
       "vitest.config.mts",
+      "testing/**",
     ],
   },
 ]);

@@ -1,6 +1,7 @@
 import type { RelationEdge, ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
+import { rescaleSimilarityMatrix } from "./similarity";
 
 export type ProjectionMode = "graphvector";
 
@@ -15,9 +16,11 @@ export interface ProjectionParams {
 /**
  * Purpose: Simulates physical 2D layout forces balancing cosine similarity, graph edges, and anti-collision clearances.
  */
-export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
+export function applyGraphVectorProjection({ nodes, matrix: rawMatrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
+
+  const matrix = rescaleSimilarityMatrix(rawMatrix);
 
   if (nodes.some((n) => n.cloudId === undefined)) {
     assignClouds(nodes, matrix);

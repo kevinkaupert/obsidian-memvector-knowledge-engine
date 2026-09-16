@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSimilarityMatrix, calcSimilarity, normalizeWeights } from "./similarity";
+import { buildSimilarityMatrix, calcSimilarity, normalizeWeights, rescaleSimilarityMatrix } from "./similarity";
 import type { ScatterNode } from "../types";
 
 function makeNode(overrides: Partial<ScatterNode>): ScatterNode {
@@ -63,3 +63,57 @@ describe("buildSimilarityMatrix", () => {
     expect(matrix[1][2]).toBe(matrix[2][1]);
   });
 });
+
+describe("rescaleSimilarityMatrix", () => {
+  it("stretches a narrow anisotropic range [0.65, 0.95] to [0, 1] while preserving diagonal", () => {
+    const raw = [
+      [1.0, 0.95, 0.65],
+      [0.95, 1.0, 0.80],
+      [0.65, 0.80, 1.0],
+    ];
+    const rescaled = rescaleSimilarityMatrix(raw);
+    expect(rescaled[0][0]).toBe(1.0);
+    expect(rescaled[1][1]).toBe(1.0);
+    expect(rescaled[2][2]).toBe(1.0);
+
+    // 0.65 was min off-diagonal -> maps to 0.0
+    expect(rescaled[0][2]).toBeCloseTo(0.0);
+    expect(rescaled[2][0]).toBeCloseTo(0.0);
+
+    // 0.95 was max off-diagonal -> maps to 1.0
+    expect(rescaled[0][1]).toBeCloseTo(1.0);
+    expect(rescaled[1][0]).toBeCloseTo(1.0);
+
+    // 0.80 was mid-point ((0.80 - 0.65) / (0.95 - 0.65) = 0.15 / 0.30 = 0.5)
+    expect(rescaled[1][2]).toBeCloseTo(0.5);
+    expect(rescaled[2][1]).toBeCloseTo(0.5);
+  });
+
+  it("is idempotent when applied repeatedly", () => {
+    const raw = [
+      [1.0, 0.9, 0.7],
+      [0.9, 1.0, 0.8],
+      [0.7, 0.8, 1.0],
+    ];
+    const once = rescaleSimilarityMatrix(raw);
+    const twice = rescaleSimilarityMatrix(once);
+    expect(twice[0][1]).toBeCloseTo(once[0][1]);
+    expect(twice[0][2]).toBeCloseTo(once[0][2]);
+    expect(twice[1][2]).toBeCloseTo(once[1][2]);
+  });
+
+  it("leaves matrix unchanged when spread is zero or matrix is small", () => {
+    const identical = [
+      [1.0, 0.5],
+      [0.5, 1.0],
+    ];
+    expect(rescaleSimilarityMatrix(identical)).toEqual(identical);
+
+    const single = [[1.0]];
+    expect(rescaleSimilarityMatrix(single)).toEqual(single);
+
+    const empty: number[][] = [];
+    expect(rescaleSimilarityMatrix(empty)).toEqual(empty);
+  });
+});
+

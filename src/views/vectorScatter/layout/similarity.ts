@@ -84,3 +84,46 @@ export function buildSimilarityMatrix(nodes: ScatterNode[], weights: SimilarityW
   }
   return matrix;
 }
+
+/**
+ * Purpose: Linearly stretches off-diagonal similarities to [0, 1] relative to the vault's distribution to overcome embedding cosine anisotropy.
+ */
+export function rescaleSimilarityMatrix(matrix: number[][]): number[][] {
+  const n = matrix.length;
+  if (n <= 1) return matrix;
+
+  const vals: number[] = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      vals.push(matrix[i][j]);
+    }
+  }
+
+  if (vals.length === 0) return matrix;
+
+  vals.sort((a, b) => a - b);
+  // For larger vaults (>50 pairs), use 1st/99th percentiles to guard against single isolated outliers collapsing the spread.
+  const pLow = vals.length > 50 ? vals[Math.floor(vals.length * 0.01)] : vals[0];
+  const pHigh = vals.length > 50 ? vals[Math.floor(vals.length * 0.99)] : vals[vals.length - 1];
+
+  const spread = pHigh - pLow;
+  if (spread < 1e-6) return matrix;
+
+  const rescaled: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    rescaled[i] = [];
+    for (let j = 0; j < n; j++) {
+      if (i === j) {
+        rescaled[i][j] = 1.0;
+      } else if (j < i) {
+        rescaled[i][j] = rescaled[j][i];
+      } else {
+        const val = matrix[i][j];
+        const normalized = (val - pLow) / spread;
+        rescaled[i][j] = Math.max(0, Math.min(1.0, normalized));
+      }
+    }
+  }
+  return rescaled;
+}
+
