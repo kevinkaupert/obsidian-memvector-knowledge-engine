@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   modelName: PROVIDER_DEFAULT_MODELS.ollama,
   temperature: 0.1,
 
-  vectorSearchExclusions: "-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-",
+  vectorSearchExclusions: "",
   radarNoteCount: 10,
 
   enrichSynthesisContext: true,

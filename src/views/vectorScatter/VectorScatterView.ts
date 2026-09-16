@@ -28,6 +28,7 @@ export interface VectorScatterHost {
 }
 
 export class VectorScatterView extends ItemView implements ScatterViewContext {
+  viewFilterQuery = "";
   nodes: ScatterNode[] = [];
   selectedNodeIds = new Set<string>();
   pan = { x: 0, y: 0 };
@@ -213,8 +214,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     }
   }
 
+  /**
+   * Purpose: Scans vault notes using transient view filter and persistent indexing exclusions, then updates embeddings and layout.
+   */
   async scanVaultNotes(filterOverride?: string): Promise<void> {
-    this.nodes = await scanVaultNotesPure(this.app, filterOverride, this.settings.vectorSearchExclusions);
+    if (filterOverride !== undefined) {
+      this.viewFilterQuery = filterOverride;
+    }
+    this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
