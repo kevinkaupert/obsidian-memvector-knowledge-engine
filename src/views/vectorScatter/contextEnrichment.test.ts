@@ -1,0 +1,188 @@
+import type { App } from "obsidian";
+import { describe, expect, it, vi } from "vitest";
+import type { MemVectorSettings } from "../../settings/types";
+import { DEFAULT_SETTINGS } from "../../settings/defaults";
+import { enrichContext } from "./contextEnrichment";
+import type { ScatterNode } from "./types";
+import type { VectorSearchHit, VectorStore } from "../../sync/vectorStore";
+import type { GraphStore } from "../../sync/graphStore";
+
+function makeScatterNode(id: string, path: string, embedding?: number[]): ScatterNode {
+  return {
+    id,
+    title: id,
+    path,
+    basenameKey: id,
+    content: "content",
+    type: "concept",
+    x: 0,
+    y: 0,
+    latexFormulas: [],
+    links: [],
+    embedding,
+  };
+}
+
+const { MockTFile } = vi.hoisted(() => {
+  class MockTFile {
+    path: string;
+    basename: string;
+    name: string;
+    constructor(path: string) {
+      this.path = path;
+      this.name = path.split("/").pop() || "";
+      this.basename = this.name.replace(/\.md$/, "");
+    }
+  }
+  return { MockTFile };
+});
+
+// Mock obsidian TFile
+vi.mock("obsidian", () => ({
+  TFile: MockTFile,
+}));
+
+// Mock storeFactory to return controlled mock vector and graph stores
+const mockVectorStore: Partial<VectorStore> = {
+  getVector: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+  search: vi.fn(),
+};
+
+const mockGraphStore: Partial<GraphStore> = {
+  fetchNeighbors: vi.fn(),
+};
+
+vi.mock("../../sync/storeFactory", () => ({
+  getVectorStore: () => mockVectorStore as VectorStore,
+  getGraphStore: () => mockGraphStore as GraphStore,
+}));
+
+function makeMockApp(files: Map<string, string>): App {
+  return {
+    vault: {
+      getAbstractFileByPath: (path: string) => {
+        if (files.has(path)) {
+          return new MockTFile(path);
+        }
+        return null;
+      },
+      cachedRead: async (file: { path: string }) => {
+        return files.get(file.path) || "";
+      },
+    },
+  } as unknown as App;
+}
+
+describe("contextEnrichment (Issue #15)", () => {
+  const longContent = `---
+title: Long Note
+type: concept
+---
+# Long Note Body
+First part of content with marker [MARKER-1-VOR-500].
+${"a".repeat(400)}
+[MARKER-2-BEI-450-ZEICHEN]
+${"b".repeat(150)}
+[MARKER-3-NACH-500-ZEICHEN: Sollte in Frontier-Prompts enthalten sein!]
+${"c".repeat(400)}
+[MARKER-4-BEI-1000-ZEICHEN: Weit hinter der 500-Zeichen Grenze!]`;
+
+  it("reads fresh full note text for vector neighbors exceeding index-time 500-char snapshot", async () => {
+    const files = new Map<string, string>();
+    files.set("wiki/vector-neighbor.md", longContent);
+
+    const app = makeMockApp(files);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS };
+
+    // Simulate stored vector hit with a 500-char truncated payload
+    const truncatedPayloadContent = longContent.slice(0, 500);
+    const mockHits: VectorSearchHit[] = [
+      {
+        score: 0.95,
+        payload: {
+          path: "wiki/vector-neighbor.md",
+          title: "vector-neighbor",
+          content: truncatedPayloadContent,
+        },
+      },
+    ];
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(mockHits);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
+
+    // 1. Frontier model tier: excerptLength is 2000 chars
+    const enrichedFrontier = await enrichContext(app, settings, [selectedNode], 2, 2000, 4);
+
+    expect(enrichedFrontier.length).toBe(1);
+    const neighbor = enrichedFrontier[0];
+    expect(neighbor.sources).toEqual(["vector"]);
+    // Must contain markers far beyond 500 characters
+    expect(neighbor.content).toContain("[MARKER-1-VOR-500]");
+    expect(neighbor.content).toContain("[MARKER-2-BEI-450-ZEICHEN]");
+    expect(neighbor.content).toContain("[MARKER-3-NACH-500-ZEICHEN");
+    expect(neighbor.content).toContain("[MARKER-4-BEI-1000-ZEICHEN");
+    expect(neighbor.content.length).toBeGreaterThan(1000);
+  });
+
+  it("enforces compact budget cap when excerptLength is small (e.g. 500 chars)", async () => {
+    const files = new Map<string, string>();
+    files.set("wiki/vector-neighbor.md", longContent);
+
+    const app = makeMockApp(files);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS };
+
+    const mockHits: VectorSearchHit[] = [
+      {
+        score: 0.95,
+        payload: {
+          path: "wiki/vector-neighbor.md",
+          title: "vector-neighbor",
+          content: "cached 500 char snippet",
+        },
+      },
+    ];
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(mockHits);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
+
+    // Compact model tier: excerptLength is 500 chars
+    const enrichedCompact = await enrichContext(app, settings, [selectedNode], 2, 500, 4);
+
+    expect(enrichedCompact.length).toBe(1);
+    const neighbor = enrichedCompact[0];
+    expect(neighbor.content.length).toBe(500);
+    expect(neighbor.content).toContain("[MARKER-1-VOR-500]");
+    // Beyond 500 should be capped
+    expect(neighbor.content).not.toContain("[MARKER-3-NACH-500-ZEICHEN");
+  });
+
+  it("safely falls back to payload content if cachedRead is empty", async () => {
+    const files = new Map<string, string>();
+    files.set("wiki/fallback-neighbor.md", ""); // empty file on disk
+
+    const app = makeMockApp(files);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS };
+
+    const mockHits: VectorSearchHit[] = [
+      {
+        score: 0.9,
+        payload: {
+          path: "wiki/fallback-neighbor.md",
+          title: "fallback-neighbor",
+          content: "Stored index payload content",
+        },
+      },
+    ];
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(mockHits);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
+
+    const enriched = await enrichContext(app, settings, [selectedNode], 2, 1000, 4);
+
+    expect(enriched.length).toBe(1);
+    expect(enriched[0].content).toBe("Stored index payload content");
+  });
+});
