@@ -97,6 +97,7 @@ export interface TranslationKeys {
   relSaving: string;
   relSaveSuccess: string;
   relSaveError: string;
+  relConflictError: string;
   relDeleteBtn: string;
   relDeleteConfirm: string;
   relDeleting: string;

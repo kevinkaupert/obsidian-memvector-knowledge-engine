@@ -9,7 +9,7 @@ import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
-import { writeRelationFile } from "./relationFileWriter";
+import { findRelationPathConflict, writeRelationFile } from "./relationFileWriter";
 
 export interface InitialRelationEdge {
   relType: string;
@@ -299,6 +299,20 @@ export class RelationBuilderModal extends Modal {
       saveBtn.setText(t.relSaving);
 
       const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
+
+      // Pre-flight check: ensure no targetPath conflicts with an existing file that belongs to a different relation (F06)
+      for (let idx = 0; idx < resolvedEdges.length; idx++) {
+        const e = resolvedEdges[idx];
+        const targetPath = relationFilePath(e);
+        const initialPath = this.initialEdge && idx === 0 ? this.initialEdge.path : undefined;
+        if (findRelationPathConflict(this.app, targetPath, initialPath)) {
+          new Notice(`[ERROR] ${t.relConflictError || "Eine Beziehung dieses Typs existiert bereits zwischen diesen Notizen:"} ${targetPath}`, 8000);
+          saveBtn.disabled = false;
+          saveBtn.setText(t.relSaveBtn);
+          return;
+        }
+      }
+
       let createdCount = 0;
       const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
 
