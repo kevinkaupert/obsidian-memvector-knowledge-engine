@@ -158,7 +158,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
-            const graphResult = await syncVaultGraph(app, graphStore);
+            const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions);
             btn.setButtonText("[OK] Indiziert!");
             new Notice(`[OK] ${vecResult.syncedCount} Vektoren & ${graphResult.edgeCount} Kanten erfolgreich in lokaler SQLite gespeichert!`);
           } catch (err) {

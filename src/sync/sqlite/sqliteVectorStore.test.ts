@@ -123,14 +123,14 @@ describe("SqliteVectorStore", () => {
       expect(await store.getVector("a")).toEqual([1, 0]);
     });
 
-    it("never deletes anything when given an empty path list, so an aborted/failed sync can't wipe valid data", async () => {
+    it("removes all stored vectors when given an empty path list (empty vault reconciliation, F03)", async () => {
       const store = new SqliteVectorStore(fakeApp());
       await store.syncPoints([point("a", [1, 0])]);
 
       const result = await store.reconcile([]);
 
-      expect(result.removed).toBe(0);
-      expect(await store.getVector("a")).toEqual([1, 0]);
+      expect(result.removed).toBe(1);
+      expect(await store.getVector("a")).toBeNull();
     });
   });
 

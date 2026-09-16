@@ -51,7 +51,6 @@ export class SqliteVectorStore implements VectorStore {
   }
 
   async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
-    if (currentPaths.length === 0) return { removed: 0 };
     const db = await getLocalDb(this.app);
     const current = new Set(currentPaths);
 
