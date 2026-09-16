@@ -26,12 +26,8 @@ function edgeWeightForType(relType: string): number {
 }
 
 /**
- * Builds an undirected graph from WikiLinks + typed relation edges, then
- * computes real BFS hop-distance from every node (capped at MAX_HOPS) instead
- * of the old three-tier "related / linked / else" split - a note two hops
- * away now visibly reads as closer than a wholly unconnected one, and
- * CONFLICTS_WITH/EQUIVALENT_TO/ANALOGOUS_TO shape the layout instead of every
- * relation type pulling equally hard.
+ * Purpose: Builds an undirected graph from WikiLinks + typed relation edges and computes BFS hop-distance attraction and repulsion weights.
+ * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41).
  */
 export function computeGraphTopologyWeights(nodes: ScatterNode[], relationEdges: RelationEdge[]): GraphTopologyWeights {
   const n = nodes.length;
@@ -55,8 +51,8 @@ export function computeGraphTopologyWeights(nodes: ScatterNode[], relationEdges:
   }
 
   relationEdges.forEach((e) => {
-    const i = idToIndex.get(e.srcId);
-    const j = idToIndex.get(e.tgtId);
+    const i = idToIndex.get(e.srcId.toLowerCase());
+    const j = idToIndex.get(e.tgtId.toLowerCase());
     if (i === undefined || j === undefined || i === j) return;
     if (REPEL_TYPES.has(e.relType)) {
       repel.add(`${Math.min(i, j)}-${Math.max(i, j)}`);

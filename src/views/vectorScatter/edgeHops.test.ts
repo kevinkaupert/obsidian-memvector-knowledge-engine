@@ -39,4 +39,11 @@ describe("computeHopReachableNodeIds", () => {
   it("expands from multiple seeds independently", () => {
     expect(computeHopReachableNodeIds(edges, nodeMap, new Set(["a", "d"]), 2)).toEqual(new Set(["a", "d", "b", "c"]));
   });
+
+  it("expands across edges whose IDs have capital letters", () => {
+    const mixedNodes = [node("Alpha.md"), node("Beta.md")];
+    const mixedMap = new Map(mixedNodes.map((n) => [n.id.toLowerCase(), n]));
+    const mixedEdges = [edge("Alpha.md", "Beta.md")];
+    expect(computeHopReachableNodeIds(mixedEdges, mixedMap, new Set(["Alpha.md"]), 2)).toEqual(new Set(["Alpha.md", "Beta.md"]));
+  });
 });

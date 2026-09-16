@@ -62,6 +62,8 @@ function drawArrowhead(ctx: CanvasRenderingContext2D, tip: Point, direction: Poi
  * (hops=0 shows every edge unconditionally) - so "Kanten anzeigen" stays
  * legible even in a dense vault while still letting the radius be widened.
  *
+ * Purpose: Renders curved relation edges between connected nodes on the 2D canvas, fanning overlapping edges and labeling hovered connections.
+ *
  * A pair with more than one relation stays collapsed to a single line by
  * default - only fanning out into separate quadratic curves once one of its
  * relations is hovered (matching hitTesting.ts's two-step bundle-then-strand
@@ -95,8 +97,8 @@ export function drawEdges(
 
   relationEdges.forEach((edge) => {
     if (edge.relType === "RELATED_TO") return;
-    const srcNode = nodeMap.get(edge.srcId);
-    const tgtNode = nodeMap.get(edge.tgtId);
+    const srcNode = nodeMap.get(edge.srcId.toLowerCase());
+    const tgtNode = nodeMap.get(edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) return;
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
 

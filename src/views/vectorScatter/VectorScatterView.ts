@@ -289,9 +289,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     new RelationBuilderModal(this.app, this, selected, undefined, () => this.refreshRelationEdges()).open();
   }
 
+  /**
+   * Purpose: Opens the relation builder modal pre-filled with an existing edge's metadata for editing or deletion.
+   */
   editRelationEdge(edge: RelationEdge): void {
-    const srcNode = this.nodes.find((n) => n.id.toLowerCase() === edge.srcId);
-    const tgtNode = this.nodes.find((n) => n.id.toLowerCase() === edge.tgtId);
+    const srcNode = this.nodes.find((n) => n.id.toLowerCase() === edge.srcId.toLowerCase());
+    const tgtNode = this.nodes.find((n) => n.id.toLowerCase() === edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) return;
     new RelationBuilderModal(
       this.app,
