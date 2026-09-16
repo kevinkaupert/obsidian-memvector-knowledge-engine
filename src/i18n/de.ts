@@ -49,7 +49,7 @@ export const de: TranslationKeys = {
   embedModelName: "Embedding Modellname",
   embedModelDesc: "Exakter Modellname für Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   exclusionsName: "Pfad- & Datei-Ausschließungen",
-  exclusionsDesc: "Schließe Pfade und Dateien aus dem 2D-Scatterplot aus (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
+  exclusionsDesc: "Globale Ausschlussregeln für Vektor-Indizierung, Graph-Kanten und den 2D-Graph (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
   agentsPathsName: "Agenten-Richtlinien-Dateien",
   agentsPathsDesc: "Vault-Pfade, die bei aktiviertem 'Agenten-Richtlinien einbeziehen'-Schalter in der Synthese als Kompilierungsregeln geladen werden. Mehrere Pfade durch Komma trennen.",
   relVocabPathName: "Beziehungstyp-Vokabular",

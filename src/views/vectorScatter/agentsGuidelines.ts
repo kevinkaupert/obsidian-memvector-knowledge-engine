@@ -3,7 +3,7 @@ import { stripFrontmatter } from "../../noteContent";
 import type { MemVectorSettings } from "../../settings/types";
 
 /** Vault-level "how an agent should compile knowledge here" documents - configurable in Settings, loaded only if present, never required. */
-const DEFAULT_CANDIDATE_PATHS = ["AGENTS.md", "meta/PROFILE.md"];
+const DEFAULT_CANDIDATE_PATHS = ["AGENTS.md"];
 
 /** Per-file char budget for guidelines to keep prompt compact and prevent context overflows. */
 const MAX_CHARS_PER_FILE = 500;

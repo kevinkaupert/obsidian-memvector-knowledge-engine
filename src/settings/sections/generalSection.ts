@@ -82,7 +82,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
     text.inputEl.rows = 2;
     text.inputEl.addClass("memvector-textarea-mono");
     text
-      .setPlaceholder("AGENTS.md, meta/PROFILE.md")
+      .setPlaceholder("AGENTS.md")
       .setValue(settings.agentsGuidelinePaths || "")
       .onChange(async (value) => {
         settings.agentsGuidelinePaths = value;

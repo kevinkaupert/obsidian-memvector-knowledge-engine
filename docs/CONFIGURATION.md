@@ -16,11 +16,11 @@ The settings menu is organized into 3 focused sections:
 
 ### Section 1: General (Allgemein)
 - **Language / Sprache:** Choose UI language (`Deutsch` / `English`). All setting titles, descriptions, dropdown options, and notices translate automatically when toggled.
-- **Path & File Exclusions (`vectorSearchExclusions`):** `-path:schema -file:index -file:log -file:README -file:AGENTS -file:PROFILE -file:canvas-` (default). Notes matching these patterns are excluded from the vector scatterplot and search.
+- **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, and graph sync (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).
 - **Relation Vocabulary File (`relationVocabularyPath`):** Vault path to the relation-type definitions used by the Relation Builder (default `wiki/relation-types.json`).
-- **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is enabled (default `AGENTS.md, meta/PROFILE.md`).
+- **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is enabled (default `AGENTS.md`).
 
 ---
 

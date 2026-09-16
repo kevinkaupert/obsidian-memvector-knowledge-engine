@@ -28,6 +28,7 @@ Alongside the visual overhaul, all core audit findings have been resolved: 13 ca
 - **Transparent SQLite Persistence Feedback & Test Coverage:** Persistence errors during manual or background vector recalculation are surfaced as `[ERROR]` notices, suppressing false `[OK]` success messages when vectors remain only in volatile WASM memory, backed by comprehensive end-to-end unit tests simulating persistence errors and reconcile rejections (#9, #48, #55).
 - **Full UI & Button Localization:** All settings action buttons (Ollama/OpenAI test connection, vault indexing), scatter toolbar actions, and sidebar headings are fully translated in German and English, immediately updating on language dropdown change (#55).
 - **Graph Sync Exclusions & Zero-State Reconciliation:** Exclusion patterns are strictly honored during graph sync, and empty vault states (such as deleting all notes or excluding all files) fully reconcile SQLite stores to zero (#10, #52).
+- **Global Exclusion Scope Clarification & Clean Defaults:** Clarified Path & File Exclusions descriptions to explicitly state their global effect across vector calculation, SQLite storage, graph sync, and canvas rendering, while standardizing agent guideline path defaults to vault-native `AGENTS.md` (#57).
 - **Automated GitHub Actions CI Quality Gate:** Added `.github/workflows/ci.yml` and `.github/PULL_REQUEST_TEMPLATE.md` ensuring typecheck, lint, test, and production bundle builds pass automatically on every PR (#21, #53).
 - **Cleaned Documentation & Localization:** Purged 7 obsolete projection modes from user guides and eliminated dead i18n keys (#38, #49).
 
@@ -50,6 +51,7 @@ Alongside the visual overhaul, all core audit findings have been resolved: 13 ca
 - Remove 7 obsolete projection mode references from user documentation and clean orphaned translation keys (#38, #49).
 - Ensure injective note IDs in `pathToId()` across directory paths and special characters via URI encoding, preventing collisions across folders and naming variations (#12, #51).
 - Pass exclusion patterns to graph sync and allow full zero-state database reconciliation when files or notes are deleted (#10, #52).
+- Clarify Path & File Exclusions description to accurately describe global scope across vector indexing, graph sync, and 2D Graph, and clean agent guideline defaults to `AGENTS.md` (#57).
 - Document data safety status and residual risks regarding relation overwrite and exclusions in README and release documentation (#36).
 
 ---

@@ -19,7 +19,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
 
   enrichSynthesisContext: true,
   includeAgentsGuidelines: false,
-  agentsGuidelinePaths: "AGENTS.md, meta/PROFILE.md",
+  agentsGuidelinePaths: "AGENTS.md",
   relationVocabularyPath: "wiki/relation-types.json",
   synthesisContentCapChars: 0,
   scatterVisualStyle: "ink",
