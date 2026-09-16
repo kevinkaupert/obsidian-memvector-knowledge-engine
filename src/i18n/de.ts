@@ -104,6 +104,7 @@ export const de: TranslationKeys = {
   relSaving: "Speichere Kanten...",
   relSaveSuccess: "Beziehungs-Kanten (wiki/relations/) erfolgreich gespeichert!",
   relSaveError: "Fehler beim Speichern der Beziehungsnotiz",
+  relConflictError: "Eine Beziehung dieses Typs existiert bereits zwischen diesen Notizen:",
   relDeleteBtn: "Beziehung löschen",
   relDeleteConfirm: "Diese Beziehung wirklich löschen? Die Datei unter wiki/relations/ wird in den Papierkorb verschoben und die Kante aus der lokalen Graph-Datenbank entfernt.",
   relDeleting: "Lösche...",

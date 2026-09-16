@@ -104,6 +104,7 @@ export const en: TranslationKeys = {
   relSaving: "Saving edges...",
   relSaveSuccess: "relation edges (wiki/relations/) saved successfully!",
   relSaveError: "Error saving relation note",
+  relConflictError: "A relationship of this type already exists between these notes:",
   relDeleteBtn: "Delete Relation",
   relDeleteConfirm: "Really delete this relation? The file under wiki/relations/ will be moved to trash and the edge removed from the local graph database.",
   relDeleting: "Deleting...",
