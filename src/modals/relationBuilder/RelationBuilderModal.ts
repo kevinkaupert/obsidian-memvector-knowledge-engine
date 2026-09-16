@@ -50,7 +50,7 @@ export class RelationBuilderModal extends Modal {
     contentEl.createEl("p", { text: t.relLoadingVocabulary, cls: "memvector-muted-text" });
 
     void loadRelationVocabulary(this.app, this.host.settings).then((defs) => {
-      if (!this.relType) this.relType = defs[0]?.key || "CUSTOM";
+      if (!this.relType) this.relType = defs[0]?.label || defs[0]?.key || "CUSTOM";
       if (this.initialEdge) {
         const termKey = defaultTermForLabel(defs, this.initialEdge.relType);
         if (termKey) {
