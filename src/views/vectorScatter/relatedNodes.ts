@@ -13,9 +13,7 @@ function bump(tallies: Map<string, RelationTally>, id: string, key: keyof Relati
 }
 
 /**
- * Tallies, per other note, how many distinct connections it has to `focusNode`:
- * a WikiLink counts once per direction (so a mutual link counts twice), a
- * Memgraph relation edge counts once per matching edge.
+ * Purpose: Tallies distinct connections (WikiLinks and typed relation edges) between a focal note and other notes in the graph.
  */
 export function computeRelationTally(nodes: ScatterNode[], relationEdges: RelationEdge[], focusNode: ScatterNode): Map<string, RelationTally> {
   const nodeMap = new Map(nodes.map((n) => [n.id.toLowerCase(), n]));
@@ -31,11 +29,13 @@ export function computeRelationTally(nodes: ScatterNode[], relationEdges: Relati
   });
 
   relationEdges.forEach((e) => {
-    if (e.srcId === focusId) {
-      const other = nodeMap.get(e.tgtId);
+    const src = e.srcId.toLowerCase();
+    const tgt = e.tgtId.toLowerCase();
+    if (src === focusId) {
+      const other = nodeMap.get(tgt);
       if (other) bump(tallies, other.id, "memgraph");
-    } else if (e.tgtId === focusId) {
-      const other = nodeMap.get(e.srcId);
+    } else if (tgt === focusId) {
+      const other = nodeMap.get(src);
       if (other) bump(tallies, other.id, "memgraph");
     }
   });

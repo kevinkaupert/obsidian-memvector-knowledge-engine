@@ -23,6 +23,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - Ensure injective note IDs in `pathToId()` across directory paths and special characters via URI encoding, preventing collisions across folders and naming variations (#12, #51).
 - Pass exclusion patterns to graph sync and allow full zero-state database reconciliation when files or notes are deleted (#10, #52).
 - Clarify Path & File Exclusions description to accurately describe global scope across vector indexing, graph sync, and 2D Graph, and clean agent guideline defaults to `AGENTS.md` (#57).
+- Match relation edges case-insensitively across force layout topology weights, canvas edge rendering, hit-testing, and hop reachability, ensuring newly created or capitalized relations immediately update graph physics and visual connections (#58).
 - Document data safety status and residual risks regarding relation overwrite and exclusions in README and release documentation (#36).
 
 ## [0.1.3] - 2026-09-14

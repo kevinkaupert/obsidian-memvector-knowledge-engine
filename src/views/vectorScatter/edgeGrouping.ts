@@ -12,7 +12,7 @@ export interface Point {
 
 /** The unordered pair of nodes an edge connects, independent of direction - two edges with the same key connect the same two notes, whichever way each one points. */
 export function groupKeyFor(edge: RelationEdge): string {
-  return [edge.srcId, edge.tgtId].sort().join("|");
+  return [edge.srcId.toLowerCase(), edge.tgtId.toLowerCase()].sort().join("|");
 }
 
 /**

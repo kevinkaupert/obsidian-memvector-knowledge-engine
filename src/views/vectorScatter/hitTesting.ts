@@ -23,15 +23,7 @@ export function hitTest(nodes: ScatterNode[], mouseX: number, mouseY: number, zo
 const BUNDLE_APPROACH_PX = 14;
 
 /**
- * Only tests edges that rendering/drawEdges.ts would actually draw (within
- * `hops` of a selected/hovered node, or all of them when hops=0) - matching
- * its visibility rule, so nothing invisible is clickable.
- *
- * A pair with more than one relation is tested as one collapsed (un-fanned)
- * line first; only once the cursor is actually near that bundle does it check
- * each relation's own fanned-out curve - matching drawEdges.ts, which renders
- * a bundle the same way (collapsed by default, fanned out only while one of
- * its relations is hovered/selected here).
+ * Purpose: Hit-tests mouse coordinates against curved relation edges within the active hop radius on the 2D canvas.
  */
 export function hitTestEdge(
   nodes: ScatterNode[],
@@ -52,8 +44,8 @@ export function hitTestEdge(
   const groups = new Map<string, RelationEdge[]>();
   for (const edge of relationEdges) {
     if (edge.relType === "RELATED_TO") continue;
-    const srcNode = nodeMap.get(edge.srcId);
-    const tgtNode = nodeMap.get(edge.tgtId);
+    const srcNode = nodeMap.get(edge.srcId.toLowerCase());
+    const tgtNode = nodeMap.get(edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) continue;
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) continue;
     const key = groupKeyFor(edge);
@@ -64,8 +56,8 @@ export function hitTestEdge(
 
   for (const group of groups.values()) {
     const first = group[0];
-    const srcNode = nodeMap.get(first.srcId)!;
-    const tgtNode = nodeMap.get(first.tgtId)!;
+    const srcNode = nodeMap.get(first.srcId.toLowerCase())!;
+    const tgtNode = nodeMap.get(first.tgtId.toLowerCase())!;
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);
 

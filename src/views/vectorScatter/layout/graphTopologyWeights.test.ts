@@ -56,4 +56,11 @@ describe("computeGraphTopologyWeights", () => {
     const { conn } = computeGraphTopologyWeights(nodes, edges);
     expect(conn[0][1]).toBeCloseTo(1.3);
   });
+
+  it("matches relation edges case-insensitively when node IDs or paths have capital letters", () => {
+    const nodes = [node("Math/LinearAlgebra.md"), node("Math/VectorSpaces.md")];
+    const edges = [edge("Math/LinearAlgebra.md", "Math/VectorSpaces.md", "REQUIRES")];
+    const { conn } = computeGraphTopologyWeights(nodes, edges);
+    expect(conn[0][1]).toBe(1.0);
+  });
 });
