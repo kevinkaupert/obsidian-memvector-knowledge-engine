@@ -13,6 +13,9 @@ export interface EnrichedNote {
   sources: ("vector" | "graph")[];
 }
 
+/**
+ * Purpose: Computes centroid query vector by averaging high-dimensional embeddings across selected notes.
+ */
 function averageEmbedding(vectors: number[][]): number[] | null {
   if (vectors.length === 0) return null;
   const dim = vectors[0].length;
@@ -23,6 +26,9 @@ function averageEmbedding(vectors: number[][]): number[] | null {
   return sum.map((v) => v / vectors.length);
 }
 
+/**
+ * Purpose: Retrieves semantic nearest neighbors via vector search, reading fresh full note bodies from the vault.
+ */
 async function fetchVectorNeighbors(
   app: App,
   settings: MemVectorSettings,
@@ -64,13 +70,18 @@ async function fetchVectorNeighbors(
     const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) continue;
     const id = pathToId(path);
-    const content = hit.payload.content || stripFrontmatter(await app.vault.cachedRead(file));
-    found.set(id, { id, title: hit.payload.title || id, path, content: capText(content, excerptLength), sources: ["vector"] });
+    const rawContent = await app.vault.cachedRead(file);
+    const freshBody = stripFrontmatter(rawContent);
+    const content = freshBody || hit.payload?.content || "";
+    found.set(id, { id, title: hit.payload?.title || id, path, content: capText(content, excerptLength), sources: ["vector"] });
     if (found.size >= limit) break;
   }
   return found;
 }
 
+/**
+ * Purpose: Retrieves topological multi-hop neighbors from the graph store, reading fresh full note bodies from the vault.
+ */
 async function fetchGraphNeighbors(
   app: App,
   settings: MemVectorSettings,
@@ -97,8 +108,7 @@ async function fetchGraphNeighbors(
 }
 
 /**
- * Hybrid GraphRAG context: pulls in notes the user didn't select, via vector
- * similarity and graph-neighborhood with dynamic budgeting based on the model tier.
+ * Purpose: Orchestrates hybrid GraphRAG context enrichment across semantic vector search and graph topology.
  */
 export async function enrichContext(
   app: App,
