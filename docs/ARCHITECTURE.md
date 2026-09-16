@@ -20,7 +20,7 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
              ▼                                               ▼
 ┌───────────────────────────┐                   ┌───────────────────────────┐
 │     2D Vector Engine      │                   │  Local SQLite Engine      │
-│  (PCA / UMAP Projection)  │                   │  (memvector-local.sqlite) │
+│ (Organic 2D Manifold Sim) │                   │  (memvector-local.sqlite) │
 └────────────┬──────────────┘                   └────────────┬──────────────┘
              │                                               │
              ├───────────────────────┬───────────────────────┤

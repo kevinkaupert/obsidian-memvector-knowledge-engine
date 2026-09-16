@@ -61,7 +61,6 @@ export interface TranslationKeys {
   lblLasso: string;
   searchPlaceholder: string;
   searchNotFound: string;
-  lblProjection: string;
   lblVisualStyle: string;
   lblEdgeHops: string;
   edgeHopsAll: string;
@@ -69,13 +68,6 @@ export interface TranslationKeys {
   styleMonochrome: string;
   styleMuted: string;
   styleInk: string;
-  projClouds: string;
-  projUmap: string;
-  projGraphTopology: string;
-  projFormula: string;
-  projSemanticAnchors: string;
-  projFlow: string;
-  projGraph: string;
   btnScanVault: string;
   btnCalcVectors: string;
   btnCreateRel: string;
