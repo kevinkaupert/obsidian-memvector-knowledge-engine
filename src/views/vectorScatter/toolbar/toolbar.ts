@@ -255,6 +255,9 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   return { statusText, updateSelectionUI };
 }
 
+/**
+ * Purpose: Iteratively calculates embeddings for scanned nodes, persists them to SQLite, and displays progress and error feedback.
+ */
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const embedModel = ctx.settings.embeddingModel || "bge-m3";
   const apiBase = ctx.settings.embeddingApiBaseUrl || "http://localhost:11434/v1";
@@ -300,6 +303,9 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     }
   }
 
+  let syncFailed = false;
+  let syncErrorMsg: string | null = null;
+
   if (points.length > 0) {
     try {
       const vectorStore = getVectorStore(ctx.app, ctx.settings);
@@ -309,6 +315,8 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
       // list here must never be read as "this is now the complete vault".
       if (successCount === total) await vectorStore.reconcile(ctx.nodes.map((n) => n.path));
     } catch (syncErr) {
+      syncFailed = true;
+      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
       console.error("MemVector: Failed to persist calculated vectors to SQLite:", syncErr);
     }
   }
@@ -317,7 +325,11 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   const vT = getTranslation(ctx.settings.language || "de");
 
-  if (successCount === total) {
+  if (syncFailed) {
+    statusText.setText(`Speicherfehler`);
+    setHoverBarText(hoverBar, `[ERROR] SQLite-Persistierungsfehler: ${syncErrorMsg || "Unbekannter Fehler"}`, "error");
+    new Notice(`[ERROR] Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen: ${syncErrorMsg}`, 8000);
+  } else if (successCount === total) {
     ctx.applyLayout();
     ctx.redraw();
     setHoverBarText(hoverBar, `[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
@@ -327,3 +339,5 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     statusText.setText(`Fehler (${successCount}/${total})`);
   }
 }
+
+export { runCalcVectors };
