@@ -29,9 +29,9 @@ export interface MemVectorSettings {
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
 
-  /** Include the vault's own AGENTS.md / meta/PROFILE.md (if present) as house-style guidance in the synthesis prompt. */
+  /** Include the vault's own AGENTS.md (if present) as house-style guidance in the synthesis prompt. */
   includeAgentsGuidelines: boolean;
-  /** Comma-separated vault paths to load for includeAgentsGuidelines - defaults to AGENTS.md, meta/PROFILE.md. */
+  /** Comma-separated vault paths to load for includeAgentsGuidelines - defaults to AGENTS.md. */
   agentsGuidelinePaths: string;
 
   /** Vault path to the relation-type vocabulary file (relationVocabulary/loadRelationVocabulary.ts). Auto-created with a bundled STEM preset on first use - fully editable/replaceable for any other domain. */
