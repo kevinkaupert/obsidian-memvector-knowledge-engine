@@ -124,4 +124,37 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
 
     expect(await store.fetchNeighbors(["a"], 1, 10)).toEqual([]);
   });
+
+  it("respects exclusions query and omits excluded files and their edges (F03)", async () => {
+    const files: FakeFile[] = [
+      { path: "wiki/concept.md", basename: "concept", links: ["meta/log"] },
+      { path: "meta/log.md", basename: "log" },
+    ];
+    const app = fakeAppWithStore(files);
+    const store = new SqliteGraphStore(app);
+
+    await syncVaultGraph(app, store, "-path:meta");
+    const neighbors = await store.fetchNeighbors(["wiki/concept"], 1, 10);
+    expect(neighbors).toEqual([]);
+  });
+
+  it("clears graph store completely when all files are deleted or excluded (F03)", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a", links: ["b"] },
+      { path: "b.md", basename: "b" },
+    ];
+    const app = fakeAppWithStore(files);
+    const store = new SqliteGraphStore(app);
+
+    await syncVaultGraph(app, store);
+    expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toEqual(["b"]);
+
+    // All files removed from vault
+    files.length = 0;
+    const res = await syncVaultGraph(app, store);
+    expect(res.nodeCount).toBe(0);
+    expect(res.edgeCount).toBe(0);
+    expect(await store.fetchNeighbors(["a"], 1, 10)).toEqual([]);
+  });
 });
+

@@ -106,14 +106,14 @@ describe("SqliteGraphStore", () => {
       expect(neighbors.map((n) => n.id)).toEqual(["b"]);
     });
 
-    it("never deletes anything when given an empty node list, so an aborted/failed scan can't wipe valid data", async () => {
+    it("clears all notes and edges when given an empty node list (empty vault reconciliation, F03)", async () => {
       const store = new SqliteGraphStore(fakeApp());
       await store.syncVaultGraph([node("a"), node("b")], [{ src: "a", tgt: "b", type: "LINKS_TO" }]);
 
       await store.syncVaultGraph([], []);
 
       const neighbors = await store.fetchNeighbors(["a"], 1, 10);
-      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+      expect(neighbors).toEqual([]);
     });
   });
 

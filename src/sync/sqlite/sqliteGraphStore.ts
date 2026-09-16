@@ -47,26 +47,24 @@ export class SqliteGraphStore implements GraphStore {
       ]);
     });
 
-    if (nodes.length > 0) {
-      const currentNodeIds = new Set(nodes.map((n) => n.id));
-      const currentEdgeKeys = new Set(edges.map((e) => `${e.src}|${e.tgt}|${e.type}`));
+    const currentNodeIds = new Set(nodes.map((n) => n.id));
+    const currentEdgeKeys = new Set(edges.map((e) => `${e.src}|${e.tgt}|${e.type}`));
 
-      const existingEdges = execToRows(db.exec("SELECT src, tgt, type FROM edges"));
-      for (const row of existingEdges) {
-        const src = String(row.src);
-        const tgt = String(row.tgt);
-        const type = String(row.type);
-        if (!currentEdgeKeys.has(`${src}|${tgt}|${type}`)) {
-          db.run("DELETE FROM edges WHERE src = ? AND tgt = ? AND type = ?", [src, tgt, type]);
-        }
+    const existingEdges = execToRows(db.exec("SELECT src, tgt, type FROM edges"));
+    for (const row of existingEdges) {
+      const src = String(row.src);
+      const tgt = String(row.tgt);
+      const type = String(row.type);
+      if (!currentEdgeKeys.has(`${src}|${tgt}|${type}`)) {
+        db.run("DELETE FROM edges WHERE src = ? AND tgt = ? AND type = ?", [src, tgt, type]);
       }
+    }
 
-      const existingNotes = execToRows(db.exec("SELECT id FROM notes"));
-      for (const row of existingNotes) {
-        const id = String(row.id);
-        if (!currentNodeIds.has(id)) {
-          db.run("DELETE FROM notes WHERE id = ?", [id]);
-        }
+    const existingNotes = execToRows(db.exec("SELECT id FROM notes"));
+    for (const row of existingNotes) {
+      const id = String(row.id);
+      if (!currentNodeIds.has(id)) {
+        db.run("DELETE FROM notes WHERE id = ?", [id]);
       }
     }
 

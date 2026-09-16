@@ -2,21 +2,18 @@ import type { App } from "obsidian";
 import { pathToId, toSlug } from "../noteSlug";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
 import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
+import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
 
 /**
- * Scans the vault's WikiLinks into a plain node/edge list - backend-agnostic,
- * used regardless of which GraphStore is configured. Node identity is the
- * canonical path-based id (noteSlug.ts::pathToId), so same-basename notes in
- * different folders never collide. Link targets are resolved through
- * Obsidian's own link-resolution API where possible; an unresolved (dangling)
- * link falls back to a slug of its raw text, since there is no real file to
- * derive a path-based id from.
+ * Purpose: Scans the vault's Markdown files and WikiLinks into a node/edge graph list, respecting optional exclusion filters (F03).
  */
-export function extractVaultGraph(app: App): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function extractVaultGraph(app: App, exclusions?: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodeMap = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
   for (const file of app.vault.getMarkdownFiles()) {
+    if (exclusions && !shouldIncludeFile(file, exclusions)) continue;
+
     const id = pathToId(file.path);
     nodeMap.set(id, { id, title: file.basename, path: file.path });
 
@@ -25,6 +22,8 @@ export function extractVaultGraph(app: App): { nodes: GraphNode[]; edges: GraphE
       const rawLink = link.link.split("#")[0].trim();
       if (!rawLink) continue;
       const destFile = app.metadataCache.getFirstLinkpathDest(rawLink, file.path);
+      if (destFile && exclusions && !shouldIncludeFile(destFile, exclusions)) continue;
+
       const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
       if (targetId) {
         edges.push({ src: id, tgt: targetId, type: "LINKS_TO" });
@@ -35,12 +34,23 @@ export function extractVaultGraph(app: App): { nodes: GraphNode[]; edges: GraphE
   return { nodes: Array.from(nodeMap.values()), edges };
 }
 
-/** Full-vault graph re-index against whichever GraphStore is currently configured (Memgraph or local SQLite) - includes WikiLinks and typed relations. */
-export async function syncVaultGraph(app: App, store: GraphStore): Promise<{ nodeCount: number; edgeCount: number }> {
-  const { nodes, edges } = extractVaultGraph(app);
+/**
+ * Purpose: Full-vault graph re-index against the configured GraphStore, applying exclusion filters and synchronizing typed relations (F03).
+ */
+export async function syncVaultGraph(
+  app: App,
+  store: GraphStore,
+  exclusions?: string
+): Promise<{ nodeCount: number; edgeCount: number }> {
+  const { nodes, edges } = extractVaultGraph(app, exclusions);
+  const knownNodeIds = new Set(nodes.map((n) => n.id));
+
   try {
     const relationEdges = await loadRelationEdges(app);
     for (const rel of relationEdges) {
+      if (exclusions && (!knownNodeIds.has(rel.srcId) || !knownNodeIds.has(rel.tgtId))) {
+        continue;
+      }
       edges.push({
         src: rel.srcId,
         tgt: rel.tgtId,
