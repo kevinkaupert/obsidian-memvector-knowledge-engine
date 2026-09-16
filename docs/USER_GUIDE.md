@@ -50,10 +50,9 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and note count.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
 3. **Darstellung (Visual & Layout Controls):**
-   - **Projektion:** Switches between 7 layout algorithms (Themen-Wolken, Abhängigkeits-Fluss, Reiner Graph, UMAP Manifold, Graph-Topology, Formel-Symbole, LLM Themen-Landkarte) - see `docs/ARCHITECTURE.md` §2.1 for what each one is actually based on.
    - **Farbmodus / Stil:** Selects the visual style (Monochrom / Gedämpfte Typ-Farben / Tinte & Fokus-Glow).
+   - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for dynamic node spacing and semantic cluster spacing that adjust the organic force-directed 2D manifold simulation (blending dense BGE-M3 vector similarity and graph topology; see `docs/ARCHITECTURE.md` §2.1).
    - **Kanten & Radius:** Toggle relationship edge rendering, set **Kanten-Radius** (1/2/3 hops, "Alle", or "Unbegrenzt"), and filter by edge types.
-   - **Layout-Abstände:** Sliders for dynamic **Knoten-Abstand** (node spacing) and **Wolken-Abstand** (cluster spacing).
    - **Lasso-Auswahl (Lasso Select):** Switch cursor to crosshair for freehand loop selection without holding Shift.
 4. **Synthese (AI Co-Pilot & GraphRAG):**
    - **Frage / Anweisung:** Custom synthesis prompt field.
