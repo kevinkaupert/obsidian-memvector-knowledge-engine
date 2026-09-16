@@ -17,7 +17,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ### Fixed
 - Fetch fresh note body from vault for vector neighbors during GraphRAG context enrichment instead of using truncated canvas previews (#15, #46).
 - Decouple transient canvas view filter (`viewFilterQuery`) from persistent indexing exclusions, removing confusing preset domain filters from settings (#45, #47).
-- Surface SQLite persistence failures as visible `[ERROR]` notices in the canvas toolbar while suppressing misleading `[OK]` status (#9, #48).
+- Surface SQLite persistence failures as visible `[ERROR]` notices in the canvas toolbar while suppressing misleading `[OK]` status, and add comprehensive test coverage simulating persistence failures and reconcile rejections (#9, #48, #55).
+- Fully localize settings action buttons (API testing, vault indexing), scatter toolbar tooltips, and sidebar headings across German and English, dynamically updating UI on language switch (#55).
 - Remove 7 obsolete projection mode references from user documentation and clean orphaned translation keys (#38, #49).
 - Ensure injective note IDs in `pathToId()` across directory paths and special characters via URI encoding, preventing collisions across folders and naming variations (#12, #51).
 - Pass exclusion patterns to graph sync and allow full zero-state database reconciliation when files or notes are deleted (#10, #52).
