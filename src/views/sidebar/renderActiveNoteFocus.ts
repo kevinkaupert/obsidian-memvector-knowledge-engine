@@ -11,6 +11,7 @@ import {
   type ScoredNote,
 } from "./activeNoteScoring";
 import { getNode2DPosition } from "./nodePosition";
+import { getTranslation } from "../../i18n";
 
 /**
  * Tries the real vector index first (semantic nearest-neighbors via whichever
@@ -67,6 +68,9 @@ interface RadarNode extends ScoredNote {
   y: number;
 }
 
+/**
+ * Purpose: Renders the active note radar widget displaying semantic and structural neighbors in a circular canvas and list.
+ */
 export async function renderActiveNoteFocus(
   app: App,
   container: HTMLElement,
@@ -77,6 +81,7 @@ export async function renderActiveNoteFocus(
   const activeFile = focusFile || app.workspace.getActiveFile();
   if (!activeFile) return;
 
+  const t = getTranslation(pluginSettings?.language || "de");
   const focusBox = container.createDiv({ cls: "memvector-focus-box" });
 
   const pathParts = activeFile.path.split("/");
@@ -323,7 +328,7 @@ export async function renderActiveNoteFocus(
     const detailsEl = focusBox.createEl("details", { cls: "memvector-radar-details" });
     detailsEl.open = true;
     detailsEl.createEl("summary", {
-      text: "Nahestehende Notizen",
+      text: t.sidebarNearbyNotes,
       cls: "memvector-muted-text",
     });
 

@@ -146,4 +146,45 @@ export const de: TranslationKeys = {
   noticeVectorsCalcSuffix: "berechnet.",
   noticeSynthSaved: "Synthese-Notiz erfolgreich unter",
   noticeSynthSavedSuffix: "gespeichert!",
+
+  // Settings actions & tests
+  testLlmConnTitle: "LLM-Verbindung testen & Modelle abfragen",
+  testLlmConnDesc: "Prüft die API-Verbindung und lädt automatisch alle verfügbaren Sprachmodelle vom Provider.",
+  testLlmConnBtn: "Verbindung testen & Modelle laden",
+  testConnTesting: "Testen...",
+  testConnSuccess: "[OK] Erfolgreich!",
+  testConnFail: "[ERROR] Fehlgeschlagen",
+  testLlmNoticeSuccess: "[OK] LLM-Verbindung erfolgreich!",
+  testLlmNoticeFail: "[ERROR] LLM-Verbindung fehlgeschlagen",
+  testLlmNoticeModelsFound: "Modelle gefunden.",
+
+  testEmbedConnTitle: "Embedding-Verbindung testen & Modelle abfragen",
+  testEmbedConnDesc: "Prüft die API-Verbindung und lädt automatisch alle verfügbaren Embedding-Modelle vom Provider.",
+  testEmbedConnBtn: "Verbindung testen & Modelle laden",
+  testEmbedNoticeSuccess: "[OK] Embedding-Verbindung erfolgreich!",
+  testEmbedNoticeFail: "[ERROR] Embedding-Verbindung fehlgeschlagen",
+
+  indexVaultTitle: "Gesamtes Vault lokal indizieren",
+  indexVaultDesc: "Berechnet Embeddings und Graph-Verknüpfungen für alle Notizen und speichert sie in der lokalen SQLite-Datenbank.",
+  indexVaultBtn: "Jetzt Vault lokal indizieren",
+  indexVaultIndexing: "Indiziere Vault...",
+  indexVaultSuccess: "[OK] Indiziert!",
+  indexVaultNoticeStarting: "Starte lokale Vektor- und Graph-Indizierung für",
+  indexVaultNoticeSaved: "Vektoren &",
+
+  synthesisContentCapTitle: "Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)",
+  synthesisContentCapDesc: "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt.",
+  temperatureAnthropicNote: "(Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)",
+
+  // Toolbar & Status feedback
+  statusVectorsOk: "Vektoren OK",
+  statusPersistenceError: "Speicherfehler",
+  hoverPersistenceError: "SQLite-Persistierungsfehler",
+  noticePersistenceError: "Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen",
+  statusErrorCount: "Fehler",
+  unknownError: "Unbekannter Fehler",
+  toggleToolbar: "Werkzeugleiste ein/ausblenden",
+
+  // Sidebar
+  sidebarNearbyNotes: "Nahestehende Notizen",
 };

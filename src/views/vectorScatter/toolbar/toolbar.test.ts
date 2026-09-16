@@ -123,6 +123,19 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(noticeCalls.some((n) => n.message.includes("[ERROR]"))).toBe(false);
   });
 
+  it("reports localized success when SQLite sync succeeds in English", async () => {
+    mockCtx.settings.language = "en";
+
+    await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
+
+    expect(mockSyncPoints).toHaveBeenCalledTimes(1);
+    expect(mockReconcile).toHaveBeenCalledTimes(1);
+    expect((mockStatusText as any).text).toBe("1 | Vectors OK");
+    expect((mockHoverBar as any).text).toContain("note vectors calculated with 'bge-m3'");
+    expect(noticeCalls.some((n) => n.message.includes("[OK] 1 note vectors calculated with 'bge-m3'"))).toBe(true);
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]"))).toBe(false);
+  });
+
   it("surfaces error notice and suppresses OK when SQLite persistence fails", async () => {
     mockSyncPoints.mockRejectedValueOnce(new Error("SQLite disk I/O error"));
 
@@ -139,6 +152,45 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(errorNotice?.duration).toBe(8000);
 
     // Verify [OK] notice is NOT emitted
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
+    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.redraw).not.toHaveBeenCalled();
+  });
+
+  it("surfaces localized error notice and suppresses OK when SQLite persistence fails in English", async () => {
+    mockCtx.settings.language = "en";
+    mockSyncPoints.mockRejectedValueOnce(new Error("Disk failure"));
+
+    await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
+
+    expect(mockSyncPoints).toHaveBeenCalledTimes(1);
+    expect((mockStatusText as any).text).toBe("Storage error");
+    expect((mockHoverBar as any).classes.has("is-error")).toBe(true);
+    expect((mockHoverBar as any).text).toContain("SQLite persistence error: Disk failure");
+
+    const errorNotice = noticeCalls.find((n) => n.message.includes("[ERROR] Vectors calculated, but SQLite persistence failed"));
+    expect(errorNotice).toBeDefined();
+    expect(errorNotice?.message).toContain("Disk failure");
+    expect(errorNotice?.duration).toBe(8000);
+
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
+    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.redraw).not.toHaveBeenCalled();
+  });
+
+  it("surfaces error notice when reconcile rejects even if syncPoints succeeded", async () => {
+    mockReconcile.mockRejectedValueOnce(new Error("Reconcile error"));
+
+    await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
+
+    expect(mockSyncPoints).toHaveBeenCalledTimes(1);
+    expect(mockReconcile).toHaveBeenCalledTimes(1);
+    expect((mockStatusText as any).text).toBe("Speicherfehler");
+
+    const errorNotice = noticeCalls.find((n) => n.message.includes("[ERROR] Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen"));
+    expect(errorNotice).toBeDefined();
+    expect(errorNotice?.message).toContain("Reconcile error");
+
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
     expect(mockCtx.applyLayout).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();

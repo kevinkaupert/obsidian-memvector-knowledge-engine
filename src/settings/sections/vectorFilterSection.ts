@@ -18,6 +18,9 @@ const EMBEDDING_PROVIDER_DEFAULTS: Record<string, EmbeddingProviderDefaults> = {
   custom: { embeddingApiBaseUrl: "http://localhost:8000/v1", embeddingModel: "custom-embed" },
 };
 
+/**
+ * Purpose: Renders the knowledge domain, embedding provider, model selection, and vault-wide SQLite indexing section with localized strings.
+ */
 export function renderVectorFilterSection(containerEl: HTMLElement, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const { settings } = host;
   containerEl.createEl("h3", { text: t.secVector });
@@ -41,7 +44,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     .setDesc(t.embedProvDesc)
     .addDropdown((dropdown) =>
       dropdown
-        .addOption("ollama", "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("ollama", settings.language === "en" ? "Ollama (Local - http://localhost:11434/v1)" : "Ollama (Lokal - http://localhost:11434/v1)")
         .addOption("openai", "OpenAI Embeddings (api.openai.com)")
         .addOption("custom", "Custom REST Endpoint")
         .setValue(settings.embeddingProvider)
@@ -83,19 +86,19 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     });
 
   new Setting(containerEl)
-    .setName("Embedding-Verbindung testen & Modelle abfragen")
-    .setDesc("Prüft die API-Verbindung und lädt automatisch alle verfügbaren Embedding-Modelle vom Provider.")
+    .setName(t.testEmbedConnTitle)
+    .setDesc(t.testEmbedConnDesc)
     .addButton((btn) =>
       btn
-        .setButtonText("Verbindung testen & Modelle laden")
+        .setButtonText(t.testEmbedConnBtn)
         .setCta()
         .onClick(async () => {
-          btn.setButtonText("Testen...");
+          btn.setButtonText(t.testConnTesting);
           btn.setDisabled(true);
           try {
             const models = await fetchProviderModels(settings.embeddingApiBaseUrl, resolveEmbeddingApiKey(app, settings));
-            btn.setButtonText("[OK] Erfolgreich!");
-            new Notice(`[OK] Embedding-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            btn.setButtonText(t.testConnSuccess);
+            new Notice(`${t.testEmbedNoticeSuccess} ${models.length} ${t.testLlmNoticeModelsFound}`);
             if (models.length > 0) {
               settings.fetchedEmbedModels = models;
               if (!models.includes(settings.embeddingModel)) {
@@ -105,11 +108,11 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
               rerender();
             }
           } catch (err) {
-            btn.setButtonText("[ERROR] Fehlgeschlagen");
-            new Notice(`[ERROR] Embedding-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+            btn.setButtonText(t.testConnFail);
+            new Notice(`${t.testEmbedNoticeFail}: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             window.setTimeout(() => {
-              btn.setButtonText("Verbindung testen & Modelle laden");
+              btn.setButtonText(t.testEmbedConnBtn);
               btn.setDisabled(false);
             }, 3000);
           }
@@ -143,30 +146,30 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
   }
 
   new Setting(containerEl)
-    .setName("Gesamtes Vault lokal indizieren")
-    .setDesc("Berechnet Embeddings und Graph-Verknüpfungen für alle Notizen und speichert sie in der lokalen SQLite-Datenbank.")
+    .setName(t.indexVaultTitle)
+    .setDesc(t.indexVaultDesc)
     .addButton((btn) =>
       btn
-        .setButtonText("Jetzt Vault lokal indizieren")
+        .setButtonText(t.indexVaultBtn)
         .setCta()
         .onClick(async () => {
-          btn.setButtonText("Indiziere Vault...");
+          btn.setButtonText(t.indexVaultIndexing);
           btn.setDisabled(true);
           try {
             const totalFiles = app.vault.getMarkdownFiles().length;
-            new Notice(`[INFO] Starte lokale Vektor- und Graph-Indizierung für ${totalFiles} Notizen...`);
+            new Notice(`[INFO] ${t.indexVaultNoticeStarting} ${totalFiles} ${settings.language === "en" ? "notes..." : "Notizen..."}`);
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions);
-            btn.setButtonText("[OK] Indiziert!");
-            new Notice(`[OK] ${vecResult.syncedCount} Vektoren & ${graphResult.edgeCount} Kanten erfolgreich in lokaler SQLite gespeichert!`);
+            btn.setButtonText(t.indexVaultSuccess);
+            new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${settings.language === "en" ? "edges saved successfully to local SQLite!" : "Kanten erfolgreich in lokaler SQLite gespeichert!"}`);
           } catch (err) {
-            btn.setButtonText("[ERROR] Fehlgeschlagen");
+            btn.setButtonText(t.testConnFail);
             new Notice(`[ERROR] Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             window.setTimeout(() => {
-              btn.setButtonText("Jetzt Vault lokal indizieren");
+              btn.setButtonText(t.indexVaultBtn);
               btn.setDisabled(false);
             }, 3000);
           }

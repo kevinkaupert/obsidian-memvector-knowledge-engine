@@ -86,6 +86,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     return "dot-network";
   }
 
+  /**
+   * Purpose: Initializes the scatter view canvas, toolbar, hoverbar, and scans vault notes on open.
+   */
   async onOpen(): Promise<void> {
     this.containerEl.addClass("memvector-relative-container");
     const container = (this.containerEl.children[1] as HTMLElement | undefined) || this.containerEl;
@@ -103,7 +106,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
 
     const toolbarEl = canvasWrap.createDiv({ cls: "memvector-toolbar" });
 
-    this.addAction("sliders", "Werkzeugleiste ein/ausblenden", () => {
+    const t = getTranslation(this.settings.language || "de");
+
+    this.addAction("sliders", t.toggleToolbar, () => {
       toolbarEl.classList.toggle("is-hidden");
     });
 
@@ -112,7 +117,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
     this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
     this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
 
-    const t = getTranslation(this.settings.language || "de");
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
