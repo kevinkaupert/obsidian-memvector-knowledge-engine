@@ -259,6 +259,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
  * Purpose: Iteratively calculates embeddings for scanned nodes, persists them to SQLite, and displays progress and error feedback.
  */
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
+  const vT = getTranslation(ctx.settings.language || "de");
   const embedModel = ctx.settings.embeddingModel || "bge-m3";
   const apiBase = ctx.settings.embeddingApiBaseUrl || "http://localhost:11434/v1";
   const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
@@ -269,12 +270,12 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   const total = ctx.nodes.length;
   if (total === 0) {
-    setHoverBarText(hoverBar, "[WARN] Keine Notizen im Vault zum Berechnen von Vektoren gefunden.", "warning");
+    setHoverBarText(hoverBar, ctx.settings.language === "en" ? "[WARN] No notes found in vault to calculate vectors." : "[WARN] Keine Notizen im Vault zum Berechnen von Vektoren gefunden.", "warning");
     return;
   }
 
   setActionBtnEnabled(btn, false);
-  statusText.setText(`Vektoren 0/${total}...`);
+  statusText.setText(ctx.settings.language === "en" ? `Vectors 0/${total}...` : `Vektoren 0/${total}...`);
 
   let successCount = 0;
   let lastError: string | null = null;
@@ -282,15 +283,15 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   for (let i = 0; i < total; i++) {
     const node = ctx.nodes[i];
-    setHoverBarText(hoverBar, `[INFO] Berechne Embeddings mit '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
+    setHoverBarText(hoverBar, `[INFO] ${ctx.settings.language === "en" ? "Calculating embeddings with" : "Berechne Embeddings mit"} '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
 
     const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
     const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);
 
     if (res.error) {
       lastError = res.error;
-      setHoverBarText(hoverBar, `[ERROR] Embedding Fehler (${i + 1}/${total}): ${res.error}`, "error");
-      new Notice(`[ERROR] Embedding Fehler: ${res.error}`, 8000);
+      setHoverBarText(hoverBar, `[ERROR] ${vT.noticeEmbeddingError} (${i + 1}/${total}): ${res.error}`, "error");
+      new Notice(`[ERROR] ${vT.noticeEmbeddingError}: ${res.error}`, 8000);
       break;
     } else if (res.embedding) {
       node.embedding = res.embedding;
@@ -323,20 +324,18 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   setActionBtnEnabled(btn, true);
 
-  const vT = getTranslation(ctx.settings.language || "de");
-
   if (syncFailed) {
-    statusText.setText(`Speicherfehler`);
-    setHoverBarText(hoverBar, `[ERROR] SQLite-Persistierungsfehler: ${syncErrorMsg || "Unbekannter Fehler"}`, "error");
-    new Notice(`[ERROR] Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen: ${syncErrorMsg}`, 8000);
+    statusText.setText(vT.statusPersistenceError);
+    setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
+    new Notice(`[ERROR] ${vT.noticePersistenceError}: ${syncErrorMsg}`, 8000);
   } else if (successCount === total) {
     ctx.applyLayout();
     ctx.redraw();
     setHoverBarText(hoverBar, `[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
-    statusText.setText(`${total} | Vektoren OK`);
+    statusText.setText(`${total} | ${vT.statusVectorsOk}`);
     new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
   } else if (lastError) {
-    statusText.setText(`Fehler (${successCount}/${total})`);
+    statusText.setText(`${vT.statusErrorCount} (${successCount}/${total})`);
   }
 }
 

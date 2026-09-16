@@ -146,4 +146,45 @@ export const en: TranslationKeys = {
   noticeVectorsCalcSuffix: ".",
   noticeSynthSaved: "Synthesis note saved successfully at",
   noticeSynthSavedSuffix: "!",
+
+  // Settings actions & tests
+  testLlmConnTitle: "Test LLM connection & query models",
+  testLlmConnDesc: "Checks the API connection and automatically fetches all available language models from the provider.",
+  testLlmConnBtn: "Test connection & load models",
+  testConnTesting: "Testing...",
+  testConnSuccess: "[OK] Success!",
+  testConnFail: "[ERROR] Failed",
+  testLlmNoticeSuccess: "[OK] LLM connection successful!",
+  testLlmNoticeFail: "[ERROR] LLM connection failed",
+  testLlmNoticeModelsFound: "models found.",
+
+  testEmbedConnTitle: "Test embedding connection & query models",
+  testEmbedConnDesc: "Checks the API connection and automatically fetches all available embedding models from the provider.",
+  testEmbedConnBtn: "Test connection & load models",
+  testEmbedNoticeSuccess: "[OK] Embedding connection successful!",
+  testEmbedNoticeFail: "[ERROR] Embedding connection failed",
+
+  indexVaultTitle: "Index entire vault locally",
+  indexVaultDesc: "Computes embeddings and graph connections for all notes and stores them in the local SQLite database.",
+  indexVaultBtn: "Index vault locally now",
+  indexVaultIndexing: "Indexing vault...",
+  indexVaultSuccess: "[OK] Indexed!",
+  indexVaultNoticeStarting: "Starting local vector and graph indexing for",
+  indexVaultNoticeSaved: "vectors &",
+
+  synthesisContentCapTitle: "Synthesis content cap (characters per note)",
+  synthesisContentCapDesc: "0 = no limit, full note text is used. Applies equally to selected notes and GraphRAG neighbors. [NOTE] Simple character cutoff at the end of the text window - will be replaced by context-aware budgeting in a later step.",
+  temperatureAnthropicNote: "(Disabled for Anthropic/Claude - managed by the API provider)",
+
+  // Toolbar & Status feedback
+  statusVectorsOk: "Vectors OK",
+  statusPersistenceError: "Storage error",
+  hoverPersistenceError: "SQLite persistence error",
+  noticePersistenceError: "Vectors calculated, but SQLite persistence failed",
+  statusErrorCount: "Error",
+  unknownError: "Unknown error",
+  toggleToolbar: "Toggle toolbar",
+
+  // Sidebar
+  sidebarNearbyNotes: "Nearby notes",
 };

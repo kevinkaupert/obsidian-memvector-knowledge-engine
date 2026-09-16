@@ -136,6 +136,47 @@ export interface TranslationKeys {
   noticeVectorsCalcSuffix: string;
   noticeSynthSaved: string;
   noticeSynthSavedSuffix: string;
+
+  // Settings actions & tests
+  testLlmConnTitle: string;
+  testLlmConnDesc: string;
+  testLlmConnBtn: string;
+  testConnTesting: string;
+  testConnSuccess: string;
+  testConnFail: string;
+  testLlmNoticeSuccess: string;
+  testLlmNoticeFail: string;
+  testLlmNoticeModelsFound: string;
+
+  testEmbedConnTitle: string;
+  testEmbedConnDesc: string;
+  testEmbedConnBtn: string;
+  testEmbedNoticeSuccess: string;
+  testEmbedNoticeFail: string;
+
+  indexVaultTitle: string;
+  indexVaultDesc: string;
+  indexVaultBtn: string;
+  indexVaultIndexing: string;
+  indexVaultSuccess: string;
+  indexVaultNoticeStarting: string;
+  indexVaultNoticeSaved: string;
+
+  synthesisContentCapTitle: string;
+  synthesisContentCapDesc: string;
+  temperatureAnthropicNote: string;
+
+  // Toolbar & Status feedback
+  statusVectorsOk: string;
+  statusPersistenceError: string;
+  hoverPersistenceError: string;
+  noticePersistenceError: string;
+  statusErrorCount: string;
+  unknownError: string;
+  toggleToolbar: string;
+
+  // Sidebar
+  sidebarNearbyNotes: string;
 }
 
 export type SupportedLanguage = "de" | "en";

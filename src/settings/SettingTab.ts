@@ -37,7 +37,7 @@ export class MathWikiSettingTab extends PluginSettingTab {
     const rerender = () => this.renderTab();
 
     new Setting(containerEl)
-      .setName("Configuration")
+      .setName(t.settingsTitle)
       .setDesc(t.settingsDesc)
       .setHeading();
 

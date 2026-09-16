@@ -14,6 +14,9 @@ const PROVIDER_BASE_URLS: Record<LlmProvider, string> = {
   custom: "",
 };
 
+/**
+ * Purpose: Renders the LLM provider configuration section with localized options, API key resolution, connection test, and model selection.
+ */
 export function renderLlmProviderSection(
   containerEl: HTMLElement,
   app: App,
@@ -29,7 +32,7 @@ export function renderLlmProviderSection(
     .setDesc(t.llmProvDesc)
     .addDropdown((dropdown) =>
       dropdown
-        .addOption("ollama", "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("ollama", settings.language === "en" ? "Ollama (Local - http://localhost:11434/v1)" : "Ollama (Lokal - http://localhost:11434/v1)")
         .addOption("claude", "Anthropic Claude (api.anthropic.com)")
         .addOption("deepseek", "DeepSeek Cloud (api.deepseek.com)")
         .addOption("openai", "OpenAI (api.openai.com)")
@@ -74,19 +77,19 @@ export function renderLlmProviderSection(
     });
 
   new Setting(containerEl)
-    .setName("LLM-Verbindung testen & Modelle abfragen")
-    .setDesc("Prüft die API-Verbindung und lädt automatisch alle verfügbaren Sprachmodelle vom Provider.")
+    .setName(t.testLlmConnTitle)
+    .setDesc(t.testLlmConnDesc)
     .addButton((btn) =>
       btn
-        .setButtonText("Verbindung testen & Modelle laden")
+        .setButtonText(t.testLlmConnBtn)
         .setCta()
         .onClick(async () => {
-          btn.setButtonText("Testen...");
+          btn.setButtonText(t.testConnTesting);
           btn.setDisabled(true);
           try {
             const models = await fetchProviderModels(settings.apiBaseUrl, resolveApiKeyFor(app, settings, settings.llmProvider), settings.llmProvider);
-            btn.setButtonText("[OK] Erfolgreich!");
-            new Notice(`[OK] LLM-Verbindung erfolgreich! ${models.length} Modelle gefunden.`);
+            btn.setButtonText(t.testConnSuccess);
+            new Notice(`${t.testLlmNoticeSuccess} ${models.length} ${t.testLlmNoticeModelsFound}`);
             if (models.length > 0) {
               settings.fetchedLlmModels = models;
               if (!models.includes(settings.modelName)) {
@@ -96,11 +99,11 @@ export function renderLlmProviderSection(
               rerender();
             }
           } catch (err) {
-            btn.setButtonText("[ERROR] Fehlgeschlagen");
-            new Notice(`[ERROR] LLM-Verbindung fehlgeschlagen: ${err instanceof Error ? err.message : String(err)}`);
+            btn.setButtonText(t.testConnFail);
+            new Notice(`${t.testLlmNoticeFail}: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             window.setTimeout(() => {
-              btn.setButtonText("Verbindung testen & Modelle laden");
+              btn.setButtonText(t.testLlmConnBtn);
               btn.setDisabled(false);
             }, 3000);
           }
@@ -139,7 +142,7 @@ export function renderLlmProviderSection(
     .setName(t.temperatureTitle)
     .setDesc(
       isAnthropicSelected
-        ? `${t.temperatureDesc} (Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)`
+        ? `${t.temperatureDesc} ${t.temperatureAnthropicNote}`
         : t.temperatureDesc
     )
     .addSlider((slider) =>
@@ -158,10 +161,8 @@ export function renderLlmProviderSection(
   }
 
   new Setting(containerEl)
-    .setName("Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)")
-    .setDesc(
-      "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt."
-    )
+    .setName(t.synthesisContentCapTitle)
+    .setDesc(t.synthesisContentCapDesc)
     .addText((text) => {
       text.inputEl.type = "number";
       text.inputEl.min = "0";
