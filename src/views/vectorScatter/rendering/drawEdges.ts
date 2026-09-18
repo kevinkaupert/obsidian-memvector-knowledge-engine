@@ -6,12 +6,27 @@ import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 
 /**
- * Relation labels are vault-defined (relationVocabulary/*), not a fixed set, so
- * colors are assigned deterministically from a hash of the label rather than a
- * hardcoded per-label map - any vocabulary (STEM, medicine, law, ...) gets
- * stable, distinct-ish colors without the plugin needing to know its labels.
+ * Canonical Cypher relation types have dedicated semantic colors for instant
+ * visual recognition, while vault-defined or custom relation labels are assigned
+ * deterministically from a hash into the extended palette.
  */
-const EDGE_COLOR_PALETTE = [
+export const CANONICAL_EDGE_COLORS: Record<string, string> = {
+  IMPLIES: "#6f93c9",
+  EQUIVALENT_TO: "#6fb8c9",
+  CONFLICTS_WITH: "#d96f6f",
+  REFUTES: "#c97f7f",
+  REQUIRES: "#c98f6f",
+  GENERALIZES: "#a897c9",
+  SPECIALIZES: "#6fae8e",
+  EXTENDS: "#8fae6f",
+  CONSTRUCTS: "#c9a25e",
+  EMBEDS_IN: "#6fc9a2",
+  REDUCES_TO: "#8890c9",
+  INDEPENDENT_OF: "#9098a3",
+  ANALOGOUS_TO: "#c98fae",
+};
+
+export const EDGE_COLOR_PALETTE = [
   "#a897c9",
   "#6f93c9",
   "#6fb8c9",
@@ -27,7 +42,7 @@ const EDGE_COLOR_PALETTE = [
   "#c98fae",
 ];
 
-const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
+export const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
 
 function hashLabel(label: string): number {
   let hash = 0;
@@ -37,9 +52,26 @@ function hashLabel(label: string): number {
   return Math.abs(hash);
 }
 
-function colorForLabel(label: string): string {
+/**
+ * <Purpose: Resolves a distinct, semantic palette color for relation types, with dedicated colors for canonical Cypher labels and deterministic hashing for custom types.>
+ */
+export function colorForLabel(label: string): string {
   if (!label) return NEUTRAL_EDGE;
-  return EDGE_COLOR_PALETTE[hashLabel(label) % EDGE_COLOR_PALETTE.length];
+  const upper = label.trim().toUpperCase();
+  if (CANONICAL_EDGE_COLORS[upper]) {
+    return CANONICAL_EDGE_COLORS[upper];
+  }
+  return EDGE_COLOR_PALETTE[hashLabel(upper) % EDGE_COLOR_PALETTE.length];
+}
+
+/**
+ * <Purpose: Determines the edge stroke color based on relation type, visual style (monochrome vs ink/muted), and theme accent.>
+ */
+export function resolveEdgeColor(relType: string, style: ScatterVisualStyle, themeAccent: string): string {
+  if (style === "monochrome") {
+    return themeAccent;
+  }
+  return colorForLabel(relType);
 }
 
 /** `tip` is where the arrowhead points to; `direction` is the unit vector it points along (the curve's tangent there, not necessarily straight p1->p2). */
@@ -103,7 +135,7 @@ export function drawEdges(
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
 
     const isHovered = edge === hoveredEdge;
-    const edgeColor = style === "muted" ? colorForLabel(edge.relType) : themeAccent;
+    const edgeColor = resolveEdgeColor(edge.relType, style, themeAccent);
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);
