@@ -26,9 +26,11 @@ and API stability that number implies. Expect rough edges, and check the
 before relying on it for anything critical. Several issues found by
 functional review have partial fixes with a documented residual gap rather
 than a full resolution; those are tracked openly rather than closed
-prematurely. In particular, changing an existing relation's type to one
-already connecting the same note pair can silently overwrite the existing
-relation file ([#14](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues/14)).
+prematurely. Relation saves reject conflicting files and duplicate batch targets.
+Old graph entries are removed only after the replacement file and graph edge
+have been saved. New relation filenames include an identity hash to distinguish
+paths such as
+`Work/Overview.md` and `Work-Overview.md`; existing relation files remain editable.
 Vault exclusion patterns are checked when loading GraphRAG neighbors, so changes
 apply to enriched context immediately without requiring a re-index.
 

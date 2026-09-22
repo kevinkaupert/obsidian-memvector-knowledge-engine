@@ -8,9 +8,10 @@ import { defaultTermForLabel, resolveEdgesForSave } from "../../relationVocabula
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
-import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
+import { buildRelationFileContent, relationFilePaths } from "./relationFileTemplate";
 import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
+import { loadRelationEdges } from "../../views/vectorScatter/relationEdges";
 
 export interface InitialRelationEdge {
   relType: string;
@@ -301,7 +302,17 @@ export class RelationBuilderModal extends Modal {
 
       const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
 
-      const paths = resolvedEdges.map(relationFilePath);
+      let paths: string[];
+      try {
+        // Include excluded relation files too: they still own their paths and identities.
+        paths = await relationFilePaths(resolvedEdges, await loadRelationEdges(this.app), this.initialEdge?.path);
+      } catch (err) {
+        console.error(t.relSaveError, err);
+        new Notice(t.relSaveError, 8000);
+        saveBtn.disabled = false;
+        saveBtn.setText(t.relSaveBtn);
+        return;
+      }
       const conflict = findRelationBatchConflict(this.app, paths, this.initialEdge?.path);
       if (conflict) {
         new Notice(`[ERROR] ${t.relConflictError} ${conflict}`, 8000);

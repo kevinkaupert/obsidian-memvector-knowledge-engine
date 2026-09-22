@@ -3,15 +3,38 @@ import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm"
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
 
 /**
- * Includes the relation type/label, not just the endpoints - two different
- * relation types between the same ordered pair (e.g. REQUIRES and
- * CONFLICTS_WITH between the same notes) must land in different files, or
- * creating the second one silently overwrites the first (F06). SQLite has
- * always kept them as separate edges via its (src, tgt, type) primary key;
- * the file path previously did not.
+ * Keep a short readable prefix, but derive identity from the complete ordered IDs
+ * and label. Slugs alone collapse folders, punctuation and component boundaries.
+ * SHA-256 also bounds filename length without introducing a native dependency.
  */
-export function relationFilePath(edge: ResolvedRelationEdge): string {
-  return `wiki/relations/rel-${toSlug(edge.src.id)}-to-${toSlug(edge.tgt.id)}-${toSlug(edge.label)}.md`;
+export async function relationFilePath(edge: ResolvedRelationEdge): Promise<string> {
+  const identity = JSON.stringify([edge.src.id, edge.tgt.id, edge.label]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const src = toSlug(edge.src.id).slice(0, 32);
+  const tgt = toSlug(edge.tgt.id).slice(0, 32);
+  const label = toSlug(edge.label).slice(0, 32);
+  return `wiki/relations/rel-${src}-to-${tgt}-${label}-${hash}.md`;
+}
+
+/**
+ * Reuse existing paths by semantic identity, including legacy filenames. This
+ * preserves in-place edits and lets the normal conflict guard reject duplicates
+ * without mistaking an unrelated legacy slug collision for the same relation.
+ */
+export async function relationFilePaths(
+  edges: ResolvedRelationEdge[],
+  existing: { srcId: string; tgtId: string; relType: string; path: string }[],
+  initialEdgePath?: string
+): Promise<string[]> {
+  return Promise.all(edges.map((edge) => {
+    const matches = existing.filter((entry) =>
+      entry.srcId === edge.src.id && entry.tgtId === edge.tgt.id && entry.relType === edge.label
+    );
+    // If duplicate files already exist, do not silently edit through that conflict.
+    const match = matches.find((entry) => entry.path !== initialEdgePath) || matches[0];
+    return match ? Promise.resolve(match.path) : relationFilePath(edge);
+  }));
 }
 
 export function buildRelationFileContent(
