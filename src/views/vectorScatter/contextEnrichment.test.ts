@@ -186,3 +186,39 @@ ${"c".repeat(400)}
     expect(enriched[0].content).toBe("Stored index payload content");
   });
 });
+
+
+describe("context exclusions (#82)", () => {
+  it.each(["-path:private", "-file:secret", "path:public"])(
+    "applies changed exclusions before reading stale vector/graph hits: %s",
+    async (exclusions) => {
+      const paths = ["private/secret.md", "public/allowed.md"];
+      const app = makeMockApp(new Map(paths.map((path) => [path, `Body of ${path}`])));
+      const read = vi.spyOn(app.vault, "cachedRead");
+      const settings = { ...DEFAULT_SETTINGS, vectorSearchExclusions: "" };
+      vi.mocked(mockVectorStore.search!).mockResolvedValue(paths.map((path) => ({
+        score: 0.9, payload: { path, title: path, content: "Stale payload" },
+      })));
+      vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue(paths.map((path) => ({
+        id: path.replace(/\.md$/, ""), path, title: path, hops: 1,
+      })));
+      const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+      expect(await enrichContext(app, settings, selected)).toHaveLength(2);
+
+      // The index and its hits stay unchanged; only the live setting changes.
+      settings.vectorSearchExclusions = exclusions;
+      read.mockClear();
+      const result = await enrichContext(app, settings, selected, 1);
+      expect(result.map((note) => note.path)).toEqual(["public/allowed.md"]);
+      expect(result[0].sources).toEqual(["vector", "graph"]);
+      expect(read.mock.calls.map(([file]) => file.path)).toEqual([
+        "public/allowed.md", "public/allowed.md",
+      ]);
+
+      settings.vectorSearchExclusions = "-path:private -path:public";
+      read.mockClear();
+      expect(await enrichContext(app, settings, selected)).toEqual([]);
+      expect(read).not.toHaveBeenCalled();
+    }
+  );
+});

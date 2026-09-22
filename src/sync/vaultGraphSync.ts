@@ -46,7 +46,7 @@ export async function syncVaultGraph(
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
   try {
-    const relationEdges = await loadRelationEdges(app);
+    const relationEdges = await loadRelationEdges(app, exclusions);
     for (const rel of relationEdges) {
       if (exclusions && (!knownNodeIds.has(rel.srcId) || !knownNodeIds.has(rel.tgtId))) {
         continue;

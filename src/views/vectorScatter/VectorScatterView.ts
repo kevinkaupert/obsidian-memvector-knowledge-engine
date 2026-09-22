@@ -256,7 +256,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext {
   }
 
   async loadRelationEdges(): Promise<void> {
-    this.relationEdges = await loadRelationEdgesPure(this.app);
+    this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions);
   }
 
   hitTest(mouseX: number, mouseY: number): ScatterNode | null {

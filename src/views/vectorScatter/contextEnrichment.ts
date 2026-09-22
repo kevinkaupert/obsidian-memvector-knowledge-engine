@@ -4,6 +4,7 @@ import type { MemVectorSettings } from "../../settings/types";
 import { pathToId } from "../../noteSlug";
 import { capText, stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
+import { shouldIncludeFile } from "./vaultScan";
 
 export interface EnrichedNote {
   id: string;
@@ -69,6 +70,8 @@ async function fetchVectorNeighbors(
     // rather than trusting the stored payload content.
     const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) continue;
+    // Enforce current exclusions before reading content, even with a stale index.
+    if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
     const id = pathToId(path);
     const rawContent = await app.vault.cachedRead(file);
     const freshBody = stripFrontmatter(rawContent);
@@ -100,6 +103,8 @@ async function fetchGraphNeighbors(
     // or (if the id happens to have been reused) wrong content.
     const file = app.vault.getAbstractFileByPath(neighbor.path);
     if (!(file instanceof TFile)) continue;
+    // Enforce current exclusions before reading content, even with a stale index.
+    if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
     const content = stripFrontmatter(await app.vault.cachedRead(file));
     found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: capText(content, excerptLength), sources: ["graph"] });
     if (found.size >= limit) break;

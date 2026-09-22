@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import { pathToId, toSlug } from "../../noteSlug";
 import type { RelationEdge } from "./types";
+import { shouldIncludeFile } from "./vaultScan";
 
 /**
  * Resolves a relation file's stored WikiLink text (e.g. from `source_note`)
@@ -9,19 +10,21 @@ import type { RelationEdge } from "./types";
  * guessing, so same-basename notes in different folders resolve to the
  * correct one. Falls back to a slug of the raw text for a dangling link.
  */
-function resolveLinkTextToId(app: App, linkText: string, sourcePath: string): string {
+function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string {
   const destFile = app.metadataCache.getFirstLinkpathDest(linkText, sourcePath);
+  if (destFile && !shouldIncludeFile(destFile, exclusions)) return "";
   return destFile ? pathToId(destFile.path) : toSlug(linkText);
 }
 
 /** Scans only explicit relation notes under wiki/relations/ (written by RelationBuilderModal), not the whole vault. */
-export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
+export async function loadRelationEdges(app: App, exclusions = ""): Promise<RelationEdge[]> {
   const edges: RelationEdge[] = [];
   const edgeSet = new Set<string>();
   const files = app.vault.getMarkdownFiles();
 
   for (const f of files) {
     if (!(f.path.includes("wiki/relation") || f.path.includes("/relations/"))) continue;
+    if (!shouldIncludeFile(f, exclusions)) continue;
     try {
       const fileCache = app.metadataCache.getFileCache(f);
       const fm = fileCache?.frontmatter;
@@ -72,8 +75,8 @@ export async function loadRelationEdges(app: App): Promise<RelationEdge[]> {
 
       const srcLinkText = rawSrc.replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0].trim();
       const tgtLinkText = rawTgt.replace(/^\[\[/, "").replace(/\]\]$/, "").split("|")[0].trim();
-      const cleanSrc = srcLinkText ? resolveLinkTextToId(app, srcLinkText, f.path) : "";
-      const cleanTgt = tgtLinkText ? resolveLinkTextToId(app, tgtLinkText, f.path) : "";
+      const cleanSrc = srcLinkText ? resolveLinkTextToId(app, srcLinkText, f.path, exclusions) : "";
+      const cleanTgt = tgtLinkText ? resolveLinkTextToId(app, tgtLinkText, f.path, exclusions) : "";
 
       if (cleanSrc && cleanTgt) {
         // Must include type - SQLite keys edges by (src, tgt, type), so two

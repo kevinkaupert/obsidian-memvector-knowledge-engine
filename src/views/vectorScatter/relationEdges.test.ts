@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { pathToId } from "../../noteSlug";
 import { loadRelationEdges } from "./relationEdges";
 
@@ -97,4 +97,26 @@ describe("loadRelationEdges", () => {
     const types = edges.map((e) => e.relType).sort();
     expect(types).toEqual(["RELIMPLIES", "REDUCES_TO"].sort());
   });
+});
+
+
+describe("relation exclusions (#82)", () => {
+  it.each(["-path:wiki/relations", "-file:Alpha", "-file:Beta"])(
+    "omits relations excluded by their own path or either endpoint: %s",
+    async (exclusions) => {
+      const app = fakeApp([
+        { path: "Alpha.md", basename: "Alpha" },
+        { path: "Beta.md", basename: "Beta" },
+        {
+          path: "wiki/relations/rel.md", basename: "rel",
+          frontmatter: { source_note: "[[Alpha]]", target_note: "[[Beta]]", relation_type: "REQUIRES" },
+        },
+      ]);
+      expect(await loadRelationEdges(app)).toHaveLength(1);
+      const read = vi.spyOn(app.vault, "read");
+      expect(await loadRelationEdges(app, exclusions)).toEqual([]);
+      if (exclusions === "-path:wiki/relations") expect(read).not.toHaveBeenCalled();
+      expect(await loadRelationEdges(app, "-path:unrelated")).toHaveLength(1);
+    }
+  );
 });
