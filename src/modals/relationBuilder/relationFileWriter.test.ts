@@ -17,7 +17,7 @@ vi.mock("obsidian", () => ({
   TFile: MockTFile,
 }));
 
-import { findRelationPathConflict } from "./relationFileWriter";
+import { findRelationBatchConflict, findRelationPathConflict } from "./relationFileWriter";
 
 function mockAppWithFiles(existingPaths: string[]): App {
   const fileSet = new Set(existingPaths);
@@ -77,5 +77,20 @@ describe("findRelationPathConflict (F06)", () => {
 
     const hasConflict = findRelationPathConflict(app, targetPath, undefined);
     expect(hasConflict).toBe(false);
+  });
+});
+
+
+describe("batch preflight (#73)", () => {
+  it("rejects duplicate targets even when the target does not exist yet", () => {
+    expect(findRelationBatchConflict(mockAppWithFiles([]), ["new.md", "new.md"])).toBe("new.md");
+  });
+
+  it("does not allow another batch entry to overwrite the edited slot", () => {
+    expect(findRelationBatchConflict(mockAppWithFiles(["old.md"]), ["old.md", "old.md"], "old.md")).toBe("old.md");
+  });
+
+  it("allows an in-place edit followed by distinct new files", () => {
+    expect(findRelationBatchConflict(mockAppWithFiles(["old.md"]), ["old.md", "new.md"], "old.md")).toBeUndefined();
   });
 });

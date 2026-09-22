@@ -9,7 +9,8 @@ import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
 import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePath } from "./relationFileTemplate";
-import { findRelationPathConflict, writeRelationFile } from "./relationFileWriter";
+import { findRelationBatchConflict } from "./relationFileWriter";
+import { saveRelation } from "./relationSave";
 
 export interface InitialRelationEdge {
   relType: string;
@@ -300,80 +301,40 @@ export class RelationBuilderModal extends Modal {
 
       const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
 
-      // Pre-flight check: ensure no targetPath conflicts with an existing file that belongs to a different relation (F06)
-      for (let idx = 0; idx < resolvedEdges.length; idx++) {
-        const e = resolvedEdges[idx];
-        const targetPath = relationFilePath(e);
-        const initialPath = this.initialEdge && idx === 0 ? this.initialEdge.path : undefined;
-        if (findRelationPathConflict(this.app, targetPath, initialPath)) {
-          new Notice(`[ERROR] ${t.relConflictError || "Eine Beziehung dieses Typs existiert bereits zwischen diesen Notizen:"} ${targetPath}`, 8000);
-          saveBtn.disabled = false;
-          saveBtn.setText(t.relSaveBtn);
-          return;
-        }
+      const paths = resolvedEdges.map(relationFilePath);
+      const conflict = findRelationBatchConflict(this.app, paths, this.initialEdge?.path);
+      if (conflict) {
+        new Notice(`[ERROR] ${t.relConflictError} ${conflict}`, 8000);
+        saveBtn.disabled = false;
+        saveBtn.setText(t.relSaveBtn);
+        return;
       }
 
       let createdCount = 0;
-      const typedEdges: { src: RelationNode; tgt: RelationNode; relType: string; description: string; bidirectional: boolean; originalTerm: string }[] = [];
-
-      // If updating an existing edge, delete the old edge from SQLite so we don't leave stale duplicate edges
-      if (this.initialEdge) {
-        const oldSrc = (this.initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
-        const oldTgt = (this.initialEdge.tgtId || this.selectedNodes[1]?.id || "").toLowerCase();
-        const oldType = this.initialEdge.relType;
-        if (oldSrc && oldTgt && oldType) {
-          try {
-            const store = getGraphStore(this.app, this.host.settings);
-            await store.deleteEdge(oldSrc, oldTgt, oldType);
-            await store.deleteEdge(oldTgt, oldSrc, oldType);
-          } catch (err) {
-            console.warn("MemVector: Failed to delete old SQLite edge during update:", err);
-          }
-        }
-      }
-
+      let failedCount = 0;
+      const store = getGraphStore(this.app, this.host.settings);
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
         const e = resolvedEdges[idx];
-        // relationFilePath() includes the relation type, so it naturally lands
-        // back on initialEdge.path when neither type nor direction changed
-        // (a true in-place edit), and on a fresh path otherwise - never
-        // reusing a path that actually belongs to a *different* relation (F06).
-        const targetPath = relationFilePath(e);
-        const isEditOfThisSlot = !!this.initialEdge && idx === 0 && targetPath === this.initialEdge.path;
-
-        const content = buildRelationFileContent(e, this.relDesc, t);
+        const previous = this.initialEdge && idx === 0 ? {
+          path: this.initialEdge.path,
+          srcId: this.initialEdge.srcId || this.selectedNodes[0]?.id || "",
+          tgtId: this.initialEdge.tgtId || this.selectedNodes[1]?.id || "",
+          relType: this.initialEdge.relType,
+        } : undefined;
         try {
-          await writeRelationFile(this.app, targetPath, content);
+          await saveRelation(this.app, store, paths[idx], buildRelationFileContent(e, this.relDesc, t), {
+            src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc,
+            bidirectional: e.bidirectional, originalTerm: e.originalTerm,
+          }, previous);
           createdCount++;
-          typedEdges.push({ src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc, bidirectional: e.bidirectional, originalTerm: e.originalTerm });
-
-          // Only clean up the previous file *after* the new/updated one is safely
-          // written - trashing it first would lose the relation entirely if this
-          // write then failed.
-          if (this.initialEdge && idx === 0 && !isEditOfThisSlot) {
-            const oldFile = this.app.vault.getAbstractFileByPath(this.initialEdge.path);
-            if (oldFile instanceof TFile) {
-              try {
-                await this.app.fileManager.trashFile(oldFile);
-              } catch (trashErr) {
-                console.warn("MemVector: Could not trash old relation file after type/direction change:", trashErr);
-              }
-            }
-          }
         } catch (err) {
-          console.error(`${t.relSaveError} ${targetPath}:`, err);
+          failedCount++;
+          console.error(`${t.relSaveError} ${paths[idx]}:`, err);
         }
       }
 
-      new Notice(`${createdCount} ${t.relSaveSuccess}`);
-
-      if (typedEdges.length > 0) {
-        try {
-          await getGraphStore(this.app, this.host.settings).upsertTypedEdges(typedEdges);
-        } catch (err) {
-          console.error("SQLite Graph Fehler:", err);
-        }
-      }
+      if (failedCount > 0) new Notice(`${t.relSaveError}: ${failedCount}`, 8000);
+      if (createdCount > 0) new Notice(`${createdCount} ${t.relSaveSuccess}`);
 
       this.onSaved?.();
       this.close();
