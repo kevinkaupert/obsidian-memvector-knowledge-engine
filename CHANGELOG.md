@@ -7,6 +7,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-23
+
 ### Fixed
 - Honor reversed direction and accurate originalTerm resolution for relation definitions in save pipeline, and align vocabulary documentation (#70).
 - Treat `INDEPENDENT_OF` relations as neutral baseline graph weight instead of strong attraction in 2D force layout (#68).
@@ -14,6 +16,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - Eliminate redundant similarity matrix rescaling inside 2D force layout projection, preserving single-ownership and caller-provided affinities (#75).
 - Add SHA-256 identity suffixes to bounded relation filenames to distinguish folder/punctuation collisions, while preserving legacy paths for edits and duplicate detection (#74).
 - Save replacement relation files and graph edges before deleting previous data; reject duplicate batch targets and prevent create races from overwriting other relations (#73).
+- Enforce exclusion rules in GraphRAG context enrichment, preventing excluded notes from polluting prompt context (#82).
 - Render distinct, semantic palette colors for relation types in 2D scatter plot across default ("ink") and "muted" visual styles, with dedicated colors for all 13 canonical Cypher relation labels (#62).
 
 ### Documentation
