@@ -39,15 +39,18 @@ export interface ResolvedRelationEdge {
 /**
  * Purpose: Resolves draft edges to their final Cypher label and directionality.
  * Handles direct canonical labels (e.g. "IMPLIES") as well as legacy/conversational keys (e.g. "relImplies").
+ * The first edge in an edit already has canonical endpoints. Retaining its label
+ * preserves that direction (including explicit UI swaps) instead of reversing it again.
  */
 export function resolveEdgesForSave(
   defs: RelationTermDef[],
   edges: RelationEdgeDraft[],
   edgeRelTypes: Record<number, string>,
-  customType: string
+  customType: string,
+  editedCanonicalLabel?: string
 ): ResolvedRelationEdge[] {
   return edges.map((e, idx) => {
-    const termKey = edgeRelTypes[idx];
+    const termKey = edgeRelTypes[idx] || customType;
     const termDef = termKey && termKey !== "CUSTOM" ? resolveRelationTerm(defs, termKey) : null;
     const canonicalDef = !termDef && termKey && termKey !== "CUSTOM" ? defs.find((d) => d.label === termKey) : null;
     const def = termDef || canonicalDef;
@@ -58,9 +61,9 @@ export function resolveEdgesForSave(
     }
 
     const originalTerm = termDef ? termDef.term : def.label;
-    return def.reversed
+    const retainsEditedDirection = idx === 0 && termKey === editedCanonicalLabel && def.label === editedCanonicalLabel;
+    return def.reversed && !retainsEditedDirection
       ? { src: e.tgt, tgt: e.src, label: def.label, bidirectional: def.bidirectional, originalTerm }
       : { src: e.src, tgt: e.tgt, label: def.label, bidirectional: def.bidirectional, originalTerm };
   });
 }
-
