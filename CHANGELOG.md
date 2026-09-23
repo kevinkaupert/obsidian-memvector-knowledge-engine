@@ -8,6 +8,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- Honor reversed direction and accurate originalTerm resolution for relation definitions in save pipeline, and align vocabulary documentation (#70).
 - Treat `INDEPENDENT_OF` relations as neutral baseline graph weight instead of strong attraction in 2D force layout (#68).
 - Precompute note token sets in O(N) instead of O(N^2) pairwise re-tokenization, and eliminate inner-loop string allocations during 2D force layout (#80).
 - Eliminate redundant similarity matrix rescaling inside 2D force layout projection, preserving single-ownership and caller-provided affinities (#75).
@@ -16,6 +17,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - Render distinct, semantic palette colors for relation types in 2D scatter plot across default ("ink") and "muted" visual styles, with dedicated colors for all 13 canonical Cypher relation labels (#62).
 
 ### Documentation
+- Document canonical Cypher relation labels in active dropdown and conversational phrase mapping in buildConversationalCategories as planned Issue #43 expansion (#70).
 - Correct unsubstantiated 15x math weighting claim, align layout force equations and initial PCA placement descriptions with implementation, fix custom endpoint defaults and setting section order, and update version and test count badges (#67, #68, #71).
 
 ## [0.1.4] - 2026-09-16
