@@ -1,6 +1,6 @@
 # MemVector Knowledge Engine — System Architecture
 
-**Version:** 0.1.0
+**Version:** 0.1.4
 **License:** MIT
 
 ---
@@ -13,30 +13,51 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                          Obsidian Vault Notes                           │
-└────────────────────────────────────┬────────────────────────────────────┘
-                                     │
-             ┌───────────────────────┴───────────────────────┐
-             ▼                                               ▼
-┌───────────────────────────┐                   ┌───────────────────────────┐
-│     2D Vector Engine      │                   │  Local SQLite Engine      │
-│ (Organic 2D Manifold Sim) │                   │  (memvector-local.sqlite) │
-└────────────┬──────────────┘                   └────────────┬──────────────┘
-             │                                               │
-             ├───────────────────────┬───────────────────────┤
-             ▼                       ▼                       ▼
-┌───────────────────────────┐ ┌───────────────┐ ┌───────────────────────────┐
-│ MemVector Graph (Main UI) │ │ Mini-Radar UI │ │    AI Synthesis Engine    │
-│  Right Glassmorphic Panel │ │   (Sidebar)   │ │ (Ollama/Claude/GPT/etc.)  │
-└───────────────────────────┘ └───────────────┘ └────────────┬──────────────┘
+│                           OBSIDIAN WORKSPACE                            │
+│                                                                         │
+│   ┌──────────────────────────┐         ┌────────────────────────────┐   │
+│   │   Active Markdown Note   │         │  Sidebar Mini-Radar View   │   │
+│   │  (LaTeX, Links, Content) │◄───────►│  (Polar 2D Cutout Framing) │   │
+│   └─────────────┬────────────┘         └─────────────┬──────────────┘   │
+│                 │                                    │                  │
+│                 ▼                                    ▼                  │
+│   ┌─────────────────────────────────────────────────────────────────┐   │
+│   │               MemVector 2D Graph View (Canvas)                  │   │
+│   │        Interactive Panning, Smooth Zoom, Topic Clustering       │   │
+│   └─────────────────────────────────┬───────────────────────────────┘   │
+└─────────────────────────────────────┼───────────────────────────────────┘
+                                      │
+                                      ▼
+             ┌─────────────────────────────────────────────────┐
+             │       Organic 2D Force Layout (projections.ts)  │
+             │   - 2D PCA / Spectral Initialization            │
+             │   - High-Dimensional Vector Similarity Blend    │
+             │   - Graph Topology BFS (Hops & Semantic Types)  │
+             │   - Anti-Collision Clearances                   │
+             └────────────────────────┬────────────────────────┘
+                                      │
+                                      ▼
+             ┌─────────────────────────────────────────────────┐
+             │       Local Graph & Vector Engine (SQLite WASM) │
+             │  - memvector-local.sqlite (Pure WASM via sql.js)│
+             │  - Nodes, Edges, 1536d / 1024d Vector Storage   │
+             │  - Zero Docker, Zero Network Call for Storage   │
+             └────────────────────────┬────────────────────────┘
+                                      │
+                                      ▼
+             ┌─────────────────────────────────────────────────┐
+             │         Hybrid GraphRAG Synthesis Engine        │
+             │   - Multi-Hop Graph Traversal                   │
+             │   - Semantic Vector Neighbor Enrichment         │
+             │   - LLM Synthesis: Ollama, Claude, OpenAI, etc. │
+             └─────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Core Components
+## 2. Core Subsystems
 
-### 2.1. 2D Vector Space Engine
-- **Dense Vector Embedding:** Vectorizes notes using local embeddings (`bge-m3` via Ollama) or feature-extracted term/formula vectors.
+### 2.1. Organic 2D Projection Engine
 - **Dimensionality Reduction:** Projects high-dimensional embeddings onto a 2D Cartesian coordinate space $(x, y)$.
 - **Feature Weighting:** The `knowledgeDomain` setting distinguishes between **General Knowledge Vaults** (PKM, research, code) and **Mathematical Vaults** (LaTeX definitions, theorems, proofs) - a user choice, not a fixed mode. `general` is the default for new installs.
 
@@ -44,10 +65,11 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
 
 There is currently one layout algorithm, `graphvector`, applied via `applyGraphVectorProjection` regardless of any toolbar selection - the `ProjectionMode` type has a single variant, and `applyProjection` ignores its `mode` parameter. It's a single force simulation that already blends what used to be several separate modes:
 
-- **Cluster anchoring:** notes are grouped into semantic clusters (`assignClouds`) and placed around per-cluster centroids on a golden-spiral initial layout, similar in spirit to a "themed clouds" view.
-- **Hybrid similarity attraction:** pairwise attraction blends cosine vector similarity with the graph-topology weight below (60/40), pulling similar and well-connected notes toward an ideal distance.
-- **Graph-topology weighting** (`graphTopologyWeights.ts`, see below): typed relations and WikiLinks shape the attraction/repulsion beyond raw similarity.
-- **Collision clearance:** a hard minimum-distance push keeps dots and labels from overlapping regardless of the above.
+- **Initial placement:** Fast 2D PCA power iteration projection (`compute2DPcaProjection`) aligns the primary variance axes of high-dimensional embeddings directly onto the canvas, with spectral matrix projection and golden-spiral origin distribution as deterministic fallbacks for un-embedded notes.
+- **Semantic clustering (`assignClouds`):** Groups nodes with high similarity into semantic cloud clusters for category coloring and contextual grouping.
+- **Hybrid similarity attraction:** Pairwise affinity computes a non-linear maximum between topological weight and quadratic semantic similarity (`Math.max(topWeight, Math.pow(sim, 2))`), pulling similar and well-connected notes toward an ideal distance while filtering out background noise.
+- **Graph-topology weighting** (`graphTopologyWeights.ts`, see below): Typed relations and WikiLinks shape the attraction/repulsion beyond raw similarity.
+- **Collision clearance:** A hard minimum-distance push keeps dots and labels from overlapping regardless of the above.
 
 An earlier version of this plugin exposed several independently selectable projection algorithms (clustered force, plain force, a flow-rank layout, a UMAP-inspired layout, a connectivity-only layout, a formula-clustering layout, and a static LLM-topic-map layout); those were consolidated into the single blended algorithm above. Reintroducing separate selectable modes is possible future work, not a currently planned one.
 
@@ -55,8 +77,8 @@ An earlier version of this plugin exposed several independently selectable proje
 
 1. Builds an undirected graph from WikiLinks (`[[...]]`) and typed Memgraph relation edges (`wiki/relations/*.md`).
 2. Runs a BFS from every node, capped at 4 hops, to get a real graph-distance instead of a flat "linked vs. not" split - a note 2-3 hops away pulls in visibly closer than a wholly disconnected one, decaying with distance.
-3. Weights direct edges by relation type: `EQUIVALENT_TO`/`ANALOGOUS_TO` attract more strongly than a generic relation ("these are basically the same idea"), a plain WikiLink attracts less than a typed relation, and a direct `CONFLICTS_WITH` edge actively pushes the two notes apart instead of just failing to attract them. `INDEPENDENT_OF` is treated as neutral (baseline weight), not repulsive - "independent" reads as a neutral statement, not an active opposition.
-4. Feeds the resulting per-pair weight into the same force-simulation shape the other modes use (attraction toward an ideal distance, or a fixed repulsion within `1.8×` node spacing for `CONFLICTS_WITH` pairs).
+3. Weights direct edges by relation type: `EQUIVALENT_TO`/`ANALOGOUS_TO` attract more strongly than a generic relation ("these are basically the same idea"), a plain WikiLink attracts less than a typed relation, and a direct `CONFLICTS_WITH` edge actively pushes the two notes apart instead of just failing to attract them. `INDEPENDENT_OF` is treated as neutral (baseline weight `0.05`), not repulsive - "independent" reads as a neutral statement, not an active opposition.
+4. Feeds the resulting per-pair weight into the force-simulation shape (attraction toward an ideal distance, or a fixed repulsion within `2.5×` node spacing for `CONFLICTS_WITH` pairs).
 
 ### 2.2. Interactive HTML5 Canvas Renderers
 - **Main 2D Graph View (`MemVector Graph`):** High-performance HTML5 Canvas supporting panning, smooth trackpad zooming, node hover tooltips, and real-time query filtering.
@@ -95,11 +117,10 @@ The relationship graph and the vector index sit behind uniform interfaces (`sync
 
 ### 2.6. Relation Vocabulary
 
-Relation types are **not hardcoded** in the plugin - they're defined by a plain JSON file in the vault (`relationVocabulary/loadRelationVocabulary.ts`, default path `wiki/relation-types.json`, configurable in Settings). Each entry (`RelationTermDef`, `relationVocabulary/types.ts`) is `{ key, label, term, category, bidirectional, reversed, suggest? }`:
+Relation types are **not hardcoded** in the plugin - they're defined by a plain JSON file in the vault (`relationVocabulary/loadRelationVocabulary.ts`, default path `wiki/relation-types.json`, configurable in Settings). Each entry (`RelationTermDef`, `relationVocabulary/types.ts`) is `{ key, label, term, category, bidirectional, reversed }`:
 
 - `label` is the canonical Cypher/graph relationship type (e.g. `IMPLIES`, or `TREATS` for a medical vault); several `term`s can consolidate to one `label`.
 - `term` is the display text shown in the Relation Builder dropdown, in whatever language the vault author wrote it in.
 - `reversed` swaps src/tgt at save time for terms whose natural reading runs backwards (e.g. "follows from").
-- `suggest` (optional): reserved for a not-yet-merged LLM-assisted edge-typing feature (see `feature/llm-edge-suggestions` branch) - currently unused.
 
-If the file doesn't exist yet, it's auto-created on first use of the Relation Builder with a bundled STEM preset (13 labels, 37 English terms - `relationVocabulary/defaultVocabulary.ts`) as a starting point. From then on the file is authoritative; the constant is never read again for that vault. This is why `drawEdges.ts`'s edge colors are assigned by hashing the label string rather than a per-label lookup table - colors need to work for whatever labels a vault actually defines, not just the bundled 13.
+If the file doesn't exist yet, it's auto-created on first use of the Relation Builder with a bundled STEM preset (13 labels, 37 English terms - `relationVocabulary/defaultVocabulary.ts`) as a starting point. From then on the file is authoritative; the constant is never read again for that vault. For visual clarity, `drawEdges.ts` maps all 13 canonical relation labels to dedicated semantic colors (`CANONICAL_EDGE_COLORS`) across both ink and muted themes, while dynamically falling back to label string hashing for custom user-defined relation types.

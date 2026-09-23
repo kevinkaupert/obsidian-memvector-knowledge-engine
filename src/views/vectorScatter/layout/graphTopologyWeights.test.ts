@@ -63,4 +63,12 @@ describe("computeGraphTopologyWeights", () => {
     const { conn } = computeGraphTopologyWeights(nodes, edges);
     expect(conn[0][1]).toBe(1.0);
   });
+
+  it("treats INDEPENDENT_OF as baseline neutral weight instead of strong attraction (#68)", () => {
+    const nodes = [node("a"), node("b")];
+    const edges = [edge("a", "b", "INDEPENDENT_OF")];
+    const { conn, repel } = computeGraphTopologyWeights(nodes, edges);
+    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+    expect(repel.has("0-1")).toBe(false);
+  });
 });

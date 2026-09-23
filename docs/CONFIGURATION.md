@@ -24,24 +24,7 @@ The settings menu is organized into 3 focused sections:
 
 ---
 
-### Section 2: LLM Provider Setup (for AI Synthesis)
-
-Configures the Large Language Model used for **selection-based synthesis** and reasoning notes.
-
-| Provider | Base URL | API Key | Default Model |
-|---|---|---|---|
-| **Ollama (Local)** | `http://localhost:11434/v1` | `ollama` (or blank) | `deepseek-r1:7b` |
-| **Anthropic Claude** | `https://api.anthropic.com/v1` | Your `sk-ant-...` Key | `claude-sonnet-5` |
-| **DeepSeek Cloud** | `https://api.deepseek.com/v1` | Your `sk-...` Key | `deepseek-reasoner` |
-| **OpenAI** | `https://api.openai.com/v1` | Your `sk-...` Key | `gpt-4o` |
-| **OpenRouter** | `https://openrouter.ai/api/v1` | Your `sk-or-...` Key | `anthropic/claude-sonnet-5` |
-| **Custom Endpoint** | `http://localhost:8000/v1` | (Optional) | `custom-model` |
-
-> Each provider keeps its own API key in settings — switching the provider dropdown preserves previously entered keys.
-
----
-
-### Section 3: Knowledge Domain & Embedding Provider Setup
+### Section 2: Knowledge Domain & Embedding Provider Setup
 
 > [!IMPORTANT]
 > **Independent Embedding Provider & LLM Synthesis Provider**
@@ -52,7 +35,7 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 - **Embedding Provider (`embeddingProvider`):**
   - **Ollama (Local):** `http://localhost:11434/v1`, Model: `bge-m3`
   - **OpenAI Embeddings:** `https://api.openai.com/v1`, Model: `text-embedding-3-small`
-  - **Custom REST Endpoint:** `http://localhost:8000/v1`
+  - **Custom REST Endpoint:** User-defined base URL and model name
 - **Embedding API Base URL (`embeddingApiBaseUrl`):** Endpoint URL for vector embeddings.
 - **Embedding API Key (`embeddingApiKey`):** API key for vector embeddings (type `ollama` for local Ollama).
 - **Embedding Model Name (`embeddingModel`):** Exact model name (e.g. `bge-m3`, `nomic-embed-text`, `text-embedding-3-small`).
@@ -61,7 +44,24 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 #### Knowledge Domain Modes
 
 - **`general` (Universal Notebook):** Term frequency + semantic clustering for PKM, research, and code.
-- **`math` (Mathematics & Formal Sciences):** LaTeX formula extraction & 15x feature weighting for formal definitions, theorems, and proofs.
+- **`math` (Mathematics & Formal Sciences):** LaTeX formula extraction and formula overlap scoring for formal definitions, theorems, and proofs (replaces lexical word overlap with formula token overlap).
+
+---
+
+### Section 3: LLM Provider Setup (for AI Synthesis)
+
+Configures the Large Language Model used for **selection-based synthesis** and reasoning notes.
+
+| Provider | Base URL | API Key | Default Model |
+|---|---|---|---|
+| **Ollama (Local)** | `http://localhost:11434/v1` | `ollama` (or blank) | `deepseek-r1:7b` |
+| **Anthropic Claude** | `https://api.anthropic.com/v1` | Your `sk-ant-...` Key | `claude-sonnet-5` |
+| **DeepSeek Cloud** | `https://api.deepseek.com/v1` | Your `sk-...` Key | `deepseek-reasoner` |
+| **OpenAI** | `https://api.openai.com/v1` | Your `sk-...` Key | `gpt-4o` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | Your `sk-or-...` Key | `anthropic/claude-sonnet-5` |
+| **Custom Endpoint** | User-defined (e.g. `http://localhost:8000/v1`) | (Optional) | User-defined |
+
+> Each provider keeps its own API key in settings — switching the provider dropdown preserves previously entered keys.
 
 ---
 

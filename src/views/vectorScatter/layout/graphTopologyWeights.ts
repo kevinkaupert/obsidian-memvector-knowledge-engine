@@ -22,7 +22,9 @@ export interface GraphTopologyWeights {
 }
 
 function edgeWeightForType(relType: string): number {
-  return CLOSE_TYPES[relType] ?? DEFAULT_RELATION_WEIGHT;
+  const upper = relType.toUpperCase();
+  if (upper === "INDEPENDENT_OF") return BASELINE_WEIGHT;
+  return CLOSE_TYPES[upper] ?? DEFAULT_RELATION_WEIGHT;
 }
 
 /**

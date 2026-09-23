@@ -4,9 +4,9 @@ Dieses Dokument führt alle bewusst für den stabilen **v0.1 Public Release** re
 
 ---
 
-## Status v0.1.0 (Public Core)
+## Status v0.1.4 (Public Core)
 
-Die Version **v0.1.0** konzentriert sich auf maximale Stabilität, Portabilität und Zero-Setup-Nutzung:
+Die Version **v0.1.4** konzentriert sich auf maximale Stabilität, Portabilität und Zero-Setup-Nutzung:
 * **100% Local-First SQLite-Backend** (`sql.js`): Vektoren und Graph-Topologie ohne externe Server in `memvector-local.sqlite`.
 * **GraphVektor 2D-Projektion**: Physikbasierte Force-Simulation, die semantische Cosine-Distanz, WikiLinks und typisierte Relationen nahtlos kombiniert.
 * **Mini-Radar Seitenleiste**: Echte Polardistanzen basierend auf $(1 - \text{Cosine Similarity})$.
