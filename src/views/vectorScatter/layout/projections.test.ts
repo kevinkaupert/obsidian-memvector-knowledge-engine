@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RelationEdge, ScatterNode } from "../types";
 import { applyGraphVectorProjection } from "./projections";
+import { rescaleSimilarityMatrix } from "./similarity";
 
 function makeNode(id: string): ScatterNode {
   return {
@@ -100,7 +101,7 @@ describe("applyGraphVectorProjection", () => {
 
     applyGraphVectorProjection({
       nodes,
-      matrix,
+      matrix: rescaleSimilarityMatrix(matrix),
       nodeSpacing: 350,
       cloudSpacing: 800,
       relationEdges: [],

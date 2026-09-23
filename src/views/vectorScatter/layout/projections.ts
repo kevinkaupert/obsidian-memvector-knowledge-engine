@@ -1,7 +1,6 @@
 import type { RelationEdge, ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
-import { rescaleSimilarityMatrix } from "./similarity";
 
 export type ProjectionMode = "graphvector";
 
@@ -179,14 +178,12 @@ export function compute2DProjectionFromMatrix(nodes: ScatterNode[], matrix: numb
 }
 
 /**
- * Purpose: Simulates physical 2D organic force-directed layout balancing embeddings, graph topology, and many-body repulsion.
- * Architecture: Organic manifold force-directed model (Issue #41).
+ * Purpose: Simulates physical 2D organic force-directed layout balancing embeddings, graph topology, and many-body repulsion using caller-provided similarity matrix.
+ * Architecture: Organic manifold force-directed model (Issue #41, #75).
  */
-export function applyGraphVectorProjection({ nodes, matrix: rawMatrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
+export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
-
-  const matrix = rescaleSimilarityMatrix(rawMatrix);
 
   if (nodes.some((n) => n.cloudId === undefined)) {
     assignClouds(nodes, matrix);
