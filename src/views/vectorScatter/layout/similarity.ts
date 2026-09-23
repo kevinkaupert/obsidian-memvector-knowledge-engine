@@ -18,8 +18,35 @@ export function normalizeWeights(raw: SimilarityWeights): SimilarityWeights {
   };
 }
 
-/** Hybrid similarity S(a,b) blending embedding cosine similarity, word/formula overlap, wikilinks, and folder co-location. */
-export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: SimilarityWeights, isMath: boolean): number {
+/** Tokenized and prepared representation of a node's text, formulas, and folder for fast pairwise similarity. */
+export interface PreparedNodeTokens {
+  words: Set<string>;
+  formulas: Set<string>;
+  folder: string;
+}
+
+/**
+ * Purpose: Precomputes word tokens, LaTeX formula sets, and directory path once per node to prevent O(N^2) re-tokenization.
+ */
+export function prepareNodeTokens(node: ScatterNode): PreparedNodeTokens {
+  const words = new Set((node.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
+  const formulas = new Set(node.latexFormulas || []);
+  const lastSlash = node.path.lastIndexOf("/");
+  const folder = lastSlash > 0 ? node.path.slice(0, lastSlash) : "";
+  return { words, formulas, folder };
+}
+
+/**
+ * Purpose: Hybrid similarity S(a,b) blending embedding cosine similarity, word/formula overlap, wikilinks, and folder co-location.
+ */
+export function calcSimilarity(
+  a: ScatterNode,
+  b: ScatterNode,
+  weights: SimilarityWeights,
+  isMath: boolean,
+  tokensA?: PreparedNodeTokens,
+  tokensB?: PreparedNodeTokens
+): number {
   let vecSim = 0;
   if (a.embedding && b.embedding && a.embedding.length === b.embedding.length) {
     let dot = 0;
@@ -35,8 +62,8 @@ export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: Similari
     }
   }
 
-  const wordsA = new Set((a.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
-  const wordsB = new Set((b.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
+  const wordsA = tokensA ? tokensA.words : new Set((a.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
+  const wordsB = tokensB ? tokensB.words : new Set((b.content || "").toLowerCase().match(/\b[a-z0-9_]{3,}\b/g) || []);
   let wordIntersect = 0;
   wordsA.forEach((w) => {
     if (wordsB.has(w)) wordIntersect++;
@@ -44,8 +71,8 @@ export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: Similari
   const wordUnion = Math.max(1, wordsA.size + wordsB.size - wordIntersect);
   const wordSim = wordIntersect / wordUnion;
 
-  const formsA = new Set(a.latexFormulas || []);
-  const formsB = new Set(b.latexFormulas || []);
+  const formsA = tokensA ? tokensA.formulas : new Set(a.latexFormulas || []);
+  const formsB = tokensB ? tokensB.formulas : new Set(b.latexFormulas || []);
   let formIntersect = 0;
   formsA.forEach((f) => {
     if (formsB.has(f)) formIntersect++;
@@ -56,8 +83,8 @@ export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: Similari
   const isWikiLinked = (a.links && a.links.includes(b.basenameKey)) || (b.links && b.links.includes(a.basenameKey));
   const linkSim = isWikiLinked ? 0.75 : 0;
 
-  const folderA = a.path.split("/").slice(0, -1).join("/");
-  const folderB = b.path.split("/").slice(0, -1).join("/");
+  const folderA = tokensA ? tokensA.folder : (a.path.lastIndexOf("/") > 0 ? a.path.slice(0, a.path.lastIndexOf("/")) : "");
+  const folderB = tokensB ? tokensB.folder : (b.path.lastIndexOf("/") > 0 ? b.path.slice(0, b.path.lastIndexOf("/")) : "");
   const folderSim = folderA && folderA === folderB ? 0.4 : 0;
 
   const semSim = isMath ? formSim : wordSim;
@@ -70,16 +97,20 @@ export function calcSimilarity(a: ScatterNode, b: ScatterNode, weights: Similari
   return Math.min(1.0, semSim * adjustedSemWeight + linkSim * adjustedLinkWeight + folderSim * weights.folder);
 }
 
-/** Full pairwise similarity matrix, symmetric, diagonal = 1. */
+/**
+ * Purpose: Full pairwise similarity matrix, symmetric, diagonal = 1, using precomputed O(N) token sets.
+ */
 export function buildSimilarityMatrix(nodes: ScatterNode[], weights: SimilarityWeights, isMath: boolean): number[][] {
   const n = nodes.length;
+  const tokenCache: PreparedNodeTokens[] = nodes.map(prepareNodeTokens);
+
   const matrix: number[][] = [];
   for (let i = 0; i < n; i++) {
     matrix[i] = [];
     for (let j = 0; j < n; j++) {
       if (i === j) matrix[i][j] = 1.0;
       else if (j < i) matrix[i][j] = matrix[j][i];
-      else matrix[i][j] = calcSimilarity(nodes[i], nodes[j], weights, isMath);
+      else matrix[i][j] = calcSimilarity(nodes[i], nodes[j], weights, isMath, tokenCache[i], tokenCache[j]);
     }
   }
   return matrix;

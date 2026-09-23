@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { buildSimilarityMatrix, calcSimilarity, normalizeWeights, rescaleSimilarityMatrix } from "./similarity";
+import { describe, expect, it, vi } from "vitest";
+import { buildSimilarityMatrix, calcSimilarity, normalizeWeights, prepareNodeTokens, rescaleSimilarityMatrix } from "./similarity";
+import * as similarityModule from "./similarity";
 import type { ScatterNode } from "../types";
 
 function makeNode(overrides: Partial<ScatterNode>): ScatterNode {
@@ -61,6 +62,76 @@ describe("buildSimilarityMatrix", () => {
     const matrix = buildSimilarityMatrix(nodes, weights, false);
     expect(matrix[0][0]).toBe(1.0);
     expect(matrix[1][2]).toBe(matrix[2][1]);
+  });
+
+  it("precomputes tokens in O(N) instead of O(N^2) pairwise re-tokenizations (#80)", () => {
+    const matchSpy = vi.spyOn(String.prototype, "match");
+    try {
+      const N = 10;
+      const nodes = Array.from({ length: N }, (_, i) =>
+        makeNode({
+          id: `note_${i}`,
+          content: `Content for note ${i} with multiple tokens and keywords for testing.`,
+          latexFormulas: [`x_${i} = \\alpha + \\beta`],
+          path: `folder/sub/note_${i}.md`,
+        })
+      );
+
+      matchSpy.mockClear();
+      const matrix = buildSimilarityMatrix(nodes, weights, false);
+
+      // Verifies Issue #80: Tokenization regex match is called exactly N times (once per node in O(N)),
+      // NOT N*(N-1) (90 times) or N*(N-1)/2 (45 times).
+      expect(matchSpy).toHaveBeenCalledTimes(N);
+
+      // Verify matrix correctness
+      expect(matrix.length).toBe(N);
+      expect(matrix[0][0]).toBe(1.0);
+      expect(matrix[2][5]).toBe(matrix[5][2]);
+    } finally {
+      matchSpy.mockRestore();
+    }
+  });
+
+  it("extracts words, formulas, and folder correctly in prepareNodeTokens", () => {
+    const node = makeNode({
+      id: "test",
+      content: "Alpha beta gamma 123",
+      latexFormulas: ["E = mc^2"],
+      path: "science/physics/relativity.md",
+    });
+
+    const tokens = prepareNodeTokens(node);
+    expect(tokens.words.has("alpha")).toBe(true);
+    expect(tokens.words.has("beta")).toBe(true);
+    expect(tokens.words.has("gamma")).toBe(true);
+    expect(tokens.words.has("123")).toBe(true);
+    expect(tokens.formulas.has("E = mc^2")).toBe(true);
+    expect(tokens.folder).toBe("science/physics");
+  });
+
+  it("produces identical similarity values whether using precomputed tokens or raw fallback", () => {
+    const a = makeNode({
+      id: "a",
+      content: "Complex quantum mechanics and wave function equations.",
+      latexFormulas: ["\\psi(x) = e^{ikx}"],
+      path: "physics/quantum.md",
+      embedding: [0.6, 0.8],
+    });
+    const b = makeNode({
+      id: "b",
+      content: "Wave mechanics and quantum state vectors in physics.",
+      latexFormulas: ["\\psi(x) = e^{ikx}"],
+      path: "physics/states.md",
+      embedding: [0.5, 0.85],
+    });
+
+    const rawSim = calcSimilarity(a, b, weights, true);
+    const tokensA = prepareNodeTokens(a);
+    const tokensB = prepareNodeTokens(b);
+    const precomputedSim = calcSimilarity(a, b, weights, true, tokensA, tokensB);
+
+    expect(precomputedSim).toBeCloseTo(rawSim, 6);
   });
 });
 

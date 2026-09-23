@@ -263,5 +263,51 @@ describe("applyGraphVectorProjection", () => {
     expect(distBridgeToC0).toBeLessThan(distC0toC1);
     expect(distBridgeToC1).toBeLessThan(distC0toC1);
   });
+
+  it("pushes multiple pairs apart using precomputed numeric repulsion table without error (#80)", () => {
+    const N = 8;
+    const nodes = Array.from({ length: N }, (_, i) => makeNode(`Node_${i}`));
+    const matrix = Array.from({ length: N }, () => Array(N).fill(0.7));
+    for (let i = 0; i < N; i++) matrix[i][i] = 1.0;
+
+    const relationEdges: RelationEdge[] = [
+      {
+        srcId: "Node_0",
+        tgtId: "Node_1",
+        relType: "CONFLICTS_WITH",
+        desc: "Contradiction 0-1",
+        title: "Contradiction 0-1",
+        path: "wiki/relations/0-1.md",
+        bidirectional: true,
+      },
+      {
+        srcId: "Node_2",
+        tgtId: "Node_3",
+        relType: "CONFLICTS_WITH",
+        desc: "Contradiction 2-3",
+        title: "Contradiction 2-3",
+        path: "wiki/relations/2-3.md",
+        bidirectional: true,
+      },
+    ];
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix,
+      nodeSpacing: 200,
+      cloudSpacing: 500,
+      relationEdges,
+    });
+
+    for (const node of nodes) {
+      expect(Number.isFinite(node.x)).toBe(true);
+      expect(Number.isFinite(node.y)).toBe(true);
+    }
+
+    const dist01 = Math.hypot(nodes[0].x - nodes[1].x, nodes[0].y - nodes[1].y);
+    const dist23 = Math.hypot(nodes[2].x - nodes[3].x, nodes[2].y - nodes[3].y);
+    expect(dist01).toBeGreaterThan(150);
+    expect(dist23).toBeGreaterThan(150);
+  });
 });
 

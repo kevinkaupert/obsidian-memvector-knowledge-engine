@@ -192,6 +192,20 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
   const targetSpacing = nodeSpacing || 350;
   const clusterRadius = cloudSpacing || 800;
   const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges);
+  const isRepelled = new Uint8Array(n * n);
+  if (repel && repel.size > 0) {
+    for (const key of repel) {
+      const dash = key.indexOf("-");
+      if (dash !== -1) {
+        const a = Number(key.slice(0, dash));
+        const b = Number(key.slice(dash + 1));
+        if (!Number.isNaN(a) && !Number.isNaN(b) && a < n && b < n) {
+          isRepelled[a * n + b] = 1;
+          isRepelled[b * n + a] = 1;
+        }
+      }
+    }
+  }
 
   // 1. Initial placement: use 2D PCA or spectral matrix projection, or center spiral fallback
   const needsPlacement = nodes.every((node) => node.x === 0 && node.y === 0);
@@ -238,9 +252,8 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
         const ux = dx / dist;
         const uy = dy / dist;
 
-        // Explicit repulsion for CONFLICTS_WITH edges
-        const pairKey = `${Math.min(i, j)}-${Math.max(i, j)}`;
-        if (repel.has(pairKey)) {
+        // Explicit repulsion for CONFLICTS_WITH edges (O(1) numeric lookup without heap string allocations)
+        if (isRepelled[i * n + j] === 1) {
           const minDist = targetSpacing * 2.5;
           if (dist < minDist) {
             const pushMag = Math.min(targetSpacing * 0.6, (minDist - dist) * 0.5);
