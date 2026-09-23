@@ -48,8 +48,8 @@ export function resolveEdgesForSave(
 ): ResolvedRelationEdge[] {
   return edges.map((e, idx) => {
     const termKey = edgeRelTypes[idx];
-    const canonicalDef = defs.find((d) => d.label === termKey);
     const termDef = termKey && termKey !== "CUSTOM" ? resolveRelationTerm(defs, termKey) : null;
+    const canonicalDef = !termDef && termKey && termKey !== "CUSTOM" ? defs.find((d) => d.label === termKey) : null;
     const def = termDef || canonicalDef;
 
     if (!def) {
@@ -57,13 +57,10 @@ export function resolveEdgesForSave(
       return { src: e.src, tgt: e.tgt, label, bidirectional: false, originalTerm: customType || label };
     }
 
-    if (canonicalDef && !termDef) {
-      return { src: e.src, tgt: e.tgt, label: canonicalDef.label, bidirectional: canonicalDef.bidirectional, originalTerm: canonicalDef.label };
-    }
-
+    const originalTerm = termDef ? termDef.term : def.label;
     return def.reversed
-      ? { src: e.tgt, tgt: e.src, label: def.label, bidirectional: def.bidirectional, originalTerm: def.term }
-      : { src: e.src, tgt: e.tgt, label: def.label, bidirectional: def.bidirectional, originalTerm: def.term };
+      ? { src: e.tgt, tgt: e.src, label: def.label, bidirectional: def.bidirectional, originalTerm }
+      : { src: e.src, tgt: e.tgt, label: def.label, bidirectional: def.bidirectional, originalTerm };
   });
 }
 

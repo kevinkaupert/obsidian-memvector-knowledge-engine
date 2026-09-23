@@ -86,4 +86,34 @@ describe("relationVocabulary", () => {
     expect(resolved[0].src.id).toBe("nodeB");
     expect(resolved[0].tgt.id).toBe("nodeA");
   });
+
+  it("resolveEdgesForSave honors reversed: true when matching canonical label from custom vocabulary", () => {
+    const customVocab = [
+      { key: "relDerivedFrom", label: "DERIVED_FROM", term: "derived from", category: "Lineage", bidirectional: false, reversed: true },
+    ];
+    const edges: RelationEdgeDraft[] = [{ src: makeNode("child"), tgt: makeNode("parent") }];
+    const edgeRelTypes = { 0: "DERIVED_FROM" };
+
+    const resolved = resolveEdgesForSave(customVocab, edges, edgeRelTypes, "");
+    expect(resolved.length).toBe(1);
+    expect(resolved[0].label).toBe("DERIVED_FROM");
+    expect(resolved[0].originalTerm).toBe("DERIVED_FROM");
+    // reversed flag on canonical definition in custom vocabulary swaps nodes
+    expect(resolved[0].src.id).toBe("parent");
+    expect(resolved[0].tgt.id).toBe("child");
+  });
+
+  it("resolveEdgesForSave falls back cleanly when key or label is unknown or CUSTOM", () => {
+    const edges: RelationEdgeDraft[] = [{ src: makeNode("nodeA"), tgt: makeNode("nodeB") }];
+    const edgeRelTypes = { 0: "CUSTOM" };
+
+    const resolved = resolveEdgesForSave(DEFAULT_RELATION_VOCABULARY, edges, edgeRelTypes, "MY_CUSTOM_LINK");
+    expect(resolved.length).toBe(1);
+    expect(resolved[0].label).toBe("MY_CUSTOM_LINK");
+    expect(resolved[0].originalTerm).toBe("MY_CUSTOM_LINK");
+    expect(resolved[0].bidirectional).toBe(false);
+    expect(resolved[0].src.id).toBe("nodeA");
+    expect(resolved[0].tgt.id).toBe("nodeB");
+  });
 });
+
