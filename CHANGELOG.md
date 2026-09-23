@@ -8,11 +8,15 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- Treat `INDEPENDENT_OF` relations as neutral baseline graph weight instead of strong attraction in 2D force layout (#68).
 - Precompute note token sets in O(N) instead of O(N^2) pairwise re-tokenization, and eliminate inner-loop string allocations during 2D force layout (#80).
 - Eliminate redundant similarity matrix rescaling inside 2D force layout projection, preserving single-ownership and caller-provided affinities (#75).
 - Add SHA-256 identity suffixes to bounded relation filenames to distinguish folder/punctuation collisions, while preserving legacy paths for edits and duplicate detection (#74).
 - Save replacement relation files and graph edges before deleting previous data; reject duplicate batch targets and prevent create races from overwriting other relations (#73).
 - Render distinct, semantic palette colors for relation types in 2D scatter plot across default ("ink") and "muted" visual styles, with dedicated colors for all 13 canonical Cypher relation labels (#62).
+
+### Documentation
+- Correct unsubstantiated 15x math weighting claim, align layout force equations and initial PCA placement descriptions with implementation, fix custom endpoint defaults and setting section order, and update version and test count badges (#67, #68, #71).
 
 ## [0.1.4] - 2026-09-16
 
