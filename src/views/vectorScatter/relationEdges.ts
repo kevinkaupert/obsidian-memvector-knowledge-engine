@@ -16,10 +16,9 @@ function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exc
   return destFile ? pathToId(destFile.path) : toSlug(linkText);
 }
 
-/** Scans only explicit relation notes under wiki/relations/ (written by RelationBuilderModal), not the whole vault. */
-export async function loadRelationEdges(app: App, exclusions = ""): Promise<RelationEdge[]> {
+/** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */
+export async function loadRelationFiles(app: App, exclusions = ""): Promise<RelationEdge[]> {
   const edges: RelationEdge[] = [];
-  const edgeSet = new Set<string>();
   const files = app.vault.getMarkdownFiles();
 
   for (const f of files) {
@@ -79,14 +78,7 @@ export async function loadRelationEdges(app: App, exclusions = ""): Promise<Rela
       const cleanTgt = tgtLinkText ? resolveLinkTextToId(app, tgtLinkText, f.path, exclusions) : "";
 
       if (cleanSrc && cleanTgt) {
-        // Must include type - SQLite keys edges by (src, tgt, type), so two
-        // different relation types in the same direction between the same
-        // pair are both real, distinct edges, not a duplicate to collapse.
-        const key = `${cleanSrc}->${cleanTgt}->${relType}`;
-        if (!edgeSet.has(key)) {
-          edgeSet.add(key);
-          edges.push({ srcId: cleanSrc, tgtId: cleanTgt, relType, desc, title: `${cleanSrc} -> ${cleanTgt}`, path: f.path, bidirectional });
-        }
+        edges.push({ srcId: cleanSrc, tgtId: cleanTgt, relType, desc, title: `${cleanSrc} -> ${cleanTgt}`, path: f.path, bidirectional });
       }
     } catch (err) {
       console.debug(`MemVector: skipping unparseable relation note ${f.path}`, err);
@@ -94,4 +86,16 @@ export async function loadRelationEdges(app: App, exclusions = ""): Promise<Rela
   }
 
   return edges;
+}
+
+/** Deduplicates graph edges by ordered endpoints and type for rendering and graph sync. */
+export async function loadRelationEdges(app: App, exclusions = ""): Promise<RelationEdge[]> {
+  const files = await loadRelationFiles(app, exclusions);
+  const seen = new Set<string>();
+  return files.filter((edge) => {
+    const key = JSON.stringify([edge.srcId, edge.tgtId, edge.relType]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

@@ -85,7 +85,9 @@ You can edit this file at any time to customize the vocabulary for any domain (m
 - `term`: descriptive natural language phrase for the relationship (full conversational phrase mapping is preserved in `buildConversationalCategories` as a planned expansion for Issue #43).
 - `category`: dropdown group heading.
 - `bidirectional`: whether the relationship holds symmetrically in both directions.
-- `reversed`: swaps source/target at save time for terms whose natural reading runs backwards (e.g. "follows from"). The UI also includes an interactive "Richtung umkehren" (swap direction) button in the preview card for explicit visual control.
+- `reversed`: swaps source/target when creating a relation or selecting a different reversed type (e.g. "follows from"). Editing an existing relation while retaining its canonical label preserves its already-stored direction. The UI also includes an interactive "Richtung umkehren" (swap direction) button for explicit direction changes during editing.
+
+The preselected type uses the same vocabulary resolution as an explicitly selected type, including `bidirectional` and `reversed`. Save conflict checks inspect every relation file, including duplicate identities and files excluded from the graph view; a duplicate target blocks saving before any file or graph writes.
 
 ---
 
@@ -108,4 +110,3 @@ All note embeddings and graph relationships are stored in:
 All API keys (LLM keys and embedding keys) are securely stored in Obsidian's native `app.secretStorage` API rather than in `data.json`.
 - `data.json` contains only non-sensitive configuration (model names, URLs, thresholds, visual styles).
 - Remote servers only receive requests explicitly initiated by the user (embedding computation or synthesis). All graph data and SQLite storage remain 100% on device.
-

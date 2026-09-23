@@ -55,6 +55,68 @@ surfaced several real bugs during the 2026-09-14 functional review (tracked
 in issue #7 and its linked findings); it's worth re-running after any change
 to indexing, relation storage, or synthesis prompt construction.
 
+## Relation save regressions: direction, defaults, duplicate files
+
+Use a disposable vault with the current branch's `main.js`, `manifest.json`,
+`styles.css`, and `sql-wasm.wasm` copied into
+`.obsidian/plugins/memvector-knowledge-engine/`. Reload the plugin after copying.
+These checks do not require an embedding provider or an LLM.
+
+Create notes `A.md`, `B.md`, `C.md`, and `D.md`. Create
+`wiki/relation-review-types.json` with the following content and select this
+path in Settings -> MemVector -> Relation Vocabulary File:
+
+```json
+{
+  "terms": [
+    {
+      "key": "reviewReverse",
+      "label": "REVIEW_REVERSED",
+      "term": "review reversed",
+      "category": "Review",
+      "bidirectional": false,
+      "reversed": true
+    }
+  ]
+}
+```
+
+1. **Untouched reversed default.** Open the 2D graph, select A and B with
+   Cmd/Ctrl-click, and open the relation builder. Leave the type dropdown
+   untouched. Record the source and target shown in the flow row, then save.
+   In the created file under `wiki/relations/`, `source_note` must be the
+   flow row's target and `target_note` its source. `relation_type` must be
+   `REVIEW_REVERSED`. The expandable Cypher preview must agree with the
+   saved endpoints.
+2. **Stable edits and explicit swaps.** Click that relation's edge in the
+   graph to edit it. Save unchanged twice, reopening between saves. Its
+   `source_note`, `target_note`, and filename must remain unchanged. Then
+   edit again, click the direction-swap button once, and save. The endpoints
+   must swap once. Reopening and saving unchanged must preserve this new
+   direction; the Cypher preview must match it too.
+3. **Duplicate guard.** Copy the resulting relation note to another filename
+   under `wiki/relations/`, preserving its frontmatter. Close and reopen the
+   graph so it reloads relations. Edit the visible edge, change its description,
+   and save. Expect a conflict notice and the modal to remain open. Neither
+   file may change, and no replacement file may appear. Remove the duplicate,
+   reopen the builder, and verify that the same edit now succeeds.
+4. **Untouched bidirectional default.** In the review vocabulary, change
+   `label` to `REVIEW_SYMMETRIC`, `reversed` to `false`, and `bidirectional`
+   to `true`. Open a new relation builder for C and D, leave the dropdown
+   untouched, and save. The relation note must contain
+   `relation_type: "REVIEW_SYMMETRIC"` and `bidirectional: true`.
+
+Automated counterparts run with:
+
+```sh
+npx vitest run src/modals/relationBuilder/RelationBuilderModal.test.ts src/relationVocabulary/relationVocabulary.test.ts
+```
+
+These automated tests exercise the actual modal save handlers, vocabulary
+resolution, relation-file loading, conflict guard, and markdown writes with
+mocked Obsidian UI/storage and graph-store boundaries. They do not replace
+the real Obsidian checks above.
+
 ## Remote backends (Qdrant + Memgraph) — not implemented yet
 
 > [!WARNING]

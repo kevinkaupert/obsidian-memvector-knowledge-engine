@@ -115,5 +115,31 @@ describe("relationVocabulary", () => {
     expect(resolved[0].src.id).toBe("nodeA");
     expect(resolved[0].tgt.id).toBe("nodeB");
   });
-});
 
+  it("resolves the default type for every batch edge while retaining per-edge overrides", () => {
+    const edges = [
+      { src: makeNode("a"), tgt: makeNode("b") },
+      { src: makeNode("a"), tgt: makeNode("c") },
+      { src: makeNode("a"), tgt: makeNode("d") },
+    ];
+    const resolved = resolveEdgesForSave(DEFAULT_RELATION_VOCABULARY, edges, { 1: "REQUIRES" }, "EQUIVALENT_TO");
+    expect(resolved.map((e) => [e.label, e.bidirectional])).toEqual([
+      ["EQUIVALENT_TO", true], ["REQUIRES", false], ["EQUIVALENT_TO", true],
+    ]);
+  });
+
+  it("still reverses a newly selected type or conversational key during an edit", () => {
+    const edges = [{ src: makeNode("a"), tgt: makeNode("b") }];
+    const defs = [{ key: "backwards", label: "REVERSED", term: "backwards", category: "Test", reversed: true, bidirectional: false }];
+    for (const [selection, previous] of [["REVERSED", "REQUIRES"], ["backwards", "REVERSED"]]) {
+      const [resolved] = resolveEdgesForSave(defs, edges, { 0: selection }, "", previous);
+      expect([resolved.src.id, resolved.tgt.id]).toEqual(["b", "a"]);
+    }
+  });
+
+  it("keeps explicit CUSTOM input literal even when it matches a vocabulary label", () => {
+    const defs = [{ key: "backwards", label: "REVERSED", term: "backwards", category: "Test", reversed: true, bidirectional: true }];
+    const [resolved] = resolveEdgesForSave(defs, [{ src: makeNode("a"), tgt: makeNode("b") }], { 0: "CUSTOM" }, "REVERSED");
+    expect([resolved.src.id, resolved.tgt.id, resolved.bidirectional]).toEqual(["a", "b", false]);
+  });
+});

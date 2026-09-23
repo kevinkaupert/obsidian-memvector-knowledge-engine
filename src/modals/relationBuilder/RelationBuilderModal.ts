@@ -11,7 +11,7 @@ import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePaths } from "./relationFileTemplate";
 import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
-import { loadRelationEdges } from "../../views/vectorScatter/relationEdges";
+import { loadRelationFiles } from "../../views/vectorScatter/relationEdges";
 
 export interface InitialRelationEdge {
   relType: string;
@@ -117,7 +117,7 @@ export class RelationBuilderModal extends Modal {
     const generate = (): RelationEdgeDraft[] => generateEdges(this.selectedNodes, this.topology, this.focalIndex);
 
     const updateCypherPreview = () => {
-      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
+      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType);
       cypherBox.setText(buildRelationCypherPreview(resolved, this.relDesc));
     };
 
@@ -300,12 +300,12 @@ export class RelationBuilderModal extends Modal {
       saveBtn.disabled = true;
       saveBtn.setText(t.relSaving);
 
-      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType);
+      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType);
 
       let paths: string[];
       try {
         // Include excluded relation files too: they still own their paths and identities.
-        paths = await relationFilePaths(resolvedEdges, await loadRelationEdges(this.app), this.initialEdge?.path);
+        paths = await relationFilePaths(resolvedEdges, await loadRelationFiles(this.app), this.initialEdge?.path);
       } catch (err) {
         console.error(t.relSaveError, err);
         new Notice(t.relSaveError, 8000);

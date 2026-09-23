@@ -7,6 +7,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Fixed
+- Preserve stored relation direction when editing a canonical type with `reversed: true`, while retaining explicit direction swaps.
+- Resolve the preselected relation type through the vocabulary even without dropdown interaction, including reversed and bidirectional defaults.
+- Check all existing relation files for save conflicts before graph-edge deduplication, including excluded files and duplicate legacy identities.
+
 ## [0.1.5] - 2026-09-23
 
 ### Fixed
