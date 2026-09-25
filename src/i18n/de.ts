@@ -64,6 +64,7 @@ export const de: TranslationKeys = {
   secView: "Ansicht",
   secActions: "Aktionen",
   lblShowEdges: "Kanten anzeigen",
+  lblShowRelationNotes: "Relations-Notizen anzeigen",
   lblLasso: "Lasso-Auswahl",
   searchPlaceholder: "Notiz suchen + Enter...",
   searchNotFound: "Keine Notiz im Graph gefunden für",

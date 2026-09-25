@@ -131,7 +131,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.isDraggingLasso = false;
       if (ctx.lassoPath.length > 2) {
         wasDragging = true; // Prevent click from clearing the lasso selection
-        ctx.nodes.forEach((node) => {
+        ctx.getVisibleNodes().forEach((node) => {
           const screenPos = worldToScreen(node.x, node.y, ctx.zoom, ctx.pan);
           if (isPointInPolygon(screenPos.x, screenPos.y, ctx.lassoPath)) {
             ctx.selectedNodeIds.add(node.id);

@@ -58,6 +58,7 @@ export interface TranslationKeys {
   secView: string;
   secActions: string;
   lblShowEdges: string;
+  lblShowRelationNotes: string;
   lblLasso: string;
   searchPlaceholder: string;
   searchNotFound: string;

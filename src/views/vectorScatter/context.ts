@@ -28,12 +28,14 @@ export interface ScatterViewContext {
   hoveredNode: ScatterNode | null;
   hoveredEdge: RelationEdge | null;
   showEdges: boolean;
+  showRelationNotes: boolean;
   edgeHops: number;
   relationEdges: RelationEdge[];
   nodeSpacing: number;
   cloudSpacing: number;
   projectionMode: ProjectionMode;
 
+  getVisibleNodes(): ScatterNode[];
   redraw(): void;
   scanVaultNotes(filterOverride?: string): Promise<void>;
   applyLayout(): void;

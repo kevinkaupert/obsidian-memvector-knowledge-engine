@@ -46,3 +46,24 @@ export function buildNodeMap(nodes: ScatterNode[]): Map<string, ScatterNode> {
   }
   return map;
 }
+
+/**
+ * Purpose: Determines whether a scatter node represents a typed relation file.
+ */
+export function isRelationNode(node: ScatterNode): boolean {
+  return (
+    node.type === "relation" ||
+    node.path.includes("wiki/relations/") ||
+    node.path.includes("/relations/") ||
+    node.path.startsWith("wiki/relations")
+  );
+}
+
+/**
+ * Purpose: Filters visible scatter nodes based on relation notes display toggle.
+ */
+export function filterVisibleNodes(nodes: ScatterNode[], showRelationNotes: boolean): ScatterNode[] {
+  if (showRelationNotes) return nodes;
+  return nodes.filter((n) => !isRelationNode(n));
+}
+
