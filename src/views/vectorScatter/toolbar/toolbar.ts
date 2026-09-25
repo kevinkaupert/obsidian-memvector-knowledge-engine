@@ -206,6 +206,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         const parsed = parseInt(val, 10);
         ctx.settings.synthesisHopDepth = Number.isNaN(parsed) ? 2 : parsed;
         await ctx.saveSettings();
+        refreshContextPreview();
       })();
     }
   );
