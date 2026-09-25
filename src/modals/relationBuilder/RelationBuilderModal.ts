@@ -27,17 +27,19 @@ export class RelationBuilderModal extends Modal {
   private relType = "";
   private edgeRelTypes: Record<number, string> = {};
   private relDesc = "";
+  private selectedNodes: RelationNode[];
   /** True when editing an edge whose stored label isn't in the current vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
   private isCustomFallback = false;
 
   constructor(
     app: App,
     private readonly host: SettingsHost,
-    private selectedNodes: RelationNode[],
+    selectedNodes: RelationNode[],
     private readonly initialEdge?: InitialRelationEdge,
     private readonly onSaved?: () => void
   ) {
     super(app);
+    this.selectedNodes = [...selectedNodes];
     if (initialEdge) this.relDesc = initialEdge.description;
   }
 

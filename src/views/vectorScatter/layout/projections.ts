@@ -312,7 +312,3 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
   }
 }
 
-export function applyProjection(_mode: ProjectionMode, params: ProjectionParams): void {
-  applyGraphVectorProjection(params);
-}
-

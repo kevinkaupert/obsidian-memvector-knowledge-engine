@@ -20,6 +20,10 @@ describe("modelTiers", () => {
       expect(detectModelTier("claude-sonnet-5", "claude")).toBe("frontier");
       expect(detectModelTier("gpt-4o", "openai")).toBe("frontier");
       expect(detectModelTier("deepseek-chat", "deepseek")).toBe("frontier");
+      expect(detectModelTier("deepseek-reasoner", "deepseek")).toBe("frontier");
+      expect(detectModelTier("", "openrouter")).toBe("frontier");
+      expect(detectModelTier("anthropic/claude-3.5-sonnet", "openrouter")).toBe("frontier");
+      expect(detectModelTier("deepseek/deepseek-r1", "openrouter")).toBe("frontier");
       expect(detectModelTier("llama3.3:70b", "ollama")).toBe("frontier");
     });
   });

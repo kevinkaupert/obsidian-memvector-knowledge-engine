@@ -23,7 +23,9 @@ export interface CanvasInteractionRefs {
   updateSelectionUI: (this: void) => void;
 }
 
-/** Wires pan/zoom/lasso-select/click-select/double-click-to-open on the canvas. Mirrors the original's mutation-of-`this` closures via `ctx`. */
+/**
+ * Purpose: Attaches pan, zoom, lasso, click selection, and navigation event listeners to the canvas element.
+ */
 export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInteractionRefs): () => void {
   const { canvas, canvasWrap, hoverBar, updateSelectionUI } = refs;
 
@@ -31,30 +33,26 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   let mouseDownX = 0;
   let mouseDownY = 0;
 
-  canvas.addEventListener(
-    "wheel",
-    (e) => {
-      e.preventDefault();
-      const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-      if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
-        const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-        const newZoom = Math.max(0.05, Math.min(8, ctx.zoom * zoomFactor));
-        ctx.pan.x = mouseX - (mouseX - ctx.pan.x) * (newZoom / ctx.zoom);
-        ctx.pan.y = mouseY - (mouseY - ctx.pan.y) * (newZoom / ctx.zoom);
-        ctx.zoom = newZoom;
-      } else {
-        ctx.pan.x -= e.deltaX * 0.9;
-        ctx.pan.y -= e.deltaY * 0.9;
-      }
-      ctx.redraw();
-    },
-    { passive: false }
-  );
+    if (e.ctrlKey || (Math.abs(e.deltaY) > 30 && Math.abs(e.deltaX) < 5)) {
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+      const newZoom = Math.max(0.05, Math.min(8, ctx.zoom * zoomFactor));
+      ctx.pan.x = mouseX - (mouseX - ctx.pan.x) * (newZoom / ctx.zoom);
+      ctx.pan.y = mouseY - (mouseY - ctx.pan.y) * (newZoom / ctx.zoom);
+      ctx.zoom = newZoom;
+    } else {
+      ctx.pan.x -= e.deltaX * 0.9;
+      ctx.pan.y -= e.deltaY * 0.9;
+    }
+    ctx.redraw();
+  };
 
-  canvas.addEventListener("mousedown", (e) => {
+  const onMouseDown = (e: MouseEvent) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -72,9 +70,9 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.dragStart = { x: mouseX - ctx.pan.x, y: mouseY - ctx.pan.y };
       canvas.addClass("is-grabbing");
     }
-  });
+  };
 
-  canvas.addEventListener("mousemove", (e) => {
+  const onMouseMove = (e: MouseEvent) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -117,7 +115,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
 
       if (needsRedraw) ctx.redraw();
     }
-  });
+  };
 
   const onMouseUp = () => {
     if (ctx.isDraggingPan) {
@@ -145,9 +143,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     }
   };
 
-  window.addEventListener("mouseup", onMouseUp);
-
-  canvas.addEventListener("click", (e) => {
+  const onClick = (e: MouseEvent) => {
     if (wasDragging) {
       wasDragging = false;
       return;
@@ -186,9 +182,9 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.selectedNodeIds.clear();
       updateSelectionUI();
     }
-  });
+  };
 
-  canvas.addEventListener("dblclick", (e) => {
+  const onDblClick = (e: MouseEvent) => {
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -202,9 +198,21 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       const file = ctx.app.vault.getAbstractFileByPath(clicked.path);
       if (file instanceof TFile) void ctx.app.workspace.getLeaf(true).openFile(file);
     }
-  });
+  };
+
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.addEventListener("mousedown", onMouseDown);
+  canvas.addEventListener("mousemove", onMouseMove);
+  canvas.addEventListener("click", onClick);
+  canvas.addEventListener("dblclick", onDblClick);
+  window.addEventListener("mouseup", onMouseUp);
 
   return () => {
     window.removeEventListener("mouseup", onMouseUp);
+    canvas.removeEventListener("wheel", onWheel);
+    canvas.removeEventListener("mousedown", onMouseDown);
+    canvas.removeEventListener("mousemove", onMouseMove);
+    canvas.removeEventListener("click", onClick);
+    canvas.removeEventListener("dblclick", onDblClick);
   };
 }
