@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
 
   vectorSearchExclusions: "",
   radarNoteCount: 10,
+  includeWikiLinksAsRelations: false,
 
   enrichSynthesisContext: true,
   synthesisHopDepth: 2,

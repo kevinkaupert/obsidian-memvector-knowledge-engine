@@ -161,7 +161,7 @@ Verlinkt weiter zu [[Testkonzept-C]].
 Eigenständige Notiz ohne weitere Links, dient als Endpunkt der Test-Kette A → B → C.
 ```
 
-Expected resulting graph: 3 nodes, 2 `LINKS_TO` edges (`testkonzept-a → testkonzept-b`, `testkonzept-b → testkonzept-c`).
+Expected resulting graph with the `includeWikiLinksAsRelations` setting enabled (default is **off**, in which case no `LINKS_TO` edges are indexed - see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`): 3 nodes, 2 `LINKS_TO` edges (`testkonzept-a → testkonzept-b`, `testkonzept-b → testkonzept-c`).
 
 ### 2. Run the plugin's sync buttons
 

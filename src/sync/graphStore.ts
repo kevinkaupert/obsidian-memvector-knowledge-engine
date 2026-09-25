@@ -31,7 +31,7 @@ export interface TypedEdgeInput {
  */
 export interface GraphStore {
   testConnection(): Promise<void>;
-  /** Full-vault re-index - notes + WikiLink edges. */
+  /** Full-vault re-index - notes plus typed relation edges, and WikiLink edges only when the caller opts in (includeWikiLinksAsRelations). */
   syncVaultGraph(nodes: GraphNode[], edges: GraphEdge[]): Promise<{ nodeCount: number; edgeCount: number }>;
   /** RelationBuilderModal save - one or more manually-typed relations. */
   upsertTypedEdges(edges: TypedEdgeInput[]): Promise<void>;

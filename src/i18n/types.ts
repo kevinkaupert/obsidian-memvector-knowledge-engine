@@ -45,6 +45,8 @@ export interface TranslationKeys {
   embedModelDesc: string;
   exclusionsName: string;
   exclusionsDesc: string;
+  wikiLinksAsRelationsName: string;
+  wikiLinksAsRelationsDesc: string;
   agentsPathsName: string;
   agentsPathsDesc: string;
   relVocabPathName: string;

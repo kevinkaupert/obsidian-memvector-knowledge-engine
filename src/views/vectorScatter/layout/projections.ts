@@ -10,6 +10,8 @@ export interface ProjectionParams {
   nodeSpacing: number;
   cloudSpacing: number;
   relationEdges: RelationEdge[];
+  /** Opt-in WikiLink attraction edges in topology weights (Issue #100) - defaults to off. */
+  includeWikiLinksAsRelations?: boolean;
 }
 
 /**
@@ -181,7 +183,14 @@ export function compute2DProjectionFromMatrix(nodes: ScatterNode[], matrix: numb
  * Purpose: Simulates physical 2D organic force-directed layout balancing embeddings, graph topology, and many-body repulsion using caller-provided similarity matrix.
  * Architecture: Organic manifold force-directed model (Issue #41, #75).
  */
-export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSpacing, relationEdges }: ProjectionParams): void {
+export function applyGraphVectorProjection({
+  nodes,
+  matrix,
+  nodeSpacing,
+  cloudSpacing,
+  relationEdges,
+  includeWikiLinksAsRelations,
+}: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
 
@@ -191,7 +200,7 @@ export function applyGraphVectorProjection({ nodes, matrix, nodeSpacing, cloudSp
 
   const targetSpacing = nodeSpacing || 350;
   const clusterRadius = cloudSpacing || 800;
-  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges);
+  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges, includeWikiLinksAsRelations);
   const isRepelled = new Uint8Array(n * n);
   if (repel && repel.size > 0) {
     for (const key of repel) {

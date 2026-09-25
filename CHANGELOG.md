@@ -7,6 +7,9 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Added
+- New setting `includeWikiLinksAsRelations` (default: off) under Knowledge Domain & Embedding Provider that makes WikiLink `LINKS_TO` graph relations opt-in (Issue #100). Release-note highlight: WikiLinks are no longer indexed as graph relations by default - GraphRAG synthesis and the knowledge graph intentionally focus on semantic embeddings and explicit, typed relationships (Relation Builder); toggle + re-index restores the old behavior.
+
 ### Fixed
 - Preserve stored relation direction when editing a canonical type with `reversed: true`, while retaining explicit direction swaps.
 - Resolve the preselected relation type through the vocabulary even without dropdown interaction, including reversed and bidirectional defaults.
