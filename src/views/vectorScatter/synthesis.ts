@@ -278,7 +278,7 @@ export async function runSynthesis(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     setHoverText(`[ERROR] ${msg.slice(0, 70)}`);
-    new Notice(`[ERROR] MemVector LLM-Fehler: ${msg}`, 10000);
+    new Notice(`[ERROR] ${t.llmErrorPrefix} ${msg}`, 10000);
     return;
   }
 
@@ -286,5 +286,5 @@ export async function runSynthesis(
   const synthesisText = linkifySynthesis(rawSynthesisText, vaultTitleMap);
 
   new SynthesisResultModal(app, selected, synthesisText, modelName, settings).open();
-  setHoverText(`${modelName} Synthese für ${selected.length} Notizen abgeschlossen.`);
+  setHoverText(`${modelName} ${t.synthCompletePrefix} ${selected.length} ${t.synthCompleteSuffix}`);
 }

@@ -177,6 +177,26 @@ export interface TranslationKeys {
 
   // Sidebar
   sidebarNearbyNotes: string;
+
+  // Ribbon & Commands
+  ribbonSidebar: string;
+  ribbonScatter: string;
+  cmdOpenSidebar: string;
+  cmdOpenScatter: string;
+
+  // Provider options
+  provOllama: string;
+  provCustomRest: string;
+
+  // Notices & Status prefixes
+  indexVaultNoticeStartingSuffix: string;
+  indexVaultNoticeSavedSuffix: string;
+  syncErrorPrefix: string;
+  saveErrorPrefix: string;
+  relVocabLoadWarn: string;
+  synthCompletePrefix: string;
+  synthCompleteSuffix: string;
+  llmErrorPrefix: string;
 }
 
 export type SupportedLanguage = "de" | "en";

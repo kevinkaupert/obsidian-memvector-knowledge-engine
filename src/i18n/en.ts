@@ -187,4 +187,24 @@ export const en: TranslationKeys = {
 
   // Sidebar
   sidebarNearbyNotes: "Nearby notes",
+
+  // Ribbon & Commands
+  ribbonSidebar: "MemVector Co-Pilot sidebar",
+  ribbonScatter: "MemVector 2D vector space",
+  cmdOpenSidebar: "MemVector: Open sidebar",
+  cmdOpenScatter: "MemVector: Open 2D vector scatter plot",
+
+  // Provider options
+  provOllama: "Ollama (Local - http://localhost:11434/v1)",
+  provCustomRest: "Custom REST endpoint",
+
+  // Notices & Status prefixes
+  indexVaultNoticeStartingSuffix: "notes...",
+  indexVaultNoticeSavedSuffix: "edges saved successfully to local SQLite!",
+  syncErrorPrefix: "Sync error:",
+  saveErrorPrefix: "Save error:",
+  relVocabLoadWarn: "could not be read - using default vocabulary.",
+  synthCompletePrefix: "Synthesis for",
+  synthCompleteSuffix: "notes completed.",
+  llmErrorPrefix: "MemVector LLM error:",
 };

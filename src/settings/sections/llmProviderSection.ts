@@ -32,12 +32,12 @@ export function renderLlmProviderSection(
     .setDesc(t.llmProvDesc)
     .addDropdown((dropdown) =>
       dropdown
-        .addOption("ollama", settings.language === "en" ? "Ollama (Local - http://localhost:11434/v1)" : "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("ollama", t.provOllama)
         .addOption("claude", "Anthropic Claude (api.anthropic.com)")
         .addOption("deepseek", "DeepSeek Cloud (api.deepseek.com)")
         .addOption("openai", "OpenAI (api.openai.com)")
         .addOption("openrouter", "OpenRouter (openrouter.ai/api/v1)")
-        .addOption("custom", "Custom REST Endpoint")
+        .addOption("custom", t.provCustomRest)
         .setValue(settings.llmProvider)
         .onChange(async (value) => {
           const provider = value as LlmProvider;

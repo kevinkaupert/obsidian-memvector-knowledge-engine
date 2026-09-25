@@ -1,5 +1,6 @@
 import { TFile } from "obsidian";
 import type { ScatterViewContext } from "./context";
+import { getTranslation } from "../../i18n";
 
 function isPointInPolygon(px: number, py: number, polygon: { x: number; y: number }[]): boolean {
   let inside = false;
@@ -98,7 +99,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
         if (hovered) {
           hoverBar.setText(hovered.title);
         } else {
-          hoverBar.setText("Bewege die Maus über einen Vektor-Punkt. Ziehe mit gedrückter Shift-Taste oder Cmd-Klick zum Auswählen.");
+          hoverBar.setText(getTranslation(ctx.settings.language || "de").hoverHint);
         }
         needsRedraw = true;
       }

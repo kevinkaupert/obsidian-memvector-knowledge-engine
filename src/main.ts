@@ -7,6 +7,7 @@ import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants"
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 import { setPluginId, closeLocalDb } from "./sync/sqlite/sqliteDb";
+import { getTranslation } from "./i18n";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
@@ -35,21 +36,23 @@ export default class MemVectorPlugin extends Plugin {
     });
     this.registerView(MATH_VECTOR_SCATTER_VIEW_TYPE, (leaf: WorkspaceLeaf) => new VectorScatterView(leaf, this));
 
-    this.addRibbonIcon("function-square", "MemVector Co-Pilot Seitenleiste", () => {
+    const t = getTranslation(this.settings.language || "de");
+
+    this.addRibbonIcon("function-square", t.ribbonSidebar, () => {
       void this.activateSidebarView();
     });
-    this.addRibbonIcon("dot-network", "MemVector 2D Vektorraum", () => {
+    this.addRibbonIcon("dot-network", t.ribbonScatter, () => {
       void this.activateVectorScatterView();
     });
 
     this.addCommand({
       id: "open-math-wiki-sidebar",
-      name: "MemVector: Seitenleiste öffnen",
+      name: t.cmdOpenSidebar,
       callback: () => this.activateSidebarView(),
     });
     this.addCommand({
       id: "open-math-vector-scatterplot",
-      name: "MemVector: 2D Vektor-Scatterplot öffnen",
+      name: t.cmdOpenScatter,
       callback: () => this.activateVectorScatterView(),
     });
 

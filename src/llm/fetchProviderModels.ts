@@ -67,7 +67,7 @@ export async function fetchProviderModels(apiBaseUrl: string, apiKey: string, ll
   if (res.status === 200) {
     const models = parseModelList(res.text);
     if (models.length > 0) return models;
-    throw new Error("Keine Modelle vom Provider erhalten (Antwort leer).");
+    throw new Error("No models returned by provider (empty response).");
   }
 
   let errMsg = res.text;
@@ -78,7 +78,7 @@ export async function fetchProviderModels(apiBaseUrl: string, apiKey: string, ll
     console.warn("MemVector: model-list error response wasn't JSON, showing raw text");
   }
   if (res.status === 401) {
-    throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${targetUrl}`);
+    throw new Error(`HTTP 401 Unauthorized: Invalid API key for ${targetUrl}`);
   }
-  throw new Error(`HTTP ${res.status}: ${errMsg || "Modell-Abfrage fehlgeschlagen"} (${targetUrl})`);
+  throw new Error(`HTTP ${res.status}: ${errMsg || "Model query failed"} (${targetUrl})`);
 }

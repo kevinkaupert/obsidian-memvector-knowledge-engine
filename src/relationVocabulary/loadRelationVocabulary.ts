@@ -3,6 +3,7 @@ import { ensureParentFolder } from "../ensureFolder";
 import type { MemVectorSettings } from "../settings/types";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
+import { getTranslation } from "../i18n";
 
 export const DEFAULT_RELATION_VOCABULARY_PATH = "wiki/relation-types.json";
 
@@ -27,7 +28,7 @@ function isValidTerm(v: unknown): v is RelationTermDef {
  * files fall back to the bundled default with a Notice rather than breaking the
  * relation builder.
  */
-export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorSettings, "relationVocabularyPath">): Promise<RelationTermDef[]> {
+export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorSettings, "relationVocabularyPath"> & Partial<Pick<MemVectorSettings, "language">>): Promise<RelationTermDef[]> {
   const path = (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
   const existing = app.vault.getAbstractFileByPath(path);
 
@@ -49,7 +50,8 @@ export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorS
     if (terms.length === 0) throw new Error("no valid terms");
     return terms;
   } catch (err) {
-    new Notice(`[WARN] ${path} konnte nicht gelesen werden (${err instanceof Error ? err.message : String(err)}) - verwende Standard-Vokabular.`);
+    const t = getTranslation(settings.language || "de");
+    new Notice(`[WARN] ${path} ${t.relVocabLoadWarn} (${err instanceof Error ? err.message : String(err)})`);
     return DEFAULT_RELATION_VOCABULARY;
   }
 }

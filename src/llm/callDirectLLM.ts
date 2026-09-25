@@ -104,7 +104,7 @@ export async function callDirectLLM(
             return textBlocks.join("\n\n");
           }
         }
-        return blocks?.[0]?.text || "Keine Antwort von Claude erhalten.";
+        return blocks?.[0]?.text || "No response received from Claude.";
       }
       const ans =
         data?.choices?.[0]?.message?.content ||
@@ -112,7 +112,7 @@ export async function callDirectLLM(
         data?.message?.content ||
         data?.response;
       if (ans && typeof ans === "string") return ans;
-      return "Keine Antwort vom LLM erhalten.";
+      return "No response received from LLM.";
     }
 
     // Native Ollama /api/chat fallback if /v1/chat/completions failed
@@ -157,18 +157,18 @@ export async function callDirectLLM(
     }
     if (!errMsg) errMsg = response.text || `HTTP ${response.status}`;
 
-    console.error("MemVector: LLM Request fehlgeschlagen. Status:", response.status, "URL:", url, "Details:", errMsg);
+    console.error("MemVector: LLM request failed. Status:", response.status, "URL:", url, "Details:", errMsg);
 
     if (response.status === 400) {
       throw new Error(`HTTP 400 Bad Request (${url}): ${errMsg}`);
     } else if (response.status === 402) {
       throw new Error(
-        `HTTP 402 Payment Required: ${errMsg || "Guthaben aufgebraucht. Bitte lade Guthaben auf oder schalte auf lokales Ollama um."}`
+        `HTTP 402 Payment Required: ${errMsg || "Credit exhausted. Please recharge credits or switch to local Ollama."}`
       );
     } else if (response.status === 401) {
-      throw new Error(`HTTP 401 Unauthorized: Ungültiger API-Key für ${url}. ${errMsg}`);
+      throw new Error(`HTTP 401 Unauthorized: Invalid API key for ${url}. ${errMsg}`);
     } else if (response.status === 404) {
-      throw new Error(`HTTP 404 Not Found: Modell '${modelName}' existiert nicht auf ${url}. ${errMsg}`);
+      throw new Error(`HTTP 404 Not Found: Model '${modelName}' does not exist on ${url}. ${errMsg}`);
     } else {
       throw new Error(`HTTP ${response.status}: ${errMsg}`);
     }

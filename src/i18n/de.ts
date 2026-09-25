@@ -187,4 +187,24 @@ export const de: TranslationKeys = {
 
   // Sidebar
   sidebarNearbyNotes: "Nahestehende Notizen",
+
+  // Ribbon & Commands
+  ribbonSidebar: "MemVector Co-Pilot Seitenleiste",
+  ribbonScatter: "MemVector 2D Vektorraum",
+  cmdOpenSidebar: "MemVector: Seitenleiste öffnen",
+  cmdOpenScatter: "MemVector: 2D Vektor-Scatterplot öffnen",
+
+  // Provider options
+  provOllama: "Ollama (Lokal - http://localhost:11434/v1)",
+  provCustomRest: "Benutzerdefinierter REST-Endpunkt",
+
+  // Notices & Status prefixes
+  indexVaultNoticeStartingSuffix: "Notizen...",
+  indexVaultNoticeSavedSuffix: "Kanten erfolgreich in lokaler SQLite gespeichert!",
+  syncErrorPrefix: "Sync-Fehler:",
+  saveErrorPrefix: "Fehler beim Speichern:",
+  relVocabLoadWarn: "konnte nicht gelesen werden - verwende Standard-Vokabular.",
+  synthCompletePrefix: "Synthese für",
+  synthCompleteSuffix: "Notizen abgeschlossen.",
+  llmErrorPrefix: "MemVector LLM-Fehler:",
 };
