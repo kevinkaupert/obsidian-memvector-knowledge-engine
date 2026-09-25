@@ -27,7 +27,19 @@ export interface VectorScatterHost {
   focusSidebarNote(file: TFile): void;
 }
 
-export class VectorScatterView extends ItemView implements ScatterViewContext {
+export interface NodePositionProvider {
+  getNodePosition(path: string): { x: number; y: number } | null;
+}
+
+export class VectorScatterView extends ItemView implements ScatterViewContext, NodePositionProvider {
+  /**
+   * Purpose: Looks up the 2D canvas coordinates of a note by file path.
+   */
+  getNodePosition(path: string): { x: number; y: number } | null {
+    const match = this.nodes.find((n) => n.path === path);
+    return match ? { x: match.x, y: match.y } : null;
+  }
+
   viewFilterQuery = "";
   nodes: ScatterNode[] = [];
   selectedNodeIds = new Set<string>();
