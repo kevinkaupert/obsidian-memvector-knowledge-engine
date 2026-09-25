@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectModelTier, getContextBudget } from "./modelTiers";
+import { detectModelTier } from "./modelTiers";
 
 describe("modelTiers", () => {
   describe("detectModelTier", () => {
@@ -25,24 +25,6 @@ describe("modelTiers", () => {
       expect(detectModelTier("anthropic/claude-3.5-sonnet", "openrouter")).toBe("frontier");
       expect(detectModelTier("deepseek/deepseek-r1", "openrouter")).toBe("frontier");
       expect(detectModelTier("llama3.3:70b", "ollama")).toBe("frontier");
-    });
-  });
-
-  describe("getContextBudget", () => {
-    it("allocates compact budget for small models", () => {
-      const budget = getContextBudget("deepseek-r1:1.5b", "ollama");
-      expect(budget.tier).toBe("compact");
-      expect(budget.maxNeighborsPerSource).toBe(2);
-      expect(budget.includeGraphTopology).toBe(false);
-      expect(budget.guidelinesCharBudget).toBe(500);
-    });
-
-    it("allocates rich frontier budget for Claude/GPT-4o", () => {
-      const budget = getContextBudget("claude-sonnet-5", "claude");
-      expect(budget.tier).toBe("frontier");
-      expect(budget.maxNeighborsPerSource).toBe(6);
-      expect(budget.includeGraphTopology).toBe(true);
-      expect(budget.guidelinesCharBudget).toBe(8000);
     });
   });
 });

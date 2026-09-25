@@ -177,8 +177,14 @@ export const de: TranslationKeys = {
 
   synthesisContentCapTitle: "Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)",
   synthesisContentCapDesc: "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt.",
-  synthesisHopDepthTitle: "GraphRAG Hop-Tiefe",
-  synthesisHopDepthDesc: "Maximale Traversierungstiefe im Wissensgraphen für Kontext-Anreicherung bei der Synthese (1-3 Hops, unabhängig von visuellen Canvas-Hops).",
+  hopLevelLimitTitle: "Graph-Nachbarn pro Hop-Ebene",
+  hopLevelLimitDesc: "Maximale Anzahl an GraphRAG-Kontext-Nachbarn pro Hop-Ebene (0 = unbegrenzt pro Ebene). Jede Hop-Ebene bekommt ihr eigenes Kontingent, damit eine höhere Hop-Tiefe im Abschnitt Synthese der Toolbar auch Notizen aus tieferen Hops einbezieht, selbst wenn die direkte Umgebung dicht ist.",
+  vectorNeighborLimitTitle: "Vektor-Nachbarn",
+  vectorNeighborLimitDesc: "Maximale Anzahl an semantisch ähnlichen Notizen im GraphRAG-Kontext (0 = unbegrenzt).",
+  totalContextLimitTitle: "Kontext-Notizen gesamt",
+  totalContextLimitDesc: "Maximale Anzahl an angereicherten Kontext-Notizen (Vektor + Graph) im Synthese-Prompt (0 = unbegrenzt). Ohne dieses Limit wird nichts still gekürzt.",
+  agentsGuidelinesCapTitle: "Zeichenlimit pro Agenten-Richtlinien-Datei",
+  agentsGuidelinesCapDesc: "Maximale Zeichenanzahl pro Agenten-Richtlinien-Datei im Synthese-Prompt (0 = unbegrenzt, vollständige Datei).",
   lblSynthHopDepth: "GraphRAG Hop-Tiefe",
   temperatureAnthropicNote: "(Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)",
 

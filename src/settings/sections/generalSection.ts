@@ -90,6 +90,22 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
       });
   });
 
+  new Setting(containerEl)
+    .setName(t.agentsGuidelinesCapTitle)
+    .setDesc(t.agentsGuidelinesCapDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder("0")
+        .setValue(String(settings.agentsGuidelinesCharCap ?? 0))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.agentsGuidelinesCharCap = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+          await host.saveSettings();
+        });
+    });
+
   const vocabSetting = new Setting(containerEl)
     .setName(t.relVocabPathName)
     .setDesc(t.relVocabPathDesc);

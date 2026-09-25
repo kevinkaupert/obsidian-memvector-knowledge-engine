@@ -64,6 +64,16 @@ Configures the Large Language Model used for **selection-based synthesis** and r
 
 > Each provider keeps its own API key in settings — switching the provider dropdown preserves previously entered keys.
 
+#### GraphRAG Context Budget
+
+All context caps are plugin settings - `0` always means *unlimited*. Nothing is silently trimmed by hidden model-tier budgets anymore (Issue #103).
+
+- **Graph neighbors per hop level (`hopLevelNeighborLimit`):** Maximum number of GraphRAG context neighbors admitted per hop level (default `2`, `0` = unlimited per level). Every hop level gets its own quota, so a dense immediate neighborhood can no longer crowd deeper-hop notes out of the synthesis context.
+- **Vector neighbors (`vectorNeighborLimit`):** Maximum number of semantically similar notes added to the GraphRAG context (default `2`, `0` = unlimited).
+- **Total context notes (`totalContextLimit`):** Maximum number of enriched context notes (vector + graph) in the synthesis prompt (default `0` = unlimited).
+- **GraphRAG hop depth (`synthesisHopDepth`):** Maximum graph traversal depth (1-3) for synthesis context enrichment. Controlled from the toolbar's **Synthese** section only (not in Settings); independent from the visual canvas hop setting.
+- **Agent guidelines character cap per file (`agentsGuidelinesCharCap`):** Maximum characters per agent guideline file included in the synthesis prompt (default `0` = unlimited, full file).
+
 ---
 
 ### Section 3.5: Relation Vocabulary (`wiki/relation-types.json`)

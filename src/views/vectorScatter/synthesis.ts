@@ -30,7 +30,7 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCap
   return { block, linkLines };
 }
 
-import { getContextBudget, type ContextBudget } from "../../llm/modelTiers";
+import { detectModelTier } from "../../llm/modelTiers";
 
 interface SynthesisNoteContent extends ScatterNode {
   /** Full current note body, freshly re-read from the vault - never the scanner's fixed-size canvas preview (vaultScan.ts caps that at 800 chars for layout/similarity purposes unrelated to synthesis quality). */
@@ -45,12 +45,11 @@ function buildPrompt(
   contentCapChars: number,
   customQuestion?: string,
   enriched: EnrichedNote[] = [],
-  budget?: ContextBudget
+  isFrontier = false
 ): string {
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
   const excerptLabel = lang === "de" ? "Auszug" : "Excerpt";
-  const isFrontier = budget?.tier === "frontier";
 
   const notesSummary = selected
     .map(
@@ -238,7 +237,8 @@ export async function runSynthesis(
   const temperature = settings.temperature ?? 0.1;
   const lang = settings.language || "de";
   const t = getTranslation(lang);
-  const budget = getContextBudget(modelName, settings.llmProvider);
+  const tier = detectModelTier(modelName, settings.llmProvider);
+  const isFrontier = tier === "frontier";
   const contentCapChars = settings.synthesisContentCapChars ?? 0;
 
   // Re-read each selected note's current full body - vaultScan.ts's ScatterNode.content
@@ -254,24 +254,16 @@ export async function runSynthesis(
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
     const hopDepth = settings.synthesisHopDepth ?? 2;
-    setHoverText(`[INFO] Suche verwandten Kontext (${budget.tier}, ${hopDepth} ${hopDepth === 1 ? "Hop" : "Hops"})...`);
-    enriched = await enrichContext(
-      app,
-      settings,
-      selected,
-      budget.maxNeighborsPerSource,
-      contentCapChars,
-      budget.maxTotalEnriched,
-      hopDepth
-    );
+    setHoverText(`[INFO] Suche verwandten Kontext (${tier}, ${hopDepth} ${hopDepth === 1 ? "Hop" : "Hops"})...`);
+    enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth);
   }
 
-  setHoverText(`${modelName} (${budget.tier.toUpperCase()}) ...`);
+  setHoverText(`${modelName} (${tier.toUpperCase()}) ...`);
 
-  let prompt = buildPrompt(selectedWithFullContent, settings.knowledgeDomain === "math", lang, t.llmPromptLang, contentCapChars, customQuestion, enriched, budget);
+  let prompt = buildPrompt(selectedWithFullContent, settings.knowledgeDomain === "math", lang, t.llmPromptLang, contentCapChars, customQuestion, enriched, isFrontier);
 
   if (settings.includeAgentsGuidelines) {
-    const guidelines = await loadAgentsGuidelines(app, settings, budget.guidelinesCharBudget);
+    const guidelines = await loadAgentsGuidelines(app, settings, settings.agentsGuidelinesCharCap ?? 0);
     if (guidelines) {
       const header =
         lang === "de"

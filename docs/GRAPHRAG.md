@@ -28,10 +28,14 @@ independent sources, and adds them to the prompt as background context.
    - **Vector Store (SQLite)**: averages the embedding vectors of your selected notes and
      runs a cosine similarity search against the whole vault's stored embeddings (requires
      "Vektoren berechnen" to have been executed at least once).
-   - **Graph Store (SQLite CTEs)**: finds notes within 1–2 graph-hops of your selected
-     notes — traversing any typed relations created with the Relation Builder and
-     (only when the `includeWikiLinksAsRelations` setting is enabled, default off)
-     plain WikiLinks.
+   - **Graph Store (SQLite CTEs)**: finds notes within 1–3 graph-hops of your selected
+     notes (hop depth is set in the toolbar's Synthese section) — traversing any typed
+     relations created with the Relation Builder and (only when the
+     `includeWikiLinksAsRelations` setting is enabled, default off) plain WikiLinks.
+     Neighbors are admitted with a per-hop-level quota (`hopLevelNeighborLimit`
+     setting, `0` = unlimited per level), so deeper hops stay represented even when
+     the immediate neighborhood is dense (Issue #103). Vector and total context caps
+     are settings too (`vectorNeighborLimit`, `totalContextLimit`), `0` = unlimited.
 5. Results from both are merged (a note found by both is tagged as such)
    and appended to the prompt as a clearly-labelled "automatically found,
    related notes - background context only" section, separate from your

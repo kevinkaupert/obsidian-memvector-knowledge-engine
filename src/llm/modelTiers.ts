@@ -1,17 +1,10 @@
 export type ModelTier = "compact" | "standard" | "frontier";
 
-export interface ContextBudget {
-  tier: ModelTier;
-  maxNeighborsPerSource: number;
-  maxTotalEnriched: number;
-  guidelinesCharBudget: number;
-  includeGraphTopology: boolean;
-}
-
 /**
- * Purpose: Detects the capacity tier of the currently configured LLM to balance GraphRAG context budgets.
- * - compact: 1.5B - 8B local models (strict token conservation)
- * - standard: 14B - 32B models (balanced context)
+ * Purpose: Detects the capacity tier of the currently configured LLM to adapt synthesis prompt depth and wording.
+ * Architecture: Prompt style only (formula count, rigor wording) - all context limits are user settings with 0 = unlimited (Issue #103); the tier no longer provides hidden budgets.
+ * - compact: 1.5B - 8B local models
+ * - standard: 14B - 32B models
  * - frontier: Claude, GPT-4o, DeepSeek-V3/R1, 70B+ models (deep GraphRAG context)
  */
 export function detectModelTier(modelName: string | undefined, provider: string | undefined): ModelTier {
@@ -51,36 +44,4 @@ export function detectModelTier(modelName: string | undefined, provider: string 
 
   // Medium local/cloud models (14b, 32b, mistral, llama, etc.)
   return "standard";
-}
-
-export function getContextBudget(modelName: string | undefined, provider: string | undefined): ContextBudget {
-  const tier = detectModelTier(modelName, provider);
-
-  switch (tier) {
-    case "frontier":
-      return {
-        tier: "frontier",
-        maxNeighborsPerSource: 6,
-        maxTotalEnriched: 10,
-        guidelinesCharBudget: 8000,
-        includeGraphTopology: true,
-      };
-    case "standard":
-      return {
-        tier: "standard",
-        maxNeighborsPerSource: 3,
-        maxTotalEnriched: 5,
-        guidelinesCharBudget: 1500,
-        includeGraphTopology: true,
-      };
-    case "compact":
-    default:
-      return {
-        tier: "compact",
-        maxNeighborsPerSource: 2,
-        maxTotalEnriched: 3,
-        guidelinesCharBudget: 500,
-        includeGraphTopology: false,
-      };
-  }
 }

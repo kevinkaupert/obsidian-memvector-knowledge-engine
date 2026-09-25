@@ -167,8 +167,14 @@ export interface TranslationKeys {
 
   synthesisContentCapTitle: string;
   synthesisContentCapDesc: string;
-  synthesisHopDepthTitle: string;
-  synthesisHopDepthDesc: string;
+  hopLevelLimitTitle: string;
+  hopLevelLimitDesc: string;
+  vectorNeighborLimitTitle: string;
+  vectorNeighborLimitDesc: string;
+  totalContextLimitTitle: string;
+  totalContextLimitDesc: string;
+  agentsGuidelinesCapTitle: string;
+  agentsGuidelinesCapDesc: string;
   lblSynthHopDepth: string;
   temperatureAnthropicNote: string;
 

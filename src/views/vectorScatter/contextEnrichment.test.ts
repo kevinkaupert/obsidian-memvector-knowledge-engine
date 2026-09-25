@@ -112,7 +112,7 @@ ${"c".repeat(400)}
     const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
 
     // 1. Frontier model tier: excerptLength is 2000 chars
-    const enrichedFrontier = await enrichContext(app, settings, [selectedNode], 2, 2000, 4);
+    const enrichedFrontier = await enrichContext(app, settings, [selectedNode], 2000);
 
     expect(enrichedFrontier.length).toBe(1);
     const neighbor = enrichedFrontier[0];
@@ -148,7 +148,7 @@ ${"c".repeat(400)}
     const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
 
     // Compact model tier: excerptLength is 500 chars
-    const enrichedCompact = await enrichContext(app, settings, [selectedNode], 2, 500, 4);
+    const enrichedCompact = await enrichContext(app, settings, [selectedNode], 500);
 
     expect(enrichedCompact.length).toBe(1);
     const neighbor = enrichedCompact[0];
@@ -180,7 +180,7 @@ ${"c".repeat(400)}
 
     const selectedNode = makeScatterNode("wiki/selected", "wiki/selected.md", [0.1, 0.2, 0.3]);
 
-    const enriched = await enrichContext(app, settings, [selectedNode], 2, 1000, 4);
+    const enriched = await enrichContext(app, settings, [selectedNode], 1000);
 
     expect(enriched.length).toBe(1);
     expect(enriched[0].content).toBe("Stored index payload content");
@@ -208,7 +208,7 @@ describe("context exclusions (#82)", () => {
       // The index and its hits stay unchanged; only the live setting changes.
       settings.vectorSearchExclusions = exclusions;
       read.mockClear();
-      const result = await enrichContext(app, settings, selected, 1);
+      const result = await enrichContext(app, settings, selected);
       expect(result.map((note) => note.path)).toEqual(["public/allowed.md"]);
       expect(result[0].sources).toEqual(["vector", "graph"]);
       expect(read.mock.calls.map(([file]) => file.path)).toEqual([
@@ -253,9 +253,163 @@ describe("synthesis hop depth (#89)", () => {
     vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
     const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
 
-    await enrichContext(app, settings, selected, 2, 200, 4, 3);
+    await enrichContext(app, settings, selected, 200, 3);
 
     expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], 3, expect.any(Number));
+  });
+});
+
+describe("per-hop neighbor quota (#103)", () => {
+  function neighborNote(id: string, hops: number) {
+    return { id, path: `${id}.md`, title: id, hops };
+  }
+
+  function filesFor(ids: string[]): Map<string, string> {
+    return new Map(ids.map((id) => [`${id}.md`, `Body of ${id}`]));
+  }
+
+  it("adversarial: deeper hops still enter the context when hop-1 fills its quota", async () => {
+    // 4 hop-1 notes, 2 hop-2 notes, per-hop quota 2 - before #103 the flat
+    // per-source break stopped after the first 2 hop-1 rows and dropped hop-2.
+    const ids = ["h1-a", "h1-b", "h1-c", "h1-d", "h2-a", "h2-b"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 2, synthesisHopDepth: 2 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("h1-a", 1), neighborNote("h1-b", 1), neighborNote("h1-c", 1), neighborNote("h1-d", 1),
+      neighborNote("h2-a", 2), neighborNote("h2-b", 2),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
+
+    expect(graphIds).toContain("h2-a");
+    expect(graphIds.filter((id) => id.startsWith("h1-")).length).toBe(2);
+    expect(graphIds.filter((id) => id.startsWith("h2-")).length).toBe(2);
+  });
+
+  it("caps each hop level at the configured quota", async () => {
+    const ids = ["h1-a", "h1-b", "h1-c", "h2-a", "h2-b", "h3-a"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 1, synthesisHopDepth: 3 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("h1-a", 1), neighborNote("h1-b", 1), neighborNote("h1-c", 1),
+      neighborNote("h2-a", 2), neighborNote("h2-b", 2),
+      neighborNote("h3-a", 3),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
+
+    expect(graphIds.sort()).toEqual(["h1-a", "h2-a", "h3-a"]);
+  });
+
+  it("treats 0 as unlimited per hop level", async () => {
+    const ids = ["h1-a", "h1-b", "h1-c", "h2-a"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 0, synthesisHopDepth: 2 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("h1-a", 1), neighborNote("h1-b", 1), neighborNote("h1-c", 1),
+      neighborNote("h2-a", 2),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
+
+    expect(graphIds.sort()).toEqual(["h1-a", "h1-b", "h1-c", "h2-a"]);
+  });
+
+  it("keeps deeper hops represented when the total budget trims the merged list", async () => {
+    // 3 vector notes + 2 hop-1 + 2 hop-2, total budget 5 - hop-balanced assembly
+    // must not let hop-1 (or vector) notes crowd hop-2 out entirely.
+    const ids = ["vec-a", "vec-b", "vec-c", "h1-a", "h1-b", "h2-a", "h2-b"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      hopLevelNeighborLimit: 2,
+      vectorNeighborLimit: 3,
+      totalContextLimit: 5,
+      synthesisHopDepth: 2,
+    };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(["vec-a", "vec-b", "vec-c"].map((id) => ({
+      score: 0.9, payload: { path: `${id}.md`, title: id, content: `Body of ${id}` },
+    })));
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("h1-a", 1), neighborNote("h1-b", 1),
+      neighborNote("h2-a", 2), neighborNote("h2-b", 2),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result).toHaveLength(5);
+    expect(result.some((n) => n.hops === 2)).toBe(true);
+  });
+
+  it("counts duplicate (note, hop) rows from the store only once (Issue #102)", async () => {
+    const ids = ["dup", "h2-a"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 1, synthesisHopDepth: 3 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    // The store can return the same note at multiple hop distances (Issue #102) -
+    // it must consume the quota once, not once per row.
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("dup", 1), neighborNote("h2-a", 2), neighborNote("dup", 3),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
+
+    expect(graphIds.sort()).toEqual(["dup", "h2-a"]);
+  });
+
+  it("caps vector neighbors at vectorNeighborLimit and treats 0 as unlimited", async () => {
+    const ids = ["v-a", "v-b", "v-c"];
+    const app = makeMockApp(filesFor(ids));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+    const hits = ids.map((id) => ({ score: 0.9, payload: { path: `${id}.md`, title: id, content: `Body of ${id}` } }));
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits);
+    const capped = await enrichContext(app, {
+      ...DEFAULT_SETTINGS, vectorNeighborLimit: 2, totalContextLimit: 0,
+    }, selected);
+    expect(capped).toHaveLength(2);
+
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits);
+    const unlimited = await enrichContext(app, {
+      ...DEFAULT_SETTINGS, vectorNeighborLimit: 0, totalContextLimit: 0,
+    }, selected);
+    expect(unlimited).toHaveLength(3);
+  });
+
+  it("does not trim the merged context when totalContextLimit is 0 (unlimited)", async () => {
+    const ids = ["v-a", "h1-a", "h1-b", "h2-a", "h2-b", "h3-a"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      hopLevelNeighborLimit: 2,
+      vectorNeighborLimit: 0,
+      totalContextLimit: 0,
+      synthesisHopDepth: 3,
+    };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([
+      { score: 0.9, payload: { path: "v-a.md", title: "v-a", content: "Body of v-a" } },
+    ]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      neighborNote("h1-a", 1), neighborNote("h1-b", 1),
+      neighborNote("h2-a", 2), neighborNote("h2-b", 2),
+      neighborNote("h3-a", 3),
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result).toHaveLength(6);
   });
 });
 

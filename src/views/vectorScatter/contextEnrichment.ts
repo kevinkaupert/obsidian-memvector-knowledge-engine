@@ -12,6 +12,8 @@ export interface EnrichedNote {
   path: string;
   content: string;
   sources: ("vector" | "graph")[];
+  /** Graph hop distance from the selection (graph-sourced notes only) - used for hop-balanced assembly (Issue #103). */
+  hops?: number;
 }
 
 /**
@@ -29,12 +31,12 @@ function averageEmbedding(vectors: number[][]): number[] | null {
 
 /**
  * Purpose: Retrieves semantic nearest neighbors via vector search, reading fresh full note bodies from the vault.
+ * Architecture: settings.vectorNeighborLimit caps how many vector hits enter the context - 0 = unlimited (Issue #103).
  */
 async function fetchVectorNeighbors(
   app: App,
   settings: MemVectorSettings,
   selected: ScatterNode[],
-  limit: number,
   excerptLength: number
 ): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
@@ -59,7 +61,10 @@ async function fetchVectorNeighbors(
   const queryVector = averageEmbedding(rawEmbeddings);
   if (!queryVector) return found;
 
-  const hits = await store.search(queryVector, limit + selected.length);
+  const limit = settings.vectorNeighborLimit ?? 2;
+  // 0 = unlimited: search a generously bounded page instead of a quota-sized one.
+  const searchLimit = limit > 0 ? limit + selected.length : 100 + selected.length;
+  const hits = await store.search(queryVector, searchLimit);
 
   for (const hit of hits) {
     const path = hit.payload?.path;
@@ -76,27 +81,37 @@ async function fetchVectorNeighbors(
     const freshBody = stripFrontmatter(rawContent);
     const content = freshBody || hit.payload?.content || "";
     found.set(id, { id, title: hit.payload?.title || id, path, content: capText(content, excerptLength), sources: ["vector"] });
-    if (found.size >= limit) break;
+    if (limit > 0 && found.size >= limit) break;
   }
   return found;
 }
 
 /**
  * Purpose: Retrieves topological multi-hop neighbors from the graph store, reading fresh full note bodies from the vault.
+ * Architecture: Per-hop-level quota (settings.hopLevelNeighborLimit, 0 = unlimited) so a dense hop-1 neighborhood cannot crowd deeper hops out of the GraphRAG context (Issue #103).
  */
 async function fetchGraphNeighbors(
   app: App,
   settings: MemVectorSettings,
   selected: ScatterNode[],
-  limit: number,
   excerptLength: number,
   hopDepth = settings.synthesisHopDepth ?? 2
 ): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => n.id);
-  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, limit + selected.length);
+  const perHop = settings.hopLevelNeighborLimit ?? 2;
+  // Ask the store for enough rows to fill every hop quota, with slack for selected-note
+  // exclusion and duplicate (note, hop) rows; 0 = unlimited per level, so fetch a
+  // generously bounded page instead.
+  const hops = Math.max(1, Math.trunc(hopDepth));
+  const sqlLimit = perHop > 0 ? perHop * hops + selected.length + hops : 100 + selected.length;
+  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, sqlLimit);
 
+  const perHopCount = new Map<number, number>();
+  const seen = new Set<string>();
   for (const neighbor of neighbors) {
+    if (seen.has(neighbor.id)) continue;
+    seen.add(neighbor.id);
     if (selected.some((s) => s.path === neighbor.path)) continue;
     // A stale graph edge to a since-deleted note can still surface here between
     // full re-indexes (which reconcile it away) - skip it rather than serve empty
@@ -105,30 +120,68 @@ async function fetchGraphNeighbors(
     if (!(file instanceof TFile)) continue;
     // Enforce current exclusions before reading content, even with a stale index.
     if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
+    const hop = neighbor.hops || 1;
+    const used = perHopCount.get(hop) ?? 0;
+    if (perHop > 0 && used >= perHop) continue;
+    perHopCount.set(hop, used + 1);
     const content = stripFrontmatter(await app.vault.cachedRead(file));
-    found.set(neighbor.id, { id: neighbor.id, title: neighbor.title, path: neighbor.path, content: capText(content, excerptLength), sources: ["graph"] });
-    if (found.size >= limit) break;
+    found.set(neighbor.id, {
+      id: neighbor.id,
+      title: neighbor.title,
+      path: neighbor.path,
+      content: capText(content, excerptLength),
+      sources: ["graph"],
+      hops: hop,
+    });
   }
   return found;
 }
 
 /**
+ * Purpose: Assembles graph notes in hop-balanced round-robin order so trimming to the total budget cannot crowd deeper hops out (Issue #103).
+ */
+function orderGraphNotesHopBalanced(notes: EnrichedNote[]): EnrichedNote[] {
+  const byHop = new Map<number, EnrichedNote[]>();
+  for (const note of notes) {
+    const hop = note.hops ?? 1;
+    const bucket = byHop.get(hop);
+    if (bucket) bucket.push(note);
+    else byHop.set(hop, [note]);
+  }
+  const levels = Array.from(byHop.keys()).sort((a, b) => a - b);
+  const ordered: EnrichedNote[] = [];
+  for (let round = 0; ordered.length < notes.length; round++) {
+    let progressed = false;
+    for (const level of levels) {
+      const bucket = byHop.get(level)!;
+      if (round < bucket.length) {
+        ordered.push(bucket[round]);
+        progressed = true;
+      }
+    }
+    if (!progressed) break;
+  }
+  return ordered;
+}
+
+/**
  * Purpose: Orchestrates hybrid GraphRAG context enrichment across semantic vector search and graph topology.
+ * Architecture: All context caps come from settings (vectorNeighborLimit, hopLevelNeighborLimit, totalContextLimit) with 0 = unlimited - no hidden model-tier budget (Issue #103).
  */
 export async function enrichContext(
   app: App,
   settings: MemVectorSettings,
   selected: ScatterNode[],
-  limitPerSource = 2,
   excerptLength = 200,
-  maxTotal = 4,
   hopDepth = settings.synthesisHopDepth ?? 2
 ): Promise<EnrichedNote[]> {
   const merged = new Map<string, EnrichedNote>();
+  // 0 = unlimited total context; no silent trimming unless the user sets a cap.
+  const maxTotal = settings.totalContextLimit ?? 0;
 
   const [vectorResult, graphResult] = await Promise.allSettled([
-    fetchVectorNeighbors(app, settings, selected, limitPerSource, excerptLength),
-    fetchGraphNeighbors(app, settings, selected, limitPerSource, excerptLength, hopDepth),
+    fetchVectorNeighbors(app, settings, selected, excerptLength),
+    fetchGraphNeighbors(app, settings, selected, excerptLength, hopDepth),
   ]);
 
   if (vectorResult.status === "fulfilled") {
@@ -138,20 +191,23 @@ export async function enrichContext(
   }
 
   if (graphResult.status === "fulfilled") {
-    graphResult.value.forEach((note, id) => {
-      const existing = merged.get(id);
+    // Hop-balanced order: when the total limit trims, every hop level keeps
+    // representation instead of deeper hops being cut off last (Issue #103).
+    for (const note of orderGraphNotesHopBalanced(Array.from(graphResult.value.values()))) {
+      const existing = merged.get(note.id);
       if (existing) {
         existing.sources.push("graph");
+        existing.hops = note.hops;
         if (!existing.content && note.content) existing.content = note.content;
       } else {
-        if (merged.size < maxTotal) {
-          merged.set(id, note);
+        if (maxTotal <= 0 || merged.size < maxTotal) {
+          merged.set(note.id, note);
         }
       }
-    });
+    }
   } else {
     console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
   }
 
-  return Array.from(merged.values()).slice(0, maxTotal);
+  return maxTotal > 0 ? Array.from(merged.values()).slice(0, maxTotal) : Array.from(merged.values());
 }

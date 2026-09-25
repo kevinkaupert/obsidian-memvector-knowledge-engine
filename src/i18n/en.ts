@@ -177,8 +177,14 @@ export const en: TranslationKeys = {
 
   synthesisContentCapTitle: "Synthesis content cap (characters per note)",
   synthesisContentCapDesc: "0 = no limit, full note text is used. Applies equally to selected notes and GraphRAG neighbors. [NOTE] Simple character cutoff at the end of the text window - will be replaced by context-aware budgeting in a later step.",
-  synthesisHopDepthTitle: "GraphRAG hop depth",
-  synthesisHopDepthDesc: "Maximum graph traversal depth for multi-hop synthesis context (1-3 hops, independent from visual canvas hops).",
+  hopLevelLimitTitle: "Graph neighbors per hop level",
+  hopLevelLimitDesc: "Maximum number of GraphRAG context neighbors admitted per hop level (0 = unlimited per level). Each hop level gets its own quota, so raising the hop depth in the toolbar's Synthese section actually pulls in deeper-hop notes even when the immediate neighborhood is dense.",
+  vectorNeighborLimitTitle: "Vector neighbors",
+  vectorNeighborLimitDesc: "Maximum number of semantically similar notes added to the GraphRAG context (0 = unlimited).",
+  totalContextLimitTitle: "Total context notes",
+  totalContextLimitDesc: "Maximum number of enriched context notes (vector + graph) in the synthesis prompt (0 = unlimited). Nothing is silently trimmed unless this limit is set.",
+  agentsGuidelinesCapTitle: "Agent guidelines character cap per file",
+  agentsGuidelinesCapDesc: "Maximum characters per agent guideline file included in the synthesis prompt (0 = unlimited, full file).",
   lblSynthHopDepth: "GraphRAG hop depth",
   temperatureAnthropicNote: "(Disabled for Anthropic/Claude - managed by the API provider)",
 
