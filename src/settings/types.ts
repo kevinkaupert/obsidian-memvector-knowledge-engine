@@ -37,8 +37,30 @@ export interface MemVectorSettings {
 
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
-  /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. */
+  /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. Controlled from the toolbar Synthese section only (Issue #103). */
   synthesisHopDepth: number;
+  /**
+   * Maximum number of GraphRAG neighbors admitted per hop level (Issue #103) - 0 means
+   * unlimited per level. Each hop level gets its own quota, so a dense hop-1 neighborhood
+   * can no longer crowd deeper hops out of the synthesis context.
+   */
+  hopLevelNeighborLimit: number;
+  /** Maximum vector-similar notes admitted to the GraphRAG context - 0 = unlimited (Issue #103). */
+  vectorNeighborLimit: number;
+  /**
+   * Minimum cosine similarity for vector-channel context notes (0-1) - 0 disables the
+   * floor. Applied even when vectorNeighborLimit is 0, so "unlimited" still means
+   * "unlimited notes related to the selection", not the whole vault (Issue #103).
+   */
+  minVectorSimilarity: number;
+  /**
+   * Maximum total enriched context notes (vector + graph merged) in the synthesis prompt -
+   * 0 = unlimited (Issue #103). Replaces the old hardcoded model-tier budget; nothing is
+   * silently trimmed anymore unless this is set.
+   */
+  totalContextLimit: number;
+  /** Per-file max characters of AGENTS.md house-style guidelines in the synthesis prompt - 0 = unlimited (full file). */
+  agentsGuidelinesCharCap: number;
 
   /** Include the vault's own AGENTS.md (if present) as house-style guidance in the synthesis prompt. */
   includeAgentsGuidelines: boolean;

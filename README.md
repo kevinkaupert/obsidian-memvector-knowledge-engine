@@ -64,7 +64,7 @@ Detailed documentation is available in the [`docs/`](docs/) directory:
 1. Build or copy `main.js`, `manifest.json`, `styles.css`, and `sql-wasm.wasm` into `<your-vault>/.obsidian/plugins/memvector-knowledge-engine/`.
 2. Enable **MemVector Knowledge Engine** in **Obsidian Settings** → **Community Plugins**.
 3. In Plugin Settings, choose your Embedding and LLM provider (Ollama works out of the box with `bge-m3`).
-4. Click **"Gesamtes Vault lokal indizieren"** to compute embeddings and graph topology.
+4. Click **"Index entire vault locally"** to compute embeddings and graph topology.
 5. Open the 2D Graph from the ribbon icon or command palette.
 
 ---

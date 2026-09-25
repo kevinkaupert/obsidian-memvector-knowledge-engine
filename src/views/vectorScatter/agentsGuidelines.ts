@@ -5,7 +5,7 @@ import type { MemVectorSettings } from "../../settings/types";
 /** Vault-level "how an agent should compile knowledge here" documents - configurable in Settings, loaded only if present, never required. */
 const DEFAULT_CANDIDATE_PATHS = ["AGENTS.md"];
 
-/** Per-file char budget for guidelines to keep prompt compact and prevent context overflows. */
+/** Per-file char budget for guidelines to keep prompt compact and prevent context overflows - 0 = unlimited (full file). */
 const MAX_CHARS_PER_FILE = 500;
 
 function parseCandidatePaths(raw: string | undefined): string[] {
@@ -16,7 +16,10 @@ function parseCandidatePaths(raw: string | undefined): string[] {
   return paths.length > 0 ? paths : DEFAULT_CANDIDATE_PATHS;
 }
 
-/** Returns the concatenated, size-capped content of whichever candidate files exist in this vault, or empty string if none do. */
+/**
+ * Purpose: Returns the concatenated, size-capped content of whichever candidate guideline files exist in this vault, or empty string if none do.
+ * Architecture: The char cap is user-configurable via settings.agentsGuidelinesCharCap - 0 = unlimited (Issue #103).
+ */
 export async function loadAgentsGuidelines(
   app: App,
   settings: Pick<MemVectorSettings, "agentsGuidelinePaths">,
@@ -27,7 +30,7 @@ export async function loadAgentsGuidelines(
     const file = app.vault.getAbstractFileByPath(path);
     if (file instanceof TFile) {
       const content = stripFrontmatter(await app.vault.read(file)).trim();
-      const truncated = content.length > maxChars;
+      const truncated = maxChars > 0 && content.length > maxChars;
       const body = truncated ? `${content.slice(0, maxChars)}\n[...gekürzt...]` : content;
       sections.push(`### ${path}\n\n${body}`);
     }

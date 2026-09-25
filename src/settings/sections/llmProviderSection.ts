@@ -177,17 +177,68 @@ export function renderLlmProviderSection(
     });
 
   new Setting(containerEl)
-    .setName(t.synthesisHopDepthTitle)
-    .setDesc(t.synthesisHopDepthDesc)
-    .addDropdown((dropdown) => {
-      dropdown.addOption("1", "1 Hop");
-      dropdown.addOption("2", "2 Hops");
-      dropdown.addOption("3", "3 Hops");
-      dropdown.setValue(String(settings.synthesisHopDepth ?? 2));
-      dropdown.onChange(async (value) => {
-        const parsed = parseInt(value, 10);
-        settings.synthesisHopDepth = Number.isNaN(parsed) ? 2 : parsed;
-        await host.saveSettings();
-      });
+    .setName(t.hopLevelLimitTitle)
+    .setDesc(t.hopLevelLimitDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder("2")
+        .setValue(String(settings.hopLevelNeighborLimit ?? 2))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.hopLevelNeighborLimit = Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
+          await host.saveSettings();
+        });
+    });
+
+  new Setting(containerEl)
+    .setName(t.vectorNeighborLimitTitle)
+    .setDesc(t.vectorNeighborLimitDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder("2")
+        .setValue(String(settings.vectorNeighborLimit ?? 2))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.vectorNeighborLimit = Number.isFinite(parsed) && parsed >= 0 ? parsed : 2;
+          await host.saveSettings();
+        });
+    });
+
+  new Setting(containerEl)
+    .setName(t.minVectorSimTitle)
+    .setDesc(t.minVectorSimDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text.inputEl.max = "1";
+      text.inputEl.step = "0.05";
+      text
+        .setPlaceholder("0.75")
+        .setValue(String(settings.minVectorSimilarity ?? 0.75))
+        .onChange(async (value) => {
+          const parsed = parseFloat(value);
+          settings.minVectorSimilarity = Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.75;
+          await host.saveSettings();
+        });
+    });
+
+  new Setting(containerEl)
+    .setName(t.totalContextLimitTitle)
+    .setDesc(t.totalContextLimitDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder("0")
+        .setValue(String(settings.totalContextLimit ?? 0))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.totalContextLimit = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+          await host.saveSettings();
+        });
     });
 }
