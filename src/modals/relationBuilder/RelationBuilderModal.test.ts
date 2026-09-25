@@ -161,4 +161,15 @@ describe("Relation Builder save integration", () => {
     expect(f.store.deleteEdge).not.toHaveBeenCalled();
     expect(ui.modal.close).not.toHaveBeenCalled();
   });
+
+  it("does not mutate the caller's selectedNodes array on swap (#83)", async () => {
+    const f = fixture({ ...reversed, reversed: false });
+    const originalArray = [a, b];
+    const ui = await f.open(originalArray);
+    const swapBtn = ui.root.find((el) => el.cls === "memvector-flow-swap-btn")!;
+    await swapBtn.onclick!();
+    expect(originalArray[0]).toBe(a);
+    expect(originalArray[1]).toBe(b);
+  });
 });
+

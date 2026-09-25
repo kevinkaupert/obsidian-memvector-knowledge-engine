@@ -48,7 +48,6 @@ async function fetchVectorNeighbors(
       try {
         const stored = await store.getVector(n.path);
         if (stored && stored.length > 0) {
-          n.embedding = stored;
           rawEmbeddings.push(stored);
         }
       } catch {

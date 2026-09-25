@@ -63,7 +63,7 @@ The plugin is domain-agnostic: it ships with a STEM (math/formal-sciences) examp
 
 #### Layout Algorithm (`layout/projections.ts`)
 
-There is currently one layout algorithm, `graphvector`, applied via `applyGraphVectorProjection` regardless of any toolbar selection - the `ProjectionMode` type has a single variant, and `applyProjection` ignores its `mode` parameter. It's a single force simulation that already blends what used to be several separate modes:
+There is currently one layout algorithm, `graphvector`, applied directly via `applyGraphVectorProjection`. It's a single force simulation that already blends what used to be several separate modes:
 
 - **Initial placement:** Fast 2D PCA power iteration projection (`compute2DPcaProjection`) aligns the primary variance axes of high-dimensional embeddings directly onto the canvas, with spectral matrix projection and golden-spiral origin distribution as deterministic fallbacks for un-embedded notes.
 - **Semantic clustering (`assignClouds`):** Groups nodes with high similarity into semantic cloud clusters for category coloring and contextual grouping.

@@ -24,8 +24,6 @@ export interface ScatterNode {
   embedding?: number[];
   cloudId?: number;
   cloudLabel?: string;
-  anchorX?: number;
-  anchorY?: number;
 }
 
 export interface RelationEdge {

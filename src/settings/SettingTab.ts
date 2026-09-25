@@ -14,7 +14,7 @@ export class MathWikiSettingTab extends PluginSettingTab {
   }
 
   /**
-   * Purpose: Declares settings items for Obsidian 1.13+ settings search indexing.
+   * Purpose: Satisfies Obsidian 1.13+ settings search indexing interface while sections are rendered imperatively.
    */
   override getSettingDefinitions(): SettingDefinitionItem[] {
     return [];
