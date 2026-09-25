@@ -164,6 +164,9 @@ export interface TranslationKeys {
 
   synthesisContentCapTitle: string;
   synthesisContentCapDesc: string;
+  synthesisHopDepthTitle: string;
+  synthesisHopDepthDesc: string;
+  lblSynthHopDepth: string;
   temperatureAnthropicNote: string;
 
   // Toolbar & Status feedback

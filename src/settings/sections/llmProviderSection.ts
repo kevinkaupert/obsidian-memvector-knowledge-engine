@@ -175,4 +175,19 @@ export function renderLlmProviderSection(
           await host.saveSettings();
         });
     });
+
+  new Setting(containerEl)
+    .setName(t.synthesisHopDepthTitle)
+    .setDesc(t.synthesisHopDepthDesc)
+    .addDropdown((dropdown) => {
+      dropdown.addOption("1", "1 Hop");
+      dropdown.addOption("2", "2 Hops");
+      dropdown.addOption("3", "3 Hops");
+      dropdown.setValue(String(settings.synthesisHopDepth ?? 2));
+      dropdown.onChange(async (value) => {
+        const parsed = parseInt(value, 10);
+        settings.synthesisHopDepth = Number.isNaN(parsed) ? 2 : parsed;
+        await host.saveSettings();
+      });
+    });
 }

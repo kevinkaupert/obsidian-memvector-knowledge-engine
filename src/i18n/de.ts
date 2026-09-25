@@ -174,6 +174,9 @@ export const de: TranslationKeys = {
 
   synthesisContentCapTitle: "Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)",
   synthesisContentCapDesc: "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt.",
+  synthesisHopDepthTitle: "GraphRAG Hop-Tiefe",
+  synthesisHopDepthDesc: "Maximale Traversierungstiefe im Wissensgraphen für Kontext-Anreicherung bei der Synthese (1-3 Hops, unabhängig von visuellen Canvas-Hops).",
+  lblSynthHopDepth: "GraphRAG Hop-Tiefe",
   temperatureAnthropicNote: "(Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)",
 
   // Toolbar & Status feedback

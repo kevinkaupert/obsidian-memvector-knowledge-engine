@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   radarNoteCount: 10,
 
   enrichSynthesisContext: true,
+  synthesisHopDepth: 2,
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md",
   relationVocabularyPath: "wiki/relation-types.json",

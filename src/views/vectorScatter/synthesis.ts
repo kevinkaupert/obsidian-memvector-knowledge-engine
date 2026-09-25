@@ -253,8 +253,17 @@ export async function runSynthesis(
 
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
-    setHoverText(`[INFO] Suche verwandten Kontext (${budget.tier})...`);
-    enriched = await enrichContext(app, settings, selected, budget.maxNeighborsPerSource, contentCapChars, budget.maxTotalEnriched);
+    const hopDepth = settings.synthesisHopDepth ?? 2;
+    setHoverText(`[INFO] Suche verwandten Kontext (${budget.tier}, ${hopDepth} ${hopDepth === 1 ? "Hop" : "Hops"})...`);
+    enriched = await enrichContext(
+      app,
+      settings,
+      selected,
+      budget.maxNeighborsPerSource,
+      contentCapChars,
+      budget.maxTotalEnriched,
+      hopDepth
+    );
   }
 
   setHoverText(`${modelName} (${budget.tier.toUpperCase()}) ...`);

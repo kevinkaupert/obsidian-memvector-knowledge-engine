@@ -172,12 +172,36 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   promptInput.onclick = (e) => e.stopPropagation();
   promptInput.onkeydown = (e) => e.stopPropagation();
 
+  const synthHopOptions = [
+    { id: "1", label: "1 Hop" },
+    { id: "2", label: "2 Hops" },
+    { id: "3", label: "3 Hops" },
+  ];
+  let synthHopRow: HTMLElement | null = null;
+
   createToggle(syntheseBody, t.synthEnrichToggle, ctx.settings.enrichSynthesisContext, (on) => {
     void (async () => {
       ctx.settings.enrichSynthesisContext = on;
+      if (synthHopRow) synthHopRow.hidden = !on;
       await ctx.saveSettings();
     })();
   });
+
+  const synthHopSelect = createDropdown(
+    syntheseBody,
+    t.lblSynthHopDepth,
+    synthHopOptions,
+    String(ctx.settings.synthesisHopDepth ?? 2),
+    (val) => {
+      void (async () => {
+        const parsed = parseInt(val, 10);
+        ctx.settings.synthesisHopDepth = Number.isNaN(parsed) ? 2 : parsed;
+        await ctx.saveSettings();
+      })();
+    }
+  );
+  synthHopRow = synthHopSelect.parentElement;
+  if (synthHopRow) synthHopRow.hidden = !ctx.settings.enrichSynthesisContext;
 
   createToggle(syntheseBody, t.synthAgentsToggle, ctx.settings.includeAgentsGuidelines, (on) => {
     void (async () => {
