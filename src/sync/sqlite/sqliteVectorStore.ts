@@ -44,8 +44,13 @@ export class SqliteVectorStore implements VectorStore {
     for (const row of values) {
       const id = String(row[idx.id]);
       const path = String(row[idx.path]);
-      const key = wanted.has(id) ? id : wanted.has(path) ? path : null;
-      if (key) found.set(key, JSON.parse(String(row[idx.vector])) as number[]);
+      const vector = JSON.parse(String(row[idx.vector])) as number[];
+      if (wanted.has(id)) {
+        found.set(id, vector);
+      }
+      if (wanted.has(path)) {
+        found.set(path, vector);
+      }
     }
     return found;
   }
