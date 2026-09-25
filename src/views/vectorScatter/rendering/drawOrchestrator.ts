@@ -1,6 +1,6 @@
 import type { ScatterVisualStyle } from "../../../settings/types";
 import { computeFocusRelationTallies } from "../relatedNodes";
-import type { RelationEdge, ScatterNode } from "../types";
+import { buildNodeMap, type RelationEdge, type ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
@@ -69,8 +69,7 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
 
   drawGrid(ctx, width, height, state.zoom, state.pan);
 
-  const nodeMap = new Map<string, ScatterNode>();
-  state.nodes.forEach((n) => nodeMap.set(n.id.toLowerCase(), n));
+  const nodeMap = buildNodeMap(state.nodes);
 
   drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle);
 

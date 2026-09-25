@@ -4,6 +4,7 @@ import { computeHopReachableNodeIds } from "../edgeHops";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
+import { hashString } from "../../../hash";
 
 /**
  * Canonical Cypher relation types have dedicated semantic colors for instant
@@ -45,11 +46,7 @@ export const EDGE_COLOR_PALETTE = [
 export const NEUTRAL_EDGE = "rgba(148, 163, 184, 0.32)";
 
 function hashLabel(label: string): number {
-  let hash = 0;
-  for (let i = 0; i < label.length; i++) {
-    hash = (hash * 31 + label.charCodeAt(i)) | 0;
-  }
-  return Math.abs(hash);
+  return Math.abs(hashString(label));
 }
 
 /**

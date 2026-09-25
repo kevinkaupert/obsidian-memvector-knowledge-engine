@@ -15,17 +15,8 @@ const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
 };
 
 import { shouldIncludeFile } from "../../vaultFilter";
+import { hashString } from "../../hash";
 export { shouldIncludeFile };
-
-
-function hashString(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = (hash << 5) - hash + s.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
 
 /**
  * Purpose: Scans markdown notes in the vault, filtering by global indexing exclusions and transient canvas view filter.

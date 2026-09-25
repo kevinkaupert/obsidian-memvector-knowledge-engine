@@ -1,6 +1,6 @@
 import { COLLAPSED_SLOT, computeControlPoint, computeEdgeSlots, distanceToCurve, groupKeyFor } from "./edgeGrouping";
 import { computeHopReachableNodeIds } from "./edgeHops";
-import type { RelationEdge, ScatterNode } from "./types";
+import { buildNodeMap, type RelationEdge, type ScatterNode } from "./types";
 
 export interface PanState {
   x: number;
@@ -37,7 +37,7 @@ export function hitTestEdge(
   threshold = 8
 ): RelationEdge | null {
   if (hops !== 0 && activeNodeIds.size === 0) return null;
-  const nodeMap = new Map(nodes.map((n) => [n.id.toLowerCase(), n]));
+  const nodeMap = buildNodeMap(nodes);
   const reachable = hops === 0 ? null : computeHopReachableNodeIds(relationEdges, nodeMap, activeNodeIds, hops);
   const slots = computeEdgeSlots(relationEdges);
 

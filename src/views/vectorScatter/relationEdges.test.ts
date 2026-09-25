@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { pathToId } from "../../noteSlug";
-import { loadRelationEdges } from "./relationEdges";
+import { loadRelationEdges, parseRelationMetadata } from "./relationEdges";
 
 interface FakeFile {
   path: string;
@@ -120,3 +120,41 @@ describe("relation exclusions (#82)", () => {
     }
   );
 });
+
+describe("parseRelationMetadata (#79)", () => {
+  it("extracts relation fields directly from cached frontmatter", () => {
+    const meta = parseRelationMetadata({
+      source_note: "[[Alpha]]",
+      target_note: "[[Beta]]",
+      relation_type: "reduces_to",
+      bidirectional: true,
+      description: "Direct relation",
+    });
+    expect(meta.rawSrc).toBe("[[Alpha]]");
+    expect(meta.rawTgt).toBe("[[Beta]]");
+    expect(meta.relType).toBe("REDUCES_TO");
+    expect(meta.bidirectional).toBe(true);
+    expect(meta.desc).toBe("Direct relation");
+  });
+
+  it("falls back to parsing yaml and didactical reasons from raw file content", () => {
+    const rawContent = `---
+source_note: "[[Gamma]]"
+target_note: "[[Delta]]"
+relation_type: generalizes
+bidirectional: false
+---
+
+## Didaktischer / Fachlicher Grund
+This is the didactic reason
+spanning multiple lines.
+`;
+    const meta = parseRelationMetadata(null, rawContent);
+    expect(meta.rawSrc).toBe("Gamma");
+    expect(meta.rawTgt).toBe("Delta");
+    expect(meta.relType).toBe("GENERALIZES");
+    expect(meta.bidirectional).toBe(false);
+    expect(meta.desc).toBe("This is the didactic reason spanning multiple lines.");
+  });
+});
+

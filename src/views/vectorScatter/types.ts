@@ -37,3 +37,14 @@ export interface RelationEdge {
   path: string;
   bidirectional: boolean;
 }
+
+/**
+ * Purpose: Indexes scatter nodes by lowercase ID for O(1) graph lookups.
+ */
+export function buildNodeMap(nodes: ScatterNode[]): Map<string, ScatterNode> {
+  const map = new Map<string, ScatterNode>();
+  for (const n of nodes) {
+    map.set(n.id.toLowerCase(), n);
+  }
+  return map;
+}
