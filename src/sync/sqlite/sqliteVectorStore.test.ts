@@ -141,6 +141,21 @@ describe("SqliteVectorStore", () => {
       expect(await store.getVector("a")).toEqual([1, 2, 3]);
     });
 
+    it("resolves vectors by either canonical id or file path", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([
+        { id: "work/overview", vector: [0.5, 0.5], payload: { path: "Work/Overview.md", title: "Overview", content: "text" } },
+      ]);
+      expect(await store.getVector("work/overview")).toEqual([0.5, 0.5]);
+      expect(await store.getVector("Work/Overview.md")).toEqual([0.5, 0.5]);
+
+      const byId = await store.getVectors(["work/overview"]);
+      expect(byId.get("work/overview")).toEqual([0.5, 0.5]);
+
+      const byPath = await store.getVectors(["Work/Overview.md"]);
+      expect(byPath.get("Work/Overview.md")).toEqual([0.5, 0.5]);
+    });
+
     it("returns null for an id that hasn't been synced", async () => {
       const store = new SqliteVectorStore(fakeApp());
       await store.syncPoints([point("a", [1, 0])]);
@@ -148,3 +163,4 @@ describe("SqliteVectorStore", () => {
     });
   });
 });
+

@@ -4,6 +4,7 @@ import { stripFrontmatter } from "../noteContent";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
 import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
+import { pathToId } from "../noteSlug";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -11,6 +12,9 @@ export interface VectorSyncResult {
   syncedCount: number;
 }
 
+/**
+ * Purpose: Synchronizes vault markdown embeddings to the VectorStore and reconciles removed files.
+ */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const vaultFiles = app.vault.getMarkdownFiles();
   const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
@@ -47,7 +51,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
     if (embedding && embedding.length > 0) {
       points.push({
-        id: file.path,
+        id: pathToId(file.path),
         vector: embedding,
         payload: { path: file.path, title: file.basename, content: content.slice(0, 500) },
       });
