@@ -3,19 +3,11 @@ import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { stripFrontmatter } from "../../noteContent";
 import type { NoteFileLike, RadarNoteType } from "./activeNoteScoring";
 
+import type { NodePositionProvider } from "../vectorScatter/VectorScatterView";
+
 export interface Position2D {
   x: number;
   y: number;
-}
-
-interface ScatterNodeLike {
-  path: string;
-  x: number;
-  y: number;
-}
-
-interface ScatterViewLike {
-  nodes?: ScatterNodeLike[];
 }
 
 const TYPE_OFFSETS: Partial<Record<RadarNoteType, Position2D>> = {
@@ -47,10 +39,10 @@ function hashString(s: string): number {
  */
 export function getNode2DPosition(app: App, file: NoteFileLike, content: string): Position2D {
   const scatterLeaf = app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)[0];
-  const view = scatterLeaf?.view as unknown as ScatterViewLike | undefined;
-  if (view?.nodes) {
-    const match = view.nodes.find((n) => n.path === file.path);
-    if (match) return { x: match.x, y: match.y };
+  const view = scatterLeaf?.view;
+  if (view && typeof (view as unknown as NodePositionProvider).getNodePosition === "function") {
+    const pos = (view as unknown as NodePositionProvider).getNodePosition(file.path);
+    if (pos) return pos;
   }
 
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);

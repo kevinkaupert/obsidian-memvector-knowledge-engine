@@ -1,5 +1,5 @@
 import { stripFrontmatter } from "../../noteContent";
-import { shouldIncludeFile } from "../vectorScatter/vaultScan";
+import { shouldIncludeFile } from "../../vaultFilter";
 
 export interface NoteFileLike {
   path: string;

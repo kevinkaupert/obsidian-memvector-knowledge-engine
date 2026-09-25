@@ -3,7 +3,7 @@ import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { stripFrontmatter } from "../noteContent";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
-import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
+import { shouldIncludeFile } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 

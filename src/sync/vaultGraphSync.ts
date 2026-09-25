@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 import { pathToId, toSlug } from "../noteSlug";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
 import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
-import { shouldIncludeFile } from "../views/vectorScatter/vaultScan";
+import { shouldIncludeFile } from "../vaultFilter";
 
 /**
  * Purpose: Scans the vault's Markdown files and WikiLinks into a node/edge graph list, respecting optional exclusion filters (F03).
