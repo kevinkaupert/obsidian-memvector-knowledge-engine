@@ -6,7 +6,7 @@ import type { MemVectorSettings } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
-import { setPluginId, closeLocalDb } from "./sync/sqlite/sqliteDb";
+import { setPluginId, setPluginDir, closeLocalDb } from "./sync/sqlite/sqliteDb";
 import { getTranslation } from "./i18n";
 
 export default class MemVectorPlugin extends Plugin {
@@ -24,7 +24,13 @@ export default class MemVectorPlugin extends Plugin {
     }, 80);
   }
 
+  /**
+   * Purpose: Initializes plugin runtime, registers sidebar/scatter views, settings tab, and ribbon commands.
+   */
   async onload(): Promise<void> {
+    if (this.manifest.dir) {
+      setPluginDir(this.manifest.dir);
+    }
     setPluginId(this.manifest.id);
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));

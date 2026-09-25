@@ -16,12 +16,27 @@ CREATE TABLE IF NOT EXISTS vectors (id TEXT PRIMARY KEY, path TEXT, title TEXT, 
 `;
 
 let activePluginId = "memvector-knowledge-engine";
+let activePluginDir = "";
 
+/**
+ * Purpose: Configures custom plugin directory path directly from manifest.dir.
+ */
+export function setPluginDir(dir: string): void {
+  activePluginDir = dir;
+}
+
+/**
+ * Purpose: Sets plugin id for default path resolution.
+ */
 export function setPluginId(id: string): void {
   activePluginId = id;
 }
 
+/**
+ * Purpose: Resolves the active plugin folder inside the vault config directory.
+ */
 export function pluginDirPath(app: App): string {
+  if (activePluginDir) return activePluginDir;
   return `${app.vault.configDir}/plugins/${activePluginId}`;
 }
 
@@ -34,7 +49,8 @@ let persistQueue: Promise<void> = Promise.resolve();
 
 /** Initializes sql.js engine with disk or embedded fallback WASM, then opens or creates the local database. */
 async function openDb(app: App): Promise<Database> {
-  const wasmPath = `${pluginDirPath(app)}/${WASM_FILENAME}`;
+  const dir = pluginDirPath(app);
+  const wasmPath = `${dir}/${WASM_FILENAME}`;
   let wasmBinary: ArrayBuffer;
   if (await app.vault.adapter.exists(wasmPath)) {
     wasmBinary = await app.vault.adapter.readBinary(wasmPath);
@@ -43,6 +59,9 @@ async function openDb(app: App): Promise<Database> {
     const buffer = embedded.buffer.slice(embedded.byteOffset, embedded.byteOffset + embedded.byteLength) as ArrayBuffer;
     wasmBinary = buffer;
     try {
+      if (typeof app.vault.adapter.mkdir === "function" && !(await app.vault.adapter.exists(dir))) {
+        await app.vault.adapter.mkdir(dir);
+      }
       await app.vault.adapter.writeBinary(wasmPath, buffer);
     } catch {
       // Non-fatal if writing fallback to disk fails
@@ -74,7 +93,17 @@ export async function persistLocalDb(app: App, db: Database): Promise<void> {
   const bytes = db.export();
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
-  const thisWrite = persistQueue.then(() => app.vault.adapter.writeBinary(localDbPath(app), buffer));
+  const dir = pluginDirPath(app);
+  const thisWrite = persistQueue.then(async () => {
+    try {
+      if (typeof app.vault.adapter.mkdir === "function" && !(await app.vault.adapter.exists(dir))) {
+        await app.vault.adapter.mkdir(dir);
+      }
+    } catch {
+      // Non-fatal if directory creation fails or already exists
+    }
+    await app.vault.adapter.writeBinary(localDbPath(app), buffer);
+  });
   persistQueue = thisWrite.catch(() => undefined);
 
   try {
