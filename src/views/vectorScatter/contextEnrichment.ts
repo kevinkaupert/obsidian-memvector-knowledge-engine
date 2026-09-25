@@ -89,11 +89,12 @@ async function fetchGraphNeighbors(
   settings: MemVectorSettings,
   selected: ScatterNode[],
   limit: number,
-  excerptLength: number
+  excerptLength: number,
+  hopDepth = settings.synthesisHopDepth ?? 2
 ): Promise<Map<string, EnrichedNote>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => n.id);
-  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, 2, limit + selected.length);
+  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, limit + selected.length);
 
   for (const neighbor of neighbors) {
     if (selected.some((s) => s.path === neighbor.path)) continue;
@@ -120,13 +121,14 @@ export async function enrichContext(
   selected: ScatterNode[],
   limitPerSource = 2,
   excerptLength = 200,
-  maxTotal = 4
+  maxTotal = 4,
+  hopDepth = settings.synthesisHopDepth ?? 2
 ): Promise<EnrichedNote[]> {
   const merged = new Map<string, EnrichedNote>();
 
   const [vectorResult, graphResult] = await Promise.allSettled([
     fetchVectorNeighbors(app, settings, selected, limitPerSource, excerptLength),
-    fetchGraphNeighbors(app, settings, selected, limitPerSource, excerptLength),
+    fetchGraphNeighbors(app, settings, selected, limitPerSource, excerptLength, hopDepth),
   ]);
 
   if (vectorResult.status === "fulfilled") {

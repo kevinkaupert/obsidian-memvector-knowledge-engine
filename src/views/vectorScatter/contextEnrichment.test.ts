@@ -222,3 +222,40 @@ describe("context exclusions (#82)", () => {
     }
   );
 });
+
+describe("synthesis hop depth (#89)", () => {
+  it.each([1, 2, 3])("fetches graph neighbors with configured hop depth: %d hops", async (hops) => {
+    const files = new Map([
+      ["selected.md", "Selected note body"],
+      ["neighbor.md", "Neighbor note body"],
+    ]);
+    const app = makeMockApp(files);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, synthesisHopDepth: hops };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      { id: "neighbor", path: "neighbor.md", title: "Neighbor", hops: 1 },
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    await enrichContext(app, settings, selected);
+
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], hops, expect.any(Number));
+  });
+
+  it("allows explicit hop depth parameter to override settings", async () => {
+    const files = new Map([
+      ["selected.md", "Selected note body"],
+      ["neighbor.md", "Neighbor note body"],
+    ]);
+    const app = makeMockApp(files);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, synthesisHopDepth: 2 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    await enrichContext(app, settings, selected, 2, 200, 4, 3);
+
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], 3, expect.any(Number));
+  });
+});
+

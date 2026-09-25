@@ -28,6 +28,8 @@ export interface MemVectorSettings {
 
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
+  /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. */
+  synthesisHopDepth: number;
 
   /** Include the vault's own AGENTS.md (if present) as house-style guidance in the synthesis prompt. */
   includeAgentsGuidelines: boolean;

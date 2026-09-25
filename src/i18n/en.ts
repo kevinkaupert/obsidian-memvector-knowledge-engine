@@ -174,6 +174,9 @@ export const en: TranslationKeys = {
 
   synthesisContentCapTitle: "Synthesis content cap (characters per note)",
   synthesisContentCapDesc: "0 = no limit, full note text is used. Applies equally to selected notes and GraphRAG neighbors. [NOTE] Simple character cutoff at the end of the text window - will be replaced by context-aware budgeting in a later step.",
+  synthesisHopDepthTitle: "GraphRAG hop depth",
+  synthesisHopDepthDesc: "Maximum graph traversal depth for multi-hop synthesis context (1-3 hops, independent from visual canvas hops).",
+  lblSynthHopDepth: "GraphRAG hop depth",
   temperatureAnthropicNote: "(Disabled for Anthropic/Claude - managed by the API provider)",
 
   // Toolbar & Status feedback
