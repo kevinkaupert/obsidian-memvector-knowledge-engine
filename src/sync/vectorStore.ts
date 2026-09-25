@@ -10,13 +10,8 @@ export interface VectorSearchHit {
 }
 
 /**
- * Whatever the plugin needs from the vector index, independent of where it
- * actually lives (Qdrant over REST, or a local SQLite table with brute-force
- * cosine search). qdrant/qdrantVectorStore.ts and sqlite/sqliteVectorStore.ts
- * both implement this; storeFactory.ts picks which one based on
- * settings.vectorBackend. Point IDs are plain strings here (usually the note
- * path) - QdrantVectorStore hashes them to Qdrant's required numeric ID
- * internally via pointId.ts, callers never see that detail.
+ * Purpose: Defines the vector storage interface for indexing, searching, and reconciling note embeddings.
+ * In v0.1.x, this interface is backed by SqliteVectorStore via local sql.js WebAssembly.
  */
 export interface VectorStore {
   testConnection(): Promise<void>;
