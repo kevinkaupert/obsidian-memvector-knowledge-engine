@@ -26,6 +26,15 @@ export interface MemVectorSettings {
   vectorSearchExclusions: string;
   radarNoteCount: number;
 
+  /**
+   * Index standard Obsidian [[WikiLinks]] as LINKS_TO graph relations (Issue #100).
+   * Default false: the graph store indexes only explicit typed relations from the
+   * Relation Builder, so GraphRAG multi-hop traversal and 2D topology weights follow
+   * the pure MemVector paradigm (semantic vectors + intentional typed relations).
+   * Takes effect on the next full vault re-index.
+   */
+  includeWikiLinksAsRelations: boolean;
+
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
   /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. */

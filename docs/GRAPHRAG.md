@@ -29,7 +29,9 @@ independent sources, and adds them to the prompt as background context.
      runs a cosine similarity search against the whole vault's stored embeddings (requires
      "Vektoren berechnen" to have been executed at least once).
    - **Graph Store (SQLite CTEs)**: finds notes within 1–2 graph-hops of your selected
-     notes — traversing plain WikiLinks *and* any typed relations created with the Relation Builder.
+     notes — traversing any typed relations created with the Relation Builder and
+     (only when the `includeWikiLinksAsRelations` setting is enabled, default off)
+     plain WikiLinks.
 5. Results from both are merged (a note found by both is tagged as such)
    and appended to the prompt as a clearly-labelled "automatically found,
    related notes - background context only" section, separate from your

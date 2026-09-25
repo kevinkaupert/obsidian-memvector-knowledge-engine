@@ -5,9 +5,14 @@ import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
 import { shouldIncludeFile } from "../vaultFilter";
 
 /**
- * Purpose: Scans the vault's Markdown files and WikiLinks into a node/edge graph list, respecting optional exclusion filters (F03).
+ * Purpose: Scans the vault's Markdown files into a node list and, when opted in, into LINKS_TO edges from WikiLinks (F03).
+ * Architecture: WikiLink extraction is opt-in (includeWikiLinksAsRelations, default false) so the graph store indexes only explicit typed relations unless the user enables raw WikiLink structure (Issue #100, ADR-0001).
  */
-export function extractVaultGraph(app: App, exclusions?: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
+export function extractVaultGraph(
+  app: App,
+  exclusions?: string,
+  includeWikiLinksAsRelations = false
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodeMap = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
@@ -16,6 +21,8 @@ export function extractVaultGraph(app: App, exclusions?: string): { nodes: Graph
 
     const id = pathToId(file.path);
     nodeMap.set(id, { id, title: file.basename, path: file.path });
+
+    if (!includeWikiLinksAsRelations) continue;
 
     const cache = app.metadataCache.getFileCache(file);
     for (const link of cache?.links ?? []) {
@@ -36,13 +43,15 @@ export function extractVaultGraph(app: App, exclusions?: string): { nodes: Graph
 
 /**
  * Purpose: Full-vault graph re-index against the configured GraphStore, applying exclusion filters and synchronizing typed relations (F03).
+ * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed.
  */
 export async function syncVaultGraph(
   app: App,
   store: GraphStore,
-  exclusions?: string
+  exclusions?: string,
+  includeWikiLinksAsRelations = false
 ): Promise<{ nodeCount: number; edgeCount: number }> {
-  const { nodes, edges } = extractVaultGraph(app, exclusions);
+  const { nodes, edges } = extractVaultGraph(app, exclusions, includeWikiLinksAsRelations);
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
   try {

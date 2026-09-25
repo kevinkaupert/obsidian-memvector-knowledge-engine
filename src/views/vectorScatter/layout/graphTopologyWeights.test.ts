@@ -15,7 +15,7 @@ describe("computeGraphTopologyWeights", () => {
     // chain: a -[REQUIRES]-> b -(wikilink)- c
     const nodes = [node("a"), node("b", ["c"]), node("c")];
     const edges = [edge("a", "b", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
+    const { conn } = computeGraphTopologyWeights(nodes, edges, true);
     expect(conn[0][1]).toBe(1.0);
     expect(conn[1][2]).toBe(0.7);
   });
@@ -53,7 +53,7 @@ describe("computeGraphTopologyWeights", () => {
   it("uses the stronger of a WikiLink and a typed relation when both exist between the same pair", () => {
     const nodes = [node("a", ["b"]), node("b")];
     const edges = [edge("a", "b", "EQUIVALENT_TO")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
+    const { conn } = computeGraphTopologyWeights(nodes, edges, true);
     expect(conn[0][1]).toBeCloseTo(1.3);
   });
 
@@ -70,5 +70,30 @@ describe("computeGraphTopologyWeights", () => {
     const { conn, repel } = computeGraphTopologyWeights(nodes, edges);
     expect(conn[0][1]).toBe(BASELINE_WEIGHT);
     expect(repel.has("0-1")).toBe(false);
+  });
+
+  it("omits WikiLink attraction by default (Issue #100)", () => {
+    const nodes = [node("a", ["b"]), node("b")];
+    const { conn } = computeGraphTopologyWeights(nodes, []);
+    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+  });
+
+  it("omits WikiLink attraction when the toggle is explicitly off (Issue #100)", () => {
+    const nodes = [node("a", ["b"]), node("b")];
+    const { conn } = computeGraphTopologyWeights(nodes, [], false);
+    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+  });
+
+  it("applies WikiLink attraction when the toggle is on (Issue #100)", () => {
+    const nodes = [node("a", ["b"]), node("b")];
+    const { conn } = computeGraphTopologyWeights(nodes, [], true);
+    expect(conn[0][1]).toBe(0.7);
+  });
+
+  it("keeps typed relation weights independent of the WikiLink toggle (Issue #100)", () => {
+    const nodes = [node("a", ["b"]), node("b")];
+    const edges = [edge("a", "b", "REQUIRES")];
+    expect(computeGraphTopologyWeights(nodes, edges, false).conn[0][1]).toBe(1.0);
+    expect(computeGraphTopologyWeights(nodes, edges, true).conn[0][1]).toBe(1.0);
   });
 });

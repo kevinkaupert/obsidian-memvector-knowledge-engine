@@ -34,6 +34,7 @@ export function applyVectorLayout(
     nodeSpacing: nodeSpacing || settings.scatterNodeSpacing || 350,
     cloudSpacing: cloudSpacing || settings.scatterCloudSpacing || 800,
     relationEdges,
+    includeWikiLinksAsRelations: settings.includeWikiLinksAsRelations,
   });
 }
 

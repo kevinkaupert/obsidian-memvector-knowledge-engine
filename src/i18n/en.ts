@@ -50,6 +50,8 @@ export const en: TranslationKeys = {
   embedModelDesc: "Exact model name for note embeddings (e.g., 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   exclusionsName: "Path & File Exclusions",
   exclusionsDesc: "Global exclusion rules for vector indexing, graph edges, and 2D Graph (e.g. -path:schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
+  wikiLinksAsRelationsName: "Index WikiLinks as graph relations",
+  wikiLinksAsRelationsDesc: "Off by default: [[WikiLinks]] are not indexed as LINKS_TO graph edges, so GraphRAG multi-hop context and 2D topology rely on semantic vectors and explicit typed relations (Relation Builder) only. Turn on to treat WikiLinks as LINKS_TO relationships again. Takes effect on the next full vault re-index.",
   agentsPathsName: "Agent Guideline Files",
   agentsPathsDesc: "Vault paths loaded as compilation rules for synthesis when the 'Include agent guidelines' toggle is on. Separate multiple paths with commas.",
   relVocabPathName: "Relation type vocabulary",

@@ -50,6 +50,8 @@ export const de: TranslationKeys = {
   embedModelDesc: "Exakter Modellname für Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   exclusionsName: "Pfad- & Datei-Ausschließungen",
   exclusionsDesc: "Globale Ausschlussregeln für Vektor-Indizierung, Graph-Kanten und den 2D-Graph (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
+  wikiLinksAsRelationsName: "WikiLinks als Graph-Relationen indizieren",
+  wikiLinksAsRelationsDesc: "Standardmäßig aus: [[WikiLinks]] werden nicht als LINKS_TO-Graph-Kanten indiziert - GraphRAG-Kontext und 2D-Topologie stützen sich dann nur auf semantische Vektoren und explizite typisierte Relationen (Relation Builder). Einschalten, um WikiLinks wieder als LINKS_TO-Beziehungen zu behandeln. Wirkt bei der nächsten vollständigen Vault-Neuindizierung.",
   agentsPathsName: "Agenten-Richtlinien-Dateien",
   agentsPathsDesc: "Vault-Pfade, die bei aktiviertem 'Agenten-Richtlinien einbeziehen'-Schalter in der Synthese als Kompilierungsregeln geladen werden. Mehrere Pfade durch Komma trennen.",
   relVocabPathName: "Beziehungstyp-Vokabular",

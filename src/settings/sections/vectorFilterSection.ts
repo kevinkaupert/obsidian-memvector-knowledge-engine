@@ -146,6 +146,16 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
   }
 
   new Setting(containerEl)
+    .setName(t.wikiLinksAsRelationsName)
+    .setDesc(t.wikiLinksAsRelationsDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(settings.includeWikiLinksAsRelations).onChange(async (value) => {
+        settings.includeWikiLinksAsRelations = value;
+        await host.saveSettings();
+      })
+    );
+
+  new Setting(containerEl)
     .setName(t.indexVaultTitle)
     .setDesc(t.indexVaultDesc)
     .addButton((btn) =>
@@ -161,7 +171,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
-            const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions);
+            const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations);
             btn.setButtonText(t.indexVaultSuccess);
             new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
           } catch (err) {

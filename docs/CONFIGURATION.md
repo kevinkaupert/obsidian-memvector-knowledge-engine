@@ -39,6 +39,7 @@ The settings menu is organized into 3 focused sections:
 - **Embedding API Base URL (`embeddingApiBaseUrl`):** Endpoint URL for vector embeddings.
 - **Embedding API Key (`embeddingApiKey`):** API key for vector embeddings (type `ollama` for local Ollama).
 - **Embedding Model Name (`embeddingModel`):** Exact model name (e.g. `bge-m3`, `nomic-embed-text`, `text-embedding-3-small`).
+- **WikiLinks as graph relations (`includeWikiLinksAsRelations`):** Off by default. When off, `[[WikiLinks]]` are **not** indexed as `LINKS_TO` graph edges - GraphRAG multi-hop context and 2D topology weights rely on semantic vectors and explicit typed relations from the Relation Builder only (see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`). Turn on to treat WikiLinks as `LINKS_TO` relationships again. Takes effect on the next full vault re-index.
 - **Gesamtes Vault lokal indizieren:** Computes embeddings and graph connections for all markdown files and stores them directly in the local `memvector-local.sqlite` database.
 
 #### Knowledge Domain Modes

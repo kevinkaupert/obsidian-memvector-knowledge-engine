@@ -68,16 +68,16 @@ There is currently one layout algorithm, `graphvector`, applied directly via `ap
 - **Initial placement:** Fast 2D PCA power iteration projection (`compute2DPcaProjection`) aligns the primary variance axes of high-dimensional embeddings directly onto the canvas, with spectral matrix projection and golden-spiral origin distribution as deterministic fallbacks for un-embedded notes.
 - **Semantic clustering (`assignClouds`):** Groups nodes with high similarity into semantic cloud clusters for category coloring and contextual grouping.
 - **Hybrid similarity attraction:** Pairwise affinity computes a non-linear maximum between topological weight and quadratic semantic similarity (`Math.max(topWeight, Math.pow(sim, 2))`), pulling similar and well-connected notes toward an ideal distance while filtering out background noise.
-- **Graph-topology weighting** (`graphTopologyWeights.ts`, see below): Typed relations and WikiLinks shape the attraction/repulsion beyond raw similarity.
+- **Graph-topology weighting** (`graphTopologyWeights.ts`, see below): Typed relations and - only when opted in - WikiLinks shape the attraction/repulsion beyond raw similarity.
 - **Collision clearance:** A hard minimum-distance push keeps dots and labels from overlapping regardless of the above.
 
 An earlier version of this plugin exposed several independently selectable projection algorithms (clustered force, plain force, a flow-rank layout, a UMAP-inspired layout, a connectivity-only layout, a formula-clustering layout, and a static LLM-topic-map layout); those were consolidated into the single blended algorithm above. Reintroducing separate selectable modes is possible future work, not a currently planned one.
 
 **Graph-topology weighting in detail** (`graphTopologyWeights.ts`): this part of the blend ignores vector similarity and weighs notes by how they're *connected*.
 
-1. Builds an undirected graph from WikiLinks (`[[...]]`) and typed Memgraph relation edges (`wiki/relations/*.md`).
+1. Builds an undirected graph from typed Memgraph relation edges (`wiki/relations/*.md`) and - only when the `includeWikiLinksAsRelations` setting is enabled (default off, see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`) - WikiLinks (`[[...]]`).
 2. Runs a BFS from every node, capped at 4 hops, to get a real graph-distance instead of a flat "linked vs. not" split - a note 2-3 hops away pulls in visibly closer than a wholly disconnected one, decaying with distance.
-3. Weights direct edges by relation type: `EQUIVALENT_TO`/`ANALOGOUS_TO` attract more strongly than a generic relation ("these are basically the same idea"), a plain WikiLink attracts less than a typed relation, and a direct `CONFLICTS_WITH` edge actively pushes the two notes apart instead of just failing to attract them. `INDEPENDENT_OF` is treated as neutral (baseline weight `0.05`), not repulsive - "independent" reads as a neutral statement, not an active opposition.
+3. Weights direct edges by relation type: `EQUIVALENT_TO`/`ANALOGOUS_TO` attract more strongly than a generic relation ("these are basically the same idea"), a plain WikiLink (when opted in) attracts less than a typed relation, and a direct `CONFLICTS_WITH` edge actively pushes the two notes apart instead of just failing to attract them. `INDEPENDENT_OF` is treated as neutral (baseline weight `0.05`), not repulsive - "independent" reads as a neutral statement, not an active opposition.
 4. Feeds the resulting per-pair weight into the force-simulation shape (attraction toward an ideal distance, or a fixed repulsion within `2.5×` node spacing for `CONFLICTS_WITH` pairs).
 
 ### 2.2. Interactive HTML5 Canvas Renderers

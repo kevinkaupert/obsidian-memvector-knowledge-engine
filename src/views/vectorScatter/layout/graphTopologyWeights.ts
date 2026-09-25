@@ -28,10 +28,14 @@ function edgeWeightForType(relType: string): number {
 }
 
 /**
- * Purpose: Builds an undirected graph from WikiLinks + typed relation edges and computes BFS hop-distance attraction and repulsion weights.
- * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41).
+ * Purpose: Builds an undirected graph from typed relation edges and, when opted in, WikiLinks, then computes BFS hop-distance attraction and repulsion weights.
+ * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001).
  */
-export function computeGraphTopologyWeights(nodes: ScatterNode[], relationEdges: RelationEdge[]): GraphTopologyWeights {
+export function computeGraphTopologyWeights(
+  nodes: ScatterNode[],
+  relationEdges: RelationEdge[],
+  includeWikiLinksAsRelations = false
+): GraphTopologyWeights {
   const n = nodes.length;
   const idToIndex = new Map(nodes.map((node, i) => [node.id.toLowerCase(), i]));
   const adjacency: Map<number, number>[] = nodes.map(() => new Map<number, number>());
@@ -42,13 +46,15 @@ export function computeGraphTopologyWeights(nodes: ScatterNode[], relationEdges:
     adjacency[j].set(i, Math.max(adjacency[j].get(i) ?? 0, weight));
   };
 
-  for (let i = 0; i < n; i++) {
-    const a = nodes[i];
-    for (let j = i + 1; j < n; j++) {
-      const b = nodes[j];
-      // WikiLinks target basenames, not the canonical (path-based) id - match on basenameKey.
-      const isLinked = (a.links && a.links.includes(b.basenameKey)) || (b.links && b.links.includes(a.basenameKey));
-      if (isLinked) addEdge(i, j, WIKILINK_WEIGHT);
+  if (includeWikiLinksAsRelations) {
+    for (let i = 0; i < n; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < n; j++) {
+        const b = nodes[j];
+        // WikiLinks target basenames, not the canonical (path-based) id - match on basenameKey.
+        const isLinked = (a.links && a.links.includes(b.basenameKey)) || (b.links && b.links.includes(a.basenameKey));
+        if (isLinked) addEdge(i, j, WIKILINK_WEIGHT);
+      }
     }
   }
 
