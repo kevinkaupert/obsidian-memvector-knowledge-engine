@@ -67,6 +67,6 @@ export async function fetchEmbedding(
 
   return {
     embedding: null,
-    error: `Embedding fehlgeschlagen für Modell '${modelName}' an '${cleanBase}'`,
+    error: `Embedding failed for model '${modelName}' at '${cleanBase}'`,
   };
 }

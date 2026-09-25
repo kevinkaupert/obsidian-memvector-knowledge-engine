@@ -90,7 +90,7 @@ ${this.synthesisText}
       } catch (err) {
         saveBtn.disabled = false;
         saveBtn.setText(t.synthSaveBtn);
-        new Notice(`[ERROR] Fehler beim Speichern: ${err instanceof Error ? err.message : String(err)}`);
+        new Notice(`[ERROR] ${t.saveErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
       }
     };
   }

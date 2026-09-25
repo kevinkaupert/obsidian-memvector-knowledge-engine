@@ -2,6 +2,7 @@ import { ItemView, type TFile, type WorkspaceLeaf } from "obsidian";
 import { MATH_WIKI_VIEW_TYPE } from "../../constants";
 import type { MemVectorSettings } from "../../settings/types";
 import { renderActiveNoteFocus } from "./renderActiveNoteFocus";
+import { getTranslation } from "../../i18n";
 
 /**
  * The original class carried a cluster of never-invoked members
@@ -27,7 +28,7 @@ export class MathWikiSidebarView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "MemVector Co-Pilot";
+    return getTranslation(this.getSettings()?.language || "de").sidebarTitle;
   }
 
   getIcon(): string {

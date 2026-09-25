@@ -44,9 +44,9 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     .setDesc(t.embedProvDesc)
     .addDropdown((dropdown) =>
       dropdown
-        .addOption("ollama", settings.language === "en" ? "Ollama (Local - http://localhost:11434/v1)" : "Ollama (Lokal - http://localhost:11434/v1)")
+        .addOption("ollama", t.provOllama)
         .addOption("openai", "OpenAI Embeddings (api.openai.com)")
-        .addOption("custom", "Custom REST Endpoint")
+        .addOption("custom", t.provCustomRest)
         .setValue(settings.embeddingProvider)
         .onChange(async (value) => {
           const defaults = EMBEDDING_PROVIDER_DEFAULTS[value];
@@ -157,16 +157,16 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
           btn.setDisabled(true);
           try {
             const totalFiles = app.vault.getMarkdownFiles().length;
-            new Notice(`[INFO] ${t.indexVaultNoticeStarting} ${totalFiles} ${settings.language === "en" ? "notes..." : "Notizen..."}`);
+            new Notice(`[INFO] ${t.indexVaultNoticeStarting} ${totalFiles} ${t.indexVaultNoticeStartingSuffix}`);
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions);
             btn.setButtonText(t.indexVaultSuccess);
-            new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${settings.language === "en" ? "edges saved successfully to local SQLite!" : "Kanten erfolgreich in lokaler SQLite gespeichert!"}`);
+            new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
           } catch (err) {
             btn.setButtonText(t.testConnFail);
-            new Notice(`[ERROR] Sync-Fehler: ${err instanceof Error ? err.message : String(err)}`);
+            new Notice(`[ERROR] ${t.syncErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
           } finally {
             window.setTimeout(() => {
               btn.setButtonText(t.indexVaultBtn);
