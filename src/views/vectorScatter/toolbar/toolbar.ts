@@ -185,12 +185,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     { id: "3", label: "3 Hops" },
   ];
   let synthHopRow: HTMLElement | null = null;
+  let synthSimRow: HTMLElement | null = null;
   let refreshContextPreview = (): void => {};
 
   createToggle(syntheseBody, t.synthEnrichToggle, ctx.settings.enrichSynthesisContext, (on) => {
     void (async () => {
       ctx.settings.enrichSynthesisContext = on;
       if (synthHopRow) synthHopRow.hidden = !on;
+      if (synthSimRow) synthSimRow.hidden = !on;
       await ctx.saveSettings();
       refreshContextPreview();
     })();
@@ -212,6 +214,25 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   );
   synthHopRow = synthHopSelect.parentElement;
   if (synthHopRow) synthHopRow.hidden = !ctx.settings.enrichSynthesisContext;
+
+  const synthSimInput = createSlider(
+    syntheseBody,
+    t.minVectorSimTitle,
+    0,
+    1,
+    0.05,
+    ctx.settings.minVectorSimilarity ?? 0.75,
+    (val) => val.toFixed(2),
+    (newVal) => {
+      void (async () => {
+        ctx.settings.minVectorSimilarity = newVal;
+        await ctx.saveSettings();
+        refreshContextPreview();
+      })();
+    }
+  );
+  synthSimRow = synthSimInput.parentElement;
+  if (synthSimRow) synthSimRow.hidden = !ctx.settings.enrichSynthesisContext;
 
   createToggle(syntheseBody, t.synthAgentsToggle, ctx.settings.includeAgentsGuidelines, (on) => {
     void (async () => {
