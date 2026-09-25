@@ -2,12 +2,8 @@ import type { RelationNode } from "./relationEdgeBuilder";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 
 /**
- * This is a *different* Cypher shape than sync/memgraph/cypherBuilder.ts:
- * aliased multi-node MERGE + edge properties (description/paths/timestamp)
- * + a RETURN clause, purpose-built for a human-readable Memgraph Lab
- * paste-preview of a *specific* hand-picked relation, not the bulk
- * whole-vault sync. Kept separate rather than forced into a shared
- * abstraction that doesn't actually fit both use cases.
+ * Purpose: Generates human-readable Cypher queries for relation preview and external graph export.
+ * Formats an aliased multi-node MERGE statement with edge properties (description, original term, directionality, paths, timestamps).
  */
 export function buildRelationCypherPreview(edges: ResolvedRelationEdge[], description: string): string {
   const descEscaped = (description || "").replace(/"/g, '\\"');
