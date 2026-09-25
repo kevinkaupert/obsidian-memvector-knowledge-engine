@@ -1,26 +1,26 @@
-import type { TranslationKeys } from "../../i18n";
 import type { EnrichedNote } from "./contextEnrichment";
 
 export interface PreviewEntry {
   title: string;
-  /** Prompt-style source badge, e.g. "[graph+vector]" - matches what the synthesis prompt shows. */
+  /** Compact source badge: "v" (vector), "g" (graph), "v+g" (both). */
   source: string;
-  /** Why this note is in the context: hop distance and/or cosine similarity. */
+  /** Compact reason: similarity as "0.83" and/or hop distance as "1 Hop" / "2 Hops". */
   reason: string;
 }
 
 /**
- * Purpose: Shapes enrichment results into preview rows (title, source badge, reason) for the toolbar's context preview (Issue #103).
+ * Purpose: Shapes enrichment results into compact preview rows (title, v/g badge, score, hops) for the toolbar's context preview (Issue #103).
  */
-export function buildPreviewEntries(notes: EnrichedNote[], t: TranslationKeys): PreviewEntry[] {
+export function buildPreviewEntries(notes: EnrichedNote[]): PreviewEntry[] {
   return notes.map((n) => {
+    const source = n.sources.map((s) => (s === "vector" ? "v" : "g")).join("+");
     const parts: string[] = [];
+    if (n.similarity !== undefined) parts.push(n.similarity.toFixed(2));
     if (n.hops !== undefined) parts.push(`${n.hops} ${n.hops === 1 ? "Hop" : "Hops"}`);
-    if (n.similarity !== undefined) parts.push(`${t.previewSimilarity} ${n.similarity.toFixed(2)}`);
     return {
       title: n.title,
-      source: `[${n.sources.join("+")}]`,
-      reason: parts.join(", "),
+      source,
+      reason: parts.join("  "),
     };
   });
 }

@@ -188,7 +188,6 @@ export const de: TranslationKeys = {
   agentsGuidelinesCapTitle: "Zeichenlimit pro Agenten-Richtlinien-Datei",
   agentsGuidelinesCapDesc: "Maximale Zeichenanzahl pro Agenten-Richtlinien-Datei im Synthese-Prompt (0 = unbegrenzt, vollständige Datei).",
   contextPreviewTitle: "Kontext-Vorschau",
-  previewSimilarity: "Ähnlichkeit",
   previewEmpty: "Keine Kontext-Notizen - Notiz auswählen oder Limits anpassen.",
   lblSynthHopDepth: "GraphRAG Hop-Tiefe",
   temperatureAnthropicNote: "(Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)",

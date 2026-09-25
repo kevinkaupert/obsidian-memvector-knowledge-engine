@@ -909,13 +909,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.memvector-context-preview-source {
+.memvector-context-preview-meta {
   flex: 0 0 auto;
-  opacity: 0.75;
-}
-.memvector-context-preview-reason {
-  flex: 0 0 auto;
-  opacity: 0.55;
+  opacity: 0.6;
+  white-space: nowrap;
 }
 .memvector-context-preview-empty {
   opacity: 0.55;

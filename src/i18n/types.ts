@@ -178,7 +178,6 @@ export interface TranslationKeys {
   agentsGuidelinesCapTitle: string;
   agentsGuidelinesCapDesc: string;
   contextPreviewTitle: string;
-  previewSimilarity: string;
   previewEmpty: string;
   lblSynthHopDepth: string;
   temperatureAnthropicNote: string;

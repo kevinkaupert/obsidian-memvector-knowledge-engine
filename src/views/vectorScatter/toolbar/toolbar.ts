@@ -243,7 +243,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         try {
           const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100);
           previewList.empty();
-          const entries = buildPreviewEntries(enriched, t);
+          const entries = buildPreviewEntries(enriched);
           if (entries.length === 0) {
             previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
             return;
@@ -251,8 +251,8 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
           for (const entry of entries) {
             const item = previewList.createEl("li", { cls: "memvector-context-preview-item" });
             item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
-            item.createSpan({ text: entry.source, cls: "memvector-context-preview-source" });
-            item.createSpan({ text: entry.reason, cls: "memvector-context-preview-reason" });
+            const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
+            item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
           }
         } catch {
           previewList.empty();
