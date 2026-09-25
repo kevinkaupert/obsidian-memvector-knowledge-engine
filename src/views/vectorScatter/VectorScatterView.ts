@@ -15,7 +15,7 @@ import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
-import type { RelationEdge, ScatterNode } from "./types";
+import { filterVisibleNodes, type RelationEdge, type ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -33,11 +33,18 @@ export interface NodePositionProvider {
 
 export class VectorScatterView extends ItemView implements ScatterViewContext, NodePositionProvider {
   /**
-   * Purpose: Looks up the 2D canvas coordinates of a note by file path.
+   * Purpose: Looks up the 2D canvas coordinates of a visible note by file path.
    */
   getNodePosition(path: string): { x: number; y: number } | null {
-    const match = this.nodes.find((n) => n.path === path);
+    const match = this.getVisibleNodes().find((n) => n.path === path);
     return match ? { x: match.x, y: match.y } : null;
+  }
+
+  /**
+   * Purpose: Returns the currently visible scatter nodes according to display toggles.
+   */
+  getVisibleNodes(): ScatterNode[] {
+    return filterVisibleNodes(this.nodes, this.showRelationNotes);
   }
 
   viewFilterQuery = "";
@@ -53,6 +60,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   hoveredNode: ScatterNode | null = null;
   hoveredEdge: RelationEdge | null = null;
   showEdges = false;
+  showRelationNotes = true;
   edgeHops = 1;
   relationEdges: RelationEdge[] = [];
   nodeSpacing = 350;
@@ -171,8 +179,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.redraw();
   }
 
+  /**
+   * Purpose: Adjusts pan and zoom to fit all currently visible scatter nodes within the canvas viewport.
+   */
   fitToView(): void {
-    if (!this.canvasWrap || this.nodes.length === 0) return;
+    const visibleNodes = this.getVisibleNodes();
+    if (!this.canvasWrap || visibleNodes.length === 0) return;
     const w = this.canvasWrap.clientWidth || 800;
     const h = this.canvasWrap.clientHeight || 600;
 
@@ -181,7 +193,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     let minY = Infinity;
     let maxY = -Infinity;
 
-    for (const node of this.nodes) {
+    for (const node of visibleNodes) {
       if (node.x < minX) minX = node.x;
       if (node.x > maxX) maxX = node.x;
       if (node.y < minY) minY = node.y;
@@ -202,10 +214,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     };
   }
 
+  /**
+   * Purpose: Orchestrates canvas redraw for visible nodes, clusters, edges, and selection highlights.
+   */
   redraw(): void {
     if (!this.canvasCtx || !this.canvasWrap) return;
+    const visibleNodes = this.getVisibleNodes();
     draw(this.canvasCtx, this.canvasWrap.clientWidth, this.canvasWrap.clientHeight, this.containerEl, {
-      nodes: this.nodes,
+      nodes: visibleNodes,
       zoom: this.zoom,
       pan: this.pan,
       projectionMode: this.projectionMode,
@@ -222,7 +238,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     });
 
     if (this.searchHighlight) {
-      const node = this.nodes.find((n) => n.id === this.searchHighlight!.nodeId);
+      const node = visibleNodes.find((n) => n.id === this.searchHighlight!.nodeId);
       if (node) {
         const accent = getComputedStyle(this.containerEl).getPropertyValue("--interactive-accent")?.trim() || "#38bdf8";
         drawSearchPulse(this.canvasCtx, node, performance.now() - this.searchHighlight.startedAt, this.zoom, this.pan, accent);
@@ -272,7 +288,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   hitTest(mouseX: number, mouseY: number): ScatterNode | null {
-    return hitTestPure(this.nodes, mouseX, mouseY, this.zoom, this.pan);
+    return hitTestPure(this.getVisibleNodes(), mouseX, mouseY, this.zoom, this.pan);
   }
 
   /** Lets the sidebar's "Nahestehende Notizen" radar show this exact note without switching the actual editor tab (a click here only selects for synthesis). */
@@ -284,7 +300,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   hitTestEdge(mouseX: number, mouseY: number): RelationEdge | null {
     const activeNodeIds = new Set(this.selectedNodeIds);
     if (this.hoveredNode) activeNodeIds.add(this.hoveredNode.id);
-    return hitTestEdgePure(this.nodes, this.relationEdges, activeNodeIds, this.edgeHops, mouseX, mouseY, this.zoom, this.pan);
+    return hitTestEdgePure(this.getVisibleNodes(), this.relationEdges, activeNodeIds, this.edgeHops, mouseX, mouseY, this.zoom, this.pan);
   }
 
   private refreshRelationEdges(): void {
@@ -326,7 +342,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.lastSearchIndex = (this.lastSearchIndex + 1) % this.lastSearchMatches.length;
     } else {
       this.lastSearchQuery = normalized;
-      this.lastSearchMatches = findNodesByQuery(this.nodes, query);
+      this.lastSearchMatches = findNodesByQuery(this.getVisibleNodes(), query);
       this.lastSearchIndex = 0;
     }
 

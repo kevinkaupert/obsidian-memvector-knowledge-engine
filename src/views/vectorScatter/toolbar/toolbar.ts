@@ -155,6 +155,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   edgeHopsRow = edgeHopsSelect.parentElement;
   if (edgeHopsRow) edgeHopsRow.hidden = !ctx.showEdges;
 
+  createToggle(ansichtBody, t.lblShowRelationNotes, ctx.showRelationNotes, (on) => {
+    ctx.showRelationNotes = on;
+    ctx.redraw();
+  });
+
   createToggle(ansichtBody, t.lblLasso, ctx.lassoSelectMode, (on) => {
     ctx.lassoSelectMode = on;
     refs.canvas.toggleClass("is-crosshair", on);
