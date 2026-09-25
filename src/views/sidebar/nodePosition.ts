@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { stripFrontmatter } from "../../noteContent";
+import { hashString } from "../../hash";
 import type { NoteFileLike, RadarNoteType } from "./activeNoteScoring";
 
 import type { NodePositionProvider } from "../vectorScatter/VectorScatterView";
@@ -20,15 +21,6 @@ const TYPE_OFFSETS: Partial<Record<RadarNoteType, Position2D>> = {
   question: { x: -300, y: 0 },
   source: { x: 300, y: 0 },
 };
-
-function hashString(s: string): number {
-  let hash = 0;
-  for (let i = 0; i < s.length; i++) {
-    hash = (hash << 5) - hash + s.charCodeAt(i);
-    hash |= 0;
-  }
-  return hash;
-}
 
 /**
  * Looks up a note's position in the live 2D vector-scatter view if it's

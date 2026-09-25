@@ -1,6 +1,7 @@
 import { TFile } from "obsidian";
 import type { ScatterViewContext } from "./context";
 import { getTranslation } from "../../i18n";
+import { worldToScreen } from "./hitTesting";
 
 function isPointInPolygon(px: number, py: number, polygon: { x: number; y: number }[]): boolean {
   let inside = false;
@@ -133,7 +134,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       if (ctx.lassoPath.length > 2) {
         wasDragging = true; // Prevent click from clearing the lasso selection
         ctx.nodes.forEach((node) => {
-          const screenPos = { x: node.x * ctx.zoom + ctx.pan.x, y: node.y * ctx.zoom + ctx.pan.y };
+          const screenPos = worldToScreen(node.x, node.y, ctx.zoom, ctx.pan);
           if (isPointInPolygon(screenPos.x, screenPos.y, ctx.lassoPath)) {
             ctx.selectedNodeIds.add(node.id);
           }
