@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   synthesisHopDepth: 2,
   hopLevelNeighborLimit: 2,
   vectorNeighborLimit: 2,
+  minVectorSimilarity: 0.75,
   totalContextLimit: 0,
   agentsGuidelinesCharCap: 0,
   includeAgentsGuidelines: false,

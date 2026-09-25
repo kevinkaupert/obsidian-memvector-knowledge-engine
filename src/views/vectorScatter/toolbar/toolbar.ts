@@ -7,6 +7,8 @@ import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { MemVectorSettings } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
+import { enrichContext } from "../contextEnrichment";
+import { buildPreviewEntries } from "../contextPreview";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
 export interface ToolbarRefs {
@@ -183,12 +185,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     { id: "3", label: "3 Hops" },
   ];
   let synthHopRow: HTMLElement | null = null;
+  let refreshContextPreview = (): void => {};
 
   createToggle(syntheseBody, t.synthEnrichToggle, ctx.settings.enrichSynthesisContext, (on) => {
     void (async () => {
       ctx.settings.enrichSynthesisContext = on;
       if (synthHopRow) synthHopRow.hidden = !on;
       await ctx.saveSettings();
+      refreshContextPreview();
     })();
   });
 
@@ -214,6 +218,50 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       await ctx.saveSettings();
     })();
   });
+
+  // ── Kontext-Vorschau (Issue #103) ─────────────────────────────────────
+  // Shows which notes will be sent as enrichment context and why (hop
+  // distance / similarity) - the same code path as the real synthesis, so
+  // the preview is what actually gets sent. Scrollable to stay on screen.
+  const previewWrap = syntheseBody.createDiv({ cls: "memvector-context-preview-wrap" });
+  previewWrap.createDiv({ cls: "memvector-context-preview-title", text: t.contextPreviewTitle });
+  const previewList = previewWrap.createEl("ul", { cls: "memvector-context-preview" });
+
+  let previewTimer: number | null = null;
+  refreshContextPreview = (): void => {
+    if (previewTimer !== null) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(() => {
+      void (async () => {
+        const selected = ctx.nodes.filter((n) => ctx.selectedNodeIds.has(n.id));
+        if (!ctx.settings.enrichSynthesisContext || selected.length === 0) {
+          previewWrap.hidden = true;
+          return;
+        }
+        previewWrap.hidden = false;
+        previewList.empty();
+        previewList.createEl("li", { cls: "memvector-context-preview-empty", text: "..." });
+        try {
+          const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100);
+          previewList.empty();
+          const entries = buildPreviewEntries(enriched, t);
+          if (entries.length === 0) {
+            previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
+            return;
+          }
+          for (const entry of entries) {
+            const item = previewList.createEl("li", { cls: "memvector-context-preview-item" });
+            item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
+            item.createSpan({ text: entry.source, cls: "memvector-context-preview-source" });
+            item.createSpan({ text: entry.reason, cls: "memvector-context-preview-reason" });
+          }
+        } catch {
+          previewList.empty();
+          previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
+        }
+      })();
+    }, 400);
+  };
+  previewWrap.hidden = true;
 
   const fullModelName = ctx.settings.modelName || "LLM";
   const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} ${t.secSynthesis} (0)`, null, true);
@@ -278,6 +326,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
     setActionBtnEnabled(clearSelBtn, count > 0);
     statusText.setText(`${ctx.nodes.length} | ${count} gew.`);
+    refreshContextPreview();
     ctx.redraw();
   };
 

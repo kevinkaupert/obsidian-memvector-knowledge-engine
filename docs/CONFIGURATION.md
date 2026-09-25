@@ -70,9 +70,12 @@ All context caps are plugin settings - `0` always means *unlimited*. Nothing is 
 
 - **Graph neighbors per hop level (`hopLevelNeighborLimit`):** Maximum number of GraphRAG context neighbors admitted per hop level (default `2`, `0` = unlimited per level). Every hop level gets its own quota, so a dense immediate neighborhood can no longer crowd deeper-hop notes out of the synthesis context.
 - **Vector neighbors (`vectorNeighborLimit`):** Maximum number of semantically similar notes added to the GraphRAG context (default `2`, `0` = unlimited).
+- **Minimum vector similarity (`minVectorSimilarity`):** Minimum cosine similarity (0-1) a note needs to enter the context via the vector channel (default `0.75`, `0` = off). Applied even when vector neighbors are unlimited, so "unlimited" stays scoped to the selection instead of pulling in the whole vault.
 - **Total context notes (`totalContextLimit`):** Maximum number of enriched context notes (vector + graph) in the synthesis prompt (default `0` = unlimited).
 - **GraphRAG hop depth (`synthesisHopDepth`):** Maximum graph traversal depth (1-3) for synthesis context enrichment. Controlled from the toolbar's **Synthese** section only (not in Settings); independent from the visual canvas hop setting.
 - **Agent guidelines character cap per file (`agentsGuidelinesCharCap`):** Maximum characters per agent guideline file included in the synthesis prompt (default `0` = unlimited, full file).
+
+The toolbar's **Synthese** section shows a scrollable **context preview** listing every enriched note with its source (`[graph]` / `[vector]` / `[graph+vector]`) and the reason it was included (hop distance and/or similarity). The preview uses the same code path as the real synthesis, so it is exactly what gets sent.
 
 ---
 

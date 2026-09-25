@@ -209,6 +209,24 @@ export function renderLlmProviderSection(
     });
 
   new Setting(containerEl)
+    .setName(t.minVectorSimTitle)
+    .setDesc(t.minVectorSimDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text.inputEl.max = "1";
+      text.inputEl.step = "0.05";
+      text
+        .setPlaceholder("0.75")
+        .setValue(String(settings.minVectorSimilarity ?? 0.75))
+        .onChange(async (value) => {
+          const parsed = parseFloat(value);
+          settings.minVectorSimilarity = Number.isFinite(parsed) && parsed >= 0 && parsed <= 1 ? parsed : 0.75;
+          await host.saveSettings();
+        });
+    });
+
+  new Setting(containerEl)
     .setName(t.totalContextLimitTitle)
     .setDesc(t.totalContextLimitDesc)
     .addText((text) => {

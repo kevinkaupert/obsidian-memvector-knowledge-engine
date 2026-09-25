@@ -48,6 +48,12 @@ export interface MemVectorSettings {
   /** Maximum vector-similar notes admitted to the GraphRAG context - 0 = unlimited (Issue #103). */
   vectorNeighborLimit: number;
   /**
+   * Minimum cosine similarity for vector-channel context notes (0-1) - 0 disables the
+   * floor. Applied even when vectorNeighborLimit is 0, so "unlimited" still means
+   * "unlimited notes related to the selection", not the whole vault (Issue #103).
+   */
+  minVectorSimilarity: number;
+  /**
    * Maximum total enriched context notes (vector + graph merged) in the synthesis prompt -
    * 0 = unlimited (Issue #103). Replaces the old hardcoded model-tier budget; nothing is
    * silently trimmed anymore unless this is set.

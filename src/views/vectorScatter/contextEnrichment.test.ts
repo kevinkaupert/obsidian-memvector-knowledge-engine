@@ -413,3 +413,72 @@ describe("per-hop neighbor quota (#103)", () => {
   });
 });
 
+describe("vector similarity threshold (#103)", () => {
+  function filesFor(ids: string[]): Map<string, string> {
+    return new Map(ids.map((id) => [`${id}.md`, `Body of ${id}`]));
+  }
+
+  const hits = (specs: Array<{ id: string; score: number }>) =>
+    specs.map(({ id, score }) => ({ score, payload: { path: `${id}.md`, title: id, content: `Body of ${id}` } }));
+
+  it("drops vector hits below minVectorSimilarity", async () => {
+    const app = makeMockApp(filesFor(["hi", "lo"]));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      vectorNeighborLimit: 0,
+      minVectorSimilarity: 0.75,
+    };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits([{ id: "hi", score: 0.82 }, { id: "lo", score: 0.41 }]));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result.map((n) => n.id)).toEqual(["hi"]);
+  });
+
+  it("adversarial: an unlimited vector count still stays scoped to the selection by the threshold", async () => {
+    // Without the threshold this is the whole-vault flood from the live test.
+    const app = makeMockApp(filesFor(["a", "b", "c", "d"]));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      vectorNeighborLimit: 0,
+      minVectorSimilarity: 0.75,
+    };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits([
+      { id: "a", score: 0.88 }, { id: "b", score: 0.76 },
+      { id: "c", score: 0.61 }, { id: "d", score: 0.32 },
+    ]));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result.map((n) => n.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("treats 0 as no similarity floor", async () => {
+    const app = makeMockApp(filesFor(["a", "b"]));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      vectorNeighborLimit: 0,
+      minVectorSimilarity: 0,
+    };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits([{ id: "a", score: 0.9 }, { id: "b", score: 0.12 }]));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result.map((n) => n.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("records the similarity score on vector notes for the context preview", async () => {
+    const app = makeMockApp(filesFor(["a"]));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, minVectorSimilarity: 0.5 };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits([{ id: "a", score: 0.83 }]));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result[0].similarity).toBe(0.83);
+  });
+});
+

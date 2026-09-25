@@ -14,6 +14,8 @@ export interface EnrichedNote {
   sources: ("vector" | "graph")[];
   /** Graph hop distance from the selection (graph-sourced notes only) - used for hop-balanced assembly (Issue #103). */
   hops?: number;
+  /** Cosine similarity to the selection's centroid (vector-sourced notes only) - shown in the context preview. */
+  similarity?: number;
 }
 
 /**
@@ -62,11 +64,15 @@ async function fetchVectorNeighbors(
   if (!queryVector) return found;
 
   const limit = settings.vectorNeighborLimit ?? 2;
-  // 0 = unlimited: search a generously bounded page instead of a quota-sized one.
+  // 0 = unlimited count: search a generously bounded page instead of a quota-sized one.
+  // Relevance is still scoped by minVectorSimilarity below, so "unlimited" never means
+  // "the whole vault" - only notes actually related to the selection (Issue #103).
   const searchLimit = limit > 0 ? limit + selected.length : 100 + selected.length;
   const hits = await store.search(queryVector, searchLimit);
+  const minSim = settings.minVectorSimilarity ?? 0;
 
   for (const hit of hits) {
+    if (minSim > 0 && hit.score < minSim) continue;
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
     // A deleted note's stored vector/content can still be a stale hit here between
@@ -80,7 +86,14 @@ async function fetchVectorNeighbors(
     const rawContent = await app.vault.cachedRead(file);
     const freshBody = stripFrontmatter(rawContent);
     const content = freshBody || hit.payload?.content || "";
-    found.set(id, { id, title: hit.payload?.title || id, path, content: capText(content, excerptLength), sources: ["vector"] });
+    found.set(id, {
+      id,
+      title: hit.payload?.title || id,
+      path,
+      content: capText(content, excerptLength),
+      sources: ["vector"],
+      similarity: hit.score,
+    });
     if (limit > 0 && found.size >= limit) break;
   }
   return found;

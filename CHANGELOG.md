@@ -11,6 +11,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - New setting `includeWikiLinksAsRelations` (default: off) under Knowledge Domain & Embedding Provider that makes WikiLink `LINKS_TO` graph relations opt-in (Issue #100). Release-note highlight: WikiLinks are no longer indexed as graph relations by default - GraphRAG synthesis and the knowledge graph intentionally focus on semantic embeddings and explicit, typed relationships (Relation Builder); toggle + re-index restores the old behavior.
 - New setting `hopLevelNeighborLimit` ("Graph neighbors per hop level", default `2`, `0` = unlimited per level) replacing the flat per-source neighbor cap for GraphRAG graph context (Issue #103).
 - New settings `vectorNeighborLimit` (default `2`), `totalContextLimit` (default `0` = unlimited) and `agentsGuidelinesCharCap` (default `0` = unlimited) making every synthesis context cap user-configurable (Issue #103). All of them use `0` = unlimited.
+- New setting `minVectorSimilarity` (default `0.75`, `0` = off): minimum cosine similarity for vector-channel context notes, so an unlimited vector count stays scoped to the selection instead of pulling in the whole vault (Issue #103).
+- Scrollable context preview in the toolbar's Synthese section: lists every enriched note with its source (`[graph]`/`[vector]`/`[graph+vector]`) and the reason it is included (hop distance and/or similarity), live on selection change (Issue #103).
 
 ### Changed
 - GraphRAG hop depth is now configured only in the toolbar's Synthese section, not in Settings (Issue #103).

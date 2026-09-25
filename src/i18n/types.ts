@@ -171,10 +171,15 @@ export interface TranslationKeys {
   hopLevelLimitDesc: string;
   vectorNeighborLimitTitle: string;
   vectorNeighborLimitDesc: string;
+  minVectorSimTitle: string;
+  minVectorSimDesc: string;
   totalContextLimitTitle: string;
   totalContextLimitDesc: string;
   agentsGuidelinesCapTitle: string;
   agentsGuidelinesCapDesc: string;
+  contextPreviewTitle: string;
+  previewSimilarity: string;
+  previewEmpty: string;
   lblSynthHopDepth: string;
   temperatureAnthropicNote: string;
 

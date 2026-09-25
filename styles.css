@@ -872,6 +872,56 @@
   cursor: text;
 }
 
+/* Context preview (Issue #103) - scrollable so long lists stay on screen */
+.memvector-context-preview-wrap {
+  margin: 4px 12px 8px;
+}
+.memvector-context-preview-title {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+  margin-bottom: 4px;
+}
+.memvector-context-preview {
+  list-style: none;
+  margin: 0;
+  padding: 4px 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.1));
+  border-radius: 6px;
+  background: var(--background-primary, var(--background-secondary));
+  font-size: 0.74em;
+}
+.memvector-context-preview-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+.memvector-context-preview-item + .memvector-context-preview-item {
+  border-top: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06));
+}
+.memvector-context-preview-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.memvector-context-preview-source {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+.memvector-context-preview-reason {
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
+.memvector-context-preview-empty {
+  opacity: 0.55;
+  padding: 4px 0;
+}
+
 .memvector-hoverbar-container.is-warning {
   color: var(--text-warning, #f59e0b);
 }
