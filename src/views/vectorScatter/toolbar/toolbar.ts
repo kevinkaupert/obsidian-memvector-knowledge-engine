@@ -219,7 +219,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
       if (entry.kind === "seed") {
         item.createSpan({ text: `[${t.previewSeedBadge}]`, cls: "memvector-context-preview-badge memvector-badge-seed" });
-      } else {
+      }
+      const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
+      item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
+      if (entry.kind !== "seed") {
         const dismissBtn = item.createEl("button", { text: "✕", cls: "memvector-context-preview-dismiss" });
         dismissBtn.title = t.previewDismissTitle;
         dismissBtn.onclick = () => {
@@ -227,8 +230,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
           doRefreshPreview();
         };
       }
-      const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
-      item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
     }
   };
 
