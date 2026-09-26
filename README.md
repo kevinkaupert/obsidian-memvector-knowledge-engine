@@ -13,7 +13,8 @@ It turns your Markdown vault into an explorable 2D semantic map with real vector
 
 The local storage layer is genuinely zero-setup: all embeddings and graph edges live in a bundled SQLite backend (`sql.js`) inside your vault - no Docker, no database server, no network call for storage itself. Computing embeddings and running AI synthesis, however, need a configured embedding/LLM provider: either a local Ollama instance you run yourself, or a cloud provider (Anthropic Claude, OpenAI, DeepSeek, OpenRouter, custom endpoint) - in the cloud-provider case, the selected note content leaves your device as part of that request.
 
-<img width="1598" height="996" alt="Bildschirmfoto 2026-09-26 um 08 08 06" src="https://github.com/user-attachments/assets/b756c991-96aa-43e4-af55-e214ce9adffa" />
+<img width="1016" height="963" alt="Bildschirmfoto 2026-09-26 um 10 38 08" src="https://github.com/user-attachments/assets/11dceff4-1a42-411b-8d7a-e116396090cd" />
+
 
 
 ---
