@@ -3,7 +3,7 @@
   "name": "MemVector Knowledge Engine",
   "version": "0.1.6",
   "minAppVersion": "1.11.4",
-  "description": "Local-first 2D vector-space graph, SQLite graph engine, and hybrid GraphRAG AI co-pilot powered by Ollama, Anthropic Claude, OpenAI, or DeepSeek.",
+  "description": "2D thinking workspace: map concepts by intentional weighted relations, not WikiLinks. Local-first, typed graph, hybrid GraphRAG synthesis.",
   "author": "Kevin Mike Kaupert",
   "authorUrl": "https://github.com/kevinkaupert",
   "isDesktopOnly": true
