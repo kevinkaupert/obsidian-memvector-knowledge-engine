@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EnrichedNote } from "./contextEnrichment";
-import { buildPreviewEntries } from "./contextPreview";
+import { buildPreviewEntries, withoutDismissed } from "./contextPreview";
 
 function note(partial: Partial<EnrichedNote>): EnrichedNote {
   return {
@@ -71,5 +71,33 @@ describe("buildPreviewEntries seed section (Issue #117)", () => {
   it("counts the full context including seeds", () => {
     const { total } = buildPreviewEntries([], [{ id: "s1", title: "Only" }]);
     expect(total).toBe(1);
+  });
+});
+
+describe("withoutDismissed (Issue #116)", () => {
+  const sections = buildPreviewEntries(
+    [
+      note({ id: "n1", title: "Theorem", sources: ["graph"], hops: 1 }),
+      note({ id: "n2", title: "Axiom", sources: ["vector"], similarity: 0.9 }),
+    ],
+    [{ id: "s1", title: "Concept" }]
+  );
+
+  it("removes dismissed traversed notes and recomputes the total", () => {
+    const filtered = withoutDismissed(sections, new Set(["n1"]));
+    expect(filtered.traversed.map((e) => e.id)).toEqual(["n2"]);
+    expect(filtered.total).toBe(2);
+  });
+
+  it("never filters seed notes, even when their id is dismissed", () => {
+    const filtered = withoutDismissed(sections, new Set(["s1"]));
+    expect(filtered.seeds.map((e) => e.id)).toEqual(["s1"]);
+    expect(filtered.total).toBe(3);
+  });
+
+  it("returns an empty traversed group when everything is dismissed", () => {
+    const filtered = withoutDismissed(sections, new Set(["n1", "n2"]));
+    expect(filtered.traversed).toEqual([]);
+    expect(filtered.total).toBe(1);
   });
 });

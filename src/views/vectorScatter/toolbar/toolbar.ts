@@ -8,7 +8,7 @@ import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import { enrichContext } from "../contextEnrichment";
-import { buildPreviewEntries } from "../contextPreview";
+import { buildPreviewEntries, withoutDismissed } from "../contextPreview";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
 export interface ToolbarRefs {
@@ -197,13 +197,19 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // Shows which notes will be sent as enrichment context and why (hop
   // distance / similarity) - the same code path as the real synthesis, so
   // the preview is what actually gets sent. Selected seed notes are pinned
-  // on top, visually separated from traversed notes (Issue #117). Scrollable
-  // to stay on screen.
+  // on top, visually separated from traversed notes (Issue #117). Traversed
+  // notes can be dismissed for the current session; dismissed ids feed the
+  // synthesis call too, so the payload matches the preview (Issue #116).
   const previewWrap = syntheseBody.createDiv({ cls: "memvector-context-preview-wrap" });
-  const previewTitleEl = previewWrap.createDiv({ cls: "memvector-context-preview-title", text: `${t.contextPreviewTitle} (0)` });
+  const previewHeaderRow = previewWrap.createDiv({ cls: "memvector-context-preview-header" });
+  const previewTitleEl = previewHeaderRow.createDiv({ cls: "memvector-context-preview-title", text: `${t.contextPreviewTitle} (0)` });
+  const resetPreviewBtn = previewHeaderRow.createEl("button", { text: t.previewResetBtn, cls: "memvector-context-preview-reset" });
+  resetPreviewBtn.hidden = true;
   const previewList = previewWrap.createEl("ul", { cls: "memvector-context-preview" });
 
   let previewTimer: number | null = null;
+  /** Manually dismissed note ids for the current synthesis session - preserved across slider/threshold adjustments (Issue #116). */
+  const dismissedContextIds = new Set<string>();
 
   const renderPreviewGroup = (label: string, entries: { id: string; title: string; kind: string; source: string; reason: string }[]): void => {
     const header = previewList.createEl("li", { cls: "memvector-context-preview-group" });
@@ -213,41 +219,56 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
       if (entry.kind === "seed") {
         item.createSpan({ text: `[${t.previewSeedBadge}]`, cls: "memvector-context-preview-badge memvector-badge-seed" });
+      } else {
+        const dismissBtn = item.createEl("button", { text: "✕", cls: "memvector-context-preview-dismiss" });
+        dismissBtn.title = t.previewDismissTitle;
+        dismissBtn.onclick = () => {
+          dismissedContextIds.add(entry.id);
+          doRefreshPreview();
+        };
       }
       const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
       item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
     }
   };
 
-  refreshContextPreview = (): void => {
-    if (previewTimer !== null) window.clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(() => {
-      void (async () => {
-        const selected = ctx.nodes.filter((n) => ctx.selectedNodeIds.has(n.id));
-        if (!ctx.settings.enrichSynthesisContext || selected.length === 0) {
-          previewWrap.hidden = true;
+  const doRefreshPreview = (): void => {
+    void (async () => {
+      const selected = ctx.nodes.filter((n) => ctx.selectedNodeIds.has(n.id));
+      if (!ctx.settings.enrichSynthesisContext || selected.length === 0) {
+        previewWrap.hidden = true;
+        return;
+      }
+      previewWrap.hidden = false;
+      previewList.empty();
+      previewList.createEl("li", { cls: "memvector-context-preview-empty", text: "..." });
+      try {
+        const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100, undefined, dismissedContextIds);
+        previewList.empty();
+        const { seeds, traversed, total } = withoutDismissed(buildPreviewEntries(enriched, selected), dismissedContextIds);
+        previewTitleEl.setText(`${t.contextPreviewTitle} (${total})`);
+        resetPreviewBtn.hidden = dismissedContextIds.size === 0;
+        if (total === 0) {
+          previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
           return;
         }
-        previewWrap.hidden = false;
+        if (seeds.length > 0) renderPreviewGroup(t.contextPreviewSelected, seeds);
+        if (traversed.length > 0) renderPreviewGroup(t.contextPreviewTraversed, traversed);
+      } catch {
         previewList.empty();
-        previewList.createEl("li", { cls: "memvector-context-preview-empty", text: "..." });
-        try {
-          const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100);
-          previewList.empty();
-          const { seeds, traversed, total } = buildPreviewEntries(enriched, selected);
-          previewTitleEl.setText(`${t.contextPreviewTitle} (${total})`);
-          if (total === 0) {
-            previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
-            return;
-          }
-          if (seeds.length > 0) renderPreviewGroup(t.contextPreviewSelected, seeds);
-          if (traversed.length > 0) renderPreviewGroup(t.contextPreviewTraversed, traversed);
-        } catch {
-          previewList.empty();
-          previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
-        }
-      })();
-    }, 400);
+        previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
+      }
+    })();
+  };
+
+  resetPreviewBtn.onclick = () => {
+    dismissedContextIds.clear();
+    doRefreshPreview();
+  };
+
+  refreshContextPreview = (): void => {
+    if (previewTimer !== null) window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(doRefreshPreview, 400);
   };
   previewWrap.hidden = true;
 
@@ -256,7 +277,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   synthesizeBtn.title = `LLM Model: ${fullModelName}`;
   setActionBtnEnabled(synthesizeBtn, false);
   synthesizeBtn.onclick = () => {
-    void ctx.runSynthesis((text) => setHoverBarText(hoverBar, text), promptInput.value);
+    void ctx.runSynthesis((text) => setHoverBarText(hoverBar, text), promptInput.value, dismissedContextIds);
   };
 
   // ── Aktionen ──────────────────────────────────────────────────────────

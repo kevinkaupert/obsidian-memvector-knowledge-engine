@@ -178,14 +178,15 @@ function orderGraphNotesHopBalanced(notes: EnrichedNote[]): EnrichedNote[] {
 
 /**
  * Purpose: Orchestrates hybrid GraphRAG context enrichment across semantic vector search and graph topology.
- * Architecture: All context caps come from settings (vectorNeighborLimit, hopLevelNeighborLimit, totalContextLimit) with 0 = unlimited - no hidden model-tier budget (Issue #103).
+ * Architecture: All context caps come from settings (vectorNeighborLimit, hopLevelNeighborLimit, totalContextLimit) with 0 = unlimited - no hidden model-tier budget (Issue #103). Manually dismissed note ids (excludeIds, Issue #116) are filtered out of the final result so preview and synthesis payload stay identical.
  */
 export async function enrichContext(
   app: App,
   settings: MemVectorSettings,
   selected: ScatterNode[],
   excerptLength = 200,
-  hopDepth = settings.synthesisHopDepth ?? 2
+  hopDepth = settings.synthesisHopDepth ?? 2,
+  excludeIds?: ReadonlySet<string>
 ): Promise<EnrichedNote[]> {
   // 0 = unlimited total context; no silent trimming unless the user sets a cap.
   const maxTotal = settings.totalContextLimit ?? 0;
@@ -209,7 +210,10 @@ export async function enrichContext(
     console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
   }
 
-  return assembleContextNotes(vectorNotes, graphNotes, maxTotal);
+  const assembled = assembleContextNotes(vectorNotes, graphNotes, maxTotal);
+  return excludeIds && excludeIds.size > 0
+    ? assembled.filter((note) => !excludeIds.has(note.id))
+    : assembled;
 }
 
 /**
