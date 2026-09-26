@@ -161,6 +161,23 @@ describe("SqliteVectorStore", () => {
       await store.syncPoints([point("a", [1, 0])]);
       expect(await store.getVector("unsynced")).toBeNull();
     });
+
+    it("purges duplicate rows for the same path when re-synced under a different ID scheme (Issue #106 / F03)", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      // First synced with legacy raw path as ID
+      await store.syncPoints([
+        { id: "notes/sample.md", vector: [1, 0], payload: { path: "notes/sample.md", title: "Sample", content: "hello" } },
+      ]);
+      // Later synced with hash/canonical ID
+      await store.syncPoints([
+        { id: "notes/sample", vector: [0, 1], payload: { path: "notes/sample.md", title: "Sample", content: "hello" } },
+      ]);
+
+      const hits = await store.search([0, 1], 10);
+      const matches = hits.filter((h) => h.payload.path === "notes/sample.md");
+      expect(matches.length).toBe(1);
+      expect(matches[0].score).toBeCloseTo(1);
+    });
   });
 });
 

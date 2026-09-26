@@ -126,4 +126,70 @@ describe("SqliteGraphStore", () => {
     const neighbors = await reopened.fetchNeighbors(["a"], 1, 10);
     expect(neighbors.map((n) => n.id)).toEqual(["b"]);
   });
+
+  describe("Graph traversal deduplication & per-hop quotas (Issue #102, #103)", () => {
+    it("deduplicates multi-path nodes by minimum hop distance (Issue #102)", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      // Setup: a -> b -> c -> d (3 hops), but also direct a -> d (1 hop)
+      const nodes = [node("a"), node("b"), node("c"), node("d")];
+      const edges = [
+        { src: "a", tgt: "b", type: "LINKS_TO" },
+        { src: "b", tgt: "c", type: "LINKS_TO" },
+        { src: "c", tgt: "d", type: "LINKS_TO" },
+        { src: "a", tgt: "d", type: "LINKS_TO" },
+      ];
+      await store.syncVaultGraph(nodes, edges);
+
+      const neighbors = await store.fetchNeighbors(["a"], 3, 10);
+      const dMatches = neighbors.filter((n) => n.id === "d");
+      expect(dMatches.length).toBe(1);
+      expect(dMatches[0].hops).toBe(1);
+    });
+
+    it("adversarial: dense hop-1 neighborhood does not crowd out deeper hops when perHopLimit is used", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      const nodes = [node("seed")];
+      const edges: { src: string; tgt: string; type: string }[] = [];
+
+      // Create 30 hop-1 neighbors
+      for (let i = 1; i <= 30; i++) {
+        const id = `hop1_${String(i).padStart(2, "0")}`;
+        nodes.push(node(id));
+        edges.push({ src: "seed", tgt: id, type: "LINKS_TO" });
+      }
+
+      // Add hop-2 neighbor attached to hop1_01
+      nodes.push(node("hop2_target"));
+      edges.push({ src: "hop1_01", tgt: "hop2_target", type: "LINKS_TO" });
+
+      await store.syncVaultGraph(nodes, edges);
+
+      // Total limit = 6, perHopLimit = 2: Hop 1 gives at most 2, allowing Hop 2 to be returned!
+      const neighbors = await store.fetchNeighbors(["seed"], 2, 6, 2);
+
+      const hop1Nodes = neighbors.filter((n) => n.hops === 1);
+      const hop2Nodes = neighbors.filter((n) => n.hops === 2);
+
+      expect(hop1Nodes.length).toBeLessThanOrEqual(2);
+      expect(hop2Nodes.some((n) => n.id === "hop2_target")).toBe(true);
+    });
+
+    it("returns all reachable notes when limit <= 0 (unconstrained)", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      const nodes = [node("seed")];
+      const edges: { src: string; tgt: string; type: string }[] = [];
+
+      for (let i = 1; i <= 25; i++) {
+        const id = `node_${i}`;
+        nodes.push(node(id));
+        edges.push({ src: "seed", tgt: id, type: "LINKS_TO" });
+      }
+
+      await store.syncVaultGraph(nodes, edges);
+
+      const neighbors = await store.fetchNeighbors(["seed"], 1, 0, 0);
+      expect(neighbors.length).toBe(25);
+    });
+  });
 });
+

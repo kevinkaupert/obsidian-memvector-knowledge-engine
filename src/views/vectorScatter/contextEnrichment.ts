@@ -64,10 +64,10 @@ async function fetchVectorNeighbors(
   if (!queryVector) return found;
 
   const limit = settings.vectorNeighborLimit ?? 2;
-  // 0 = unlimited count: search a generously bounded page instead of a quota-sized one.
+  // 0 = unlimited count: search unconstrained without an arbitrary 100-note cap.
   // Relevance is still scoped by minVectorSimilarity below, so "unlimited" never means
   // "the whole vault" - only notes actually related to the selection (Issue #103).
-  const searchLimit = limit > 0 ? limit + selected.length : 100 + selected.length;
+  const searchLimit = limit > 0 ? limit + selected.length : 0;
   const hits = await store.search(queryVector, searchLimit);
   const minSim = settings.minVectorSimilarity ?? 0;
 
@@ -113,12 +113,13 @@ async function fetchGraphNeighbors(
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => n.id);
   const perHop = settings.hopLevelNeighborLimit ?? 2;
-  // Ask the store for enough rows to fill every hop quota, with slack for selected-note
-  // exclusion and duplicate (note, hop) rows; 0 = unlimited per level, so fetch a
-  // generously bounded page instead.
   const hops = Math.max(1, Math.trunc(hopDepth));
-  const sqlLimit = perHop > 0 ? perHop * hops + selected.length + hops : 100 + selected.length;
-  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, sqlLimit);
+  // Ask the store for enough rows to fill every hop quota. With per-hop quota partitioning
+  // in SQL, dense hop-1 neighborhoods cannot starve deeper hops (Issue #103).
+  // 0 = unlimited per level, so fetch unconstrained (0).
+  const perHopLimit = perHop > 0 ? perHop * 3 + selected.length : 0;
+  const sqlLimit = perHop > 0 ? perHop * hops * 3 + selected.length : 0;
+  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, sqlLimit, perHopLimit);
 
   const perHopCount = new Map<number, number>();
   const seen = new Set<string>();

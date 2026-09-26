@@ -239,7 +239,12 @@ describe("synthesis hop depth (#89)", () => {
 
     await enrichContext(app, settings, selected);
 
-    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], hops, expect.any(Number));
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(
+      ["selected"],
+      hops,
+      expect.any(Number),
+      expect.any(Number)
+    );
   });
 
   it("allows explicit hop depth parameter to override settings", async () => {
@@ -255,7 +260,12 @@ describe("synthesis hop depth (#89)", () => {
 
     await enrichContext(app, settings, selected, 200, 3);
 
-    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], 3, expect.any(Number));
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(
+      ["selected"],
+      3,
+      expect.any(Number),
+      expect.any(Number)
+    );
   });
 });
 
@@ -468,6 +478,18 @@ describe("vector similarity threshold (#103)", () => {
 
     const result = await enrichContext(app, settings, selected);
     expect(result.map((n) => n.id).sort()).toEqual(["a", "b"]);
+  });
+
+  it("passes 0 (unconstrained) to vector store search when vectorNeighborLimit is 0", async () => {
+    const app = makeMockApp(new Map());
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, vectorNeighborLimit: 0 };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    await enrichContext(app, settings, selected);
+
+    expect(mockVectorStore.search).toHaveBeenCalledWith(expect.any(Array), 0);
   });
 
   it("records the similarity score on vector notes for the context preview", async () => {

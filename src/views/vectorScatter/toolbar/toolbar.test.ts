@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { runCalcVectors } from "./toolbar";
 import type { ScatterViewContext } from "../context";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
+import { pathToId } from "../../../noteSlug";
 import { getVectorStore } from "../../../sync/storeFactory";
 
 const noticeCalls: { message: string; duration?: number }[] = [];
@@ -116,6 +117,9 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
 
     expect(mockSyncPoints).toHaveBeenCalledTimes(1);
+    expect(mockSyncPoints).toHaveBeenCalledWith([
+      expect.objectContaining({ id: pathToId("note-1.md"), payload: expect.objectContaining({ path: "note-1.md" }) }),
+    ]);
     expect(mockReconcile).toHaveBeenCalledTimes(1);
     expect((mockStatusText as any).text).toContain("Vektoren OK");
     expect((mockHoverBar as any).text).toContain("[OK]");

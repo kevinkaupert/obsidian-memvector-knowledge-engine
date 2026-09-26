@@ -3,6 +3,7 @@ import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
 import { resolveEmbeddingApiKey } from "../../../settings/secrets";
+import { pathToId } from "../../../noteSlug";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { MemVectorSettings } from "../../../settings/types";
@@ -396,7 +397,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     } else if (res.embedding) {
       node.embedding = res.embedding;
       points.push({
-        id: node.path,
+        id: pathToId(node.path),
         vector: res.embedding,
         payload: { path: node.path, title: node.title, content: node.content.slice(0, 500) },
       });
