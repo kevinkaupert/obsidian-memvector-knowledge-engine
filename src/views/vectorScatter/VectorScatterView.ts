@@ -1,6 +1,9 @@
 import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
+import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
+import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
@@ -53,6 +56,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   setShowRelationNotes(show: boolean): void {
     this.showRelationNotes = show;
+    this.settings.showRelationNotes = show;
+    void this.saveSettings();
     if (!show) {
       const pruned = new Set<string>();
       for (const id of this.selectedNodeIds) {
@@ -97,10 +102,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   lassoSelectMode = false;
   hoveredNode: ScatterNode | null = null;
   hoveredEdge: RelationEdge | null = null;
-  showEdges = false;
-  showRelationNotes = true;
+  showEdges = true;
+  showRelationNotes = false;
   edgeHops = 1;
   relationEdges: RelationEdge[] = [];
+  vocabulary: RelationTermDef[] = DEFAULT_RELATION_VOCABULARY;
   nodeSpacing = 350;
   cloudSpacing = 800;
   projectionMode: ProjectionMode = "graphvector";
@@ -174,6 +180,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
     this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
+    this.showRelationNotes = this.settings.showRelationNotes ?? false;
 
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
@@ -318,11 +325,15 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   applyLayout(): void {
-    applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges);
+    applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges, this.vocabulary);
   }
 
   async loadRelationEdges(): Promise<void> {
     this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions);
+    // Per-label attraction/repulsion comes from the vault's own vocabulary
+    // file (ADR-0002); refresh it together with the edges so saved custom
+    // types feed the force layout immediately.
+    this.vocabulary = await loadRelationVocabulary(this.app, this.settings);
   }
 
   hitTest(mouseX: number, mouseY: number): ScatterNode | null {

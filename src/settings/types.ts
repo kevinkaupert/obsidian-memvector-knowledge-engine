@@ -83,6 +83,8 @@ export interface MemVectorSettings {
   fetchedEmbedModels?: string[];
 
   scatterVisualStyle: ScatterVisualStyle;
+  /** Whether relation notes (wiki/relations/) are rendered as nodes in the 2D scatter view. Default false - moved from the toolbar into settings. */
+  showRelationNotes: boolean;
   /** Opacity (0-1) for the title label of any note that is neither selected/hovered nor connected to it. */
   unselectedLabelOpacity: number;
   /** Distance scaling multiplier between individual nodes in the 2D scatter view. */

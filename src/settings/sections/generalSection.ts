@@ -1,6 +1,6 @@
 import { Setting } from "obsidian";
 import type { TranslationKeys } from "../../i18n";
-import type { SettingsHost } from "../types";
+import type { ScatterVisualStyle, SettingsHost } from "../types";
 
 /** Everything that shapes overall plugin behavior rather than one specific provider/database - previously scattered across languageSection.ts and the top of vectorFilterSection.ts. */
 export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
@@ -71,7 +71,42 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
         });
     });
 
+  new Setting(containerEl)
+    .setName(t.lblShowRelationNotes)
+    .setDesc(t.showRelationNotesDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(settings.showRelationNotes ?? false).onChange(async (value) => {
+        settings.showRelationNotes = value;
+        await host.saveSettings();
+      })
+    );
+
+  new Setting(containerEl)
+    .setName(t.scatterStyleName)
+    .setDesc(t.scatterStyleDesc)
+    .addDropdown((dropdown) =>
+      dropdown
+        .addOption("monochrome", t.styleMonochrome)
+        .addOption("muted", t.styleMuted)
+        .addOption("ink", t.styleInk)
+        .setValue(settings.scatterVisualStyle || "ink")
+        .onChange(async (value) => {
+          settings.scatterVisualStyle = value as ScatterVisualStyle;
+          await host.saveSettings();
+        })
+    );
+
   new Setting(containerEl).setName(t.secGeneralSynthesis).setHeading();
+
+  new Setting(containerEl)
+    .setName(t.synthAgentsToggle)
+    .setDesc(t.agentsIncludeDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(settings.includeAgentsGuidelines ?? false).onChange(async (value) => {
+        settings.includeAgentsGuidelines = value;
+        await host.saveSettings();
+      })
+    );
 
   const agentsSetting = new Setting(containerEl)
     .setName(t.agentsPathsName)
@@ -105,20 +140,4 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
           await host.saveSettings();
         });
     });
-
-  const vocabSetting = new Setting(containerEl)
-    .setName(t.relVocabPathName)
-    .setDesc(t.relVocabPathDesc);
-  vocabSetting.settingEl.addClass("memvector-setting-block");
-  vocabSetting.controlEl.addClass("memvector-setting-full-width");
-  vocabSetting.addText((text) => {
-    text.inputEl.addClass("memvector-textarea-mono");
-    text
-      .setPlaceholder("wiki/relation-types.json")
-      .setValue(settings.relationVocabularyPath || "")
-      .onChange(async (value) => {
-        settings.relationVocabularyPath = value;
-        await host.saveSettings();
-      });
-  });
 }
