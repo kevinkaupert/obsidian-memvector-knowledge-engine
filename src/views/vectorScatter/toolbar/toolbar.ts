@@ -196,12 +196,29 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // ── Kontext-Vorschau (Issue #103) ─────────────────────────────────────
   // Shows which notes will be sent as enrichment context and why (hop
   // distance / similarity) - the same code path as the real synthesis, so
-  // the preview is what actually gets sent. Scrollable to stay on screen.
+  // the preview is what actually gets sent. Selected seed notes are pinned
+  // on top, visually separated from traversed notes (Issue #117). Scrollable
+  // to stay on screen.
   const previewWrap = syntheseBody.createDiv({ cls: "memvector-context-preview-wrap" });
-  previewWrap.createDiv({ cls: "memvector-context-preview-title", text: t.contextPreviewTitle });
+  const previewTitleEl = previewWrap.createDiv({ cls: "memvector-context-preview-title", text: `${t.contextPreviewTitle} (0)` });
   const previewList = previewWrap.createEl("ul", { cls: "memvector-context-preview" });
 
   let previewTimer: number | null = null;
+
+  const renderPreviewGroup = (label: string, entries: { id: string; title: string; kind: string; source: string; reason: string }[]): void => {
+    const header = previewList.createEl("li", { cls: "memvector-context-preview-group" });
+    header.setText(`${label} (${entries.length})`);
+    for (const entry of entries) {
+      const item = previewList.createEl("li", { cls: "memvector-context-preview-item" });
+      item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
+      if (entry.kind === "seed") {
+        item.createSpan({ text: `[${t.previewSeedBadge}]`, cls: "memvector-context-preview-badge memvector-badge-seed" });
+      }
+      const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
+      item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
+    }
+  };
+
   refreshContextPreview = (): void => {
     if (previewTimer !== null) window.clearTimeout(previewTimer);
     previewTimer = window.setTimeout(() => {
@@ -217,17 +234,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         try {
           const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100);
           previewList.empty();
-          const entries = buildPreviewEntries(enriched);
-          if (entries.length === 0) {
+          const { seeds, traversed, total } = buildPreviewEntries(enriched, selected);
+          previewTitleEl.setText(`${t.contextPreviewTitle} (${total})`);
+          if (total === 0) {
             previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
             return;
           }
-          for (const entry of entries) {
-            const item = previewList.createEl("li", { cls: "memvector-context-preview-item" });
-            item.createSpan({ text: entry.title, cls: "memvector-context-preview-name" });
-            const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
-            item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
-          }
+          if (seeds.length > 0) renderPreviewGroup(t.contextPreviewSelected, seeds);
+          if (traversed.length > 0) renderPreviewGroup(t.contextPreviewTraversed, traversed);
         } catch {
           previewList.empty();
           previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });

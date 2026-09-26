@@ -216,6 +216,9 @@ export interface TranslationKeys {
   agentsGuidelinesCapTitle: string;
   agentsGuidelinesCapDesc: string;
   contextPreviewTitle: string;
+  contextPreviewSelected: string;
+  contextPreviewTraversed: string;
+  previewSeedBadge: string;
   previewEmpty: string;
   lblSynthHopDepth: string;
   temperatureAnthropicNote: string;
