@@ -661,7 +661,7 @@
   z-index: 20;
   display: flex;
   flex-direction: column;
-  width: 220px;
+  width: 280px;
   border-radius: 12px;
   background: var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)));
   backdrop-filter: blur(20px);
@@ -890,6 +890,7 @@
 }
 .memvector-context-preview-dismiss {
   flex: 0 0 auto;
+  margin-left: auto;
   background: transparent;
   border: none;
   color: var(--text-muted);
