@@ -36,6 +36,7 @@ export interface ScatterViewContext {
   projectionMode: ProjectionMode;
 
   getVisibleNodes(): ScatterNode[];
+  setShowRelationNotes(show: boolean): void;
   redraw(): void;
   scanVaultNotes(filterOverride?: string): Promise<void>;
   applyLayout(): void;

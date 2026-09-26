@@ -189,7 +189,6 @@ export async function enrichContext(
   excerptLength = 200,
   hopDepth = settings.synthesisHopDepth ?? 2
 ): Promise<EnrichedNote[]> {
-  const merged = new Map<string, EnrichedNote>();
   // 0 = unlimited total context; no silent trimming unless the user sets a cap.
   const maxTotal = settings.totalContextLimit ?? 0;
 
@@ -198,30 +197,87 @@ export async function enrichContext(
     fetchGraphNeighbors(app, settings, selected, excerptLength, hopDepth),
   ]);
 
-  if (vectorResult.status === "fulfilled") {
-    vectorResult.value.forEach((note, id) => merged.set(id, note));
-  } else {
+  const vectorNotes = vectorResult.status === "fulfilled"
+    ? Array.from(vectorResult.value.values())
+    : [];
+  if (vectorResult.status === "rejected") {
     console.warn("MemVector: vector context enrichment skipped", vectorResult.reason);
   }
 
-  if (graphResult.status === "fulfilled") {
-    // Hop-balanced order: when the total limit trims, every hop level keeps
-    // representation instead of deeper hops being cut off last (Issue #103).
-    for (const note of orderGraphNotesHopBalanced(Array.from(graphResult.value.values()))) {
-      const existing = merged.get(note.id);
-      if (existing) {
-        existing.sources.push("graph");
-        existing.hops = note.hops;
-        if (!existing.content && note.content) existing.content = note.content;
-      } else {
-        if (maxTotal <= 0 || merged.size < maxTotal) {
-          merged.set(note.id, note);
-        }
-      }
-    }
-  } else {
+  const graphNotes = graphResult.status === "fulfilled"
+    ? orderGraphNotesHopBalanced(Array.from(graphResult.value.values()))
+    : [];
+  if (graphResult.status === "rejected") {
     console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
   }
 
-  return maxTotal > 0 ? Array.from(merged.values()).slice(0, maxTotal) : Array.from(merged.values());
+  return assembleContextNotes(vectorNotes, graphNotes, maxTotal);
+}
+
+/**
+ * Purpose: Assembles vector and graph notes into a final enriched context list up to maxTotal.
+ * Architecture: Prioritizes dual-confirmed notes (vector + graph), then interleaves vector (semantic)
+ * and graph (hop-balanced) channels fairly so vector hits cannot crowd out topological graph neighbors
+ * when totalContextLimit is bounded (Issue #110).
+ */
+export function assembleContextNotes(
+  vectorNotes: EnrichedNote[],
+  graphNotes: EnrichedNote[],
+  maxTotal: number
+): EnrichedNote[] {
+  const noteMap = new Map<string, EnrichedNote>();
+  const graphMap = new Map<string, EnrichedNote>(graphNotes.map((n) => [n.id, n]));
+
+  const dualNotes: EnrichedNote[] = [];
+  const onlyVector: EnrichedNote[] = [];
+
+  for (const v of vectorNotes) {
+    const g = graphMap.get(v.id);
+    if (g) {
+      const combined: EnrichedNote = {
+        ...v,
+        sources: ["vector", "graph"],
+        hops: g.hops,
+        content: v.content || g.content,
+      };
+      noteMap.set(v.id, combined);
+      dualNotes.push(combined);
+    } else {
+      noteMap.set(v.id, v);
+      onlyVector.push(v);
+    }
+  }
+
+  const onlyGraph: EnrichedNote[] = [];
+  for (const g of graphNotes) {
+    if (!noteMap.has(g.id)) {
+      noteMap.set(g.id, g);
+      onlyGraph.push(g);
+    }
+  }
+
+  if (maxTotal <= 0) {
+    return [...dualNotes, ...onlyVector, ...onlyGraph];
+  }
+
+  const result: EnrichedNote[] = [];
+  for (const dual of dualNotes) {
+    if (result.length >= maxTotal) return result;
+    result.push(dual);
+  }
+
+  let vIdx = 0;
+  let gIdx = 0;
+  while (result.length < maxTotal && (vIdx < onlyVector.length || gIdx < onlyGraph.length)) {
+    if (vIdx < onlyVector.length) {
+      result.push(onlyVector[vIdx++]);
+      if (result.length >= maxTotal) break;
+    }
+    if (gIdx < onlyGraph.length) {
+      result.push(onlyGraph[gIdx++]);
+      if (result.length >= maxTotal) break;
+    }
+  }
+
+  return result;
 }

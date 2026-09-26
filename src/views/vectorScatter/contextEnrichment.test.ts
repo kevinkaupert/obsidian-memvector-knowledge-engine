@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import type { MemVectorSettings } from "../../settings/types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
-import { enrichContext } from "./contextEnrichment";
+import { assembleContextNotes, enrichContext, type EnrichedNote } from "./contextEnrichment";
 import type { ScatterNode } from "./types";
 import type { VectorSearchHit, VectorStore } from "../../sync/vectorStore";
 import type { GraphStore } from "../../sync/graphStore";
@@ -501,6 +501,70 @@ describe("vector similarity threshold (#103)", () => {
 
     const result = await enrichContext(app, settings, selected);
     expect(result[0].similarity).toBe(0.83);
+  });
+});
+
+describe("assembleContextNotes channel balancing (#110)", () => {
+  function makeNote(id: string, source: "vector" | "graph", hops?: number, similarity?: number): EnrichedNote {
+    return {
+      id,
+      title: id,
+      path: `${id}.md`,
+      content: `Body of ${id}`,
+      sources: [source],
+      hops,
+      similarity,
+    };
+  }
+
+  it("prioritizes dual-confirmed notes across channels and marks dual sources", () => {
+    const vNotes = [makeNote("v1", "vector", undefined, 0.9), makeNote("shared", "vector", undefined, 0.85)];
+    const gNotes = [makeNote("shared", "graph", 1), makeNote("g1", "graph", 2)];
+
+    const assembled = assembleContextNotes(vNotes, gNotes, 3);
+    expect(assembled[0].id).toBe("shared");
+    expect(assembled[0].sources).toEqual(["vector", "graph"]);
+    expect(assembled[0].hops).toBe(1);
+    expect(assembled[0].similarity).toBe(0.85);
+  });
+
+  it("interleaves vector and graph candidates fairly when trimming to bounded totalContextLimit", () => {
+    // Vector channel has 3 hits; Graph channel has 3 neighbors
+    const vNotes = [
+      makeNote("v1", "vector", undefined, 0.95),
+      makeNote("v2", "vector", undefined, 0.90),
+      makeNote("v3", "vector", undefined, 0.85),
+    ];
+    const gNotes = [
+      makeNote("g1", "graph", 1),
+      makeNote("g2", "graph", 2),
+      makeNote("g3", "graph", 3),
+    ];
+
+    // Bounded limit of 3: must not be 3 vector notes! Should be 2 vector, 1 graph (interleaved)
+    const assembled3 = assembleContextNotes(vNotes, gNotes, 3);
+    expect(assembled3.map((n) => n.id)).toEqual(["v1", "g1", "v2"]);
+
+    // Bounded limit of 4: 2 vector, 2 graph
+    const assembled4 = assembleContextNotes(vNotes, gNotes, 4);
+    expect(assembled4.map((n) => n.id)).toEqual(["v1", "g1", "v2", "g2"]);
+  });
+
+  it("exhausts available pool when one channel has fewer candidates than the budget", () => {
+    const vNotes = [makeNote("v1", "vector", undefined, 0.9)];
+    const gNotes = [makeNote("g1", "graph", 1), makeNote("g2", "graph", 2), makeNote("g3", "graph", 3)];
+
+    const assembled = assembleContextNotes(vNotes, gNotes, 3);
+    expect(assembled.map((n) => n.id)).toEqual(["v1", "g1", "g2"]);
+  });
+
+  it("returns all candidates without trimming when maxTotal is 0 (unlimited)", () => {
+    const vNotes = [makeNote("v1", "vector"), makeNote("v2", "vector")];
+    const gNotes = [makeNote("g1", "graph"), makeNote("g2", "graph")];
+
+    const assembled = assembleContextNotes(vNotes, gNotes, 0);
+    expect(assembled).toHaveLength(4);
+    expect(assembled.map((n) => n.id)).toEqual(["v1", "v2", "g1", "g2"]);
   });
 });
 

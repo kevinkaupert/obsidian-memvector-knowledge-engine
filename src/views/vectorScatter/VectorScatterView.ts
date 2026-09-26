@@ -15,7 +15,7 @@ import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
-import { filterVisibleNodes, type RelationEdge, type ScatterNode } from "./types";
+import { filterVisibleNodes, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -45,6 +45,44 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   getVisibleNodes(): ScatterNode[] {
     return filterVisibleNodes(this.nodes, this.showRelationNotes);
+  }
+
+  /**
+   * Purpose: Updates relation notes visibility toggle and sanitizes selection and search caches.
+   * Architecture: Clears hidden relation notes from selectedNodeIds and resets search/hover state (Issue #110).
+   */
+  setShowRelationNotes(show: boolean): void {
+    this.showRelationNotes = show;
+    if (!show) {
+      const pruned = new Set<string>();
+      for (const id of this.selectedNodeIds) {
+        const node = this.nodes.find((n) => n.id === id);
+        if (node && !isRelationNode(node)) pruned.add(id);
+      }
+      this.selectedNodeIds = pruned;
+
+      if (this.hoveredNode && isRelationNode(this.hoveredNode)) {
+        this.hoveredNode = null;
+      }
+
+      this.lastSearchQuery = null;
+      this.lastSearchMatches = [];
+      this.lastSearchIndex = -1;
+
+      if (this.searchHighlight) {
+        const match = this.nodes.find((n) => n.id === this.searchHighlight?.nodeId);
+        if (match && isRelationNode(match)) {
+          this.searchHighlight = null;
+          if (this.searchAnimHandle !== null) {
+            cancelAnimationFrame(this.searchAnimHandle);
+            this.searchAnimHandle = null;
+          }
+        }
+      }
+
+      this.toolbarHandles?.updateSelectionUI();
+    }
+    this.redraw();
   }
 
   viewFilterQuery = "";
