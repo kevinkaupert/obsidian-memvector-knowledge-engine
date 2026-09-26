@@ -55,3 +55,13 @@ export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed
 
   return { seeds, traversed, total: seeds.length + traversed.length };
 }
+
+/**
+ * Purpose: Removes manually dismissed notes from the preview sections and recomputes the total (Issue #116).
+ * Architecture: Pure set filtering shared by the toolbar preview and its unit tests - seeds cannot be
+ * dismissed (users deselect them instead), so only the traversed group is filtered.
+ */
+export function withoutDismissed(sections: PreviewSections, dismissedIds: ReadonlySet<string>): PreviewSections {
+  const traversed = sections.traversed.filter((entry) => !dismissedIds.has(entry.id));
+  return { seeds: sections.seeds, traversed, total: sections.seeds.length + traversed.length };
+}

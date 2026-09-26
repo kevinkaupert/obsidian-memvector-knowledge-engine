@@ -219,6 +219,8 @@ export interface TranslationKeys {
   contextPreviewSelected: string;
   contextPreviewTraversed: string;
   previewSeedBadge: string;
+  previewDismissTitle: string;
+  previewResetBtn: string;
   previewEmpty: string;
   lblSynthHopDepth: string;
   temperatureAnthropicNote: string;

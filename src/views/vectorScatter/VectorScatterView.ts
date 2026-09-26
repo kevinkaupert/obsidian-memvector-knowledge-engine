@@ -422,8 +422,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.searchAnimHandle = window.requestAnimationFrame(tick);
   }
 
-  async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void> {
+  async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string, excludedContextIds?: ReadonlySet<string>): Promise<void> {
     const selected = this.nodes.filter((n) => this.selectedNodeIds.has(n.id));
-    await runSynthesis(this.app, this.settings, selected, setHoverText, customQuestion);
+    await runSynthesis(this.app, this.settings, selected, setHoverText, customQuestion, excludedContextIds);
   }
 }

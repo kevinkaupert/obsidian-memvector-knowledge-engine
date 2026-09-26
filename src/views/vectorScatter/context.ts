@@ -48,5 +48,5 @@ export interface ScatterViewContext {
   editRelationEdge(edge: RelationEdge): void;
   searchNote(query: string): void;
   fitToView(): void;
-  runSynthesis(setHoverText: (text: string) => void, customQuestion?: string): Promise<void>;
+  runSynthesis(setHoverText: (text: string) => void, customQuestion?: string, excludedContextIds?: ReadonlySet<string>): Promise<void>;
 }

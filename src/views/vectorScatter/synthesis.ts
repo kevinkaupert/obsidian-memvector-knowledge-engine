@@ -237,7 +237,8 @@ export async function runSynthesis(
   settings: MemVectorSettings,
   selected: ScatterNode[],
   setHoverText: (text: string) => void,
-  customQuestion?: string
+  customQuestion?: string,
+  excludedContextIds?: ReadonlySet<string>
 ): Promise<void> {
   if (selected.length === 0) return;
 
@@ -265,7 +266,9 @@ export async function runSynthesis(
   if (settings.enrichSynthesisContext) {
     const hopDepth = settings.synthesisHopDepth ?? 2;
     setHoverText(`[INFO] Suche verwandten Kontext (${tier}, ${hopDepth} ${hopDepth === 1 ? "Hop" : "Hops"})...`);
-    enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth);
+    // Manually dismissed notes from the context preview stay excluded from the
+    // final synthesis payload (Issue #116).
+    enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);
   }
 
   setHoverText(`${modelName} (${tier.toUpperCase()}) ...`);

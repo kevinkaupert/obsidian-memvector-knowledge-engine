@@ -229,6 +229,8 @@ export const de: TranslationKeys = {
   contextPreviewSelected: "Ausgewählt",
   contextPreviewTraversed: "Traversiert",
   previewSeedBadge: "Auswahl",
+  previewDismissTitle: "Aus Synthese-Kontext entfernen",
+  previewResetBtn: "Zurücksetzen",
   previewEmpty: "Keine Kontext-Notizen - Notiz auswählen oder Limits anpassen.",
   lblSynthHopDepth: "GraphRAG Hop-Tiefe",
   temperatureAnthropicNote: "(Deaktiviert für Anthropic/Claude - wird vom API-Provider verwaltet)",

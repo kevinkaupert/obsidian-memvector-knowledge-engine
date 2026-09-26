@@ -223,6 +223,46 @@ describe("context exclusions (#82)", () => {
   );
 });
 
+describe("manual dismissal exclusion (#116)", () => {
+  function filesFor(ids: string[]): Map<string, string> {
+    return new Map(ids.map((id) => [`${id}.md`, `Body of ${id}`]));
+  }
+
+  it("filters dismissed note ids out of the final enriched context", async () => {
+    const ids = ["v-a", "h1-a", "h1-b"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 2, vectorNeighborLimit: 2, totalContextLimit: 0 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([
+      { score: 0.9, payload: { path: "v-a.md", title: "v-a", content: "Body of v-a" } },
+    ]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      { id: "h1-a", path: "h1-a.md", title: "h1-a", hops: 1 },
+      { id: "h1-b", path: "h1-b.md", title: "h1-b", hops: 1 },
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected, 200, undefined, new Set(["h1-a"]));
+
+    expect(result.map((n) => n.id)).toEqual(["v-a", "h1-b"]);
+  });
+
+  it("keeps the full context when the dismissal set is empty", async () => {
+    const ids = ["h1-a", "h1-b"];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 2, totalContextLimit: 0 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([
+      { id: "h1-a", path: "h1-a.md", title: "h1-a", hops: 1 },
+      { id: "h1-b", path: "h1-b.md", title: "h1-b", hops: 1 },
+    ]);
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected, 200, undefined, new Set());
+
+    expect(result.map((n) => n.id)).toEqual(["h1-a", "h1-b"]);
+  });
+});
+
 describe("synthesis hop depth (#89)", () => {
   it.each([1, 2, 3])("fetches graph neighbors with configured hop depth: %d hops", async (hops) => {
     const files = new Map([
