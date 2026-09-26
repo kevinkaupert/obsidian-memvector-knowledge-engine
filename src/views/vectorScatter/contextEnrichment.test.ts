@@ -239,12 +239,9 @@ describe("synthesis hop depth (#89)", () => {
 
     await enrichContext(app, settings, selected);
 
-    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(
-      ["selected"],
-      hops,
-      expect.any(Number),
-      expect.any(Number)
-    );
+    // Issue #115: no hidden SQL-side caps - the store is queried unconstrained
+    // (limit 0, perHopLimit 0) and the per-hop user quota applies client-side.
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], hops, 0, 0);
   });
 
   it("allows explicit hop depth parameter to override settings", async () => {
@@ -260,12 +257,7 @@ describe("synthesis hop depth (#89)", () => {
 
     await enrichContext(app, settings, selected, 200, 3);
 
-    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(
-      ["selected"],
-      3,
-      expect.any(Number),
-      expect.any(Number)
-    );
+    expect(mockGraphStore.fetchNeighbors).toHaveBeenCalledWith(["selected"], 3, 0, 0);
   });
 });
 
@@ -376,6 +368,26 @@ describe("per-hop neighbor quota (#103)", () => {
     const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
 
     expect(graphIds.sort()).toEqual(["dup", "h2-a"]);
+  });
+
+  it("adversarial (Issue #115): no hidden cap starves deeper hops when the store returns far more rows than the per-hop quota", async () => {
+    const ids = [
+      ...Array.from({ length: 30 }, (_, i) => `h1-${String(i).padStart(2, "0")}`),
+      "h2-a", "h2-b", "h2-c",
+    ];
+    const app = makeMockApp(filesFor(ids));
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, hopLevelNeighborLimit: 2, synthesisHopDepth: 2, totalContextLimit: 0 };
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    // The store hands back everything reachable (unconstrained fetch, Issue #115);
+    // the old 3x slack SQL caps would have cut h2 rows here.
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue(ids.map((id) => neighborNote(id, id.startsWith("h2") ? 2 : 1)));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    const graphIds = result.filter((n) => n.sources.includes("graph")).map((n) => n.id);
+
+    expect(graphIds.filter((id) => id.startsWith("h1-")).length).toBe(2);
+    expect(graphIds.filter((id) => id.startsWith("h2-")).length).toBe(2);
   });
 
   it("caps vector neighbors at vectorNeighborLimit and treats 0 as unlimited", async () => {

@@ -101,7 +101,7 @@ async function fetchVectorNeighbors(
 
 /**
  * Purpose: Retrieves topological multi-hop neighbors from the graph store, reading fresh full note bodies from the vault.
- * Architecture: Per-hop-level quota (settings.hopLevelNeighborLimit, 0 = unlimited) so a dense hop-1 neighborhood cannot crowd deeper hops out of the GraphRAG context (Issue #103).
+ * Architecture: Per-hop-level quota (settings.hopLevelNeighborLimit, 0 = unlimited) so a dense hop-1 neighborhood cannot crowd deeper hops out of the GraphRAG context (Issue #103). The store query runs unconstrained (Issue #115) - no hidden SQL-side caps or slack multipliers - and the explicit per-hop user quota is applied transparently client-side.
  */
 async function fetchGraphNeighbors(
   app: App,
@@ -114,12 +114,10 @@ async function fetchGraphNeighbors(
   const ids = selected.map((n) => n.id);
   const perHop = settings.hopLevelNeighborLimit ?? 2;
   const hops = Math.max(1, Math.trunc(hopDepth));
-  // Ask the store for enough rows to fill every hop quota. With per-hop quota partitioning
-  // in SQL, dense hop-1 neighborhoods cannot starve deeper hops (Issue #103).
-  // 0 = unlimited per level, so fetch unconstrained (0).
-  const perHopLimit = perHop > 0 ? perHop * 3 + selected.length : 0;
-  const sqlLimit = perHop > 0 ? perHop * hops * 3 + selected.length : 0;
-  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hopDepth, sqlLimit, perHopLimit);
+  // 0 = unconstrained: every reachable candidate comes back and the per-hop
+  // quota below decides admission - no arbitrary 3x slack or global LIMIT can
+  // silently cut off deeper hops (Issue #115).
+  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hops, 0, 0);
 
   const perHopCount = new Map<number, number>();
   const seen = new Set<string>();
