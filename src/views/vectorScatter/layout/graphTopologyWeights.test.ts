@@ -96,4 +96,57 @@ describe("computeGraphTopologyWeights", () => {
     expect(computeGraphTopologyWeights(nodes, edges, false).conn[0][1]).toBe(1.0);
     expect(computeGraphTopologyWeights(nodes, edges, true).conn[0][1]).toBe(1.0);
   });
+
+  describe("vocabulary-driven weights (Issue #119, ADR-0002)", () => {
+    const vocab = [
+      { key: "k1", label: "MY_CLOSE", term: "my close", category: "Test", bidirectional: false, reversed: false, weight: 2.5 },
+      { key: "k2", label: "MY_REPEL", term: "my repel", category: "Test", bidirectional: false, reversed: false, repels: true },
+      { key: "k3", label: "MY_NEUTRAL", term: "my neutral", category: "Test", bidirectional: false, reversed: false, weight: 0.05 },
+      { key: "k4", label: "MY_PLAIN", term: "my plain", category: "Test", bidirectional: false, reversed: false },
+    ];
+
+    it("resolves per-label attraction weights from the loaded vocabulary", () => {
+      const nodes = [node("a"), node("b"), node("c"), node("d")];
+      const edges = [
+        edge("a", "b", "MY_CLOSE"),
+        edge("a", "c", "MY_NEUTRAL"),
+        edge("a", "d", "MY_PLAIN"),
+      ];
+      const { conn } = computeGraphTopologyWeights(nodes, edges, false, vocab);
+      expect(conn[0][1]).toBe(2.5);
+      expect(conn[0][2]).toBe(0.05);
+      expect(conn[0][3]).toBe(1.0);
+    });
+
+    it("marks repels: true labels for repulsion and does not attract", () => {
+      const nodes = [node("a"), node("b")];
+      const edges = [edge("a", "b", "MY_REPEL")];
+      const { conn, repel } = computeGraphTopologyWeights(nodes, edges, false, vocab);
+      expect(repel.has("0-1")).toBe(true);
+      expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+    });
+
+    it("overrides the bundled default when the vault vocabulary redefines a label", () => {
+      const nodes = [node("a"), node("b")];
+      const edges = [edge("a", "b", "EQUIVALENT_TO")];
+      const overridden = [{ key: "k", label: "EQUIVALENT_TO", term: "equivalent to", category: "Test", bidirectional: true, reversed: false, weight: 0.2 }];
+      const { conn } = computeGraphTopologyWeights(nodes, edges, false, overridden);
+      expect(conn[0][1]).toBe(0.2);
+    });
+
+    it("resolves labels case-insensitively against the vocabulary", () => {
+      const nodes = [node("a"), node("b")];
+      const edges = [edge("a", "b", "my_close")];
+      const { conn } = computeGraphTopologyWeights(nodes, edges, false, vocab);
+      expect(conn[0][1]).toBe(2.5);
+    });
+
+    it("falls back to the default weight for labels absent from the vocabulary", () => {
+      const nodes = [node("a"), node("b")];
+      const edges = [edge("a", "b", "UNKNOWN_LABEL")];
+      const { conn, repel } = computeGraphTopologyWeights(nodes, edges, false, vocab);
+      expect(conn[0][1]).toBe(1.0);
+      expect(repel.has("0-1")).toBe(false);
+    });
+  });
 });

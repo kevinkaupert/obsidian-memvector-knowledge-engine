@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConversationalCategories, buildRelationCategories } from "./buildCategories";
+import { buildRelationCategories } from "./buildCategories";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
 import { defaultTermForLabel, resolveEdgesForSave } from "./resolveTerm";
 import type { RelationEdgeDraft, RelationNode } from "../modals/relationBuilder/relationEdgeBuilder";
@@ -9,11 +9,12 @@ function makeNode(id: string): RelationNode {
 }
 
 describe("relationVocabulary", () => {
-  it("buildRelationCategories deduplicates 37 terms into exactly 13 canonical Cypher categories plus Custom", () => {
+  it("ships exactly one entry per canonical label - 13 canonical types plus Custom", () => {
     const categories = buildRelationCategories(DEFAULT_RELATION_VOCABULARY, "Frei");
     const allOptions = categories.flatMap((c) => c.items);
     const nonCustom = allOptions.filter((o) => o.val !== "CUSTOM");
 
+    expect(DEFAULT_RELATION_VOCABULARY.length).toBe(13);
     expect(nonCustom.length).toBe(13);
     const expectedLabels = [
       "IMPLIES",
@@ -35,13 +36,12 @@ describe("relationVocabulary", () => {
     });
   });
 
-  it("buildConversationalCategories preserves the full 37 phrases for Issue #43 WIP", () => {
-    const categories = buildConversationalCategories(DEFAULT_RELATION_VOCABULARY, "Frei");
-    const allOptions = categories.flatMap((c) => c.items);
-    const nonCustom = allOptions.filter((o) => o.val !== "CUSTOM");
-
-    expect(nonCustom.length).toBe(37);
-    expect(nonCustom.some((o) => o.val === "relCharacterizes" && o.label === "characterizes")).toBe(true);
+  it("encodes the legacy hardcoded layout weights as vocabulary fields (ADR-0002)", () => {
+    const byLabel = new Map(DEFAULT_RELATION_VOCABULARY.map((d) => [d.label, d]));
+    expect(byLabel.get("EQUIVALENT_TO")!.weight).toBe(1.3);
+    expect(byLabel.get("ANALOGOUS_TO")!.weight).toBe(1.1);
+    expect(byLabel.get("CONFLICTS_WITH")!.repels).toBe(true);
+    expect(byLabel.get("INDEPENDENT_OF")!.weight).toBe(0.05);
   });
 
   it("defaultTermForLabel returns canonical label directly when passed an uppercase Cypher label", () => {
@@ -74,17 +74,16 @@ describe("relationVocabulary", () => {
     expect(resolved[0].bidirectional).toBe(true);
   });
 
-  it("resolveEdgesForSave preserves backward compatibility with legacy/conversational keys", () => {
+  it("resolveEdgesForSave treats unknown legacy keys as free-text custom labels instead of lossy remapping", () => {
     const edges: RelationEdgeDraft[] = [{ src: makeNode("nodeA"), tgt: makeNode("nodeB") }];
     const edgeRelTypes = { 0: "relFollowsFrom" };
 
     const resolved = resolveEdgesForSave(DEFAULT_RELATION_VOCABULARY, edges, edgeRelTypes, "");
     expect(resolved.length).toBe(1);
-    expect(resolved[0].label).toBe("IMPLIES");
-    expect(resolved[0].originalTerm).toBe("IMPLIES");
-    // follows from reverses direction
-    expect(resolved[0].src.id).toBe("nodeB");
-    expect(resolved[0].tgt.id).toBe("nodeA");
+    // No legacy synonym entry exists anymore - the key is sanitized as-is.
+    expect(resolved[0].label).toBe("RELFOLLOWSFROM");
+    expect(resolved[0].src.id).toBe("nodeA");
+    expect(resolved[0].tgt.id).toBe("nodeB");
   });
 
   it("resolveEdgesForSave honors reversed: true when matching canonical label from custom vocabulary", () => {

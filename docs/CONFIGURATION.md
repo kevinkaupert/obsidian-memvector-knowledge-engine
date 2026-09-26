@@ -19,7 +19,9 @@ The settings menu is organized into 3 focused sections:
 - **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).
-- **Relation Vocabulary File (`relationVocabularyPath`):** Vault path to the relation-type definitions used by the Relation Builder (default `wiki/relation-types.json`).
+- **Show Relation Notes (`showRelationNotes`):** Render relation notes (`wiki/relations/`) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots.
+- **2D Canvas Visual Style (`scatterVisualStyle`):** `Monochrome` / `Muted Type Colors` / `Ink & Focus Glow` (default `ink`). Moved from the floating toolbar into Settings.
+- **Include Agent Guidelines (`includeAgentsGuidelines`):** Include the vault's own `AGENTS.md` (or the configured guideline files) as house-style guidance in the synthesis prompt (default off). Moved from the floating toolbar into Settings.
 - **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is enabled (default `AGENTS.md`).
 
 ---
@@ -81,7 +83,7 @@ The toolbar's **Synthese** section shows a scrollable **context preview** listin
 
 ### Section 3.5: Relation Vocabulary (`wiki/relation-types.json`)
 
-The Relation Builder's type dropdown is read from a configurable vault file (default `wiki/relation-types.json`). If the file doesn't exist yet, it is created automatically the first time you open the Relation Builder, seeded with 13 canonical labels (`IMPLIES`, `REQUIRES`, `EQUIVALENT_TO`, `GENERALIZES`, `SPECIALIZES`, `EXTENDS`, `REDUCES_TO`, `CONSTRUCTS`, `EMBEDS_IN`, `REFUTES`, `CONFLICTS_WITH`, `INDEPENDENT_OF`, `ANALOGOUS_TO`) across 37 everyday terms.
+The Relation Builder's type dropdown is read from a configurable vault file (default `wiki/relation-types.json`). If the file doesn't exist yet, it is created automatically the first time you open the Relation Builder, seeded with the 13 canonical labels (`IMPLIES`, `REQUIRES`, `EQUIVALENT_TO`, `GENERALIZES`, `SPECIALIZES`, `EXTENDS`, `REDUCES_TO`, `CONSTRUCTS`, `EMBEDS_IN`, `REFUTES`, `CONFLICTS_WITH`, `INDEPENDENT_OF`, `ANALOGOUS_TO`) - one entry per label.
 
 You can edit this file at any time to customize the vocabulary for any domain (mathematics, medicine, law, engineering, etc.):
 
@@ -96,12 +98,20 @@ You can edit this file at any time to customize the vocabulary for any domain (m
 
 - `key`: stable identifier used internally.
 - `label`: the canonical relationship type stored in the SQLite graph table and YAML frontmatter, displayed in the Relation Builder dropdown.
-- `term`: descriptive natural language phrase for the relationship (full conversational phrase mapping is preserved in `buildConversationalCategories` as a planned expansion for Issue #43).
+- `term`: descriptive natural language phrase for the relationship, used as dropdown display text.
 - `category`: dropdown group heading.
 - `bidirectional`: whether the relationship holds symmetrically in both directions.
 - `reversed`: swaps source/target when creating a relation or selecting a different reversed type (e.g. "follows from"). Editing an existing relation while retaining its canonical label preserves its already-stored direction. The UI also includes an interactive "Richtung umkehren" (swap direction) button for explicit direction changes during editing.
+- `weight` (optional, default `1.0`): 2D layout attraction strength for this label - vocabulary-driven instead of hardcoded type maps (ADR-0002). The bundled STEM default encodes `EQUIVALENT_TO: 1.3`, `ANALOGOUS_TO: 1.1`, `INDEPENDENT_OF: 0.05`.
+- `repels` (optional, default `false`): when true, the 2D layout actively pushes connected notes apart (e.g. `CONFLICTS_WITH`).
 
 The preselected type uses the same vocabulary resolution as an explicitly selected type, including `bidirectional` and `reversed`. Save conflict checks inspect every relation file, including duplicate identities and files excluded from the graph view; a duplicate target blocks saving before any file or graph writes.
+
+### Relation type presets & manager (Settings → Relation Types)
+
+- **Presets** are named vocabulary files in `wiki/presets/` (e.g. `stem.json`, `law.json`). The active preset is simply the file `settings.relationVocabularyPath` points to. Bundled presets ship in-memory (STEM default, plus Law, Medicine, and Philosophy stubs) and are written to `wiki/presets/` on first activation. Switching presets reloads the vocabulary in memory - no re-embedding or re-indexing is required because edge labels are stored as strings in SQLite.
+- **Free-text custom types:** when you save a relation with a free-text type in the Relation Builder, the type is automatically appended to the active vocabulary file under the `"Custom"` category (default weight `1.0`) and appears in the dropdown on the next open - no manual JSON editing.
+- The **Settings Relation Type Manager** shows the active preset selector (with create/rename/delete for user presets), a type table with add/delete controls (label, category, weight, bidirectional, repels), and a "Reset to STEM default" action. All mutations rewrite the vault-owned preset file.
 
 ---
 
@@ -115,7 +125,7 @@ All note embeddings and graph relationships are stored in:
   - `notes`: `(id TEXT PRIMARY KEY, title TEXT, path TEXT)`
   - `edges`: `(src TEXT, tgt TEXT, type TEXT, description TEXT, bidirectional INTEGER, original_term TEXT, updated_at TEXT)`
   - `vectors`: `(id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT)`
-- **Multi-Hop Traversal:** Executed locally via recursive SQL CTE queries (`WITH RECURSIVE reachable...`).
+- **Multi-Hop Traversal:** Executed locally via recursive SQL CTE queries (`WITH RECURSIVE reachable...`). Traversal is bidirectional: both directions of a stored edge are followed. Bidirectional relations are stored as two rows (one per direction), so live-saved relations are traversable from either endpoint immediately (Issue #120).
 
 ---
 

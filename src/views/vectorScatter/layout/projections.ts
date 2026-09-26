@@ -1,3 +1,4 @@
+import type { RelationTermDef } from "../../../relationVocabulary/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
@@ -12,6 +13,8 @@ export interface ProjectionParams {
   relationEdges: RelationEdge[];
   /** Opt-in WikiLink attraction edges in topology weights (Issue #100) - defaults to off. */
   includeWikiLinksAsRelations?: boolean;
+  /** Loaded relation vocabulary driving per-label attraction/repulsion (ADR-0002) - defaults to the bundled STEM vocabulary. */
+  vocabulary?: RelationTermDef[];
 }
 
 /**
@@ -190,6 +193,7 @@ export function applyGraphVectorProjection({
   cloudSpacing,
   relationEdges,
   includeWikiLinksAsRelations,
+  vocabulary,
 }: ProjectionParams): void {
   const n = nodes.length;
   if (n === 0) return;
@@ -200,7 +204,7 @@ export function applyGraphVectorProjection({
 
   const targetSpacing = nodeSpacing || 350;
   const clusterRadius = cloudSpacing || 800;
-  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges, includeWikiLinksAsRelations);
+  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges, includeWikiLinksAsRelations, vocabulary);
   const isRepelled = new Uint8Array(n * n);
   if (repel && repel.size > 0) {
     for (const key of repel) {

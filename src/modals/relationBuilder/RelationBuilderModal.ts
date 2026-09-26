@@ -4,6 +4,7 @@ import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
 import { buildRelationCategories, type RelationCategory } from "../../relationVocabulary/buildCategories";
+import { persistCustomRelationTypes, type CustomTypeInput } from "../../relationVocabulary/persistCustomType";
 import { defaultTermForLabel, resolveEdgesForSave } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
@@ -325,6 +326,14 @@ export class RelationBuilderModal extends Modal {
 
       let createdCount = 0;
       let failedCount = 0;
+      const customTypes: CustomTypeInput[] = [];
+      for (const e of resolvedEdges) {
+        const known = defs.some((d) => d.label.toUpperCase() === e.label.toUpperCase());
+        if (!known && !customTypes.some((c) => c.label === e.label)) {
+          customTypes.push({ label: e.label, term: e.originalTerm || e.label, bidirectional: e.bidirectional });
+        }
+      }
+
       const store = getGraphStore(this.app, this.host.settings);
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
         const e = resolvedEdges[idx];
@@ -343,6 +352,16 @@ export class RelationBuilderModal extends Modal {
         } catch (err) {
           failedCount++;
           console.error(`${t.relSaveError} ${paths[idx]}:`, err);
+        }
+      }
+
+      // Free-text types become permanent vocabulary entries (Issue #119) - after the
+      // relation files are saved, so a failed save never pollutes the vocabulary.
+      if (createdCount > 0 && customTypes.length > 0) {
+        try {
+          await persistCustomRelationTypes(this.app, this.host.settings, customTypes);
+        } catch (err) {
+          console.warn("MemVector: failed to persist custom relation types:", err);
         }
       }
 

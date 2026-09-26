@@ -1,4 +1,5 @@
 import type { MemVectorSettings } from "../../../settings/types";
+import type { RelationTermDef } from "../../../relationVocabulary/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { applyGraphVectorProjection } from "./projections";
@@ -12,7 +13,8 @@ export function applyVectorLayout(
   settings: MemVectorSettings,
   nodeSpacing: number,
   cloudSpacing: number,
-  relationEdges: RelationEdge[]
+  relationEdges: RelationEdge[],
+  vocabulary?: RelationTermDef[]
 ): void {
   if (!nodes || nodes.length === 0) return;
 
@@ -35,6 +37,7 @@ export function applyVectorLayout(
     cloudSpacing: cloudSpacing || settings.scatterCloudSpacing || 800,
     relationEdges,
     includeWikiLinksAsRelations: settings.includeWikiLinksAsRelations,
+    vocabulary,
   });
 }
 

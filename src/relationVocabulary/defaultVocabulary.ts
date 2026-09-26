@@ -1,60 +1,37 @@
 import type { RelationTermDef } from "./types";
 
 /**
- * [INFO] The plugin's bundled STEM vocabulary defining 13 canonical Cypher labels.
- * [WARN] [TODO] Conversational phrase synonym mapping (37 everyday phrases -> 13 Cypher labels)
- * is work-in-progress and tracked in Issue #43. The active RelationBuilder UI defaults
- * directly to the 13 canonical types to prevent lossy remapping when creating and editing edges.
+ * The plugin's bundled STEM vocabulary: exactly one entry per canonical Cypher
+ * label (13 total). Per-label layout semantics (weight/repels, ADR-0002) live
+ * here as the single source of truth for the defaults. Vaults seed
+ * wiki/relation-types.json from this list on first use and can extend or
+ * replace it freely.
  */
 export const DEFAULT_RELATION_VOCABULARY: RelationTermDef[] = [
   // Logic & Implication
   { key: "relImplies", label: "IMPLIES", term: "implies", category: "Logic & Implication", bidirectional: false, reversed: false },
-  { key: "relSufficientCondition", label: "IMPLIES", term: "is sufficient condition for", category: "Logic & Implication", bidirectional: false, reversed: false },
-  { key: "relProves", label: "IMPLIES", term: "proves", category: "Logic & Implication", bidirectional: false, reversed: false },
-  { key: "relInduces", label: "IMPLIES", term: "induces", category: "Logic & Implication", bidirectional: false, reversed: false },
-  { key: "relCharacterizes", label: "IMPLIES", term: "characterizes", category: "Logic & Implication", bidirectional: false, reversed: false },
-  { key: "relFollowsFrom", label: "IMPLIES", term: "follows from", category: "Logic & Implication", bidirectional: false, reversed: true },
-  { key: "relEquivalentTo", label: "EQUIVALENT_TO", term: "equivalent to", category: "Logic & Implication", bidirectional: true, reversed: false },
-  { key: "relEquivDef", label: "EQUIVALENT_TO", term: "is equivalent definition to", category: "Logic & Implication", bidirectional: true, reversed: false },
-  { key: "relCorresponds", label: "EQUIVALENT_TO", term: "corresponds to", category: "Logic & Implication", bidirectional: true, reversed: false },
-  { key: "relContradicts", label: "CONFLICTS_WITH", term: "contradicts", category: "Logic & Implication", bidirectional: true, reversed: false },
-  { key: "relIndependentOf", label: "INDEPENDENT_OF", term: "is independent of", category: "Logic & Implication", bidirectional: true, reversed: false },
+  { key: "relEquivalentTo", label: "EQUIVALENT_TO", term: "is equivalent to", category: "Logic & Implication", bidirectional: true, reversed: false, weight: 1.3 },
+  { key: "relConflictsWith", label: "CONFLICTS_WITH", term: "conflicts with", category: "Logic & Implication", bidirectional: true, reversed: false, repels: true },
+  { key: "relIndependentOf", label: "INDEPENDENT_OF", term: "is independent of", category: "Logic & Implication", bidirectional: true, reversed: false, weight: 0.05 },
 
   // Preconditions
-  { key: "relBasedOn", label: "REQUIRES", term: "is based on", category: "Preconditions", bidirectional: false, reversed: false },
-  { key: "relPresupposes", label: "REQUIRES", term: "presupposes", category: "Preconditions", bidirectional: false, reversed: false },
-  { key: "relNecessaryCondition", label: "REQUIRES", term: "is necessary condition for", category: "Preconditions", bidirectional: false, reversed: true },
+  { key: "relRequires", label: "REQUIRES", term: "requires", category: "Preconditions", bidirectional: false, reversed: false },
 
   // Generalization & Specialization
   { key: "relGeneralizes", label: "GENERALIZES", term: "generalizes", category: "Generalization & Specialization", bidirectional: false, reversed: false },
-  { key: "relSpecialCase", label: "SPECIALIZES", term: "is special case of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
-  { key: "relExampleFor", label: "SPECIALIZES", term: "is example for", category: "Generalization & Specialization", bidirectional: false, reversed: false },
-  { key: "relDegenerateCaseOf", label: "SPECIALIZES", term: "is degenerate case of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
+  { key: "relSpecializes", label: "SPECIALIZES", term: "is special case of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
   { key: "relExtends", label: "EXTENDS", term: "extends", category: "Generalization & Specialization", bidirectional: false, reversed: false },
-  { key: "relExtensionOf", label: "EXTENDS", term: "is extension of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
-  { key: "relAdjunctionOf", label: "EXTENDS", term: "arises by adjunction of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
 
   // Proofs & Corollaries
   { key: "relReducesTo", label: "REDUCES_TO", term: "reduces to", category: "Proofs & Corollaries", bidirectional: false, reversed: false },
-  { key: "relCorollaryOf", label: "REDUCES_TO", term: "is corollary of", category: "Proofs & Corollaries", bidirectional: false, reversed: false },
-  { key: "relLemmaFor", label: "REDUCES_TO", term: "is lemma for", category: "Proofs & Corollaries", bidirectional: false, reversed: true },
 
   // Construction & Embedding
-  { key: "relGeneratedBy", label: "CONSTRUCTS", term: "is generated by", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relProductOf", label: "CONSTRUCTS", term: "is product of", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relCoproductOf", label: "CONSTRUCTS", term: "is coproduct of", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relQuotientOf", label: "CONSTRUCTS", term: "is quotient of", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relClosedUnder", label: "CONSTRUCTS", term: "is closed under", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relEmbeddedIn", label: "EMBEDS_IN", term: "is embedded in", category: "Construction & Embedding", bidirectional: false, reversed: false },
-  { key: "relRetractsTo", label: "EMBEDS_IN", term: "retracts to", category: "Construction & Embedding", bidirectional: false, reversed: false },
+  { key: "relConstructs", label: "CONSTRUCTS", term: "is constructed from", category: "Construction & Embedding", bidirectional: false, reversed: false },
+  { key: "relEmbedsIn", label: "EMBEDS_IN", term: "is embedded in", category: "Construction & Embedding", bidirectional: false, reversed: false },
 
   // Refutation & Counterexamples
   { key: "relRefutes", label: "REFUTES", term: "refutes", category: "Refutation & Counterexamples", bidirectional: false, reversed: false },
-  { key: "relCounterexampleFor", label: "REFUTES", term: "is counterexample for", category: "Refutation & Counterexamples", bidirectional: false, reversed: false },
 
   // Structure & Analogy
-  { key: "relAnalogousTo", label: "ANALOGOUS_TO", term: "is analogous to", category: "Structure & Analogy", bidirectional: true, reversed: false },
-  { key: "relDualTo", label: "ANALOGOUS_TO", term: "is dual to", category: "Structure & Analogy", bidirectional: true, reversed: false },
-  { key: "relOppositeOf", label: "ANALOGOUS_TO", term: "is opposite of", category: "Structure & Analogy", bidirectional: true, reversed: false },
-  { key: "relIsomorphicTo", label: "ANALOGOUS_TO", term: "is isomorphic to", category: "Structure & Analogy", bidirectional: true, reversed: false },
+  { key: "relAnalogousTo", label: "ANALOGOUS_TO", term: "is analogous to", category: "Structure & Analogy", bidirectional: true, reversed: false, weight: 1.1 },
 ];

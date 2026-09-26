@@ -2,6 +2,7 @@ import { PluginSettingTab, Setting, type App, type Plugin, type SettingDefinitio
 import { getTranslation } from "../i18n";
 import { renderGeneralSection } from "./sections/generalSection";
 import { renderLlmProviderSection } from "./sections/llmProviderSection";
+import { renderRelationTypesSection } from "./sections/relationTypesSection";
 import { renderVectorFilterSection } from "./sections/vectorFilterSection";
 import type { SettingsHost } from "./types";
 
@@ -42,8 +43,9 @@ export class MathWikiSettingTab extends PluginSettingTab {
       .setHeading();
 
     renderGeneralSection(containerEl, this.host, t, rerender);
-    renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
     renderLlmProviderSection(containerEl, this.app, this.host, t, rerender);
+    renderVectorFilterSection(containerEl, this.app, this.host, t, rerender);
+    renderRelationTypesSection(containerEl, this.app, this.host, t, rerender);
   }
 }
 
