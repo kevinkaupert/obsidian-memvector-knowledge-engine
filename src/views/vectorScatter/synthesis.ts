@@ -26,7 +26,9 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCap
     .map((n) => `- [${n.sources.join("+")}] "${n.title}": ${capText(n.content, contentCapChars)}`)
     .join("\n")}\n`;
 
-  const linkLines = enriched.map((n) => `- Notiz: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`).join("\n");
+  const linkLines = enriched
+    .map((n) => `- ${lang === "de" ? "Notiz" : "Note"}: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`)
+    .join("\n");
   return { block, linkLines };
 }
 
@@ -193,7 +195,7 @@ function isStructuralMarker(term: string): boolean {
   return false;
 }
 
-function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): string {
+function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>, lang = "de"): string {
   const cleaned = formatThinkingBlocks(raw);
   const prospectiveTerms = new Set<string>();
   let text = cleaned.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
@@ -214,9 +216,17 @@ function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>): stri
   });
 
   if (prospectiveTerms.size > 0) {
-    text += "\n\n### [Vorschlag] Neue Notizen (Wissenslücken)\n";
+    const heading =
+      lang === "de"
+        ? "\n\n### [Vorschlag] Neue Notizen (Wissenslücken)\n"
+        : "\n\n### [Suggestion] New Notes (Knowledge Gaps)\n";
+    const noteHint =
+      lang === "de"
+        ? "*(Notiz noch nicht im Vault vorhanden)*"
+        : "*(Note does not yet exist in vault)*";
+    text += heading;
     prospectiveTerms.forEach((term) => {
-      text += `- [[${toSlug(term)}|${term}]] *(Notiz noch nicht im Vault vorhanden)*\n`;
+      text += `- [[${toSlug(term)}|${term}]] ${noteHint}\n`;
     });
   }
   return text;
@@ -284,7 +294,7 @@ export async function runSynthesis(
   }
 
   const vaultTitleMap = buildVaultTitleMap(app);
-  const synthesisText = linkifySynthesis(rawSynthesisText, vaultTitleMap);
+  const synthesisText = linkifySynthesis(rawSynthesisText, vaultTitleMap, lang);
 
   new SynthesisResultModal(app, selected, synthesisText, modelName, settings).open();
   setHoverText(`${modelName} ${t.synthCompletePrefix} ${selected.length} ${t.synthCompleteSuffix}`);
