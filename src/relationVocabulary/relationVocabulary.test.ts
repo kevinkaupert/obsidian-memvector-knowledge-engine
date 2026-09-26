@@ -81,7 +81,7 @@ describe("relationVocabulary", () => {
     const resolved = resolveEdgesForSave(DEFAULT_RELATION_VOCABULARY, edges, edgeRelTypes, "");
     expect(resolved.length).toBe(1);
     expect(resolved[0].label).toBe("IMPLIES");
-    expect(resolved[0].originalTerm).toBe("follows from");
+    expect(resolved[0].originalTerm).toBe("IMPLIES");
     // follows from reverses direction
     expect(resolved[0].src.id).toBe("nodeB");
     expect(resolved[0].tgt.id).toBe("nodeA");
@@ -128,13 +128,23 @@ describe("relationVocabulary", () => {
     ]);
   });
 
-  it("still reverses a newly selected type or conversational key during an edit", () => {
+  it("reverses when changing to a different reversed type during an edit, but preserves direction for unchanged types (Issue #108)", () => {
     const edges = [{ src: makeNode("a"), tgt: makeNode("b") }];
     const defs = [{ key: "backwards", label: "REVERSED", term: "backwards", category: "Test", reversed: true, bidirectional: false }];
-    for (const [selection, previous] of [["REVERSED", "REQUIRES"], ["backwards", "REVERSED"]]) {
-      const [resolved] = resolveEdgesForSave(defs, edges, { 0: selection }, "", previous);
-      expect([resolved.src.id, resolved.tgt.id]).toEqual(["b", "a"]);
-    }
+
+    // Changed from REQUIRES to REVERSED: applies reversed direction
+    const [changed] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "REQUIRES");
+    expect([changed.src.id, changed.tgt.id]).toEqual(["b", "a"]);
+
+    // Unchanged (even when editedCanonicalLabel was the legacy key): retains existing endpoints
+    const [unchanged] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "backwards");
+    expect([unchanged.src.id, unchanged.tgt.id]).toEqual(["a", "b"]);
+  });
+
+  it("defaultTermForLabel always returns canonical label for both canonical and legacy inputs", () => {
+    expect(defaultTermForLabel(DEFAULT_RELATION_VOCABULARY, "relImplies")).toBe("IMPLIES");
+    expect(defaultTermForLabel(DEFAULT_RELATION_VOCABULARY, "IMPLIES")).toBe("IMPLIES");
+    expect(defaultTermForLabel(DEFAULT_RELATION_VOCABULARY, "unknown")).toBeNull();
   });
 
   it("keeps explicit CUSTOM input literal even when it matches a vocabulary label", () => {
