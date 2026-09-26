@@ -159,8 +159,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   if (edgeHopsRow) edgeHopsRow.hidden = !ctx.showEdges;
 
   createToggle(ansichtBody, t.lblShowRelationNotes, ctx.showRelationNotes, (on) => {
-    ctx.showRelationNotes = on;
-    ctx.redraw();
+    ctx.setShowRelationNotes(on);
   });
 
   createToggle(ansichtBody, t.lblLasso, ctx.lassoSelectMode, (on) => {
