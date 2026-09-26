@@ -7,22 +7,39 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-09-26
+
 ### Added
-- New setting `includeWikiLinksAsRelations` (default: off) under Knowledge Domain & Embedding Provider that makes WikiLink `LINKS_TO` graph relations opt-in (Issue #100). Release-note highlight: WikiLinks are no longer indexed as graph relations by default - GraphRAG synthesis and the knowledge graph intentionally focus on semantic embeddings and explicit, typed relationships (Relation Builder); toggle + re-index restores the old behavior.
-- New setting `hopLevelNeighborLimit` ("Graph neighbors per hop level", default `2`, `0` = unlimited per level) replacing the flat per-source neighbor cap for GraphRAG graph context (Issue #103).
-- New settings `vectorNeighborLimit` (default `2`), `totalContextLimit` (default `0` = unlimited) and `agentsGuidelinesCharCap` (default `0` = unlimited) making every synthesis context cap user-configurable (Issue #103). All of them use `0` = unlimited.
-- New setting `minVectorSimilarity` (default `0.75`, `0` = off): minimum cosine similarity for vector-channel context notes, so an unlimited vector count stays scoped to the selection instead of pulling in the whole vault (Issue #103).
-- Scrollable context preview in the toolbar's Synthese section: lists every enriched note with its source (`[graph]`/`[vector]`/`[graph+vector]`) and the reason it is included (hop distance and/or similarity), live on selection change (Issue #103).
+- Opt-in setting `includeWikiLinksAsRelations` (default: `false`) under Knowledge Domain & Embedding Provider that makes WikiLink `LINKS_TO` graph relations opt-in (#100, PR #101).
+- Quick toggle in 2D scatter plot toolbar under View to show or hide relation notes without layout reset (#59, PR #99).
+- Per-hop GraphRAG context quotas (`hopLevelNeighborLimit`, default `2`, `0` = unlimited per level) and round-robin assembly across hop levels (#103, PR #105).
+- Live scrollable context preview with compact badges (`v`, `g`, `v+g`, score, hops) and real-time similarity slider in the toolbar Synthesis section (#103, PR #105).
+- Independent GraphRAG hop depth control (1–3 hops) in the toolbar Synthesis section (#89, PR #98).
+- Settings-based context limits for vector neighbors, total context, and guideline caps (#103, PR #105).
+- `ADR-0001`: Architectural decision record on opt-in WikiLink relation extraction (`docs/adr/0001-wikilinks-opt-in-graph-relations.md`).
 
 ### Changed
-- GraphRAG hop depth is now configured only in the toolbar's Synthese section, not in Settings (Issue #103).
-- Removed the hardcoded model-tier context budgets (`maxNeighborsPerSource`, `maxTotalEnriched`, `guidelinesCharBudget` in `src/llm/modelTiers.ts`) - tier detection remains only for synthesis prompt style (Issue #103).
+- GraphRAG neighbor assembly now respects per-hop quotas rather than cutting off deeper hops prematurely (#103).
+- GraphRAG hop depth is now configured in the toolbar Synthesis section, decoupled from visual canvas edge hops (#89, #103).
+- SQLite storage path now resolves from `this.manifest.dir` with automated directory creation before write (PR #97).
+- Canvas node position provider formalized as `NodePositionProvider` interface (#78, PR #94).
+- Model tier routing now includes `deepseek-reasoner` and OpenRouter frontier endpoints (#83, PR #96).
+- Removed hardcoded model-tier context budgets in favor of user-configurable settings (#103).
 
 ### Fixed
-- GraphRAG context enrichment admits neighbors per hop level and assembles them hop-balanced, so raising the hop depth actually pulls in deeper-hop notes even when the immediate neighborhood is dense (Issue #103). Previously the flat per-source limit was filled by hop-1 notes first, silently making `synthesisHopDepth` a no-op.
-- Preserve stored relation direction when editing a canonical type with `reversed: true`, while retaining explicit direction swaps.
-- Resolve the preselected relation type through the vocabulary even without dropdown interaction, including reversed and bidirectional defaults.
-- Check all existing relation files for save conflicts before graph-edge deduplication, including excluded files and duplicate legacy identities.
+- Fixed SQLite database and WASM initialization failing with ENOENT when plugin folder name diverges from manifest ID (PR #97).
+- Fixed dual-identity discrepancy for vector IDs across store boundaries (#81, PR #92).
+- Fixed caller array mutation in `RelationBuilderModal` (#83, PR #96).
+- Fixed canvas listener leaks by registering clean interaction teardown on view close (#83, PR #96).
+- Fixed hardcoded UI strings, error notices, and toolbar labels across the plugin by routing them through the i18n layer (#69, PR #93, PR #106).
+- Fixed lost relation edits and added validation for default types and duplicate filenames (#90).
+- Preserve stored relation direction when editing a canonical type with `reversed: true`, while retaining explicit direction swaps (#90).
+- Resolve preselected relation type through the vocabulary even without dropdown interaction, including reversed and bidirectional defaults (#90).
+- Check all existing relation files for save conflicts before graph-edge deduplication, including excluded files and duplicate legacy identities (#90).
+
+### Documentation
+- Documented `ADR-0001` for opt-in WikiLink relation extraction in `docs/adr/0001-wikilinks-opt-in-graph-relations.md`.
+- Updated `README.md`, `docs/ARCHITECTURE.md`, `docs/CONFIGURATION.md`, and `docs/GRAPHRAG.md`.
 
 ## [0.1.5] - 2026-09-23
 
