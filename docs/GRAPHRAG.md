@@ -39,7 +39,10 @@ independent sources, and adds them to the prompt as background context.
      from the Relation Builder is immediately traversable from either endpoint.
      Neighbors are admitted with a per-hop-level quota (`hopLevelNeighborLimit`
      setting, `0` = unlimited per level), so deeper hops stay represented even when
-     the immediate neighborhood is dense (Issue #103). Vector and total context caps
+     the immediate neighborhood is dense (Issue #103). The graph store query runs
+     unconstrained - no hidden SQL-side caps or slack multipliers - and the explicit
+     per-hop quota is applied transparently to all reachable candidates (Issue #115).
+     Vector and total context caps
      are settings too (`vectorNeighborLimit`, `totalContextLimit`), `0` = unlimited.
 5. Results from both are merged (a note found by both is tagged as such)
    and appended to the prompt as a clearly-labelled "automatically found,
