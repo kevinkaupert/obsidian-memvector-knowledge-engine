@@ -390,7 +390,7 @@ export class RelationBuilderModal extends Modal {
           await store.deleteEdge(oldSrc, oldTgt, initialEdge.relType);
           await store.deleteEdge(oldTgt, oldSrc, initialEdge.relType);
         } catch (err) {
-          console.error("Fehler beim Löschen der SQLite-Kante:", err);
+          console.error("MemVector: Failed to delete SQLite graph edge:", err);
         }
       }
       new Notice(`[OK] ${t.relDeleteSuccess}`);

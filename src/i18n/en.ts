@@ -223,4 +223,15 @@ export const en: TranslationKeys = {
   synthCompletePrefix: "Synthesis for",
   synthCompleteSuffix: "notes completed.",
   llmErrorPrefix: "MemVector LLM error:",
+
+  lblNodeSpacing: "Node spacing",
+  lblCloudSpacing: "Cluster spacing",
+  btnFitView: "Center full view",
+  statusScanningVault: "Scanning vault notes...",
+  statusNotesScanned: "notes successfully scanned in vault.",
+  statusSelectedSuffix: "sel.",
+  statusVectorsCalculating: "Vectors",
+  statusCalcEmbeddings: "Calculating embeddings with",
+  warnNoNotesForVectors: "No notes found in vault to calculate vectors.",
+  modelLabelPrefix: "Model",
 };

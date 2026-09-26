@@ -42,7 +42,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
       consecutiveErrors++;
       if (!firstErrorMsg) firstErrorMsg = error;
       if (consecutiveErrors >= 3 || (points.length === 0 && consecutiveErrors >= 1)) {
-        throw new Error(`Embedding-Fehler (${settings.embeddingModel}): ${firstErrorMsg}`);
+        throw new Error(`Embedding error (${settings.embeddingModel}): ${firstErrorMsg}`);
       }
       continue;
     }

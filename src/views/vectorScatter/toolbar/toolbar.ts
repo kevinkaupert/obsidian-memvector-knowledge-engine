@@ -120,7 +120,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.cloudSpacing = ctx.settings.scatterCloudSpacing || 800;
   }
 
-  createSlider(ansichtBody, "Punkt-Abstand", 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
+  createSlider(ansichtBody, t.lblNodeSpacing, 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
     void (async () => {
       ctx.nodeSpacing = newVal;
       ctx.settings.scatterNodeSpacing = newVal;
@@ -129,7 +129,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       ctx.redraw();
     })();
   });
-  createSlider(ansichtBody, "Wolken-Abstand", 300, 3000, 50, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
+  createSlider(ansichtBody, t.lblCloudSpacing, 300, 3000, 50, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
     void (async () => {
       ctx.cloudSpacing = newVal;
       ctx.settings.scatterCloudSpacing = newVal;
@@ -299,16 +299,16 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   const refreshBtn = createActionBtn(aktionenBody, t.btnScanVault, null);
   refreshBtn.onclick = () => {
     void (async () => {
-      statusText.setText("Scanne Vault Notizen...");
-      setHoverBarText(hoverBar, "Scanne Vault-Notizen...", "muted");
+      statusText.setText(t.statusScanningVault);
+      setHoverBarText(hoverBar, t.statusScanningVault, "muted");
       await ctx.scanVaultNotes();
       statusText.setText(`${ctx.nodes.length}`);
-      setHoverBarText(hoverBar, `${ctx.nodes.length} Notizen erfolgreich im Vault gescannt.`);
+      setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
       ctx.redraw();
     })();
   };
 
-  createActionBtn(aktionenBody, "Ganzansicht zentrieren", () => {
+  createActionBtn(aktionenBody, t.btnFitView, () => {
     ctx.fitToView();
     ctx.redraw();
   });
@@ -341,13 +341,13 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
     setActionBtnEnabled(synthesizeBtn, count > 0);
     synthesizeBtn.setText(`${shortModel} ${t.secSynthesis} (${count})`);
-    synthesizeBtn.title = `Modell: ${rawModel}`;
+    synthesizeBtn.title = `${t.modelLabelPrefix}: ${rawModel}`;
 
     setActionBtnEnabled(createRelBtn, count >= 2);
     createRelBtn.setText(count >= 2 ? `${t.btnCreateRel} (${count})` : `${t.btnCreateRel} (≥2)`);
 
     setActionBtnEnabled(clearSelBtn, count > 0);
-    statusText.setText(`${ctx.nodes.length} | ${count} gew.`);
+    statusText.setText(`${ctx.nodes.length} | ${count} ${t.statusSelectedSuffix}`);
     refreshContextPreview();
     ctx.redraw();
   };
@@ -370,12 +370,12 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   const total = ctx.nodes.length;
   if (total === 0) {
-    setHoverBarText(hoverBar, ctx.settings.language === "en" ? "[WARN] No notes found in vault to calculate vectors." : "[WARN] Keine Notizen im Vault zum Berechnen von Vektoren gefunden.", "warning");
+    setHoverBarText(hoverBar, `[WARN] ${vT.warnNoNotesForVectors}`, "warning");
     return;
   }
 
   setActionBtnEnabled(btn, false);
-  statusText.setText(ctx.settings.language === "en" ? `Vectors 0/${total}...` : `Vektoren 0/${total}...`);
+  statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
 
   let successCount = 0;
   let lastError: string | null = null;
@@ -383,7 +383,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   for (let i = 0; i < total; i++) {
     const node = ctx.nodes[i];
-    setHoverBarText(hoverBar, `[INFO] ${ctx.settings.language === "en" ? "Calculating embeddings with" : "Berechne Embeddings mit"} '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
+    setHoverBarText(hoverBar, `[INFO] ${vT.statusCalcEmbeddings} '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
 
     const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
     const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);

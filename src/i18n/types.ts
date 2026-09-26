@@ -213,6 +213,17 @@ export interface TranslationKeys {
   synthCompletePrefix: string;
   synthCompleteSuffix: string;
   llmErrorPrefix: string;
+
+  lblNodeSpacing: string;
+  lblCloudSpacing: string;
+  btnFitView: string;
+  statusScanningVault: string;
+  statusNotesScanned: string;
+  statusSelectedSuffix: string;
+  statusVectorsCalculating: string;
+  statusCalcEmbeddings: string;
+  warnNoNotesForVectors: string;
+  modelLabelPrefix: string;
 }
 
 export type SupportedLanguage = "de" | "en";
