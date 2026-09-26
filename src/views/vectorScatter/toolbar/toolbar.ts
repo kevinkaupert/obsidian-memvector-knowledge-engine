@@ -6,7 +6,6 @@ import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
-import type { MemVectorSettings } from "../../../settings/types";
 import type { ScatterViewContext } from "../context";
 import { enrichContext } from "../contextEnrichment";
 import { buildPreviewEntries } from "../contextPreview";
@@ -29,12 +28,6 @@ function setHoverBarText(hoverBar: HTMLElement, text: string, status?: "warning"
   if (status) hoverBar.addClass(`is-${status}`);
   hoverBar.setText(text);
 }
-
-const VISUAL_STYLE_OPTIONS: { id: MemVectorSettings["scatterVisualStyle"]; labelKey: keyof TranslationKeys; fallback: string }[] = [
-  { id: "monochrome", labelKey: "styleMonochrome", fallback: "Monochrom" },
-  { id: "muted", labelKey: "styleMuted", fallback: "Gedämpfte Typ-Farben" },
-  { id: "ink", labelKey: "styleInk", fallback: "Tinte & Fokus-Glow" },
-];
 
 const UNLIMITED_HOPS = 999;
 
@@ -100,20 +93,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // ── Ansicht ───────────────────────────────────────────────────────────
   const ansichtBody = createSection(toolbarEl, t.secView, true);
 
-  createDropdown(
-    ansichtBody,
-    t.lblVisualStyle,
-    VISUAL_STYLE_OPTIONS.map((s) => ({ id: s.id, label: t[s.labelKey] || s.fallback })),
-    ctx.settings.scatterVisualStyle || "ink",
-    (newStyle) => {
-      void (async () => {
-        ctx.settings.scatterVisualStyle = newStyle as MemVectorSettings["scatterVisualStyle"];
-        await ctx.saveSettings();
-        ctx.redraw();
-      })();
-    }
-  );
-
   if (!ctx.nodeSpacing || ctx.nodeSpacing < 250) {
     ctx.nodeSpacing = ctx.settings.scatterNodeSpacing || 350;
   }
@@ -139,32 +118,12 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       ctx.redraw();
     })();
   });
-  let edgeHopsRow: HTMLElement | null = null;
-  createToggle(ansichtBody, t.lblShowEdges, ctx.showEdges, (on) => {
-    void (async () => {
-      ctx.showEdges = on;
-      if (edgeHopsRow) edgeHopsRow.hidden = !on;
-      if (on) await ctx.loadRelationEdges();
-      ctx.redraw();
-    })();
-  });
-  const edgeHopsSelect = createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
+  createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
     // 0 ("Alle") is a valid, meaningful value here - `parseInt(val, 10) || 1`
     // would silently coerce it back to 1 since 0 is falsy in JS.
     const parsed = parseInt(val, 10);
     ctx.edgeHops = Number.isNaN(parsed) ? 1 : parsed;
     ctx.redraw();
-  });
-  edgeHopsRow = edgeHopsSelect.parentElement;
-  if (edgeHopsRow) edgeHopsRow.hidden = !ctx.showEdges;
-
-  createToggle(ansichtBody, t.lblShowRelationNotes, ctx.showRelationNotes, (on) => {
-    ctx.setShowRelationNotes(on);
-  });
-
-  createToggle(ansichtBody, t.lblLasso, ctx.lassoSelectMode, (on) => {
-    ctx.lassoSelectMode = on;
-    refs.canvas.toggleClass("is-crosshair", on);
   });
 
   // ── Synthese ──────────────────────────────────────────────────────────
@@ -233,13 +192,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   );
   synthSimRow = synthSimInput.parentElement;
   if (synthSimRow) synthSimRow.hidden = !ctx.settings.enrichSynthesisContext;
-
-  createToggle(syntheseBody, t.synthAgentsToggle, ctx.settings.includeAgentsGuidelines, (on) => {
-    void (async () => {
-      ctx.settings.includeAgentsGuidelines = on;
-      await ctx.saveSettings();
-    })();
-  });
 
   // ── Kontext-Vorschau (Issue #103) ─────────────────────────────────────
   // Shows which notes will be sent as enrichment context and why (hop

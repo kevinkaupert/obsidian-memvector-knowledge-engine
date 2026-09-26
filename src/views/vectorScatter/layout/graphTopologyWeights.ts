@@ -1,12 +1,7 @@
+import type { RelationTermDef } from "../../../relationVocabulary/types";
+import { DEFAULT_RELATION_VOCABULARY } from "../../../relationVocabulary/defaultVocabulary";
 import type { RelationEdge, ScatterNode } from "../types";
 
-/** CONFLICTS_WITH is a direct semantic opposition - actively push those two notes apart rather than just declining to pull them together. */
-const REPEL_TYPES = new Set(["CONFLICTS_WITH"]);
-/** Pulls tighter than a generic typed relation: these mean "these are basically the same idea". */
-const CLOSE_TYPES: Record<string, number> = {
-  EQUIVALENT_TO: 1.3,
-  ANALOGOUS_TO: 1.1,
-};
 const DEFAULT_RELATION_WEIGHT = 1.0;
 const WIKILINK_WEIGHT = 0.7;
 export const BASELINE_WEIGHT = 0.05;
@@ -17,29 +12,32 @@ const HOP_DECAY: Record<number, number> = { 2: 0.45, 3: 0.22, 4: 0.1 };
 export interface GraphTopologyWeights {
   /** n x n attraction weight matrix; BASELINE_WEIGHT for anything unreached within MAX_HOPS. */
   conn: Float64Array[];
-  /** "i-j" (i<j, node array indices) pairs with a direct CONFLICTS_WITH edge - push apart instead of attract. */
+  /** "i-j" (i<j, node array indices) pairs with a direct repelling edge (repels: true in the vocabulary) - push apart instead of attract. */
   repel: Set<string>;
-}
-
-function edgeWeightForType(relType: string): number {
-  const upper = relType.toUpperCase();
-  if (upper === "INDEPENDENT_OF") return BASELINE_WEIGHT;
-  return CLOSE_TYPES[upper] ?? DEFAULT_RELATION_WEIGHT;
 }
 
 /**
  * Purpose: Builds an undirected graph from typed relation edges and, when opted in, WikiLinks, then computes BFS hop-distance attraction and repulsion weights.
- * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001).
+ * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001). Per-label attraction/repulsion comes from the loaded relation vocabulary (weight/repels, ADR-0002) - no hardcoded type maps remain.
  */
 export function computeGraphTopologyWeights(
   nodes: ScatterNode[],
   relationEdges: RelationEdge[],
-  includeWikiLinksAsRelations = false
+  includeWikiLinksAsRelations = false,
+  vocabulary: RelationTermDef[] = DEFAULT_RELATION_VOCABULARY
 ): GraphTopologyWeights {
   const n = nodes.length;
   const idToIndex = new Map(nodes.map((node, i) => [node.id.toLowerCase(), i]));
   const adjacency: Map<number, number>[] = nodes.map(() => new Map<number, number>());
   const repel = new Set<string>();
+
+  const labelIndex = new Map<string, RelationTermDef>();
+  // First definition per label wins - matches the Settings type table, which
+  // also collapses synonym entries to one row per canonical label.
+  for (const def of vocabulary) {
+    const labelKey = def.label.toUpperCase();
+    if (!labelIndex.has(labelKey)) labelIndex.set(labelKey, def);
+  }
 
   const addEdge = (i: number, j: number, weight: number): void => {
     adjacency[i].set(j, Math.max(adjacency[i].get(j) ?? 0, weight));
@@ -62,10 +60,11 @@ export function computeGraphTopologyWeights(
     const i = idToIndex.get(e.srcId.toLowerCase());
     const j = idToIndex.get(e.tgtId.toLowerCase());
     if (i === undefined || j === undefined || i === j) return;
-    if (REPEL_TYPES.has(e.relType)) {
+    const def = labelIndex.get(e.relType.toUpperCase());
+    if (def?.repels) {
       repel.add(`${Math.min(i, j)}-${Math.max(i, j)}`);
     } else {
-      addEdge(i, j, edgeWeightForType(e.relType));
+      addEdge(i, j, def?.weight ?? DEFAULT_RELATION_WEIGHT);
     }
   });
 

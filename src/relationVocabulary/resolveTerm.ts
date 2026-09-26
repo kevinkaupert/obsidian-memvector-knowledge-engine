@@ -11,7 +11,6 @@ export function sanitizeRelType(rel: string): string {
 
 /**
  * Purpose: Looks up definition by stable term key.
- * [WARN] [TODO] Preserved for Issue #43 fine-grained conversational phrase resolution.
  */
 export function resolveRelationTerm(defs: RelationTermDef[], termKey: string): RelationTermDef | null {
   return defs.find((d) => d.key === termKey) ?? null;

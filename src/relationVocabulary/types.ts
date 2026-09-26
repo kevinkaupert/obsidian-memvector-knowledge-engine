@@ -19,6 +19,10 @@ export interface RelationTermDef {
   bidirectional: boolean;
   /** True when the natural reading reverses the UI-selected src->tgt direction (e.g. "follows from": A follows from B means B->A). */
   reversed: boolean;
+  /** 2D layout attraction strength for this label (default 1.0) - read by graphTopologyWeights.ts instead of hardcoded type maps (ADR-0002). */
+  weight?: number;
+  /** When true, this label actively pushes connected notes apart in the 2D layout instead of attracting (default false). */
+  repels?: boolean;
 }
 
 export interface RelationVocabularyFile {

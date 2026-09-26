@@ -32,6 +32,11 @@ independent sources, and adds them to the prompt as background context.
      notes (hop depth is set in the toolbar's Synthese section) — traversing any typed
      relations created with the Relation Builder and (only when the
      `includeWikiLinksAsRelations` setting is enabled, default off) plain WikiLinks.
+     Hop traversal is **bidirectional**: every stored edge is followed in both
+     directions, so a note can be reached through incoming relations as well as
+     outgoing ones (Issue #120). Bidirectional relations are stored as two rows
+     (A→B and B→A), matching the full re-index path, so a relation saved live
+     from the Relation Builder is immediately traversable from either endpoint.
      Neighbors are admitted with a per-hop-level quota (`hopLevelNeighborLimit`
      setting, `0` = unlimited per level), so deeper hops stay represented even when
      the immediate neighborhood is dense (Issue #103). Vector and total context caps

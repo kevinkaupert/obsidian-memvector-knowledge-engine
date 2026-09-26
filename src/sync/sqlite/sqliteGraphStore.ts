@@ -77,6 +77,14 @@ export class SqliteGraphStore implements GraphStore {
     const db = await getLocalDb(this.app);
     const seenNodeIds = new Set<string>();
 
+    const upsertRow = (srcId: string, tgtId: string, relType: string, description: string, bidirectional: number, originalTerm: string) => {
+      db.run(
+        `INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(src, tgt, type) DO UPDATE SET description = excluded.description, bidirectional = excluded.bidirectional, original_term = excluded.original_term, updated_at = excluded.updated_at`,
+        [srcId, tgtId, relType, description, bidirectional, originalTerm, new Date().toISOString()]
+      );
+    };
+
     edges.forEach((e) => {
       [e.src, e.tgt].forEach((node) => {
         if (seenNodeIds.has(node.id)) return;
@@ -84,11 +92,14 @@ export class SqliteGraphStore implements GraphStore {
         upsertNote(db, node);
       });
 
-      db.run(
-        `INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(src, tgt, type) DO UPDATE SET description = excluded.description, bidirectional = excluded.bidirectional, original_term = excluded.original_term, updated_at = excluded.updated_at`,
-        [e.src.id, e.tgt.id, e.relType, e.description || "", e.bidirectional ? 1 : 0, e.originalTerm || e.relType, new Date().toISOString()]
-      );
+      const originalTerm = e.originalTerm || e.relType;
+      const description = e.description || "";
+      upsertRow(e.src.id, e.tgt.id, e.relType, description, e.bidirectional ? 1 : 0, originalTerm);
+      if (e.bidirectional) {
+        // Match syncVaultGraph: bidirectional relations are stored as two rows
+        // so the recursive CTE finds both traversal directions (Issue #120).
+        upsertRow(e.tgt.id, e.src.id, e.relType, description, 1, originalTerm);
+      }
     });
 
     await persistLocalDb(this.app, db);

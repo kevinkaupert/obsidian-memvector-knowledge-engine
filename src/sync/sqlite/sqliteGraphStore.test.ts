@@ -64,6 +64,28 @@ describe("SqliteGraphStore", () => {
     expect(neighbors.length).toBe(1);
   });
 
+  it("adversarial (Issue #120): a bidirectional relation saved live is immediately traversable from both endpoints without a re-index", async () => {
+    const store = new SqliteGraphStore(fakeApp());
+    await store.upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "EQUIVALENT_TO", description: "same concept", bidirectional: true, originalTerm: "äquivalent zu" }]);
+
+    const fromA = await store.fetchNeighbors(["a"], 1, 10);
+    const fromB = await store.fetchNeighbors(["b"], 1, 10);
+
+    expect(fromA.map((n) => n.id)).toEqual(["b"]);
+    expect(fromB.map((n) => n.id)).toEqual(["a"]);
+  });
+
+  it("(Issue #120): a live-saved bidirectional relation stores a reverse row, matching syncVaultGraph", async () => {
+    const store = new SqliteGraphStore(fakeApp());
+    await store.upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "REQUIRES", description: "", bidirectional: true }]);
+
+    // Deleting only the forward row must leave the stored reverse row intact,
+    // exactly like a full re-index would have produced it (vaultGraphSync.ts).
+    await store.deleteEdge("a", "b", "REQUIRES");
+    const fromB = await store.fetchNeighbors(["b"], 1, 10);
+    expect(fromB.map((n) => n.id)).toEqual(["a"]);
+  });
+
   it("deletes an edge so it no longer appears in fetchNeighbors", async () => {
     const store = new SqliteGraphStore(fakeApp());
     await store.upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "REQUIRES", description: "" }]);

@@ -50,10 +50,9 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and note count.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
 3. **Darstellung (Visual & Layout Controls):**
-   - **Farbmodus / Stil:** Selects the visual style (Monochrom / Gedämpfte Typ-Farben / Tinte & Fokus-Glow).
    - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for dynamic node spacing and semantic cluster spacing that adjust the organic force-directed 2D manifold simulation (blending dense BGE-M3 vector similarity and graph topology; see `docs/ARCHITECTURE.md` §2.1).
-   - **Kanten & Radius:** Toggle relationship edge rendering, set **Kanten-Radius** (1/2/3 hops, "Alle", or "Unbegrenzt"), and filter by edge types.
-   - **Lasso-Auswahl (Lasso Select):** Switch cursor to crosshair for freehand loop selection without holding Shift.
+   - **Kanten-Radius:** Relationship edges are always rendered; this dropdown sets the hop radius (1/2/3 hops, "Alle", or "∞" for the whole path).
+   - Visual style, relation-note visibility, and agent guidelines moved to the plugin **Settings** (see `docs/CONFIGURATION.md`).
 4. **Synthese (AI Co-Pilot & GraphRAG):**
    - **Frage / Anweisung:** Custom synthesis prompt field.
    - **Kontext-Anreicherung:** Toggle hybrid GraphRAG context enrichment from vector similarity and graph hops.

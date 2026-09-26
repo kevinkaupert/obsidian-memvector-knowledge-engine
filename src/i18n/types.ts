@@ -49,6 +49,10 @@ export interface TranslationKeys {
   wikiLinksAsRelationsDesc: string;
   agentsPathsName: string;
   agentsPathsDesc: string;
+  agentsIncludeDesc: string;
+  scatterStyleName: string;
+  scatterStyleDesc: string;
+  showRelationNotesDesc: string;
   relVocabPathName: string;
   relVocabPathDesc: string;
   labelOpacityName: string;
@@ -123,6 +127,40 @@ export interface TranslationKeys {
   relLoadingVocabulary: string;
   relCustom: string;
   relCustomPlaceholder: string;
+
+  // Relation Types section (Settings, Issue #119)
+  secRelationTypes: string;
+  relPresetName: string;
+  relPresetDesc: string;
+  relPresetCustomOption: string;
+  relPresetNewBtn: string;
+  relPresetRenameBtn: string;
+  relPresetDeleteBtn: string;
+  relPresetActivated: string;
+  relPresetCreated: string;
+  relPresetRenamed: string;
+  relPresetDeleted: string;
+  relPresetError: string;
+  relPresetNameModalTitle: string;
+  relPresetNameModalOk: string;
+  relPresetNameModalCancel: string;
+  relTypesInPreset: string;
+  relTypeColLabel: string;
+  relTypeColCategory: string;
+  relTypeColWeight: string;
+  relTypeColDirection: string;
+  relTypeColRepels: string;
+  relTypeAddBtn: string;
+  relTypeAddLabelPlaceholder: string;
+  relTypeAddCategoryPlaceholder: string;
+  relTypeAddBidirectional: string;
+  relTypeAddRepels: string;
+  relTypeAdded: string;
+  relTypeDuplicate: string;
+  relTypeRemoved: string;
+  relTypeResetBtn: string;
+  relTypeResetDone: string;
+  relTypeWriteError: string;
 
   llmSystemPrompt: string;
   llmPromptLang: string;

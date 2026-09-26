@@ -7,7 +7,7 @@ import { getTranslation } from "../i18n";
 
 export const DEFAULT_RELATION_VOCABULARY_PATH = "wiki/relation-types.json";
 
-function isValidTerm(v: unknown): v is RelationTermDef {
+export function isValidTerm(v: unknown): v is RelationTermDef {
   if (!v || typeof v !== "object") return false;
   const t = v as Record<string, unknown>;
   return (
