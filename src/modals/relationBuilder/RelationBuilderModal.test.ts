@@ -144,6 +144,26 @@ describe("Relation Builder save integration", () => {
     }
   });
 
+  it("preserves direction and migrates to canonical label when editing an edge stored with a legacy term key (Issue #108)", async () => {
+    const f = fixture(reversed);
+    const path = "wiki/relations/legacy-edge.md";
+    // File was saved with legacy key "relDerivedFrom"
+    f.contents.set(path, buildRelationFileContent({ src: b, tgt: a, label: reversed.key, bidirectional: false, originalTerm: reversed.key }, "Original", getTranslation("en")));
+    const [stored] = await loadRelationFiles(f.app);
+    expect(stored.relType).toBe("RELDERIVEDFROM");
+
+    // Open modal to edit without modifying direction
+    const ui = await f.open([b, a], { ...stored, description: stored.desc });
+    await ui.save();
+
+    const [saved] = await loadRelationFiles(f.app);
+    // Endpoints must not flip
+    expect([saved.srcId, saved.tgtId]).toEqual(["b", "a"]);
+    // Must be migrated to canonical label
+    expect(saved.relType).toBe("DERIVED_FROM");
+    expect(f.store.upsertTypedEdges).toHaveBeenCalledWith([expect.objectContaining({ src: b, tgt: a, relType: "DERIVED_FROM" })]);
+  });
+
   it.each(["first", "second"])("rejects duplicate files before any writes when editing %s", async (edited) => {
     const f = fixture({ ...reversed, reversed: false });
     const content = buildRelationFileContent({ src: a, tgt: b, label: reversed.label, bidirectional: false, originalTerm: reversed.label }, "Original", getTranslation("en"));
