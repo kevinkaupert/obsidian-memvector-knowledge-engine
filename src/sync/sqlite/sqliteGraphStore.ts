@@ -100,10 +100,15 @@ export class SqliteGraphStore implements GraphStore {
     await persistLocalDb(this.app, db);
   }
 
-  async fetchNeighbors(nodeIds: string[], hops: number, limit: number): Promise<GraphNeighbor[]> {
+  async fetchNeighbors(nodeIds: string[], hops: number, limit: number, perHopLimit = 0): Promise<GraphNeighbor[]> {
     if (nodeIds.length === 0) return [];
     const db = await getLocalDb(this.app);
-    const { sql, params } = buildNeighborQuery(nodeIds, Math.max(1, Math.trunc(hops)), Math.max(1, Math.trunc(limit)));
+    const { sql, params } = buildNeighborQuery(
+      nodeIds,
+      Math.max(1, Math.trunc(hops)),
+      limit > 0 ? Math.trunc(limit) : 0,
+      perHopLimit > 0 ? Math.trunc(perHopLimit) : 0
+    );
     return execToRows(db.exec(sql, params)).map((r) => ({
       id: String(r.id),
       title: String(r.title),

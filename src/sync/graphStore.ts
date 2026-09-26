@@ -37,7 +37,7 @@ export interface GraphStore {
   upsertTypedEdges(edges: TypedEdgeInput[]): Promise<void>;
   /** Edge editor's delete action - removes just that one relationship, leaves both nodes. */
   deleteEdge(srcId: string, tgtId: string, relType: string): Promise<void>;
-  /** GraphRAG enrichment - notes within `hops` graph-steps of the given IDs. */
-  fetchNeighbors(nodeIds: string[], hops: number, limit: number): Promise<GraphNeighbor[]>;
+  /** GraphRAG enrichment - notes within `hops` graph-steps of the given IDs, with optional per-hop quota (Issue #103). */
+  fetchNeighbors(nodeIds: string[], hops: number, limit: number, perHopLimit?: number): Promise<GraphNeighbor[]>;
 }
 
