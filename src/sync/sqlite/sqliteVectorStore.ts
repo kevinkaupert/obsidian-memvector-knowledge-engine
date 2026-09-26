@@ -15,6 +15,8 @@ export class SqliteVectorStore implements VectorStore {
     if (points.length === 0) return;
     const db = await getLocalDb(this.app);
     points.forEach((p) => {
+      // Purge any legacy rows stored under a different ID (e.g. raw path vs pathToId hash)
+      db.run("DELETE FROM vectors WHERE path = ? AND id != ?", [p.payload.path, p.id]);
       db.run(
         `INSERT INTO vectors (id, path, title, content, vector) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET path = excluded.path, title = excluded.title, content = excluded.content, vector = excluded.vector`,
