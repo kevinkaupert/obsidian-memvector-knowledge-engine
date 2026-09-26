@@ -918,6 +918,23 @@
   opacity: 0.55;
   padding: 4px 0;
 }
+.memvector-context-preview-group {
+  list-style: none;
+  font-size: 0.72em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.75;
+  padding: 8px 0 2px 0;
+}
+.memvector-context-preview-badge {
+  flex: 0 0 auto;
+  font-size: 0.75em;
+  opacity: 0.85;
+}
+.memvector-badge-seed {
+  color: var(--interactive-accent, #38bdf8);
+}
 
 .memvector-hoverbar-container.is-warning {
   color: var(--text-warning, #f59e0b);
