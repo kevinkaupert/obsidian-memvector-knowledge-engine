@@ -171,6 +171,8 @@ export interface TranslationKeys {
   synthSaving: string;
   synthCloseBtn: string;
   synthDocDesc: string;
+  synthRelHeading: string;
+  synthRelReasonLabel: string;
 
   noticeEmbeddingError: string;
   noticeVectorsCalc: string;

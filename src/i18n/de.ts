@@ -180,6 +180,8 @@ export const de: TranslationKeys = {
   synthSaving: "Speichere...",
   synthCloseBtn: "Schließen",
   synthDocDesc: "Automatisch generierte Wissenssynthese.",
+  synthRelHeading: "Explizite Wissensbeziehungen (Memgraph):",
+  synthRelReasonLabel: "Grund",
 
   // Notices
   noticeEmbeddingError: "Embedding Fehler",
