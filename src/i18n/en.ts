@@ -233,6 +233,8 @@ export const en: TranslationKeys = {
   previewResetBtn: "Reset",
   previewEmpty: "No context notes - select a note or adjust the limits.",
   lblSynthHopDepth: "GraphRAG hop depth",
+  lblHopSingle: "Hop",
+  lblHopPlural: "Hops",
   temperatureAnthropicNote: "(Disabled for Anthropic/Claude - managed by the API provider)",
 
   // Toolbar & Status feedback
@@ -277,4 +279,5 @@ export const en: TranslationKeys = {
   statusCalcEmbeddings: "Calculating embeddings with",
   warnNoNotesForVectors: "No notes found in vault to calculate vectors.",
   modelLabelPrefix: "Model",
+  embedModelLabelPrefix: "Embedding Model",
 };

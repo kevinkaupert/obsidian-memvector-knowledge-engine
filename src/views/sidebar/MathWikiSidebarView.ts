@@ -49,7 +49,8 @@ export class MathWikiSidebarView extends ItemView {
     const renderId = ++this.currentRenderId;
     container.empty();
 
-    container.createEl("h3", { text: "MemVector Co-Pilot", cls: "memvector-sidebar-header" });
+    const t = getTranslation(this.getSettings()?.language || "de");
+    container.createEl("h3", { text: t.sidebarTitle, cls: "memvector-sidebar-header" });
 
     await renderActiveNoteFocus(this.app, container, this.getSettings(), focusFile, () => renderId === this.currentRenderId);
   }

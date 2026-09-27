@@ -66,6 +66,15 @@ describe("isRelationNode (#59)", () => {
     expect(isRelationNode(theoremNode)).toBe(false);
     expect(isRelationNode(definitionNode)).toBe(false);
   });
+
+  it("does not treat notes with wiki/relations prefix without trailing slash as relation notes (#111)", () => {
+    const overviewNode = createMockNode({
+      id: "wiki/relations_overview",
+      path: "wiki/relations_overview.md",
+      type: "concept",
+    });
+    expect(isRelationNode(overviewNode)).toBe(false);
+  });
 });
 
 describe("filterVisibleNodes (#59)", () => {
