@@ -72,7 +72,7 @@ async function fetchVectorNeighbors(
   const minSim = settings.minVectorSimilarity ?? 0;
 
   for (const hit of hits) {
-    if (minSim > 0 && hit.score < minSim) continue;
+    if (!Number.isFinite(hit.score) || (minSim > 0 && hit.score < minSim)) continue;
     const path = hit.payload?.path;
     if (!path || selected.some((s) => s.path === path)) continue;
     // A deleted note's stored vector/content can still be a stale hit here between

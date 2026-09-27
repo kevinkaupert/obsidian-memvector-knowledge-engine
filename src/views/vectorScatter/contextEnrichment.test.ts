@@ -532,6 +532,24 @@ describe("vector similarity threshold (#103)", () => {
     expect(result.map((n) => n.id).sort()).toEqual(["a", "b"]);
   });
 
+  it("ignores hits with non-finite score (NaN or Infinity) (#111)", async () => {
+    const app = makeMockApp(filesFor(["valid", "invalid"]));
+    const settings: MemVectorSettings = {
+      ...DEFAULT_SETTINGS,
+      vectorNeighborLimit: 10,
+      minVectorSimilarity: 0,
+    };
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    vi.mocked(mockVectorStore.search!).mockResolvedValue(hits([
+      { id: "valid", score: 0.8 },
+      { id: "invalid", score: Number.NaN },
+    ]));
+    const selected = [makeScatterNode("selected", "selected.md", [0.1, 0.2, 0.3])];
+
+    const result = await enrichContext(app, settings, selected);
+    expect(result.map((n) => n.id)).toEqual(["valid"]);
+  });
+
   it("passes 0 (unconstrained) to vector store search when vectorNeighborLimit is 0", async () => {
     const app = makeMockApp(new Map());
     const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, vectorNeighborLimit: 0 };

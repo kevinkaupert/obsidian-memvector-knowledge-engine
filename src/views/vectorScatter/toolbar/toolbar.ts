@@ -39,6 +39,12 @@ const EDGE_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] =
   { id: String(UNLIMITED_HOPS), label: t.edgeHopsUnlimited },
 ];
 
+const SYNTH_HOP_OPTIONS = (t: TranslationKeys): { id: string; label: string }[] => [
+  { id: "1", label: `1 ${t.lblHopSingle}` },
+  { id: "2", label: `2 ${t.lblHopPlural}` },
+  { id: "3", label: `3 ${t.lblHopPlural}` },
+];
+
 export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: TranslationKeys): ToolbarHandles {
   const { toolbarEl, hoverBar } = refs;
 
@@ -138,11 +144,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   promptInput.onclick = (e) => e.stopPropagation();
   promptInput.onkeydown = (e) => e.stopPropagation();
 
-  const synthHopOptions = [
-    { id: "1", label: "1 Hop" },
-    { id: "2", label: "2 Hops" },
-    { id: "3", label: "3 Hops" },
-  ];
   let synthHopRow: HTMLElement | null = null;
   let synthSimRow: HTMLElement | null = null;
   let refreshContextPreview = (): void => {};
@@ -160,7 +161,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   const synthHopSelect = createDropdown(
     syntheseBody,
     t.lblSynthHopDepth,
-    synthHopOptions,
+    SYNTH_HOP_OPTIONS(t),
     String(ctx.settings.synthesisHopDepth ?? 2),
     (val) => {
       void (async () => {
@@ -275,7 +276,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   const fullModelName = ctx.settings.modelName || "LLM";
   const synthesizeBtn = createActionBtn(syntheseBody, `${getShortModelName(fullModelName)} ${t.secSynthesis} (0)`, null, true);
-  synthesizeBtn.title = `LLM Model: ${fullModelName}`;
+  synthesizeBtn.title = `${t.modelLabelPrefix}: ${fullModelName}`;
   setActionBtnEnabled(synthesizeBtn, false);
   synthesizeBtn.onclick = () => {
     void ctx.runSynthesis((text) => setHoverBarText(hoverBar, text), promptInput.value, dismissedContextIds);
@@ -303,7 +304,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
   const calcVectorsBtn = createActionBtn(aktionenBody, t.btnCalcVectors, null);
-  calcVectorsBtn.title = `Embedding Model: ${embedModelLabel}`;
+  calcVectorsBtn.title = `${t.embedModelLabelPrefix}: ${embedModelLabel}`;
   calcVectorsBtn.onclick = () => {
     void runCalcVectors(ctx, calcVectorsBtn, statusText, hoverBar);
   };

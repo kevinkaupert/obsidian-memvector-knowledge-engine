@@ -223,6 +223,8 @@ export interface TranslationKeys {
   previewResetBtn: string;
   previewEmpty: string;
   lblSynthHopDepth: string;
+  lblHopSingle: string;
+  lblHopPlural: string;
   temperatureAnthropicNote: string;
 
   // Toolbar & Status feedback
@@ -267,6 +269,7 @@ export interface TranslationKeys {
   statusCalcEmbeddings: string;
   warnNoNotesForVectors: string;
   modelLabelPrefix: string;
+  embedModelLabelPrefix: string;
 }
 
 export type SupportedLanguage = "de" | "en";

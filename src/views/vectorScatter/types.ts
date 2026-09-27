@@ -55,7 +55,8 @@ export function isRelationNode(node: ScatterNode): boolean {
     node.type === "relation" ||
     node.path.includes("wiki/relations/") ||
     node.path.includes("/relations/") ||
-    node.path.startsWith("wiki/relations")
+    node.path.startsWith("wiki/relations/") ||
+    node.path === "wiki/relations"
   );
 }
 
