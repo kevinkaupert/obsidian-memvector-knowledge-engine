@@ -47,8 +47,14 @@ independent sources, and adds them to the prompt as background context.
 5. Results from both are merged (a note found by both is tagged as such)
    and appended to the prompt as a clearly-labelled "automatically found,
    related notes - background context only" section, separate from your
-   actual selection. The LLM is instructed to keep its focus on the notes
-   you selected and use the extra context only as background.
+   actual selection. In addition, explicit typed relation edges (from
+   `wiki/relations/*` / the local graph store) connecting any of the active
+   notes (selected seeds or retrieved neighbors) are included as a dedicated
+   "Knowledge Graph Relations" (`### Explizite Wissensbeziehungen (Memgraph):`)
+   block (Issue #104), giving the model clear structural and logical semantics
+   (e.g. `[[Note A]] --[IMPLIES]--> [[Note B]] (Reason: ...)` or `<--[...]-->`
+   for bidirectional edges). If no explicit edges connect the active notes, the
+   section is cleanly omitted.
 6. Either lookup is skipped silently (not a hard failure) if its precondition isn't met (e.g. no embeddings yet) -
    partial enrichment beats breaking the whole synthesis call.
 

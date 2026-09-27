@@ -8,7 +8,8 @@ import { toSlug } from "../../noteSlug";
 import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
 import { enrichContext, type EnrichedNote } from "./contextEnrichment";
 import { loadAgentsGuidelines } from "./agentsGuidelines";
-import type { ScatterNode } from "./types";
+import { loadRelationEdges } from "./relationEdges";
+import type { RelationEdge, ScatterNode } from "./types";
 
 function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCapChars: number): { block: string; linkLines: string } {
   if (enriched.length === 0) return { block: "", linkLines: "" };
@@ -34,12 +35,71 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCap
 
 import { detectModelTier } from "../../llm/modelTiers";
 
-interface SynthesisNoteContent extends ScatterNode {
+export interface SynthesisNoteContent extends ScatterNode {
   /** Full current note body, freshly re-read from the vault - never the scanner's fixed-size canvas preview (vaultScan.ts caps that at 800 chars for layout/similarity purposes unrelated to synthesis quality). */
   fullContent: string;
 }
 
-function buildPrompt(
+/**
+ * Purpose: Filters explicit relation edges to those connecting active notes, deduplicating bidirectional and redundant pairs.
+ */
+export function findRelevantRelationEdges(
+  edges: RelationEdge[],
+  activeNodeIds: ReadonlySet<string>
+): RelationEdge[] {
+  const result: RelationEdge[] = [];
+  const seen = new Set<string>();
+
+  for (const edge of edges) {
+    const src = edge.srcId.toLowerCase();
+    const tgt = edge.tgtId.toLowerCase();
+    if (src === tgt) continue;
+    if (!activeNodeIds.has(src) || !activeNodeIds.has(tgt)) continue;
+
+    const dedupKey = edge.bidirectional
+      ? `bi:${[src, tgt].sort().join("<->")}:${edge.relType.toUpperCase()}`
+      : `dir:${src}->${tgt}:${edge.relType.toUpperCase()}`;
+
+    if (seen.has(dedupKey)) continue;
+    seen.add(dedupKey);
+    result.push(edge);
+  }
+
+  return result;
+}
+
+/**
+ * Purpose: Formats explicit relation edges connecting active notes as a Markdown block for prompt context.
+ */
+export function buildRelationEdgesSection(
+  edges: RelationEdge[],
+  titleMap: ReadonlyMap<string, string>,
+  lang: string
+): string {
+  if (edges.length === 0) return "";
+
+  const heading =
+    lang === "de"
+      ? "### Explizite Wissensbeziehungen (Memgraph):"
+      : "### Explicit Knowledge Graph Relations (Memgraph):";
+
+  const reasonLabel = lang === "de" ? "Grund" : "Reason";
+
+  const lines = edges.map((e) => {
+    const src = titleMap.get(e.srcId.toLowerCase()) || e.srcId;
+    const tgt = titleMap.get(e.tgtId.toLowerCase()) || e.tgtId;
+    const arrow = e.bidirectional ? `<--[${e.relType}]-->` : `--[${e.relType}]-->`;
+    const desc = e.desc?.trim() ? ` (${reasonLabel}: ${e.desc.trim()})` : "";
+    return `- [[${src}]] ${arrow} [[${tgt}]]${desc}`;
+  });
+
+  return `\n${heading}\n${lines.join("\n")}\n`;
+}
+
+/**
+ * Purpose: Assembles the LLM synthesis prompt with note summaries, enriched neighbors, and explicit knowledge graph relations.
+ */
+export function buildPrompt(
   selected: SynthesisNoteContent[],
   isMath: boolean,
   lang: string,
@@ -47,7 +107,8 @@ function buildPrompt(
   contentCapChars: number,
   customQuestion?: string,
   enriched: EnrichedNote[] = [],
-  isFrontier = false
+  isFrontier = false,
+  relationEdges: RelationEdge[] = []
 ): string {
   const noteLabel = lang === "de" ? "Notiz" : "Note";
   const pathLabel = lang === "de" ? "Pfad" : "Path";
@@ -62,7 +123,17 @@ ${capText(n.fullContent, contentCapChars)}`
     )
     .join("\n\n");
 
+  const titleMap = new Map<string, string>();
+  for (const n of selected) {
+    titleMap.set(n.id.toLowerCase(), n.title);
+  }
+  for (const n of enriched) {
+    titleMap.set(n.id.toLowerCase(), n.title);
+  }
+
   const { block: enrichedBlock } = buildEnrichedSection(enriched, lang, contentCapChars);
+  const relationEdgesBlock = buildRelationEdgesSection(relationEdges, titleMap, lang);
+  const contextBlocks = `${notesSummary}${enrichedBlock}${relationEdgesBlock}`;
   const trimmedQuestion = customQuestion?.trim();
 
   if (trimmedQuestion) {
@@ -70,7 +141,7 @@ ${capText(n.fullContent, contentCapChars)}`
       ? `Du bist ein erfahrener KI-Assistent für Wissenssynthese in Obsidian.
 Analysiere folgende ${selected.length} ausgewählte Notizen aus dem Vault:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Aufgabe: Beantworte präzise auf Deutsch die folgende Frage zu diesen Notizen:
 "${trimmedQuestion}"
@@ -81,7 +152,7 @@ Richtlinien:
       : `You are an expert AI knowledge synthesis assistant for Obsidian.
 Analyze the following ${selected.length} selected notes from the vault:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Task: Answer precisely in English the following question about these notes:
 "${trimmedQuestion}"
@@ -96,7 +167,7 @@ Guidelines:
       ? `Du bist ein mathematischer Tutor für ein Obsidian Knowledge-Wiki.
 Analysiere den Zusammenhang zwischen folgenden ${selected.length} mathematischen Notizen:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Aufgabe: Erstelle eine ${isFrontier ? "tiefgehende, mathematisch präzise" : "fundierte"} mathematische Synthese auf Deutsch:
 1. **Kernzusammenhang & Intuition**: Welcher rote Faden und welche mathematische Idee verbindet diese Notizen?
@@ -110,7 +181,7 @@ Richtlinien:
       : `You are a mathematical tutor for an Obsidian knowledge wiki.
 Analyze the relationship between the following ${selected.length} mathematical notes:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Task: Create a ${isFrontier ? "deep, mathematically rigorous" : "structured"} mathematical synthesis in English:
 1. **Core Intuition & Connection**: What common thread connects these notes?
@@ -127,7 +198,7 @@ Guidelines:
     ? `Du bist ein erfahrener KI-Assistent für Wissenssynthese in Obsidian.
 Analysiere den Zusammenhang zwischen folgenden ${selected.length} Notizen:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Aufgabe: Erstelle eine strukturierte Wissenssynthese auf Deutsch:
 1. **Kernzusammenhang**: Welcher übergeordnete Gedanke verbindet diese Notizen?
@@ -140,7 +211,7 @@ Richtlinien:
     : `You are an expert AI knowledge synthesis assistant for Obsidian.
 Analyze the relationship between the following ${selected.length} notes:
 
-${notesSummary}${enrichedBlock}
+${contextBlocks}
 
 Task: Create a structured knowledge synthesis in English:
 1. **Core Connection**: What overarching idea connects these notes?
@@ -271,9 +342,26 @@ export async function runSynthesis(
     enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);
   }
 
+  const allEdges = await loadRelationEdges(app, settings.vectorSearchExclusions);
+  const activeIds = new Set<string>([
+    ...selected.map((n) => n.id.toLowerCase()),
+    ...enriched.map((n) => n.id.toLowerCase()),
+  ]);
+  const relevantEdges = findRelevantRelationEdges(allEdges, activeIds);
+
   setHoverText(`${modelName} (${tier.toUpperCase()}) ...`);
 
-  let prompt = buildPrompt(selectedWithFullContent, settings.knowledgeDomain === "math", lang, t.llmPromptLang, contentCapChars, customQuestion, enriched, isFrontier);
+  let prompt = buildPrompt(
+    selectedWithFullContent,
+    settings.knowledgeDomain === "math",
+    lang,
+    t.llmPromptLang,
+    contentCapChars,
+    customQuestion,
+    enriched,
+    isFrontier,
+    relevantEdges
+  );
 
   if (settings.includeAgentsGuidelines) {
     const guidelines = await loadAgentsGuidelines(app, settings, settings.agentsGuidelinesCharCap ?? 0);
