@@ -5,6 +5,7 @@ import type { PanState } from "../hitTesting";
 import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
 import { drawNodes } from "./drawNodes";
+import type { LabelRect } from "./labelPlacement";
 
 export interface DrawState {
   nodes: ScatterNode[];
@@ -71,7 +72,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
 
   const nodeMap = buildNodeMap(state.nodes);
 
-  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle);
+  const occupiedLabels: LabelRect[] = [];
+  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle, occupiedLabels);
 
   if (state.showEdges && state.relationEdges.length > 0) {
     drawEdges(
@@ -104,7 +106,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     themeAccent,
     state.scatterVisualStyle,
     relationTallies,
-    state.unselectedLabelOpacity
+    state.unselectedLabelOpacity,
+    occupiedLabels
   );
 
   if (state.isDraggingLasso) {

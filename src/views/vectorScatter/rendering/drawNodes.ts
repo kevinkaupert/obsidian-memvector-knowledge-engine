@@ -3,6 +3,8 @@ import type { RelationTally } from "../relatedNodes";
 import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
+import type { LabelRect } from "./labelPlacement";
+import { tryPlaceLabel } from "./labelPlacement";
 
 const TYPE_COLORS_MUTED: Record<string, string> = {
   definition: "#6f93c9",
@@ -55,7 +57,8 @@ export function drawNodes(
   themeAccent: string,
   style: ScatterVisualStyle,
   relationTallies: Map<string, RelationTally> = new Map(),
-  unselectedLabelOpacity = 1
+  unselectedLabelOpacity = 1,
+  occupiedLabels: LabelRect[] = []
 ): void {
   const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
 
@@ -106,12 +109,23 @@ export function drawNodes(
       const fontH = Math.max(9, Math.min(13, 10 * zoom));
       const isDimmed = hasFocus && !isActive && !tally;
       ctx.save();
-      ctx.globalAlpha = isDimmed ? unselectedLabelOpacity : 1;
       ctx.font = `${fontH}px sans-serif`;
-      ctx.fillStyle = isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "top";
-      ctx.fillText(titleText, pos.x, pos.y + Math.max(8, 12 * zoom + 1));
+      const labelTop = pos.y + Math.max(8, 12 * zoom + 1);
+      const width = ctx.measureText(titleText).width;
+      // Active/hovered/tallied nodes always keep their label (that's the point of focusing
+      // them); everyone else loses theirs when it would overlap a label already placed.
+      const placed = tryPlaceLabel(
+        occupiedLabels,
+        { x1: pos.x - width / 2 - 2, x2: pos.x + width / 2 + 2, y1: labelTop - 1, y2: labelTop + fontH + 1 },
+        isActive || !!tally
+      );
+      if (placed) {
+        ctx.globalAlpha = isDimmed ? unselectedLabelOpacity : 1;
+        ctx.fillStyle = isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(titleText, pos.x, labelTop);
+      }
       ctx.restore();
     }
   });

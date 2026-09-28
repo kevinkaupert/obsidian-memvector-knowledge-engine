@@ -664,7 +664,6 @@
   width: 280px;
   border-radius: 12px;
   background: var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)));
-  backdrop-filter: blur(20px);
   border: 1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)));
   box-shadow: 0 8px 24px var(--background-modifier-box-shadow, rgba(0,0,0,0.3));
   overflow: hidden;
