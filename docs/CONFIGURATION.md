@@ -19,7 +19,7 @@ The settings menu is organized into 3 focused sections:
 - **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).
-- **Show Relation Notes (`showRelationNotes`):** Render relation notes (`wiki/relations/`) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots.
+- **Show Relation Notes (`showRelationNotes`):** Render relation notes (`wiki/relations/`) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots. Takes effect immediately in an open 2D view.
 - **2D Canvas Visual Style (`scatterVisualStyle`):** `Monochrome` / `Muted Type Colors` / `Ink & Focus Glow` (default `ink`). Moved from the floating toolbar into Settings.
 - **Include Agent Guidelines (`includeAgentsGuidelines`):** Include the vault's own `AGENTS.md` (or the configured guideline files) as house-style guidance in the synthesis prompt (default off). Moved from the floating toolbar into Settings.
 - **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is enabled (default `AGENTS.md`).
@@ -105,13 +105,17 @@ You can edit this file at any time to customize the vocabulary for any domain (m
 - `weight` (optional, default `1.0`): 2D layout attraction strength for this label - vocabulary-driven instead of hardcoded type maps (ADR-0002). The bundled STEM default encodes `EQUIVALENT_TO: 1.3`, `ANALOGOUS_TO: 1.1`, `INDEPENDENT_OF: 0.05`.
 - `repels` (optional, default `false`): when true, the 2D layout actively pushes connected notes apart (e.g. `CONFLICTS_WITH`).
 
+Both fields are optional because they fall back to the bundled semantics for their canonical label. A vocabulary file written before these fields existed therefore keeps its layout behavior, and so does an edge whose label is missing from the preset you switched to. Setting a field explicitly always wins - including `repels: false`, which deliberately neutralizes a bundled repulsion. A label the plugin does not ship (your own custom type) has no bundled fallback and uses the generic `1.0`.
+
 The preselected type uses the same vocabulary resolution as an explicitly selected type, including `bidirectional` and `reversed`. Save conflict checks inspect every relation file, including duplicate identities and files excluded from the graph view; a duplicate target blocks saving before any file or graph writes.
 
 ### Relation type presets & manager (Settings → Relation Types)
 
 - **Presets** are named vocabulary files in `wiki/presets/` (e.g. `stem.json`, `law.json`). The active preset is simply the file `settings.relationVocabularyPath` points to. Bundled presets ship in-memory (STEM default, plus Law, Medicine, and Philosophy stubs) and are written to `wiki/presets/` on first activation. Switching presets reloads the vocabulary in memory - no re-embedding or re-indexing is required because edge labels are stored as strings in SQLite.
 - **Free-text custom types:** when you save a relation with a free-text type in the Relation Builder, the type is automatically appended to the active vocabulary file under the `"Custom"` category (default weight `1.0`) and appears in the dropdown on the next open - no manual JSON editing.
-- The **Settings Relation Type Manager** shows the active preset selector (with create/rename/delete for user presets), a type table with add/delete controls (label, category, weight, bidirectional, repels), and a "Reset to STEM default" action. All mutations rewrite the vault-owned preset file.
+- The **Settings Relation Type Manager** shows the active preset selector (with create/rename/delete for user presets), a type table (label, category, weight, direction, repels) and a "Reset to STEM default" action. All mutations rewrite the vault-owned preset file.
+- **Weight and repels are edited in place** in the table - change the number or tick the checkbox and it is written immediately. A weight of exactly `1.0` and an unticked `repels` are stored as omitted fields, keeping the JSON readable. Deleting and re-adding a type is not needed and would lose its category, wording and `reversed` flag.
+- Every change here (add, delete, weight/repels edit, reset, preset switch) re-runs the force layout in an open 2D view straight away, since per-label weights move nodes.
 
 ---
 

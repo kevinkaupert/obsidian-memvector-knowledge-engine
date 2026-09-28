@@ -12,6 +12,7 @@ import {
   writeVocabularyFile,
   type RelationPreset,
 } from "../../relationVocabulary/presets";
+import { applyLayoutEdit } from "../../relationVocabulary/layoutDefaults";
 import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
@@ -106,6 +107,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
           if (value === "__custom__") return;
           try {
             await activatePreset(app, host, value);
+            host.applySettingsToOpenViews?.({ relayout: true });
             new Notice(`[OK] ${t.relPresetActivated}`);
             rerender();
           } catch (err) {
@@ -179,12 +181,13 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     const typesDetails = sectionEl.createEl("details", { cls: "memvector-types-details" });
     typesDetails.createEl("summary", { text: t.relTypesInPreset });
     const typesEl = typesDetails.createDiv({ cls: "memvector-types-details-body" });
-    renderTypeTable(typesEl, terms, activePath, app, t, rerender);
+    renderTypeTable(typesEl, terms, activePath, app, host, t, rerender);
 
     const resetBtn = typesEl.createEl("button", { text: t.relTypeResetBtn });
     resetBtn.onclick = async () => {
       try {
         await writeVocabularyFile(app, activePath, DEFAULT_RELATION_VOCABULARY);
+        host.applySettingsToOpenViews?.({ relayout: true });
         new Notice(`[OK] ${t.relTypeResetDone}`);
         rerender();
       } catch (err) {
@@ -196,7 +199,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
   });
 }
 
-function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePath: string, app: App, t: TranslationKeys, rerender: () => void): void {
+function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePath: string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const table = parent.createEl("table", { cls: "memvector-relation-type-table" });
   const head = table.createEl("thead").createEl("tr");
   for (const col of [t.relTypeColLabel, t.relTypeColCategory, t.relTypeColWeight, t.relTypeColDirection, t.relTypeColRepels, ""]) {
@@ -204,9 +207,8 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
   }
 
   const tbody = table.createEl("tbody");
-  // The vocabulary stores one entry per synonym phrase, but weight/repels apply
-  // per canonical label - group by label so each label appears exactly once in
-  // the table (e.g. "implies"/"proves" both collapse into IMPLIES).
+  // A vocabulary may hold several synonym entries per canonical label, but weight/repels
+  // apply per label - group by label so each appears exactly once in the table.
   const byLabel = new Map<string, RelationTermDef>();
   for (const term of terms) {
     const labelKey = term.label.toUpperCase();
@@ -218,6 +220,7 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
     const remaining = terms.filter((term) => term.label.toUpperCase() !== label.toUpperCase());
     try {
       await writeVocabularyFile(app, activePath, remaining);
+      host.applySettingsToOpenViews?.({ relayout: true });
       new Notice(`[OK] ${t.relTypeRemoved}`);
       rerender();
     } catch (err) {
@@ -225,15 +228,59 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
     }
   };
 
+  /**
+   * Writes one label's layout semantics back to the vocabulary file, applied to every
+   * synonym entry of that label so the grouped table row stays the single truth.
+   * Layout semantics have to be editable in place: deleting and re-adding a type to
+   * change its weight would lose its category, wording and reversed flag.
+   */
+  const updateLayout = async (label: string, weight: number, repels: boolean): Promise<void> => {
+    const next = terms.map((term) =>
+      term.label.toUpperCase() === label.toUpperCase() ? applyLayoutEdit(term, weight, repels) : term
+    );
+    try {
+      await writeVocabularyFile(app, activePath, next);
+      host.applySettingsToOpenViews?.({ relayout: true });
+    } catch (err) {
+      new Notice(`[ERROR] ${t.relTypeWriteError} (${err instanceof Error ? err.message : String(err)})`);
+      rerender();
+    }
+  };
+
   for (const term of uniqueTerms) {
     const row = tbody.createEl("tr");
     row.createEl("td", { text: term.label }).addClass("memvector-relation-type-label");
     row.createEl("td", { text: term.category });
-    row.createEl("td", { text: String(term.weight ?? 1.0) });
+
+    const weightCell = row.createEl("td");
+    const weightField = weightCell.createEl("input", { type: "number" });
+    weightField.addClass("memvector-type-weight-input");
+    weightField.step = "0.05";
+    weightField.min = "0";
+    weightField.value = String(term.weight ?? 1.0);
+    weightField.title = t.relTypeColWeight;
+    weightField.onchange = () => {
+      const parsed = Number.parseFloat(weightField.value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        new Notice(`[WARN] ${t.relTypeWeightInvalid}`);
+        weightField.value = String(term.weight ?? 1.0);
+        return;
+      }
+      void updateLayout(term.label, parsed, repelsField.checked);
+    };
+
     row.createEl("td", { text: term.bidirectional ? "↔" : "→" });
-    row.createEl("td", { text: term.repels ? "✓" : "" });
+
+    const repelsCell = row.createEl("td");
+    const repelsField = repelsCell.createEl("input", { type: "checkbox" });
+    repelsField.checked = Boolean(term.repels);
+    repelsField.title = t.relTypeColRepels;
+    repelsField.onchange = () => void updateLayout(term.label, Number.parseFloat(weightField.value), repelsField.checked);
+
     const delCell = row.createEl("td");
     const delBtn = delCell.createEl("button", { text: "✕" });
+    delBtn.title = t.relTypeRemoveTitle;
+    delBtn.setAttribute("aria-label", t.relTypeRemoveTitle);
     delBtn.onclick = () => void removeType(term.label);
   }
 
@@ -261,6 +308,10 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
       return;
     }
     const weight = Number.parseFloat(weightInput.value);
+    if (weightInput.value.trim() !== "" && (!Number.isFinite(weight) || weight < 0)) {
+      new Notice(`[WARN] ${t.relTypeWeightInvalid}`);
+      return;
+    }
     const term: RelationTermDef = {
       key: `custom${label}`,
       label,
@@ -275,6 +326,7 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
 
     try {
       await writeVocabularyFile(app, activePath, [...terms, term]);
+      host.applySettingsToOpenViews?.({ relayout: true });
       new Notice(`[OK] ${t.relTypeAdded}`);
       rerender();
     } catch (err) {

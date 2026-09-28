@@ -3,8 +3,7 @@ import type { RelationTally } from "../relatedNodes";
 import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
-import type { LabelRect } from "./labelPlacement";
-import { tryPlaceLabel } from "./labelPlacement";
+import { createLabelPlacer, type LabelPlacer } from "./labelPlacement";
 
 const TYPE_COLORS_MUTED: Record<string, string> = {
   definition: "#6f93c9",
@@ -19,7 +18,7 @@ const TYPE_COLORS_MUTED: Record<string, string> = {
 
 const NEUTRAL_DOT = "#8a8f97";
 const NEUTRAL_RING = "rgba(148, 163, 184, 0.6)";
-/** WikiLink-relation color in the "ink" style - deliberately warm, so it reads as distinct from the (usually cool-toned) --interactive-accent used for Memgraph relations and the active selection. */
+/** WikiLink-relation color in the "ink" style - deliberately warm, so it reads as distinct from the (usually cool-toned) --interactive-accent used for typed relations and the active selection. */
 const WIKILINK_COLOR = "#d9a44a";
 
 function drawHalo(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string | CanvasGradient): void {
@@ -32,12 +31,12 @@ function drawHalo(ctx: CanvasRenderingContext2D, x: number, y: number, radius: n
   ctx.restore();
 }
 
-/** Splits the ring/halo left-to-right in proportion to how many of the connections to this note are WikiLinks (gold) vs. Memgraph edges (accent) - e.g. 2 WikiLinks + 1 Memgraph edge reads as 2/3 gold, 1/3 accent, not a flat 50/50 blend. */
+/** Splits the ring/halo left-to-right in proportion to how many of the connections to this note are WikiLinks (gold) vs. typed relation edges (accent) - e.g. 2 WikiLinks + 1 typed edge reads as 2/3 gold, 1/3 accent, not a flat 50/50 blend. */
 function relationColor(ctx: CanvasRenderingContext2D, tally: RelationTally, x: number, y: number, radius: number, accent: string): string | CanvasGradient {
-  if (tally.memgraph === 0) return WIKILINK_COLOR;
+  if (tally.typed === 0) return WIKILINK_COLOR;
   if (tally.wikilink === 0) return accent;
 
-  const goldShare = tally.wikilink / (tally.wikilink + tally.memgraph);
+  const goldShare = tally.wikilink / (tally.wikilink + tally.typed);
   const feather = 0.04;
   const grad = ctx.createLinearGradient(x - radius, y, x + radius, y);
   grad.addColorStop(Math.max(0, goldShare - feather), WIKILINK_COLOR);
@@ -58,9 +57,27 @@ export function drawNodes(
   style: ScatterVisualStyle,
   relationTallies: Map<string, RelationTally> = new Map(),
   unselectedLabelOpacity = 1,
-  occupiedLabels: LabelRect[] = []
+  labels: LabelPlacer = createLabelPlacer()
 ): void {
   const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
+
+  /**
+   * Labels are collected during the dot pass and placed afterwards in two priority rounds.
+   * Placing them inline would let an arbitrary unselected node reserve space first and force
+   * the selected/hovered label - the one the user is actually looking at - to draw on top of
+   * it, which is the overlap that matters most.
+   */
+  interface LabelCandidate {
+    text: string;
+    x: number;
+    top: number;
+    fontH: number;
+    rect: { x1: number; y1: number; x2: number; y2: number };
+    priority: boolean;
+    color: string;
+    alpha: number;
+  }
+  const candidates: LabelCandidate[] = [];
 
   nodes.forEach((node) => {
     const pos = worldToScreen(node.x, node.y, zoom, pan);
@@ -112,21 +129,34 @@ export function drawNodes(
       ctx.font = `${fontH}px sans-serif`;
       const labelTop = pos.y + Math.max(8, 12 * zoom + 1);
       const width = ctx.measureText(titleText).width;
-      // Active/hovered/tallied nodes always keep their label (that's the point of focusing
-      // them); everyone else loses theirs when it would overlap a label already placed.
-      const placed = tryPlaceLabel(
-        occupiedLabels,
-        { x1: pos.x - width / 2 - 2, x2: pos.x + width / 2 + 2, y1: labelTop - 1, y2: labelTop + fontH + 1 },
-        isActive || !!tally
-      );
-      if (placed) {
-        ctx.globalAlpha = isDimmed ? unselectedLabelOpacity : 1;
-        ctx.fillStyle = isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillText(titleText, pos.x, labelTop);
-      }
       ctx.restore();
+      candidates.push({
+        text: titleText,
+        x: pos.x,
+        top: labelTop,
+        fontH,
+        rect: { x1: pos.x - width / 2 - 2, x2: pos.x + width / 2 + 2, y1: labelTop - 1, y2: labelTop + fontH + 1 },
+        priority: isActive || !!tally,
+        color: isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted,
+        alpha: isDimmed ? unselectedLabelOpacity : 1,
+      });
     }
   });
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  // Round 1: labels that must stay readable reserve their space (forced, so they always draw).
+  // Round 2: the rest yields to anything already reserved.
+  for (const round of [true, false]) {
+    for (const c of candidates) {
+      if (c.priority !== round) continue;
+      if (!labels.tryPlace(c.rect, c.priority)) continue;
+      ctx.globalAlpha = c.alpha;
+      ctx.font = `${c.fontH}px sans-serif`;
+      ctx.fillStyle = c.color;
+      ctx.fillText(c.text, c.x, c.top);
+    }
+  }
+  ctx.restore();
 }

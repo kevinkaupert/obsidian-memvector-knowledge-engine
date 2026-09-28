@@ -106,4 +106,12 @@ export interface RelationGraphNode {
 export interface SettingsHost {
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
+  /**
+   * Pushes settings that an already-open view holds as local state back into that
+   * view and redraws it. Needed for everything that moved out of the 2D toolbar
+   * into Settings (visual style, relation-note visibility): the toolbar controls
+   * used to redraw directly, while saveSettings() only persists, so without this
+   * the change would only appear after closing and reopening the view.
+   */
+  applySettingsToOpenViews?(options?: { relayout?: boolean }): void;
 }

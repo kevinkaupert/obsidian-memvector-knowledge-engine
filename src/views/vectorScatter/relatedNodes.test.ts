@@ -14,27 +14,27 @@ describe("computeRelationTally", () => {
   const a = node("a", ["b", "g", "g"]); // a links out to b (wikilink-only), and to g twice (still one vote - dedup within a single note's own link list is not the point; direction is)
   const b = node("b");
   const c = node("c", ["a"]); // c links out to a (backlink for a) -> mutual with a below would double up
-  const d = node("d"); // only connected to a via a Memgraph relation -> pure "memgraph"
-  const g = node("g", ["a"]); // links to a AND a links to g (mutual) AND a Memgraph edge -> 2 wikilink votes + 1 memgraph vote
+  const d = node("d"); // only connected to a via a typed-relation relation -> pure "typed"
+  const g = node("g", ["a"]); // links to a AND a links to g (mutual) AND a typed-relation edge -> 2 wikilink votes + 1 typed vote
   const e = node("e"); // unrelated
   const nodes = [a, b, c, d, g, e];
   const edges = [edge("a", "d"), edge("a", "g")];
 
-  it("tags a WikiLink-only relation with a wikilink vote and no memgraph vote", () => {
-    expect(computeRelationTally(nodes, edges, a).get("b")).toEqual({ wikilink: 1, memgraph: 0 });
+  it("tags a WikiLink-only relation with a wikilink vote and no typed vote", () => {
+    expect(computeRelationTally(nodes, edges, a).get("b")).toEqual({ wikilink: 1, typed: 0 });
   });
 
   it("counts a backlink as a wikilink vote too", () => {
-    expect(computeRelationTally(nodes, edges, a).get("c")).toEqual({ wikilink: 1, memgraph: 0 });
+    expect(computeRelationTally(nodes, edges, a).get("c")).toEqual({ wikilink: 1, typed: 0 });
   });
 
-  it("tags a Memgraph-only relation with a memgraph vote and no wikilink vote", () => {
-    expect(computeRelationTally(nodes, edges, a).get("d")).toEqual({ wikilink: 0, memgraph: 1 });
-    expect(computeRelationTally(nodes, edges, d).get("a")).toEqual({ wikilink: 0, memgraph: 1 });
+  it("tags a typed-relation-only relation with a typed vote and no wikilink vote", () => {
+    expect(computeRelationTally(nodes, edges, a).get("d")).toEqual({ wikilink: 0, typed: 1 });
+    expect(computeRelationTally(nodes, edges, d).get("a")).toEqual({ wikilink: 0, typed: 1 });
   });
 
-  it("sums a mutual WikiLink (2 votes) plus a Memgraph edge (1 vote)", () => {
-    expect(computeRelationTally(nodes, edges, a).get("g")).toEqual({ wikilink: 2, memgraph: 1 });
+  it("sums a mutual WikiLink (2 votes) plus a typed-relation edge (1 vote)", () => {
+    expect(computeRelationTally(nodes, edges, a).get("g")).toEqual({ wikilink: 2, typed: 1 });
   });
 
   it("does not include unrelated notes", () => {
@@ -48,11 +48,11 @@ describe("computeFocusRelationTallies", () => {
   const nodes = [a, b];
 
   it("uses the selection when present", () => {
-    expect(computeFocusRelationTallies(nodes, [], new Set(["a"]), null).get("b")).toEqual({ wikilink: 1, memgraph: 0 });
+    expect(computeFocusRelationTallies(nodes, [], new Set(["a"]), null).get("b")).toEqual({ wikilink: 1, typed: 0 });
   });
 
   it("falls back to the hovered node when nothing is selected", () => {
-    expect(computeFocusRelationTallies(nodes, [], new Set(), a).get("b")).toEqual({ wikilink: 1, memgraph: 0 });
+    expect(computeFocusRelationTallies(nodes, [], new Set(), a).get("b")).toEqual({ wikilink: 1, typed: 0 });
   });
 
   it("returns an empty map when there is no selection or hover", () => {
@@ -66,6 +66,6 @@ describe("computeFocusRelationTallies", () => {
     const multi = [x, y, z];
     const edges = [edge("y", "z")];
     const merged = computeFocusRelationTallies(multi, edges, new Set(["x", "y"]), null);
-    expect(merged.get("z")).toEqual({ wikilink: 1, memgraph: 1 });
+    expect(merged.get("z")).toEqual({ wikilink: 1, typed: 1 });
   });
 });

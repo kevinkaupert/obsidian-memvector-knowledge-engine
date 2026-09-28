@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EnrichedNote } from "./contextEnrichment";
-import { buildPreviewEntries, withoutDismissed } from "./contextPreview";
+import { buildPreviewEntries } from "./contextPreview";
 
 function note(partial: Partial<EnrichedNote>): EnrichedNote {
   return {
@@ -74,30 +74,23 @@ describe("buildPreviewEntries seed section (Issue #117)", () => {
   });
 });
 
-describe("withoutDismissed (Issue #116)", () => {
-  const sections = buildPreviewEntries(
-    [
-      note({ id: "n1", title: "Theorem", sources: ["graph"], hops: 1 }),
-      note({ id: "n2", title: "Axiom", sources: ["vector"], similarity: 0.9 }),
-    ],
-    [{ id: "s1", title: "Concept" }]
-  );
-
-  it("removes dismissed traversed notes and recomputes the total", () => {
-    const filtered = withoutDismissed(sections, new Set(["n1"]));
-    expect(filtered.traversed.map((e) => e.id)).toEqual(["n2"]);
-    expect(filtered.total).toBe(2);
+describe("dismissed notes and hop labels", () => {
+  it("shapes only what enrichContext returned, so a dismissed note cannot reappear (Issue #116)", () => {
+    // enrichContext applies excludeIds itself; the preview must not re-derive the
+    // list from anywhere else, or preview and synthesis payload could drift apart.
+    const enrichedWithoutDismissed = [note({ id: "n2", title: "Axiom", sources: ["vector"], similarity: 0.9 })];
+    const { traversed, total } = buildPreviewEntries(enrichedWithoutDismissed, [{ id: "s1", title: "Concept" }]);
+    expect(traversed.map((e) => e.id)).toEqual(["n2"]);
+    expect(total).toBe(2);
   });
 
-  it("never filters seed notes, even when their id is dismissed", () => {
-    const filtered = withoutDismissed(sections, new Set(["s1"]));
-    expect(filtered.seeds.map((e) => e.id)).toEqual(["s1"]);
-    expect(filtered.total).toBe(3);
-  });
-
-  it("returns an empty traversed group when everything is dismissed", () => {
-    const filtered = withoutDismissed(sections, new Set(["n1", "n2"]));
-    expect(filtered.traversed).toEqual([]);
-    expect(filtered.total).toBe(1);
+  it("uses the injected hop wording instead of a hardcoded label", () => {
+    const { traversed } = buildPreviewEntries(
+      [note({ id: "n1", title: "Theorem", sources: ["graph"], hops: 1 }), note({ id: "n2", title: "Lemma", sources: ["graph"], hops: 2 })],
+      [],
+      { single: "Sprung", plural: "Spruenge" }
+    );
+    expect(traversed[0].reason).toBe("1 Sprung");
+    expect(traversed[1].reason).toBe("2 Spruenge");
   });
 });

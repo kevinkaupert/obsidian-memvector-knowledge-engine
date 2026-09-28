@@ -118,6 +118,20 @@ export default class MemVectorPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /**
+   * Purpose: Re-applies settings that the 2D view mirrors as local state and redraws every open instance.
+   * Architecture: Visual style, relation-note visibility and friends were toolbar controls until 0.1.7
+   * and redrew the canvas themselves. After the move into Settings, saveSettings() alone would leave an
+   * open view stale until it is reopened, so the settings tab calls this right after persisting.
+   */
+  applySettingsToOpenViews(options?: { relayout?: boolean }): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof VectorScatterView) view.applyExternalSettingsChange(options);
+    }
+    this.triggerSidebarRender();
+  }
+
   onunload(): void {
     if (this.sidebarDebounceTimer !== null) {
       window.clearTimeout(this.sidebarDebounceTimer);

@@ -51,6 +51,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
         .onChange(async (value) => {
           settings.unselectedLabelOpacity = value / 100;
           await host.saveSettings();
+          host.applySettingsToOpenViews?.();
         })
     );
 
@@ -78,6 +79,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
       toggle.setValue(settings.showRelationNotes ?? false).onChange(async (value) => {
         settings.showRelationNotes = value;
         await host.saveSettings();
+        host.applySettingsToOpenViews?.();
       })
     );
 
@@ -93,6 +95,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
         .onChange(async (value) => {
           settings.scatterVisualStyle = value as ScatterVisualStyle;
           await host.saveSettings();
+          host.applySettingsToOpenViews?.();
         })
     );
 

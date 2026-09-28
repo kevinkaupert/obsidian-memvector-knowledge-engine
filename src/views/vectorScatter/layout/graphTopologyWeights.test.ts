@@ -149,4 +149,41 @@ describe("computeGraphTopologyWeights", () => {
       expect(repel.has("0-1")).toBe(false);
     });
   });
+
+  describe("bundled layout fallback for labels missing from the active vocabulary", () => {
+    /** A single-label preset from another domain - a user who switched away from STEM. */
+    const lawOnly = [
+      { key: "lawRegulates", label: "REGULATES", term: "regulates", category: "Legislation", bidirectional: false, reversed: false },
+    ];
+
+    it("keeps CONFLICTS_WITH repelling after a preset switch drops the label", () => {
+      const nodes = [node("a"), node("b")];
+      const { conn, repel } = computeGraphTopologyWeights(nodes, [edge("a", "b", "CONFLICTS_WITH")], false, lawOnly);
+      expect(repel.has("0-1")).toBe(true);
+      expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+    });
+
+    it("keeps INDEPENDENT_OF at the neutral baseline instead of a full pull (Issue #68)", () => {
+      const nodes = [node("a"), node("b")];
+      const { conn } = computeGraphTopologyWeights(nodes, [edge("a", "b", "INDEPENDENT_OF")], false, lawOnly);
+      expect(conn[0][1]).toBe(0.05);
+    });
+
+    it("keeps EQUIVALENT_TO's close pull after a preset switch drops the label", () => {
+      const nodes = [node("a"), node("b")];
+      const { conn } = computeGraphTopologyWeights(nodes, [edge("a", "b", "EQUIVALENT_TO")], false, lawOnly);
+      expect(conn[0][1]).toBe(1.3);
+    });
+
+    it("still lets the active vocabulary override a bundled label it does define", () => {
+      const nodes = [node("a"), node("b")];
+      const redefined = [
+        ...lawOnly,
+        { key: "k", label: "CONFLICTS_WITH", term: "conflicts with", category: "Legal", bidirectional: true, reversed: false, weight: 0.9 },
+      ];
+      const { conn, repel } = computeGraphTopologyWeights(nodes, [edge("a", "b", "CONFLICTS_WITH")], false, redefined);
+      expect(repel.has("0-1")).toBe(false);
+      expect(conn[0][1]).toBe(0.9);
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { DEFAULT_RELATION_VOCABULARY } from "../../../relationVocabulary/defaultVocabulary";
+import { bundledLayoutForLabel } from "../../../relationVocabulary/layoutDefaults";
 import type { RelationEdge, ScatterNode } from "../types";
 
 const DEFAULT_RELATION_WEIGHT = 1.0;
@@ -18,7 +19,7 @@ export interface GraphTopologyWeights {
 
 /**
  * Purpose: Builds an undirected graph from typed relation edges and, when opted in, WikiLinks, then computes BFS hop-distance attraction and repulsion weights.
- * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001). Per-label attraction/repulsion comes from the loaded relation vocabulary (weight/repels, ADR-0002) - no hardcoded type maps remain.
+ * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001). Per-label attraction/repulsion comes from the loaded relation vocabulary (weight/repels, ADR-0002) - no hardcoded type maps remain. Labels the active vocabulary does not define fall back to the bundled layout semantics for that canonical label (layoutDefaults.ts) instead of the generic default weight.
  */
 export function computeGraphTopologyWeights(
   nodes: ScatterNode[],
@@ -60,7 +61,10 @@ export function computeGraphTopologyWeights(
     const i = idToIndex.get(e.srcId.toLowerCase());
     const j = idToIndex.get(e.tgtId.toLowerCase());
     if (i === undefined || j === undefined || i === j) return;
-    const def = labelIndex.get(e.relType.toUpperCase());
+    // A label the active vocabulary does not define at all (e.g. an older
+    // CONFLICTS_WITH edge after switching to the Law preset) keeps its bundled
+    // layout semantics rather than silently degrading to generic attraction.
+    const def = labelIndex.get(e.relType.toUpperCase()) ?? bundledLayoutForLabel(e.relType);
     if (def?.repels) {
       repel.add(`${Math.min(i, j)}-${Math.max(i, j)}`);
     } else {

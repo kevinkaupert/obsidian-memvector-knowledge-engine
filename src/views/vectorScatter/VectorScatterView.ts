@@ -51,6 +51,27 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
+   * Purpose: Re-reads the settings this view mirrors as local state and redraws, after they were
+   * changed from outside the view (the plugin settings tab).
+   * Architecture: Counterpart to MemVectorPlugin.applySettingsToOpenViews(). setShowRelationNotes
+   * already persists and refreshes, so it is reused for the relation-note flag; everything else the
+   * view reads straight off `this.settings` on each redraw and only needs the redraw itself.
+   */
+  applyExternalSettingsChange(options?: { relayout?: boolean }): void {
+    // A vocabulary edit changes per-label attraction/repulsion, so the force layout
+    // has to run again - a redraw alone would only repaint the old positions.
+    if (options?.relayout) {
+      this.refreshRelationEdges();
+    }
+    const show = this.settings.showRelationNotes ?? false;
+    if (show !== this.showRelationNotes) {
+      this.setShowRelationNotes(show);
+      return;
+    }
+    this.redraw();
+  }
+
+  /**
    * Purpose: Updates relation notes visibility toggle and sanitizes selection and search caches.
    * Architecture: Clears hidden relation notes from selectedNodeIds and resets search/hover state (Issue #110).
    */
@@ -79,7 +100,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         if (match && isRelationNode(match)) {
           this.searchHighlight = null;
           if (this.searchAnimHandle !== null) {
-            cancelAnimationFrame(this.searchAnimHandle);
+            window.cancelAnimationFrame(this.searchAnimHandle);
             this.searchAnimHandle = null;
           }
         }
@@ -204,7 +225,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.interactionCleanup = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    if (this.searchAnimHandle !== null) cancelAnimationFrame(this.searchAnimHandle);
+    if (this.searchAnimHandle !== null) window.cancelAnimationFrame(this.searchAnimHandle);
     return Promise.resolve();
   }
 
@@ -352,7 +373,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return hitTestEdgePure(this.getVisibleNodes(), this.relationEdges, activeNodeIds, this.edgeHops, mouseX, mouseY, this.zoom, this.pan);
   }
 
-  private refreshRelationEdges(): void {
+  refreshRelationEdges(): void {
     // Also re-run layout, not just re-render edges - a saved/edited/deleted
     // relation must feed the force layout's topology weights too, not only
     // the drawn edge lines.
@@ -405,7 +426,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.pan.x = this.canvasWrap.clientWidth / 2 - match.x * this.zoom;
     this.pan.y = this.canvasWrap.clientHeight / 2 - match.y * this.zoom;
 
-    if (this.searchAnimHandle !== null) cancelAnimationFrame(this.searchAnimHandle);
+    if (this.searchAnimHandle !== null) window.cancelAnimationFrame(this.searchAnimHandle);
     const startedAt = performance.now();
     this.searchHighlight = { nodeId: match.id, startedAt };
 

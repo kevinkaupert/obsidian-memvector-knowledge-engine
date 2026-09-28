@@ -3,8 +3,7 @@ import type { ScatterVisualStyle } from "../../../settings/types";
 import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
-import type { LabelRect } from "./labelPlacement";
-import { tryPlaceLabel } from "./labelPlacement";
+import { createLabelPlacer, type LabelPlacer } from "./labelPlacement";
 
 interface ClusterHull {
   cloudId: number;
@@ -62,7 +61,7 @@ export function drawClusters(
   pan: PanState,
   projectionMode: string | undefined,
   style: ScatterVisualStyle,
-  occupiedLabels: LabelRect[] = []
+  labels: LabelPlacer = createLabelPlacer()
 ): void {
   if (nodes.length === 0) return;
   const hulls = computeClusterHulls(nodes, zoom, pan);
@@ -85,9 +84,9 @@ export function drawClusters(
       const text = `${hull.label.toUpperCase()} (${hull.count})`;
       const labelY = hull.cy - hull.r - 14;
       const width = ctx.measureText(text).width;
-      // Cluster labels always render (there are few, and they anchor the view) - only their
-      // reserved rect is used, so node labels below know to steer clear of them.
-      tryPlaceLabel(occupiedLabels, { x1: hull.cx - width / 2 - 2, x2: hull.cx + width / 2 + 2, y1: labelY - 7, y2: labelY + 7 }, true);
+      // Cluster labels always render (there are few, and they anchor the view) - the
+      // reservation is what matters, so node labels below know to steer clear of them.
+      labels.tryPlace({ x1: hull.cx - width / 2 - 2, x2: hull.cx + width / 2 + 2, y1: labelY - 7, y2: labelY + 7 }, true);
       ctx.fillStyle = labelColor;
       ctx.fillText(text, hull.cx, labelY);
     });

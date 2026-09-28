@@ -26,11 +26,19 @@ export interface PreviewSections {
   total: number;
 }
 
+/** Localized hop wording for the compact reason column - the preview must not hardcode UI text. */
+export interface HopLabels {
+  single: string;
+  plural: string;
+}
+
 /**
  * Purpose: Shapes selected seed notes and enrichment results into grouped preview rows for the toolbar's context preview (Issue #117).
  * Architecture: Seeds are rendered pinned above traversed notes with a distinct badge and section headers; the total count covers both groups.
+ * `notes` is expected to already have manually dismissed entries removed (enrichContext applies
+ * `excludeIds`, Issue #116), so preview and synthesis payload are shaped from the identical list.
  */
-export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed[] = []): PreviewSections {
+export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed[] = [], hopLabels: HopLabels = { single: "Hop", plural: "Hops" }): PreviewSections {
   const seeds: PreviewEntry[] = selected.map((s) => ({
     id: s.id,
     title: s.title,
@@ -43,7 +51,7 @@ export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed
     const source = n.sources.map((s) => (s === "vector" ? "v" : "g")).join("+");
     const parts: string[] = [];
     if (n.similarity !== undefined) parts.push(n.similarity.toFixed(2));
-    if (n.hops !== undefined) parts.push(`${n.hops} ${n.hops === 1 ? "Hop" : "Hops"}`);
+    if (n.hops !== undefined) parts.push(`${n.hops} ${n.hops === 1 ? hopLabels.single : hopLabels.plural}`);
     return {
       id: n.id,
       title: n.title,
@@ -54,14 +62,4 @@ export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed
   });
 
   return { seeds, traversed, total: seeds.length + traversed.length };
-}
-
-/**
- * Purpose: Removes manually dismissed notes from the preview sections and recomputes the total (Issue #116).
- * Architecture: Pure set filtering shared by the toolbar preview and its unit tests - seeds cannot be
- * dismissed (users deselect them instead), so only the traversed group is filtered.
- */
-export function withoutDismissed(sections: PreviewSections, dismissedIds: ReadonlySet<string>): PreviewSections {
-  const traversed = sections.traversed.filter((entry) => !dismissedIds.has(entry.id));
-  return { seeds: sections.seeds, traversed, total: sections.seeds.length + traversed.length };
 }

@@ -13,6 +13,14 @@ export default defineConfig([
     },
   },
   {
+    rules: {
+      // Bare requestAnimationFrame/setTimeout silently break views in Obsidian popout
+      // windows. This shipped as a warning once (PR #130) and went unnoticed in CI, so
+      // it is an error here - the codebase is clean against it.
+      "obsidianmd/prefer-window-timers": "error",
+    },
+  },
+  {
     ignores: [
       "main.js",
       "dist/**",

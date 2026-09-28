@@ -2,6 +2,7 @@ import { Notice, TFile, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
 import type { MemVectorSettings } from "../settings/types";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
+import { withBundledLayoutDefaults } from "./layoutDefaults";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 import { getTranslation } from "../i18n";
 
@@ -27,6 +28,11 @@ export function isValidTerm(v: unknown): v is RelationTermDef {
  * like before, but the file is now there to edit for any other domain. Malformed
  * files fall back to the bundled default with a Notice rather than breaking the
  * relation builder.
+ *
+ * Terms that carry neither `weight` nor `repels` inherit the bundled layout
+ * semantics for their canonical label (layoutDefaults.ts, ADR-0002), so a vault
+ * seeded before those fields existed keeps its previous 2D layout behavior
+ * instead of silently collapsing every label to the generic 1.0 attraction.
  */
 export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorSettings, "relationVocabularyPath"> & Partial<Pick<MemVectorSettings, "language">>): Promise<RelationTermDef[]> {
   const path = (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
@@ -48,7 +54,7 @@ export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorS
     const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
     const terms = Array.isArray(parsed.terms) ? parsed.terms.filter(isValidTerm) : [];
     if (terms.length === 0) throw new Error("no valid terms");
-    return terms;
+    return withBundledLayoutDefaults(terms);
   } catch (err) {
     const t = getTranslation(settings.language || "de");
     new Notice(`[WARN] ${path} ${t.relVocabLoadWarn} (${err instanceof Error ? err.message : String(err)})`);

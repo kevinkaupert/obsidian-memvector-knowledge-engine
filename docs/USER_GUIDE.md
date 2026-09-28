@@ -35,7 +35,7 @@ Open the main 2D Vector Graph by clicking the **dot-network icon** in the left r
 | **Hover Tooltip** | Move cursor over node dot (updates hover bar at bottom) |
 | **Single Select Node** | Single click on node dot |
 | **Multi-Select Toggle** | `Cmd` + Click (`⌘` on macOS) or `Ctrl` + Click |
-| **Lasso Selection** | Hold `Shift` + drag freehand polygon around nodes |
+| **Lasso Selection** | Hold `Shift` + drag a freehand polygon around nodes (gesture only - the toolbar toggle was removed in 0.1.7) |
 | **Deselect All** | Click on empty background area |
 | **Open Note File** | Double click on node dot |
 

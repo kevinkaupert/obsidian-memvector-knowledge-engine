@@ -11,8 +11,8 @@ import { loadAgentsGuidelines } from "./agentsGuidelines";
 import { loadRelationEdges } from "./relationEdges";
 import type { RelationEdge, ScatterNode } from "./types";
 
-function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCapChars: number): { block: string; linkLines: string } {
-  if (enriched.length === 0) return { block: "", linkLines: "" };
+function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCapChars: number): string {
+  if (enriched.length === 0) return "";
 
   const heading =
     lang === "de"
@@ -23,14 +23,9 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCap
   // content (contextEnrichment.ts) - capping again here would silently override
   // that with a different, hardcoded number (the actual F07 bug), so this only
   // re-applies the same configured cap, never a second/different one.
-  const block = `\n${heading}\n${enriched
+  return `\n${heading}\n${enriched
     .map((n) => `- [${n.sources.join("+")}] "${n.title}": ${capText(n.content, contentCapChars)}`)
     .join("\n")}\n`;
-
-  const linkLines = enriched
-    .map((n) => `- ${lang === "de" ? "Notiz" : "Note"}: "${n.title}" -> Obsidian WikiLink: [[${n.id}|${n.title}]]`)
-    .join("\n");
-  return { block, linkLines };
 }
 
 import { detectModelTier } from "../../llm/modelTiers";
@@ -78,12 +73,12 @@ export function buildRelationEdgesSection(
 ): string {
   if (edges.length === 0) return "";
 
-  const heading =
-    lang === "de"
-      ? "### Explizite Wissensbeziehungen:"
-      : "### Explicit Knowledge Graph Relations:";
-
-  const reasonLabel = lang === "de" ? "Grund" : "Reason";
+  // Heading and reason label live in the translation files only - keeping a second
+  // inline copy here meant every wording change had to be made twice and the keys
+  // silently drifted from what the prompt actually contained.
+  const t = getTranslation(lang);
+  const heading = `### ${t.synthRelHeading}`;
+  const reasonLabel = t.synthRelReasonLabel;
 
   const lines = edges.map((e) => {
     const src = titleMap.get(e.srcId.toLowerCase()) || e.srcId;
@@ -131,7 +126,7 @@ ${capText(n.fullContent, contentCapChars)}`
     titleMap.set(n.id.toLowerCase(), n.title);
   }
 
-  const { block: enrichedBlock } = buildEnrichedSection(enriched, lang, contentCapChars);
+  const enrichedBlock = buildEnrichedSection(enriched, lang, contentCapChars);
   const relationEdgesBlock = buildRelationEdgesSection(relationEdges, titleMap, lang);
   const contextBlocks = `${notesSummary}${enrichedBlock}${relationEdgesBlock}`;
   const trimmedQuestion = customQuestion?.trim();
@@ -240,12 +235,12 @@ function buildVaultTitleMap(app: App): Map<string, string> {
   return map;
 }
 
-function formatThinkingBlocks(raw: string): string {
+function formatThinkingBlocks(raw: string, thinkingTitle: string): string {
   if (!raw.includes("<think>")) return raw;
   return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking: string) => {
     const cleanThinking = thinking.trim();
     if (!cleanThinking) return "";
-    return `\n> [!note]- Gedankengang des Modells\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
+    return `\n> [!note]- ${thinkingTitle}\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
   });
 }
 
@@ -267,7 +262,8 @@ function isStructuralMarker(term: string): boolean {
 }
 
 function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>, lang = "de"): string {
-  const cleaned = formatThinkingBlocks(raw);
+  const t = getTranslation(lang);
+  const cleaned = formatThinkingBlocks(raw, t.synthThinkingBlockTitle);
   const prospectiveTerms = new Set<string>();
   let text = cleaned.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
     const cleanTerm = term.trim();
@@ -336,7 +332,7 @@ export async function runSynthesis(
   let enriched: EnrichedNote[] = [];
   if (settings.enrichSynthesisContext) {
     const hopDepth = settings.synthesisHopDepth ?? 2;
-    setHoverText(`[INFO] Suche verwandten Kontext (${tier}, ${hopDepth} ${hopDepth === 1 ? "Hop" : "Hops"})...`);
+    setHoverText(`[INFO] ${t.synthSearchingContext} (${tier}, ${hopDepth} ${hopDepth === 1 ? t.lblHopSingle : t.lblHopPlural})...`);
     // Manually dismissed notes from the context preview stay excluded from the
     // final synthesis payload (Issue #116).
     enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);

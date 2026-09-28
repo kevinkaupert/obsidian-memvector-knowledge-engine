@@ -8,7 +8,7 @@ import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import { enrichContext } from "../contextEnrichment";
-import { buildPreviewEntries, withoutDismissed } from "../contextPreview";
+import { buildPreviewEntries } from "../contextPreview";
 import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
 export interface ToolbarRefs {
@@ -242,14 +242,18 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         return;
       }
       previewWrap.hidden = false;
+      // Set before the fetch: on a failed enrichment the user still needs the reset
+      // button to undo dismissals, otherwise the dismissed set becomes unreachable.
+      resetPreviewBtn.hidden = dismissedContextIds.size === 0;
       previewList.empty();
       previewList.createEl("li", { cls: "memvector-context-preview-empty", text: "..." });
       try {
         const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100, undefined, dismissedContextIds);
         previewList.empty();
-        const { seeds, traversed, total } = withoutDismissed(buildPreviewEntries(enriched, selected), dismissedContextIds);
+        // enrichContext already dropped the dismissed ids above, so what is shaped here
+        // is exactly the note list the synthesis call will send.
+        const { seeds, traversed, total } = buildPreviewEntries(enriched, selected, { single: t.lblHopSingle, plural: t.lblHopPlural });
         previewTitleEl.setText(`${t.contextPreviewTitle} (${total})`);
-        resetPreviewBtn.hidden = dismissedContextIds.size === 0;
         if (total === 0) {
           previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
           return;

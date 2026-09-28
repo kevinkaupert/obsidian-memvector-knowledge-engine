@@ -37,12 +37,14 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   // rate; redrawing once per raw event (rather than coalesced to one per frame) overloads
   // the compositor and was observed to leak rendering artifacts into unrelated panes
   // (tab bar, sidebar) while this view was open.
-  let redrawScheduled = false;
+  // window.requestAnimationFrame, not the bare global: a view living in an Obsidian
+  // popout window has its own window object, and the main window's rAF does not
+  // reliably fire for it (same reason the search pulse uses window.* in the view).
+  let redrawHandle: number | null = null;
   const scheduleRedraw = (): void => {
-    if (redrawScheduled) return;
-    redrawScheduled = true;
-    requestAnimationFrame(() => {
-      redrawScheduled = false;
+    if (redrawHandle !== null) return;
+    redrawHandle = window.requestAnimationFrame(() => {
+      redrawHandle = null;
       ctx.redraw();
     });
   };
@@ -222,6 +224,13 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   window.addEventListener("mouseup", onMouseUp);
 
   return () => {
+    // A frame scheduled by the last mousemove must not survive the view: it would
+    // redraw a detached canvas after onClose (the teardown that PR #114 added for
+    // the listeners has to cover the pending frame too).
+    if (redrawHandle !== null) {
+      window.cancelAnimationFrame(redrawHandle);
+      redrawHandle = null;
+    }
     window.removeEventListener("mouseup", onMouseUp);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("mousedown", onMouseDown);

@@ -1,13 +1,13 @@
 import type { RelationEdge, ScatterNode } from "./types";
 
-/** How many WikiLink vs. Memgraph connections tie a note to the current focus - drives a proportionally split glow color in the "ink" style. */
+/** How many WikiLink vs. typed-relation connections tie a note to the current focus - drives a proportionally split glow color in the "ink" style. */
 export interface RelationTally {
   wikilink: number;
-  memgraph: number;
+  typed: number;
 }
 
 function bump(tallies: Map<string, RelationTally>, id: string, key: keyof RelationTally): void {
-  const t = tallies.get(id) || { wikilink: 0, memgraph: 0 };
+  const t = tallies.get(id) || { wikilink: 0, typed: 0 };
   t[key] += 1;
   tallies.set(id, t);
 }
@@ -33,10 +33,10 @@ export function computeRelationTally(nodes: ScatterNode[], relationEdges: Relati
     const tgt = e.tgtId.toLowerCase();
     if (src === focusId) {
       const other = nodeMap.get(tgt);
-      if (other) bump(tallies, other.id, "memgraph");
+      if (other) bump(tallies, other.id, "typed");
     } else if (tgt === focusId) {
       const other = nodeMap.get(src);
-      if (other) bump(tallies, other.id, "memgraph");
+      if (other) bump(tallies, other.id, "typed");
     }
   });
 
@@ -56,8 +56,8 @@ export function computeFocusRelationTallies(
   const merged = new Map<string, RelationTally>();
   focusNodes.forEach((f) => {
     computeRelationTally(nodes, relationEdges, f).forEach((tally, id) => {
-      const existing = merged.get(id) || { wikilink: 0, memgraph: 0 };
-      merged.set(id, { wikilink: existing.wikilink + tally.wikilink, memgraph: existing.memgraph + tally.memgraph });
+      const existing = merged.get(id) || { wikilink: 0, typed: 0 };
+      merged.set(id, { wikilink: existing.wikilink + tally.wikilink, typed: existing.typed + tally.typed });
     });
   });
   return merged;

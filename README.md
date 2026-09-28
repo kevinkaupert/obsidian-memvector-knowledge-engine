@@ -1,11 +1,11 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-0.1.6-blue)
+![Version](https://img.shields.io/badge/version-0.1.7-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-257%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-413%20passing-brightgreen)
 
 **A 2D thinking workspace for Obsidian.**
 
@@ -92,6 +92,12 @@ via `wiki/relation-types.json` in your vault — nothing is hardcoded.
 Each type has a dedicated color on the canvas. Custom types get a
 deterministic color from a hash — no manual color assignment needed.
 
+Force and repulsion are per-type data, not code: edit the `weight` / `repels`
+columns in **Settings → Relation types**, or the vocabulary JSON directly. Add
+your own types there, or switch the whole vocabulary to a bundled preset
+(STEM, Law, Medicine, Philosophy) — existing edges keep working, since edge
+labels are stored as plain strings.
+
 ---
 
 ## Key features
@@ -150,7 +156,7 @@ before relying on it for anything critical.
    out of the box with no API key.
 4. Click **"Index entire vault"** to compute embeddings.
 5. Open the 2D canvas from the ribbon icon or command palette.
-6. Select two notes, `Cmd-click` a second one or use the lasso, then open
+6. Select two notes, `Cmd-click` a second one or lasso them (`Shift` + drag), then open
    the Relation Builder to declare your first typed relation.
 
 ---

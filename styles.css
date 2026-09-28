@@ -888,8 +888,9 @@
   cursor: pointer;
 }
 .memvector-context-preview-dismiss {
+  /* No margin-left: auto needed - the name column below grows and pushes meta and
+     this button flush against the right edge of the row. */
   flex: 0 0 auto;
-  margin-left: auto;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -929,6 +930,10 @@
 }
 .memvector-context-preview-name {
   flex: 1 1 auto;
+  /* Without min-width: 0 a flex item will not shrink below its content width, so a
+     long note title pushes the meta column and the dismiss button out of the 280px
+     panel instead of ellipsizing. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1032,6 +1037,16 @@
 }
 .memvector-type-weight-input {
   width: 70px;
+}
+/* Inline layout-weight/repels editors inside the type table - kept compact so the
+   grouped row still reads as a table row rather than a form. */
+.memvector-relation-type-table .memvector-type-weight-input {
+  width: 62px;
+  padding: 1px 4px;
+  font-size: 0.95em;
+}
+.memvector-relation-type-table input[type="checkbox"] {
+  margin: 0;
 }
 .memvector-type-toggle-label {
   display: flex;

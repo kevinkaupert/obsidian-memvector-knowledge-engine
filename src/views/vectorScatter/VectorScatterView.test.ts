@@ -101,3 +101,52 @@ describe("VectorScatterView.setShowRelationNotes (#110)", () => {
     expect(view.hoveredNode).toBe(concept);
   });
 });
+
+describe("VectorScatterView.applyExternalSettingsChange", () => {
+  function makeView(settings: Partial<typeof DEFAULT_SETTINGS> = {}): VectorScatterView {
+    const leaf = {} as WorkspaceLeaf;
+    const host: VectorScatterHost = {
+      app: {} as any,
+      settings: { ...DEFAULT_SETTINGS, ...settings },
+      saveSettings: vi.fn(async () => {}),
+      focusSidebarNote: vi.fn(),
+    };
+    const view = new VectorScatterView(leaf, host);
+    view.redraw = vi.fn();
+    return view;
+  }
+
+  it("redraws so a visual-style change made in Settings shows up without reopening the view", () => {
+    const view = makeView();
+    view.applyExternalSettingsChange();
+    expect(view.redraw).toHaveBeenCalled();
+  });
+
+  it("picks up a relation-note visibility change made in Settings", () => {
+    const view = makeView();
+    view.nodes = [makeNode("rel1", "wiki/relations/rel.md", "relation")];
+    view.showRelationNotes = true;
+    view.selectedNodeIds = new Set(["rel1"]);
+
+    view.settings.showRelationNotes = false;
+    view.applyExternalSettingsChange();
+
+    expect(view.showRelationNotes).toBe(false);
+    expect(view.selectedNodeIds.has("rel1")).toBe(false);
+    expect(view.redraw).toHaveBeenCalled();
+  });
+
+  it("re-runs the layout when asked to, because changed relation weights move nodes", () => {
+    const view = makeView();
+    view.refreshRelationEdges = vi.fn();
+    view.applyExternalSettingsChange({ relayout: true });
+    expect(view.refreshRelationEdges).toHaveBeenCalled();
+  });
+
+  it("does not re-run the layout for a plain redraw", () => {
+    const view = makeView();
+    view.refreshRelationEdges = vi.fn();
+    view.applyExternalSettingsChange();
+    expect(view.refreshRelationEdges).not.toHaveBeenCalled();
+  });
+});

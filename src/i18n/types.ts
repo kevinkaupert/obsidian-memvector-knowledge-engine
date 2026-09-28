@@ -63,12 +63,9 @@ export interface TranslationKeys {
   secFilter: string;
   secView: string;
   secActions: string;
-  lblShowEdges: string;
   lblShowRelationNotes: string;
-  lblLasso: string;
   searchPlaceholder: string;
   searchNotFound: string;
-  lblVisualStyle: string;
   lblEdgeHops: string;
   edgeHopsAll: string;
   edgeHopsUnlimited: string;
@@ -158,6 +155,8 @@ export interface TranslationKeys {
   relTypeAdded: string;
   relTypeDuplicate: string;
   relTypeRemoved: string;
+  relTypeWeightInvalid: string;
+  relTypeRemoveTitle: string;
   relTypeResetBtn: string;
   relTypeResetDone: string;
   relTypeWriteError: string;
@@ -173,6 +172,8 @@ export interface TranslationKeys {
   synthDocDesc: string;
   synthRelHeading: string;
   synthRelReasonLabel: string;
+  synthSearchingContext: string;
+  synthThinkingBlockTitle: string;
 
   noticeEmbeddingError: string;
   noticeVectorsCalc: string;

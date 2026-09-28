@@ -35,3 +35,13 @@ jobs:
 
       - name: Build bundle
         run: npm run build
+
+      # main.js is the shipped artifact and is committed, so a PR that changes src/
+      # without rebuilding would put a bundle on main that does not match its source.
+      # Only `npm run build` ran here before, which could never catch that.
+      - name: Verify committed bundle matches source
+        run: |
+          if ! git diff --exit-code --stat -- main.js; then
+            echo "::error file=main.js::main.js is out of date - run 'npm run build' and commit the result."
+            exit 1
+          fi
