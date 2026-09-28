@@ -7,6 +7,12 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-09-28
+
+### Fixed
+- Decluttered overlapping node/cluster labels in the 2D scatter plot via greedy screen-space collision avoidance, instead of drawing every label unconditionally regardless of overlap.
+- Removed `backdrop-filter: blur` from the floating toolbar and coalesced pan/zoom/hover-driven canvas redraws to one per animation frame, eliminating a GPU-compositing glitch that bled stale text into unrelated Obsidian panes (tab bar, file explorer) while the scatter view was open.
+
 ## [0.1.6] - 2026-09-26
 
 ### Added

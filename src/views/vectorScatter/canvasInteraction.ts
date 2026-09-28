@@ -33,6 +33,20 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   let mouseDownX = 0;
   let mouseDownY = 0;
 
+  // Trackpad wheel and mousemove events can fire far faster than the display's refresh
+  // rate; redrawing once per raw event (rather than coalesced to one per frame) overloads
+  // the compositor and was observed to leak rendering artifacts into unrelated panes
+  // (tab bar, sidebar) while this view was open.
+  let redrawScheduled = false;
+  const scheduleRedraw = (): void => {
+    if (redrawScheduled) return;
+    redrawScheduled = true;
+    requestAnimationFrame(() => {
+      redrawScheduled = false;
+      ctx.redraw();
+    });
+  };
+
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -49,7 +63,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       ctx.pan.x -= e.deltaX * 0.9;
       ctx.pan.y -= e.deltaY * 0.9;
     }
-    ctx.redraw();
+    scheduleRedraw();
   };
 
   const onMouseDown = (e: MouseEvent) => {
@@ -86,10 +100,10 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     if (ctx.isDraggingPan) {
       ctx.pan.x = mouseX - ctx.dragStart.x;
       ctx.pan.y = mouseY - ctx.dragStart.y;
-      ctx.redraw();
+      scheduleRedraw();
     } else if (ctx.isDraggingLasso) {
       ctx.lassoPath.push({ x: mouseX, y: mouseY });
-      ctx.redraw();
+      scheduleRedraw();
     } else {
       const hovered = ctx.hitTest(mouseX, mouseY);
       let needsRedraw = false;
@@ -113,7 +127,7 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
         needsRedraw = true;
       }
 
-      if (needsRedraw) ctx.redraw();
+      if (needsRedraw) scheduleRedraw();
     }
   };
 

@@ -3,6 +3,8 @@ import type { ScatterVisualStyle } from "../../../settings/types";
 import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
+import type { LabelRect } from "./labelPlacement";
+import { tryPlaceLabel } from "./labelPlacement";
 
 interface ClusterHull {
   cloudId: number;
@@ -59,7 +61,8 @@ export function drawClusters(
   zoom: number,
   pan: PanState,
   projectionMode: string | undefined,
-  style: ScatterVisualStyle
+  style: ScatterVisualStyle,
+  occupiedLabels: LabelRect[] = []
 ): void {
   if (nodes.length === 0) return;
   const hulls = computeClusterHulls(nodes, zoom, pan);
@@ -72,16 +75,22 @@ export function drawClusters(
   }
 
   if (!projectionMode || projectionMode === "cloud" || projectionMode === "graphvector") {
+    ctx.save();
+    ctx.font = "bold 11px var(--font-interface, sans-serif)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
     hulls.forEach((hull) => {
       const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
       const labelColor = style === "muted" ? palette.labelColor : "rgba(148, 163, 184, 0.85)";
-      ctx.save();
-      ctx.font = "bold 11px var(--font-interface, sans-serif)";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
+      const text = `${hull.label.toUpperCase()} (${hull.count})`;
+      const labelY = hull.cy - hull.r - 14;
+      const width = ctx.measureText(text).width;
+      // Cluster labels always render (there are few, and they anchor the view) - only their
+      // reserved rect is used, so node labels below know to steer clear of them.
+      tryPlaceLabel(occupiedLabels, { x1: hull.cx - width / 2 - 2, x2: hull.cx + width / 2 + 2, y1: labelY - 7, y2: labelY + 7 }, true);
       ctx.fillStyle = labelColor;
-      ctx.fillText(`${hull.label.toUpperCase()} (${hull.count})`, hull.cx, hull.cy - hull.r - 14);
-      ctx.restore();
+      ctx.fillText(text, hull.cx, labelY);
     });
+    ctx.restore();
   }
 }
