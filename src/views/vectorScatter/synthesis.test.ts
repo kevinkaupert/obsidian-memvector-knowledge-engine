@@ -134,7 +134,7 @@ describe("buildRelationEdgesSection (#104)", () => {
     ]);
 
     const section = buildRelationEdgesSection(edges, titleMap, "de");
-    expect(section).toContain("### Explizite Wissensbeziehungen (Memgraph):");
+    expect(section).toContain("### Explizite Wissensbeziehungen:");
     expect(section).toContain("- [[Gruppe]] --[SPECIALIZES]--> [[Monoid]] (Grund: Jede Gruppe ist ein Monoid)");
   });
 
@@ -148,7 +148,7 @@ describe("buildRelationEdgesSection (#104)", () => {
     ]);
 
     const section = buildRelationEdgesSection(edges, titleMap, "en");
-    expect(section).toContain("### Explicit Knowledge Graph Relations (Memgraph):");
+    expect(section).toContain("### Explicit Knowledge Graph Relations:");
     expect(section).toContain("- [[Concept A]] <--[ISOMORPHIC_TO]--> [[Concept B]] (Reason: Structural equivalence)");
   });
 
@@ -198,7 +198,7 @@ describe("buildPrompt with relation edges (#104)", () => {
       edges
     );
 
-    expect(prompt).toContain("### Explizite Wissensbeziehungen (Memgraph):");
+    expect(prompt).toContain("### Explizite Wissensbeziehungen:");
     expect(prompt).toContain("- [[Gruppe]] --[PREREQUISITE_FOR]--> [[Körper]] (Grund: Körper erfordert additive Gruppe)");
     expect(prompt).toContain("- [[Körper]] --[EXTENDS]--> [[Ring]] (Grund: Ein Körper ist ein kommutativer Divisionsring)");
   });
@@ -221,7 +221,7 @@ describe("buildPrompt with relation edges (#104)", () => {
     );
 
     expect(prompt).toContain("How do these algebra concepts connect?");
-    expect(prompt).toContain("### Explicit Knowledge Graph Relations (Memgraph):");
+    expect(prompt).toContain("### Explicit Knowledge Graph Relations:");
     expect(prompt).toContain("- [[Gruppe]] --[RELATES_TO]--> [[Körper]]");
   });
 
@@ -243,7 +243,7 @@ describe("buildPrompt with relation edges (#104)", () => {
     );
 
     expect(prompt).toContain("Du bist ein mathematischer Tutor");
-    expect(prompt).toContain("### Explizite Wissensbeziehungen (Memgraph):");
+    expect(prompt).toContain("### Explizite Wissensbeziehungen:");
     expect(prompt).toContain("- [[Gruppe]] --[IMPLIES]--> [[Körper]] (Grund: Group structure is required)");
   });
 });

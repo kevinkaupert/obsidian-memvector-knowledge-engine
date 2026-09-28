@@ -50,7 +50,7 @@ independent sources, and adds them to the prompt as background context.
    actual selection. In addition, explicit typed relation edges (from
    `wiki/relations/*` / the local graph store) connecting any of the active
    notes (selected seeds or retrieved neighbors) are included as a dedicated
-   "Knowledge Graph Relations" (`### Explizite Wissensbeziehungen (Memgraph):`)
+   "Knowledge Graph Relations" (`### Explizite Wissensbeziehungen:`)
    block (Issue #104), giving the model clear structural and logical semantics
    (e.g. `[[Note A]] --[IMPLIES]--> [[Note B]] (Reason: ...)` or `<--[...]-->`
    for bidirectional edges). If no explicit edges connect the active notes, the

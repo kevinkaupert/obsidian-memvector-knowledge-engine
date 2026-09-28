@@ -9,7 +9,7 @@
 
 ## Overview
 
-Release `0.1.7` expands the MemVector Knowledge Engine with custom domain relation types and presets, injects typed Memgraph relation edges directly into GraphRAG synthesis prompts, introduces granular seed pinning and context dismissal controls in the toolbar preview, eliminates hidden graph enrichment quotas, and resolves visual and GPU-compositing glitches in the 2D scatter view.
+Release `0.1.7` expands the MemVector Knowledge Engine with custom domain relation types and presets, injects typed knowledge relation edges directly into GraphRAG synthesis prompts, introduces granular seed pinning and context dismissal controls in the toolbar preview, eliminates hidden graph enrichment quotas, and resolves visual and GPU-compositing glitches in the 2D scatter view.
 
 ---
 
@@ -37,7 +37,7 @@ Release `0.1.7` expands the MemVector Knowledge Engine with custom domain relati
 ### Added
 
 - Custom relation edge types, presets, and vocabulary-driven layout weights (#119, PR #121).
-- Typed Memgraph relation edges injected directly into GraphRAG LLM prompt context (#104, PR #128).
+- Typed knowledge relation edges injected directly into GraphRAG LLM prompt context (#104, PR #128).
 - Sticky seed notes pinned at the top of the context preview (#117, PR #123).
 - Manual dismissal controls (`x`) on context preview items allowing users to prune unwanted vector or graph notes before launching LLM synthesis (#116, PR #124, PR #126).
 - Greedy screen-space collision avoidance (`labelPlacement.ts`) for 2D scatter plot to declutter dense cluster and node labels (PR #130).

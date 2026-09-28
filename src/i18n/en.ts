@@ -180,7 +180,7 @@ export const en: TranslationKeys = {
   synthSaving: "Saving...",
   synthCloseBtn: "Close",
   synthDocDesc: "Automatically generated knowledge synthesis.",
-  synthRelHeading: "Explicit Knowledge Graph Relations (Memgraph):",
+  synthRelHeading: "Explicit Knowledge Graph Relations:",
   synthRelReasonLabel: "Reason",
 
   // Notices
