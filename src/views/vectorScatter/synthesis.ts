@@ -80,8 +80,8 @@ export function buildRelationEdgesSection(
 
   const heading =
     lang === "de"
-      ? "### Explizite Wissensbeziehungen (Memgraph):"
-      : "### Explicit Knowledge Graph Relations (Memgraph):";
+      ? "### Explizite Wissensbeziehungen:"
+      : "### Explicit Knowledge Graph Relations:";
 
   const reasonLabel = lang === "de" ? "Grund" : "Reason";
 

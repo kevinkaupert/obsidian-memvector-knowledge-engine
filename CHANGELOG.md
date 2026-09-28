@@ -11,7 +11,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ### Added
 - Custom relation edge types, presets, and vocabulary-driven layout weights (#119, PR #121).
-- Typed Memgraph relation edges injected directly into GraphRAG LLM prompt context (#104, PR #128).
+- Typed knowledge relation edges injected directly into GraphRAG LLM prompt context (#104, PR #128).
 - Sticky seed notes pinned at the top of the context preview (#117, PR #123).
 - Manual dismissal controls (`x`) on context preview items allowing users to prune unwanted vector or graph notes before launching LLM synthesis (#116, PR #124, PR #126).
 - Greedy screen-space collision avoidance (`labelPlacement.ts`) for 2D scatter plot to declutter dense cluster and node labels (PR #130).
