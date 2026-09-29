@@ -7,6 +7,12 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Fixed
+- Relation type edits in Settings no longer discard each other. Every vocabulary
+  mutation now re-reads the file before writing, so a second weight/repels edit,
+  a delete or an add keeps all previous edits; an unreadable file aborts the
+  write instead of truncating the vocabulary (#133).
+
 ## [0.1.7] - 2026-09-28
 
 ### Added
