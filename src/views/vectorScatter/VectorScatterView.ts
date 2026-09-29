@@ -388,7 +388,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
+    const previousEmbeddings = new Map<string, number[]>();
+    for (const node of this.nodes) {
+      if (node.embedding && node.embedding.length > 0) {
+        previousEmbeddings.set(node.path, node.embedding);
+        previousEmbeddings.set(node.id, node.embedding);
+      }
+    }
+
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
+
+    for (const node of this.nodes) {
+      const existing = previousEmbeddings.get(node.path) ?? previousEmbeddings.get(node.id);
+      if (existing) node.embedding = existing;
+    }
+
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
@@ -404,10 +418,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.nodes.length === 0) return;
     try {
       const store = getVectorStore(this.app, this.settings);
-      const vectors = await store.getVectors(this.nodes.map((n) => n.path));
+      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
+      const vectors = await store.getVectors(queryKeys);
       this.nodes.forEach((n) => {
-        const v = vectors.get(n.path);
-        if (v) n.embedding = v;
+        if (!n.embedding || n.embedding.length === 0) {
+          const v = vectors.get(n.path) ?? vectors.get(n.id);
+          if (v) n.embedding = v;
+        }
       });
     } catch (err) {
       console.warn("MemVector: Failed to hydrate stored embeddings before layout:", err);

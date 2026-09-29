@@ -53,6 +53,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   const headerLeft = panelHeader.createDiv({ cls: "memvector-toolbar-header-left" });
   headerLeft.createDiv({ cls: "memvector-toolbar-header-dot" });
   const statusText = panelHeader.createSpan({ text: "–", cls: "memvector-toolbar-status" });
+  let updateSelectionUI = (): void => {};
 
   // ── Quick Actions Bar (pinned top) ────────────────────────────────────
   const actionsBar = toolbarEl.createDiv({ cls: "memvector-toolbar-quick-actions" });
@@ -67,8 +68,13 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       statusText.setText(t.statusScanningVault);
       setHoverBarText(hoverBar, t.statusScanningVault, "muted");
       await ctx.scanVaultNotes();
-      statusText.setText(`${ctx.nodes.length}`);
-      setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
+      updateSelectionUI();
+      const embeddedCount = ctx.nodes.filter((n) => n.embedding && n.embedding.length > 0).length;
+      if (embeddedCount > 0) {
+        setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned} (${embeddedCount} ${t.statusCacheActive})`, "muted");
+      } else {
+        setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
+      }
       ctx.redraw();
     })();
   });
@@ -124,7 +130,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         const val = filterInput.value.trim();
         ctx.viewFilterQuery = val;
         await ctx.scanVaultNotes(val);
-        statusText.setText(`${ctx.nodes.length}`);
+        updateSelectionUI();
         ctx.redraw();
       })();
     }, 250);
@@ -330,7 +336,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 
   setHoverBarText(hoverBar, t.hoverHint);
 
-  const updateSelectionUI = () => {
+  updateSelectionUI = () => {
     const count = ctx.selectedNodeIds.size;
     const rawModel = ctx.settings.modelName || "LLM";
     const shortModel = getShortModelName(rawModel);
