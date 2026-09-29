@@ -11,7 +11,11 @@ export interface PreviewEntry {
   title: string;
   /** "seed" for directly selected notes, "traversed" for enriched neighbors. */
   kind: "seed" | "traversed";
-  /** Compact source badge: "seed", "v" (vector), "g" (graph), "v+g" (both). */
+  /**
+   * Compact provenance code for traversed rows: "v" (vector), "g" (graph), "v+g" (both).
+   * Empty for seeds - their origin is already stated by the localized badge the toolbar
+   * renders from `kind`, and a second marker here would have to be translated too.
+   */
   source: string;
   /** Compact reason: similarity as "0.83" and/or hop distance as "1 Hop" / "2 Hops". */
   reason: string;
@@ -43,7 +47,7 @@ export function buildPreviewEntries(notes: EnrichedNote[], selected: PreviewSeed
     id: s.id,
     title: s.title,
     kind: "seed",
-    source: "seed",
+    source: "",
     reason: "",
   }));
 

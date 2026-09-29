@@ -54,8 +54,8 @@ describe("buildPreviewEntries seed section (Issue #117)", () => {
     );
 
     expect(seeds).toEqual([
-      { id: "s1", title: "Concept Alpha", kind: "seed", source: "seed", reason: "" },
-      { id: "s2", title: "Definition Beta", kind: "seed", source: "seed", reason: "" },
+      { id: "s1", title: "Concept Alpha", kind: "seed", source: "", reason: "" },
+      { id: "s2", title: "Definition Beta", kind: "seed", source: "", reason: "" },
     ]);
     expect(traversed).toHaveLength(1);
     expect(total).toBe(3);
@@ -92,5 +92,35 @@ describe("dismissed notes and hop labels", () => {
     );
     expect(traversed[0].reason).toBe("1 Sprung");
     expect(traversed[1].reason).toBe("2 Spruenge");
+  });
+});
+
+describe("preview rows carry no untranslated UI text", () => {
+  it("leaves seed rows without meta text, since the localized badge already marks them", () => {
+    const { seeds } = buildPreviewEntries([], [{ id: "s1", title: "Concept Alpha" }]);
+    expect(seeds[0].source).toBe("");
+    expect(seeds[0].reason).toBe("");
+  });
+
+  it("only ever emits the compact provenance codes, never a translatable word", () => {
+    const { seeds, traversed } = buildPreviewEntries(
+      [
+        note({ id: "a", title: "a", sources: ["graph"], hops: 1 }),
+        note({ id: "b", title: "b", sources: ["vector"], similarity: 0.5 }),
+        note({ id: "c", title: "c", sources: ["vector", "graph"], hops: 2, similarity: 0.5 }),
+      ],
+      [{ id: "s1", title: "Concept Alpha" }]
+    );
+    for (const entry of [...seeds, ...traversed]) {
+      expect(["", "v", "g", "v+g"]).toContain(entry.source);
+    }
+  });
+
+  it("takes the hop wording from the caller rather than hardcoding it", () => {
+    const { traversed } = buildPreviewEntries([note({ id: "a", title: "a", sources: ["graph"], hops: 2 })], [], {
+      single: "Sprung",
+      plural: "Spruenge",
+    });
+    expect(traversed[0].reason).toBe("2 Spruenge");
   });
 });
