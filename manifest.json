@@ -1,7 +1,7 @@
 {
   "id": "memvector-knowledge-engine",
   "name": "MemVector Knowledge Engine",
-  "version": "0.1.10",
+  "version": "0.1.8",
   "minAppVersion": "1.11.4",
   "description": "2D thinking workspace: map concepts by intentional weighted relations, not WikiLinks. Local-first, typed graph, hybrid GraphRAG synthesis.",
   "author": "Kevin Mike Kaupert",
