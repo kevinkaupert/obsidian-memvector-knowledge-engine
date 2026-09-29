@@ -14,6 +14,7 @@ vi.mock("obsidian", () => {
         noticeCalls.push({ message, duration });
       }
     },
+    setIcon: vi.fn(),
   };
 });
 
@@ -79,6 +80,8 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       syncPoints: mockSyncPoints,
       reconcile: mockReconcile,
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
     } as unknown as ReturnType<typeof getVectorStore>);
 
     vi.mocked(fetchEmbedding).mockResolvedValue({
@@ -198,5 +201,33 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
     expect(mockCtx.applyLayout).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
+  });
+
+  it("skips fetchEmbedding when note content hash matches stored hash", async () => {
+    const { hashString } = await import("../../../hash");
+    const nodeText = `${mockCtx.nodes[0].title}\n${mockCtx.nodes[0].content}`.slice(0, 2000);
+    const expectedHash = String(hashString(nodeText));
+
+    const storedHashes = new Map<string, { hash: string }>();
+    storedHashes.set("note-1.md", { hash: expectedHash });
+
+    vi.mocked(getVectorStore).mockReturnValue({
+      syncPoints: mockSyncPoints,
+      reconcile: mockReconcile,
+      getStoredHashes: vi.fn().mockResolvedValue(storedHashes),
+      getVector: vi.fn().mockResolvedValue([0.9, 0.8, 0.7]),
+    } as unknown as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
+
+    // fetchEmbedding must NOT be called because it is cached
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    // Vector was hydrated from SQLite
+    expect(mockCtx.nodes[0].embedding).toEqual([0.9, 0.8, 0.7]);
+    // Status text indicates active cache
+    expect((mockStatusText as any).text).toContain("Cache aktiv");
+    expect((mockHoverBar as any).text).toContain("bereits im Cache");
+    expect(mockCtx.applyLayout).toHaveBeenCalledTimes(1);
+    expect(mockCtx.redraw).toHaveBeenCalledTimes(1);
   });
 });

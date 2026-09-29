@@ -4,12 +4,13 @@ import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
 import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
+import { hashString } from "../../../hash";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import { enrichContext } from "../contextEnrichment";
 import { buildPreviewEntries } from "../contextPreview";
-import { createActionBtn, createDropdown, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
+import { createActionBtn, createDropdown, createIconButton, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
 export interface ToolbarRefs {
   canvasWrap: HTMLElement;
@@ -53,8 +54,41 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   headerLeft.createDiv({ cls: "memvector-toolbar-header-dot" });
   const statusText = panelHeader.createSpan({ text: "–", cls: "memvector-toolbar-status" });
 
+  // ── Quick Actions Bar (pinned top) ────────────────────────────────────
+  const actionsBar = toolbarEl.createDiv({ cls: "memvector-toolbar-quick-actions" });
+
+  createIconButton(actionsBar, "expand", t.btnFitView, () => {
+    ctx.fitToView();
+    ctx.redraw();
+  });
+
+  createIconButton(actionsBar, "refresh-cw", t.btnScanVault, () => {
+    void (async () => {
+      statusText.setText(t.statusScanningVault);
+      setHoverBarText(hoverBar, t.statusScanningVault, "muted");
+      await ctx.scanVaultNotes();
+      statusText.setText(`${ctx.nodes.length}`);
+      setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
+      ctx.redraw();
+    })();
+  });
+
+  const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
+  const calcVectorsBtn = createIconButton(actionsBar, "sparkles", `${t.btnCalcVectors} (${embedModelLabel})`, () => {
+    void runCalcVectors(ctx, calcVectorsBtn, statusText, hoverBar);
+  });
+
+  const createRelBtn = createIconButton(actionsBar, "link", `${t.btnCreateRel} (≥2)`, () => {
+    const selected = ctx.nodes.filter((n) => ctx.selectedNodeIds.has(n.id));
+    if (selected.length >= 2) ctx.openRelationBuilder(selected);
+  });
+  setActionBtnEnabled(createRelBtn, false);
+
+  // ── Scrollable Body for all sections ──────────────────────────────────
+  const scrollBody = toolbarEl.createDiv({ cls: "memvector-toolbar-scroll-body" });
+
   // ── Filter ────────────────────────────────────────────────────────────
-  const filterBody = createSection(toolbarEl, t.secFilter, true);
+  const filterBody = createSection(scrollBody, t.secFilter, true);
 
   const searchInput = filterBody.createEl("input", {
     type: "text",
@@ -97,7 +131,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   };
 
   // ── Ansicht ───────────────────────────────────────────────────────────
-  const ansichtBody = createSection(toolbarEl, t.secView, true);
+  const ansichtBody = createSection(scrollBody, t.secView, true);
 
   if (!ctx.nodeSpacing || ctx.nodeSpacing < 250) {
     ctx.nodeSpacing = ctx.settings.scatterNodeSpacing || 350;
@@ -133,7 +167,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   });
 
   // ── Synthese ──────────────────────────────────────────────────────────
-  const syntheseBody = createSection(toolbarEl, t.secSynthesis, false);
+  const syntheseBody = createSection(scrollBody, t.secSynthesis, false);
 
   const promptInput = syntheseBody.createEl("textarea", {
     placeholder: t.synthPromptPlaceholder,
@@ -288,44 +322,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     void ctx.runSynthesis((text) => setHoverBarText(hoverBar, text), promptInput.value, dismissedContextIds);
   };
 
-  // ── Aktionen ──────────────────────────────────────────────────────────
-  const aktionenBody = createSection(toolbarEl, t.secActions, true);
-
-  const refreshBtn = createActionBtn(aktionenBody, t.btnScanVault, null);
-  refreshBtn.onclick = () => {
-    void (async () => {
-      statusText.setText(t.statusScanningVault);
-      setHoverBarText(hoverBar, t.statusScanningVault, "muted");
-      await ctx.scanVaultNotes();
-      statusText.setText(`${ctx.nodes.length}`);
-      setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
-      ctx.redraw();
-    })();
-  };
-
-  createActionBtn(aktionenBody, t.btnFitView, () => {
-    ctx.fitToView();
-    ctx.redraw();
-  });
-
-  const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
-  const calcVectorsBtn = createActionBtn(aktionenBody, t.btnCalcVectors, null);
-  calcVectorsBtn.title = `${t.embedModelLabelPrefix}: ${embedModelLabel}`;
-  calcVectorsBtn.onclick = () => {
-    void runCalcVectors(ctx, calcVectorsBtn, statusText, hoverBar);
-  };
-
-  const createRelBtn = createActionBtn(aktionenBody, `${t.btnCreateRel} (≥2)`, null);
-  setActionBtnEnabled(createRelBtn, false);
-  createRelBtn.onclick = () => {
-    const selected = ctx.nodes.filter((n) => ctx.selectedNodeIds.has(n.id));
-    if (selected.length >= 2) ctx.openRelationBuilder(selected);
-  };
-
-  const clearSelBtn = createActionBtn(aktionenBody, t.btnClearSel, () => {
+  const clearSelBtn = createActionBtn(syntheseBody, t.btnClearSel, () => {
     ctx.selectedNodeIds.clear();
     updateSelectionUI();
   });
+  clearSelBtn.hidden = true;
 
   setHoverBarText(hoverBar, t.hoverHint);
 
@@ -339,10 +340,25 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     synthesizeBtn.title = `${t.modelLabelPrefix}: ${rawModel}`;
 
     setActionBtnEnabled(createRelBtn, count >= 2);
-    createRelBtn.setText(count >= 2 ? `${t.btnCreateRel} (${count})` : `${t.btnCreateRel} (≥2)`);
+    createRelBtn.title = count >= 2 ? `${t.btnCreateRel} (${count})` : `${t.btnCreateRel} (≥2)`;
+    createRelBtn.setAttribute("aria-label", createRelBtn.title);
 
     setActionBtnEnabled(clearSelBtn, count > 0);
-    statusText.setText(`${ctx.nodes.length} | ${count} ${t.statusSelectedSuffix}`);
+    clearSelBtn.hidden = count === 0;
+
+    if (count > 0) {
+      statusText.setText(`${ctx.nodes.length} | ${count} ${t.statusSelectedSuffix}`);
+    } else if (ctx.nodes.length > 0) {
+      const embeddedCount = ctx.nodes.filter((n) => n.embedding && n.embedding.length > 0).length;
+      if (embeddedCount === ctx.nodes.length) {
+        statusText.setText(`${ctx.nodes.length} | ${t.statusCacheActive}`);
+      } else {
+        const uncalc = ctx.nodes.length - embeddedCount;
+        statusText.setText(`${ctx.nodes.length} | ${uncalc} ${t.statusUncalculated}`);
+      }
+    } else {
+      statusText.setText("–");
+    }
     refreshContextPreview();
     ctx.redraw();
   };
@@ -373,14 +389,43 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
   statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
 
   let successCount = 0;
+  let skippedCount = 0;
+  let newCalculatedCount = 0;
   let lastError: string | null = null;
   const points: VectorPoint[] = [];
 
+  const vectorStore = getVectorStore(ctx.app, ctx.settings);
+  let storedHashes = new Map<string, { hash: string; mtime?: number }>();
+  try {
+    storedHashes = await vectorStore.getStoredHashes();
+  } catch (err) {
+    console.warn("MemVector: Failed to load stored vector hashes, calculating unconditionally:", err);
+  }
+
   for (let i = 0; i < total; i++) {
     const node = ctx.nodes[i];
+    const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
+    const currentHash = String(hashString(sampleText));
+    const cached = storedHashes.get(node.path) ?? storedHashes.get(node.id);
+
+    if (cached && cached.hash === currentHash) {
+      if (!node.embedding || node.embedding.length === 0) {
+        try {
+          const vec = await vectorStore.getVector(node.path);
+          if (vec && vec.length > 0) node.embedding = vec;
+        } catch {
+          // Fall through to recompute if vector retrieval fails
+        }
+      }
+      if (node.embedding && node.embedding.length > 0) {
+        skippedCount++;
+        successCount++;
+        continue;
+      }
+    }
+
     setHoverBarText(hoverBar, `[INFO] ${vT.statusCalcEmbeddings} '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
 
-    const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
     const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);
 
     if (res.error) {
@@ -394,8 +439,10 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
         id: pathToId(node.path),
         vector: res.embedding,
         payload: { path: node.path, title: node.title, content: node.content.slice(0, 500) },
+        contentHash: currentHash,
       });
       successCount++;
+      newCalculatedCount++;
     }
   }
 
@@ -404,16 +451,21 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   if (points.length > 0) {
     try {
-      const vectorStore = getVectorStore(ctx.app, ctx.settings);
       await vectorStore.syncPoints(points);
-      // Only reconcile when every currently-scanned node was actually attempted -
-      // the loop above breaks on the first embedding error, so a partial `points`
-      // list here must never be read as "this is now the complete vault".
-      if (successCount === total) await vectorStore.reconcile(ctx.nodes.map((n) => n.path));
     } catch (syncErr) {
       syncFailed = true;
       syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
       console.error("MemVector: Failed to persist calculated vectors to SQLite:", syncErr);
+    }
+  }
+
+  if (!syncFailed && successCount === total) {
+    try {
+      await vectorStore.reconcile(ctx.nodes.map((n) => n.path));
+    } catch (syncErr) {
+      syncFailed = true;
+      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      console.error("MemVector: Failed to reconcile vectors in SQLite:", syncErr);
     }
   }
 
@@ -426,9 +478,19 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
   } else if (successCount === total) {
     ctx.applyLayout();
     ctx.redraw();
-    setHoverBarText(hoverBar, `[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
-    statusText.setText(`${total} | ${vT.statusVectorsOk}`);
-    new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
+    if (newCalculatedCount === 0 && skippedCount > 0) {
+      setHoverBarText(hoverBar, `[OK] ${total}/${total} ${vT.statusSkippedCached}`, "muted");
+      statusText.setText(`${total} | ${vT.statusCacheActive}`);
+      new Notice(`[OK] ${total} ${vT.statusSkippedCached}`);
+    } else if (skippedCount > 0) {
+      setHoverBarText(hoverBar, `[OK] ${newCalculatedCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`, "muted");
+      statusText.setText(`${total} | ${vT.statusVectorsOk}`);
+      new Notice(`[OK] ${newCalculatedCount} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`);
+    } else {
+      setHoverBarText(hoverBar, `[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
+      statusText.setText(`${total} | ${vT.statusVectorsOk}`);
+      new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
+    }
   } else if (lastError) {
     statusText.setText(`${vT.statusErrorCount} (${successCount}/${total})`);
   }

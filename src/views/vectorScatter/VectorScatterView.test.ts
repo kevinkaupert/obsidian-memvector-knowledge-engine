@@ -13,10 +13,12 @@ vi.mock("obsidian", () => ({
       empty: vi.fn(),
     };
     addAction = vi.fn();
+    registerEvent = vi.fn();
   },
   Modal: class {},
   Notice: class {},
   TFile: class {},
+  setIcon: vi.fn(),
 }));
 
 vi.mock("./canvasInteraction", () => ({
@@ -148,5 +150,93 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     view.refreshRelationEdges = vi.fn();
     view.applyExternalSettingsChange();
     expect(view.refreshRelationEdges).not.toHaveBeenCalled();
+  });
+});
+
+describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
+  it("registers vault event listeners for create, modify, delete, and rename", () => {
+    const registeredCallbacks = new Map<string, Function>();
+    const fakeVault = {
+      on: vi.fn((event: string, callback: Function) => {
+        registeredCallbacks.set(event, callback);
+        return { event, callback };
+      }),
+    };
+
+    const leaf = {} as WorkspaceLeaf;
+    const host: VectorScatterHost = {
+      app: { vault: fakeVault } as any,
+      settings: { ...DEFAULT_SETTINGS },
+      saveSettings: vi.fn(async () => {}),
+      focusSidebarNote: vi.fn(),
+    };
+    const view = new VectorScatterView(leaf, host);
+    view.registerVaultWatchers();
+
+    expect(fakeVault.on).toHaveBeenCalledWith("create", expect.any(Function));
+    expect(fakeVault.on).toHaveBeenCalledWith("modify", expect.any(Function));
+    expect(fakeVault.on).toHaveBeenCalledWith("delete", expect.any(Function));
+    expect(fakeVault.on).toHaveBeenCalledWith("rename", expect.any(Function));
+    expect(view.registerEvent).toHaveBeenCalledTimes(4);
+
+    // Verify relation changes trigger triggerRelationsReload
+    view.triggerRelationsReload = vi.fn();
+    view.triggerVaultRescan = vi.fn();
+
+    const modifyCb = registeredCallbacks.get("modify");
+    expect(modifyCb).toBeDefined();
+
+    // Modifying a relation file triggers triggerRelationsReload
+    modifyCb!({ path: "wiki/relations/concept-a--supports--concept-b.md" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    expect(view.triggerVaultRescan).not.toHaveBeenCalled();
+
+    // Modifying a regular markdown note triggers triggerVaultRescan
+    modifyCb!({ path: "wiki/concepts/math.md" });
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
+
+    // Renaming a relation file triggers triggerRelationsReload
+    const renameCb = registeredCallbacks.get("rename");
+    expect(renameCb).toBeDefined();
+    renameCb!({ path: "wiki/relations/new-rel.md" }, "wiki/relations/old-rel.md");
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+
+    // Renaming a regular note triggers triggerVaultRescan
+    renameCb!({ path: "wiki/concepts/new-note.md" }, "wiki/concepts/old-note.md");
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears debounce timers and cleans up on onClose", async () => {
+    vi.useFakeTimers();
+    const leaf = {} as WorkspaceLeaf;
+    const host: VectorScatterHost = {
+      app: { vault: { on: vi.fn() } } as any,
+      settings: { ...DEFAULT_SETTINGS },
+      saveSettings: vi.fn(async () => {}),
+      focusSidebarNote: vi.fn(),
+    };
+    const view = new VectorScatterView(leaf, host);
+    view.loadRelationEdges = vi.fn().mockResolvedValue([]);
+    view.applyLayout = vi.fn();
+    view.redraw = vi.fn();
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+
+    view.triggerRelationsReload();
+    view.triggerVaultRescan();
+
+    // Advance 200ms (before timers trigger)
+    vi.advanceTimersByTime(200);
+    expect(view.loadRelationEdges).not.toHaveBeenCalled();
+    expect(view.scanVaultNotes).not.toHaveBeenCalled();
+
+    // Close view before they fire
+    await view.onClose();
+
+    // Advance past timers
+    vi.advanceTimersByTime(1000);
+    expect(view.loadRelationEdges).not.toHaveBeenCalled();
+    expect(view.scanVaultNotes).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });

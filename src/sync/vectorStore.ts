@@ -2,11 +2,18 @@ export interface VectorPoint {
   id: string;
   vector: number[];
   payload: { path: string; title: string; content: string };
+  contentHash?: string;
+  mtime?: number;
 }
 
 export interface VectorSearchHit {
   score: number;
   payload: { path: string; title: string; content: string };
+}
+
+export interface StoredVectorHash {
+  hash: string;
+  mtime?: number;
 }
 
 /**
@@ -21,6 +28,11 @@ export interface VectorStore {
   getVector(id: string): Promise<number[] | null>;
   /** Bulk form of getVector, for hydrating many nodes' embeddings (e.g. before a layout pass) without one query per node. Paths with no stored vector are simply absent from the result. */
   getVectors(ids: string[]): Promise<Map<string, number[]>>;
+  /**
+   * Retrieves content hashes and mtime for existing vector points to allow incremental calculation.
+   * Maps both id and path to the StoredVectorHash.
+   */
+  getStoredHashes(): Promise<Map<string, StoredVectorHash>>;
   /**
    * Full-vault re-index cleanup: deletes any stored point whose path is not
    * in `currentPaths` (deleted/renamed/newly-excluded files) - separate from

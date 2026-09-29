@@ -5,15 +5,17 @@ import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
 import { shouldIncludeFile } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
+import { hashString } from "../hash";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
   totalFiles: number;
   syncedCount: number;
+  skippedCount: number;
 }
 
 /**
- * Purpose: Synchronizes vault markdown embeddings to the VectorStore and reconciles removed files.
+ * Purpose: Synchronizes vault markdown embeddings to the VectorStore incrementally and reconciles removed files.
  */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const vaultFiles = app.vault.getMarkdownFiles();
@@ -26,6 +28,9 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   const includedPaths: string[] = [];
   let consecutiveErrors = 0;
   let firstErrorMsg: string | null = null;
+  let skippedCount = 0;
+
+  const storedHashes = await store.getStoredHashes();
 
   for (let i = 0; i < vaultFiles.length; i++) {
     const file = vaultFiles[i];
@@ -35,6 +40,13 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
     if (!rawContent.trim()) continue;
     const content = stripFrontmatter(rawContent);
     const sampleText = `${file.basename}\n${content}`.slice(0, 1500);
+    const currentHash = String(hashString(sampleText));
+
+    const cached = storedHashes.get(file.path) ?? storedHashes.get(pathToId(file.path));
+    if (cached && cached.hash === currentHash) {
+      skippedCount++;
+      continue;
+    }
 
     const { embedding, error } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
 
@@ -54,6 +66,8 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
         id: pathToId(file.path),
         vector: embedding,
         payload: { path: file.path, title: file.basename, content: content.slice(0, 500) },
+        contentHash: currentHash,
+        mtime: file.stat?.mtime,
       });
     }
   }
@@ -63,6 +77,6 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   }
   await store.reconcile(includedPaths);
 
-  return { totalFiles: vaultFiles.length, syncedCount: points.length };
+  return { totalFiles: vaultFiles.length, syncedCount: points.length, skippedCount };
 }
 

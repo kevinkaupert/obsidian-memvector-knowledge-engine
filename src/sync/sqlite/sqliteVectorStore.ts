@@ -1,5 +1,5 @@
 import type { App } from "obsidian";
-import type { VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
+import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { cosineSimilarity } from "./cosineSimilarity";
 import { getLocalDb, persistLocalDb } from "./sqliteDb";
 
@@ -11,6 +11,9 @@ export class SqliteVectorStore implements VectorStore {
     await getLocalDb(this.app);
   }
 
+  /**
+   * Purpose: Persists vector points, embeddings, content hashes, and mtimes to SQLite with conflict resolution.
+   */
   async syncPoints(points: VectorPoint[]): Promise<void> {
     if (points.length === 0) return;
     const db = await getLocalDb(this.app);
@@ -18,9 +21,9 @@ export class SqliteVectorStore implements VectorStore {
       // Purge any legacy rows stored under a different ID (e.g. raw path vs pathToId hash)
       db.run("DELETE FROM vectors WHERE path = ? AND id != ?", [p.payload.path, p.id]);
       db.run(
-        `INSERT INTO vectors (id, path, title, content, vector) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET path = excluded.path, title = excluded.title, content = excluded.content, vector = excluded.vector`,
-        [p.id, p.payload.path, p.payload.title, p.payload.content, JSON.stringify(p.vector)]
+        `INSERT INTO vectors (id, path, title, content, vector, content_hash, mtime) VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET path = excluded.path, title = excluded.title, content = excluded.content, vector = excluded.vector, content_hash = excluded.content_hash, mtime = excluded.mtime`,
+        [p.id, p.payload.path, p.payload.title, p.payload.content, JSON.stringify(p.vector), p.contentHash ?? null, p.mtime ?? null]
       );
     });
     await persistLocalDb(this.app, db);
@@ -53,6 +56,38 @@ export class SqliteVectorStore implements VectorStore {
       if (wanted.has(path)) {
         found.set(path, vector);
       }
+    }
+    return found;
+  }
+
+  /**
+   * Purpose: Retrieves persisted content hashes and modification timestamps to enable incremental embedding skips.
+   */
+  async getStoredHashes(): Promise<Map<string, StoredVectorHash>> {
+    const found = new Map<string, StoredVectorHash>();
+    const db = await getLocalDb(this.app);
+    const result = db.exec("SELECT id, path, content_hash, mtime FROM vectors WHERE content_hash IS NOT NULL");
+    if (result.length === 0) return found;
+
+    const { columns, values } = result[0];
+    const idx = {
+      id: columns.indexOf("id"),
+      path: columns.indexOf("path"),
+      hash: columns.indexOf("content_hash"),
+      mtime: columns.indexOf("mtime"),
+    };
+
+    for (const row of values) {
+      const id = String(row[idx.id]);
+      const path = String(row[idx.path]);
+      const hash = String(row[idx.hash]);
+      const rawMtime = row[idx.mtime];
+      const entry: StoredVectorHash = {
+        hash,
+        mtime: rawMtime != null ? Number(rawMtime) : undefined,
+      };
+      found.set(id, entry);
+      found.set(path, entry);
     }
     return found;
   }

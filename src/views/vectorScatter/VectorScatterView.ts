@@ -152,6 +152,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     private readonly host: VectorScatterHost
   ) {
     super(leaf);
+    this.app = host.app;
   }
 
   get settings(): MemVectorSettings {
@@ -221,15 +222,80 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     await this.scanVaultNotes();
     this.toolbarHandles.updateSelectionUI();
+    this.registerVaultWatchers();
   }
 
   onClose(): Promise<void> {
+    if (this.relationsDebounceTimer !== null) {
+      clearTimeout(this.relationsDebounceTimer);
+      this.relationsDebounceTimer = null;
+    }
+    if (this.vaultDebounceTimer !== null) {
+      clearTimeout(this.vaultDebounceTimer);
+      this.vaultDebounceTimer = null;
+    }
     this.interactionCleanup?.();
     this.interactionCleanup = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.cancelSearchAnim();
     return Promise.resolve();
+  }
+
+  private relationsDebounceTimer: number | null = null;
+  private vaultDebounceTimer: number | null = null;
+
+  /**
+   * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
+   */
+  registerVaultWatchers(): void {
+    if (!this.app?.vault?.on) return;
+
+    const handleFileEvent = (file: { path: string }) => {
+      if (!file?.path) return;
+      if (file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
+        this.triggerRelationsReload();
+      } else if (file.path.endsWith(".md")) {
+        this.triggerVaultRescan();
+      }
+    };
+
+    const handleRenameEvent = (file: { path: string }, oldPath: string) => {
+      const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
+      const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
+
+      if (isRel(file?.path) || isRel(oldPath)) {
+        this.triggerRelationsReload();
+      } else if (isMd(file?.path) || isMd(oldPath)) {
+        this.triggerVaultRescan();
+      }
+    };
+
+    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file as { path: string })));
+    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file as { path: string })));
+    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file as { path: string })));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file as { path: string }, oldPath)));
+  }
+
+  triggerRelationsReload(): void {
+    if (this.relationsDebounceTimer !== null) clearTimeout(this.relationsDebounceTimer);
+    this.relationsDebounceTimer = Number(setTimeout(() => {
+      void (async () => {
+        await this.loadRelationEdges();
+        this.applyLayout();
+        this.redraw();
+      })();
+    }, 400));
+  }
+
+  triggerVaultRescan(): void {
+    if (this.vaultDebounceTimer !== null) clearTimeout(this.vaultDebounceTimer);
+    this.vaultDebounceTimer = Number(setTimeout(() => {
+      void (async () => {
+        await this.scanVaultNotes();
+        this.toolbarHandles?.updateSelectionUI();
+      })();
+    }, 800));
   }
 
   private hasFittedView = false;
