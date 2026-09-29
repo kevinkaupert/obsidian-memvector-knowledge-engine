@@ -5,6 +5,14 @@ import { computeGraphTopologyWeights } from "./graphTopologyWeights";
 
 export type ProjectionMode = "graphvector";
 
+/**
+ * Smallest distance a pair of strongly related nodes may be pulled to, as a fraction of the
+ * configured node spacing. Without it a large weight would collapse nodes onto each other.
+ */
+const MIN_PAIR_CLEARANCE_RATIO = 0.12;
+/** Upper bound on how far a weight may shorten a pair's target distance and stiffen its spring. */
+const MAX_WEIGHT_FACTOR = 6;
+
 export interface ProjectionParams {
   nodes: ScatterNode[];
   matrix: number[][];
@@ -276,16 +284,27 @@ export function applyGraphVectorProjection({
           continue;
         }
 
+        const sim = matrix[i][j];
+        const graphWeight = conn[i][j];
+        // Affinity selects the base target distance and stays in [0, 1]: the mapping below
+        // subtracts it from a constant, so a value above 1 would invert the target.
+        const topWeight = Math.min(1.0, graphWeight);
+
+        // A declared relation stronger than the generic 1.0 pulls its pair closer than the
+        // generic target and holds them there against competing forces. That range was
+        // previously clamped away, which made every weight >= 1 behave identically.
+        // Weights at or below 1.0 keep weightFactor 1 and are therefore unaffected.
+        const weightFactor = Math.min(MAX_WEIGHT_FACTOR, Math.max(1, graphWeight));
+        // Strongly related nodes are allowed to sit closer than the generic clearance,
+        // down to a hard floor that still keeps them visually distinct.
+        const pairClearance = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, collisionDist / weightFactor);
+
         // Anti-overlap collision clearance
-        if (dist < collisionDist) {
-          const pushMag = Math.min(targetSpacing, (collisionDist - dist) * 0.85);
+        if (dist < pairClearance) {
+          const pushMag = Math.min(targetSpacing, (pairClearance - dist) * 0.85);
           fx -= ux * pushMag;
           fy -= uy * pushMag;
         }
-
-        const sim = matrix[i][j];
-        const graphWeight = conn[i][j];
-        const topWeight = Math.min(1.0, graphWeight);
 
         // Non-linear semantic strength to filter out background noise
         const semStrength = Math.pow(sim, 2);
@@ -299,10 +318,10 @@ export function applyGraphVectorProjection({
           fy -= uy * pushMag;
         } else if (affinity >= 0.15) {
           // Attractive spring force towards ideal distance
-          const idealDist = targetSpacing * (1.15 - affinity * 0.75);
+          const idealDist = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, (targetSpacing * (1.15 - affinity * 0.75)) / weightFactor);
           const delta = dist - idealDist;
           if (delta > 0) {
-            const pullMag = Math.min(targetSpacing * 0.5, delta * affinity * 0.3);
+            const pullMag = Math.min(targetSpacing * 0.5, delta * affinity * 0.3 * weightFactor);
             fx += ux * pullMag;
             fy += uy * pullMag;
           } else {

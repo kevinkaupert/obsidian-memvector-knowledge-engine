@@ -311,3 +311,59 @@ describe("applyGraphVectorProjection", () => {
   });
 });
 
+
+describe("relation weight strength (issue #134)", () => {
+  /** Two directly related nodes, identical start positions, only the weight differs. */
+  function distanceForWeight(weight: number | undefined): number {
+    const a = makeNode("A");
+    const b = makeNode("B");
+    a.x = -400;
+    a.y = 0;
+    b.x = 400;
+    b.y = 0;
+    const edges: RelationEdge[] = [{ srcId: "A", tgtId: "B", relType: "REL" } as RelationEdge];
+    applyGraphVectorProjection({
+      nodes: [a, b],
+      matrix: [
+        [1, 0],
+        [0, 1],
+      ],
+      nodeSpacing: 350,
+      cloudSpacing: 800,
+      relationEdges: edges,
+      vocabulary: [
+        { key: "rel", label: "REL", term: "rel", category: "Custom", bidirectional: true, reversed: false, ...(weight === undefined ? {} : { weight }) },
+      ],
+    });
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  it("places a stronger-than-generic relation closer than a generic one", () => {
+    const generic = distanceForWeight(1.0);
+    const analogous = distanceForWeight(1.1);
+    const equivalent = distanceForWeight(1.3);
+
+    expect(analogous).toBeLessThan(generic);
+    expect(equivalent).toBeLessThan(analogous);
+  });
+
+  it("keeps shortening the distance monotonically for larger weights", () => {
+    const distances = [1.0, 1.1, 1.3, 2.0, 2.5].map(distanceForWeight);
+    for (let i = 1; i < distances.length; i++) {
+      expect(distances[i]).toBeLessThan(distances[i - 1]);
+    }
+  });
+
+  it("never collapses two nodes onto each other, even at an extreme weight", () => {
+    // 0.12 * nodeSpacing(350) = 42 is the hard floor; the collision force keeps them apart.
+    expect(distanceForWeight(50)).toBeGreaterThan(30);
+  });
+
+  it("leaves weights at or below the generic 1.0 exactly as they were", () => {
+    // Regression guard: the strength mapping must not move the 12 bundled types
+    // whose weight is <= 1.0, nor the multi-hop decay values.
+    expect(distanceForWeight(1.0)).toBeCloseTo(152.73454120388941, 10);
+    expect(distanceForWeight(0.05)).toBeCloseTo(distanceForWeight(0.05), 10);
+    expect(distanceForWeight(1.0)).toBeLessThan(distanceForWeight(0.5));
+  });
+});

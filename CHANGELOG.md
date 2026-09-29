@@ -12,6 +12,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   mutation now re-reads the file before writing, so a second weight/repels edit,
   a delete or an add keeps all previous edits; an unreadable file aborts the
   write instead of truncating the vocabulary (#133).
+- Relation weights above `1.0` now actually shorten the distance between connected
+  notes. The force simulation clamped every graph weight to `1.0`, so the bundled
+  `EQUIVALENT_TO` (1.3) and `ANALOGOUS_TO` (1.1) and any custom weight produced
+  exactly the same layout as a generic relation. Weights at or below `1.0` keep
+  their previous placement unchanged; see ADR-0003 for the mapping (#134).
 
 ## [0.1.7] - 2026-09-28
 
