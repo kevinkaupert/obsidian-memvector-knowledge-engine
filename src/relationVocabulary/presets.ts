@@ -109,6 +109,20 @@ export async function readVocabularyFile(app: App, path: string): Promise<Relati
 }
 
 /**
+ * Purpose: Rejects a preset name whose key is reserved by a bundled preset.
+ * Architecture: listPresets identifies a preset purely by its file key, and emits the bundled
+ * entry first, so a user file at a bundled key is never listed in its own right. It would be
+ * presented under the bundled label and, being reported as bundled, could no longer be renamed
+ * or deleted through the UI. Checking only whether the file already exists does not prevent
+ * this: the conflict is with the reserved key itself, not with a file on disk.
+ */
+function assertKeyNotReserved(key: string, name: string): void {
+  const bundled = BUNDLED_PRESETS[key];
+  if (!bundled) return;
+  throw new Error(`"${name.trim() || key}" collides with the bundled preset "${bundled.label}" - choose another name`);
+}
+
+/**
  * Makes a preset the active vocabulary: bundled presets are (re)written from
  * memory if their file is missing, then settings.relationVocabularyPath points
  * at the preset file. No re-embedding needed - edge labels are stored as
@@ -132,6 +146,7 @@ export async function activatePreset(app: App, host: SettingsHost, key: string):
 /** Creates a new user preset seeded with the active vocabulary's terms and activates it. */
 export async function createPreset(app: App, host: SettingsHost, name: string): Promise<RelationPreset> {
   const key = sanitizePresetKey(name);
+  assertKeyNotReserved(key, name);
   const path = presetFilePath(key);
   if (app.vault.getAbstractFileByPath(path) instanceof TFile) {
     throw new Error(`Preset already exists: ${path}`);
@@ -156,6 +171,7 @@ export async function renamePreset(app: App, host: SettingsHost, oldKey: string,
   if (!(oldFile instanceof TFile)) throw new Error(`Preset file not found: ${oldPath}`);
 
   const newKey = sanitizePresetKey(newName);
+  assertKeyNotReserved(newKey, newName);
   const newPath = presetFilePath(newKey);
   if (newPath !== oldPath && app.vault.getAbstractFileByPath(newPath) instanceof TFile) {
     throw new Error(`Preset already exists: ${newPath}`);

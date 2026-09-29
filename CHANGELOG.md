@@ -8,6 +8,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- User presets can no longer take a bundled preset's name. `createPreset` and
+  `renamePreset` checked only whether the target file already existed, so a preset
+  named e.g. "Law" was accepted while `wiki/presets/law.json` was still absent and
+  was then listed under the bundled label, beyond rename or delete (#140).
 - The context preview no longer prints the untranslated word `seed` next to a selected
   note. Its origin was already stated by the localized badge, so the duplicate marker is
   removed rather than translated; traversed rows keep their compact `v` / `g` / `v+g`

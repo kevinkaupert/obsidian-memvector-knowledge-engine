@@ -186,6 +186,47 @@ describe("preset lifecycle (Issue #119)", () => {
     expect(h.settings.relationVocabularyPath).toBe(DEFAULT_RELATION_VOCABULARY_PATH);
   });
 
+  it("refuses to create a preset whose key is reserved by a bundled one", async () => {
+    // The file does not exist yet, which is exactly the case the existence check missed.
+    const { files, app } = fakeApp();
+    const h = host();
+
+    await expect(createPreset(app, h, "Law")).rejects.toThrow(/bundled preset "Law & Norms"/i);
+    expect(files.has("wiki/presets/law.json")).toBe(false);
+    expect(h.settings.relationVocabularyPath).toBe(DEFAULT_RELATION_VOCABULARY_PATH);
+  });
+
+  it("rejects a reserved name regardless of how it is spelled", async () => {
+    const { app } = fakeApp();
+    const h = host();
+
+    for (const name of ["law", "LAW", "  Law  ", "Médicine".normalize("NFD"), "Philosophy"]) {
+      const key = sanitizePresetKey(name);
+      if (!BUNDLED_PRESETS[key]) continue;
+      await expect(createPreset(app, h, name)).rejects.toThrow(/collides with the bundled preset/i);
+    }
+  });
+
+  it("refuses to rename a user preset onto a reserved key", async () => {
+    const { files, app } = fakeApp({ "wiki/presets/mine.json": '{"terms":[]}' });
+    const h = host({ relationVocabularyPath: "wiki/presets/mine.json" });
+
+    await expect(renamePreset(app, h, "mine", "Medicine")).rejects.toThrow(/bundled preset "Medicine"/i);
+    // The original file is untouched and still active.
+    expect(files.has("wiki/presets/mine.json")).toBe(true);
+    expect(files.has("wiki/presets/medicine.json")).toBe(false);
+    expect(h.settings.relationVocabularyPath).toBe("wiki/presets/mine.json");
+  });
+
+  it("still allows a non-reserved name that merely resembles a bundled one", async () => {
+    const { files, app } = fakeApp({ "wiki/relation-types.json": '{"terms":[]}' });
+    const h = host();
+
+    const preset = await createPreset(app, h, "Law & Contracts");
+    expect(preset.key).toBe("law-contracts");
+    expect(files.has("wiki/presets/law-contracts.json")).toBe(true);
+  });
+
   it("refuses to delete bundled presets", async () => {
     const { app } = fakeApp();
     const h = host();
