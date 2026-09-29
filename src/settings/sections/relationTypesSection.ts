@@ -352,9 +352,11 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], a
           reversed: false,
         };
         const weightNum = Number.isFinite(weight) ? weight : 1.0;
-        if (weightNum !== 1.0) term.weight = weightNum;
-        if (repelsToggle.checked) term.repels = true;
-        return [...current, term];
+        // Same fallback-safe serialization as the in-place editor. Dropping the fields
+        // whenever they look like the generic defaults would hand a bundled label back to
+        // the inheritance fallback: adding CONFLICTS_WITH with repulsion off would reload
+        // as repels: true, and EQUIVALENT_TO added at weight 1.0 as 1.3.
+        return [...current, applyLayoutEdit(term, { weight: weightNum, repels: repelsToggle.checked })];
       },
       () => {
         new Notice(`[OK] ${t.relTypeAdded}`);

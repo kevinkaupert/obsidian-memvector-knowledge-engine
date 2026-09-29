@@ -126,6 +126,29 @@ function renderTable(app: App, terms: RelationTermDef[]) {
   };
 }
 
+/** Renders the table and returns the add form's controls. */
+function renderAddForm(app: App, terms: RelationTermDef[]) {
+  const parent = el("div");
+  const host = {
+    settings: { relationVocabularyPath: PATH },
+    saveSettings: async () => undefined,
+    applySettingsToOpenViews: () => undefined,
+  } as unknown as SettingsHost;
+  renderTypeTable(asEl(parent), withBundledLayoutDefaults(terms), PATH, app, host, t, () => undefined);
+  const all = walk(parent);
+  const inputs = all.filter((n) => n.tag === "input");
+  const texts = inputs.filter((n) => n.type === "text");
+  const checkboxes = inputs.filter((n) => n.type === "checkbox");
+  return {
+    label: texts[0],
+    category: texts[1],
+    weight: inputs.filter((n) => n.type === "number").at(-1)!,
+    // The add form's checkboxes are bidirectional then repels, after any row checkboxes.
+    repels: checkboxes.at(-1)!,
+    addButton: all.filter((n) => n.tag === "button").at(-1)!,
+  };
+}
+
 const conflicts: RelationTermDef = {
   key: "relConflictsWith",
   label: "CONFLICTS_WITH",
@@ -232,6 +255,65 @@ describe("relation type table handlers", () => {
 
     expect(env.find("A")?.weight).toBe(2);
     expect(env.find("B")?.weight).toBe(3);
+  });
+
+  it("keeps an explicitly unticked repels when adding a bundled label", async () => {
+    // Preset without CONFLICTS_WITH; the user adds it with repulsion deliberately off.
+    const env = fakeApp([{ key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false }]);
+    const form = renderAddForm(env.app, []);
+
+    form.label.value = "CONFLICTS_WITH";
+    form.weight.value = "1";
+    form.repels.checked = false;
+    form.addButton.onclick!();
+    await settle();
+
+    const saved = env.find("CONFLICTS_WITH")!;
+    expect(saved).toBeDefined();
+    // Omitting both fields here would hand the label back to the bundled repels: true.
+    expect(withBundledLayoutDefaults([saved])[0].repels).toBe(false);
+  });
+
+  it("keeps an explicit weight 1.0 on a label whose bundled weight is not 1.0", async () => {
+    const env = fakeApp([{ key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false }]);
+    const form = renderAddForm(env.app, []);
+
+    form.label.value = "EQUIVALENT_TO";
+    form.weight.value = "1";
+    form.repels.checked = false;
+    form.addButton.onclick!();
+    await settle();
+
+    const saved = env.find("EQUIVALENT_TO")!;
+    expect(withBundledLayoutDefaults([saved])[0].weight).toBe(1);
+  });
+
+  it("still omits both fields for a plain custom type, keeping the file readable", async () => {
+    const env = fakeApp([{ key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false }]);
+    const form = renderAddForm(env.app, []);
+
+    form.label.value = "IS_HOMOMORPHIC_TO";
+    form.weight.value = "1";
+    form.repels.checked = false;
+    form.addButton.onclick!();
+    await settle();
+
+    const saved = env.find("IS_HOMOMORPHIC_TO")!;
+    expect(saved.weight).toBeUndefined();
+    expect(saved.repels).toBeUndefined();
+  });
+
+  it("persists an explicit non-default weight and repels from the add form", async () => {
+    const env = fakeApp([{ key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false }]);
+    const form = renderAddForm(env.app, []);
+
+    form.label.value = "PUSHES_AWAY";
+    form.weight.value = "2.5";
+    form.repels.checked = true;
+    form.addButton.onclick!();
+    await settle();
+
+    expect(env.find("PUSHES_AWAY")).toMatchObject({ weight: 2.5, repels: true });
   });
 
   it("keeps a weight edit when a row is deleted right afterwards", async () => {

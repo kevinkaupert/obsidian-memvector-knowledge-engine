@@ -8,6 +8,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- Adding a relation type through the Settings add form now keeps explicit default
+  values. Adding a label that ships bundled layout semantics with weight `1.0` or
+  `repels` unticked dropped both fields, so the inheritance fallback restored the
+  bundled values on the next load - `CONFLICTS_WITH` came back repelling and
+  `EQUIVALENT_TO` at 1.3. Both write paths now use the same serialization (#136).
 - Relation type edits in Settings no longer discard each other. Every vocabulary
   mutation now re-reads the file before writing, so a second weight/repels edit,
   a delete or an add keeps all previous edits; an unreadable file aborts the
