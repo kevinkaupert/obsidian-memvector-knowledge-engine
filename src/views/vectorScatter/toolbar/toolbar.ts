@@ -222,7 +222,9 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         item.createSpan({ text: `[${t.previewSeedBadge}]`, cls: "memvector-context-preview-badge memvector-badge-seed" });
       }
       const meta = [entry.source, entry.reason].filter(Boolean).join("  ");
-      item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
+      // Seeds carry no meta text; an empty span with an empty aria-label would just be
+      // one more thing for a screen reader to announce.
+      if (meta) item.createSpan({ text: meta, cls: "memvector-context-preview-meta", attr: { "aria-label": meta } });
       if (entry.kind !== "seed") {
         const dismissBtn = item.createEl("button", { text: "✕", cls: "memvector-context-preview-dismiss" });
         dismissBtn.title = t.previewDismissTitle;

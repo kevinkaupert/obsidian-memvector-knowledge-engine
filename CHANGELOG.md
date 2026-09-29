@@ -8,6 +8,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- The context preview no longer prints the untranslated word `seed` next to a selected
+  note. Its origin was already stated by the localized badge, so the duplicate marker is
+  removed rather than translated; traversed rows keep their compact `v` / `g` / `v+g`
+  provenance codes (#141).
 - Adding a relation type through the Settings add form now keeps explicit default
   values. Adding a label that ships bundled layout semantics with weight `1.0` or
   `repels` unticked dropped both fields, so the inheritance fallback restored the
