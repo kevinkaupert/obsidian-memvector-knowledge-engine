@@ -59,14 +59,24 @@ Three properties follow:
   them, `pairClearance` reduces to the previous `collisionDist`, and
   `idealDist` reduces to the previous expression. Eleven of the thirteen
   bundled STEM types and every multi-hop decay value keep their exact
-  coordinates; a test pins the generic-weight distance numerically.
+  coordinates. Tests pin five distances measured against the implementation as
+  it stood before this change, so a later drift in that range fails rather than
+  being recomputed into agreement.
 - **The generic collision clearance yields to a declared strong relation.**
   Without this the mapping would be nearly inert: with `nodeSpacing=350` the
   clearance is 157.5 while the target distance at full affinity is already 140,
   so the clearance, not the weight, decides where a related pair settles.
-- **Nodes cannot collapse onto each other.** Both the clearance and the target
-  distance are floored at `MIN_PAIR_CLEARANCE_RATIO * targetSpacing`, and
-  `weightFactor` saturates at `MAX_WEIGHT_FACTOR`.
+- **The pull saturates instead of growing without bound.** Both the clearance
+  and the target distance are floored at `MIN_PAIR_CLEARANCE_RATIO *
+  targetSpacing`, and `weightFactor` saturates at `MAX_WEIGHT_FACTOR`, so an
+  arbitrarily large weight is no more extreme than the largest supported one.
+  Note what this does and does not guarantee: it bounds the *target* distance
+  and the pair's clearance. It is not by itself a guaranteed hard minimum
+  separation in the finished layout, because the final positions are the
+  equilibrium of every force acting on a node, not of this pair's spring alone.
+  Tests therefore assert the saturation property directly and check separation
+  on a small graph with competing forces, rather than claiming a floor the
+  simulation does not enforce end to end.
 
 Resulting pair distance for two directly related nodes at `nodeSpacing=350`:
 

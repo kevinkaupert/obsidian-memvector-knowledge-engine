@@ -311,59 +311,124 @@ describe("applyGraphVectorProjection", () => {
   });
 });
 
+describe("relation weight strength", () => {
+  /**
+   * Distances measured against the implementation as it stood before weights above 1.0
+   * became effective (commit bec83db). Pinning them here is what makes the regression
+   * guard meaningful: recomputing an expectation from the current code would pass no
+   * matter how the mapping drifts.
+   */
+  const PRE_CHANGE_DISTANCE: Record<string, number> = {
+    "0.05": 764.2069615667052,
+    "0.25": 374.42325740542947,
+    "0.5": 273.1877836248406,
+    "0.75": 204.7033513968628,
+    "1": 152.73454120388942,
+  };
 
-describe("relation weight strength (issue #134)", () => {
   /** Two directly related nodes, identical start positions, only the weight differs. */
-  function distanceForWeight(weight: number | undefined): number {
+  function distanceForWeight(weight: number, nodeSpacing = 350): number {
     const a = makeNode("A");
     const b = makeNode("B");
     a.x = -400;
     a.y = 0;
     b.x = 400;
     b.y = 0;
-    const edges: RelationEdge[] = [{ srcId: "A", tgtId: "B", relType: "REL" } as RelationEdge];
     applyGraphVectorProjection({
       nodes: [a, b],
       matrix: [
         [1, 0],
         [0, 1],
       ],
-      nodeSpacing: 350,
+      nodeSpacing,
       cloudSpacing: 800,
-      relationEdges: edges,
-      vocabulary: [
-        { key: "rel", label: "REL", term: "rel", category: "Custom", bidirectional: true, reversed: false, ...(weight === undefined ? {} : { weight }) },
-      ],
+      relationEdges: [{ srcId: "A", tgtId: "B", relType: "REL" } as RelationEdge],
+      vocabulary: [{ key: "rel", label: "REL", term: "rel", category: "Custom", bidirectional: true, reversed: false, weight }],
     });
     return Math.hypot(a.x - b.x, a.y - b.y);
   }
 
-  it("places a stronger-than-generic relation closer than a generic one", () => {
-    const generic = distanceForWeight(1.0);
-    const analogous = distanceForWeight(1.1);
-    const equivalent = distanceForWeight(1.3);
-
-    expect(analogous).toBeLessThan(generic);
-    expect(equivalent).toBeLessThan(analogous);
+  it("leaves every weight at or below the generic 1.0 exactly where it was", () => {
+    for (const [weight, expected] of Object.entries(PRE_CHANGE_DISTANCE)) {
+      expect(distanceForWeight(Number(weight))).toBeCloseTo(expected, 9);
+    }
   });
 
-  it("keeps shortening the distance monotonically for larger weights", () => {
-    const distances = [1.0, 1.1, 1.3, 2.0, 2.5].map(distanceForWeight);
+  it("places a stronger-than-generic relation closer than a generic one", () => {
+    expect(distanceForWeight(1.1)).toBeLessThan(distanceForWeight(1.0));
+    expect(distanceForWeight(1.3)).toBeLessThan(distanceForWeight(1.1));
+  });
+
+  it("keeps shortening the distance monotonically across the whole range", () => {
+    const weights = [0.05, 0.25, 0.5, 0.75, 1.0, 1.1, 1.3, 2.0, 2.5, 4.0];
+    const distances = weights.map((w) => distanceForWeight(w));
     for (let i = 1; i < distances.length; i++) {
       expect(distances[i]).toBeLessThan(distances[i - 1]);
     }
   });
 
-  it("never collapses two nodes onto each other, even at an extreme weight", () => {
-    // 0.12 * nodeSpacing(350) = 42 is the hard floor; the collision force keeps them apart.
-    expect(distanceForWeight(50)).toBeGreaterThan(30);
+  it("saturates rather than collapsing further once the weight factor is capped", () => {
+    // Beyond the cap the mapping stops changing, so an absurd weight is no more
+    // extreme than the largest supported one.
+    const capped = distanceForWeight(6);
+    expect(distanceForWeight(50)).toBeCloseTo(capped, 9);
+    expect(distanceForWeight(5000)).toBeCloseTo(capped, 9);
+    expect(capped).toBeGreaterThan(0);
   });
 
-  it("leaves weights at or below the generic 1.0 exactly as they were", () => {
-    // Regression guard: the strength mapping must not move the 12 bundled types
-    // whose weight is <= 1.0, nor the multi-hop decay values.
-    expect(distanceForWeight(1.0)).toBeCloseTo(152.73454120388941, 10);
-    expect(distanceForWeight(0.05)).toBeCloseTo(distanceForWeight(0.05), 10);
-    expect(distanceForWeight(1.0)).toBeLessThan(distanceForWeight(0.5));
+  it("scales the saturated floor with the configured node spacing", () => {
+    // The floor is a fraction of node spacing, not an absolute pixel count.
+    expect(distanceForWeight(50, 700)).toBeGreaterThan(distanceForWeight(50, 350));
+  });
+
+  it("still separates a strongly bound pair inside a graph with competing forces", () => {
+    // A-B are strongly bound; C is pulled at generic strength and D actively repels A,
+    // so the pair has to hold its distance against forces other than its own spring.
+    const a = makeNode("A");
+    const b = makeNode("B");
+    const c = makeNode("C");
+    const d = makeNode("D");
+    const nodes = [a, b, c, d];
+    nodes.forEach((node, i) => {
+      node.x = Math.cos((i / nodes.length) * Math.PI * 2) * 400;
+      node.y = Math.sin((i / nodes.length) * Math.PI * 2) * 400;
+    });
+
+    applyGraphVectorProjection({
+      nodes,
+      matrix: [
+        [1, 0.1, 0.4, 0.1],
+        [0.1, 1, 0.1, 0.1],
+        [0.4, 0.1, 1, 0.1],
+        [0.1, 0.1, 0.1, 1],
+      ],
+      nodeSpacing: 350,
+      cloudSpacing: 800,
+      relationEdges: [
+        { srcId: "A", tgtId: "B", relType: "STRONG" } as RelationEdge,
+        { srcId: "A", tgtId: "C", relType: "REL" } as RelationEdge,
+        { srcId: "A", tgtId: "D", relType: "AGAINST" } as RelationEdge,
+      ],
+      vocabulary: [
+        { key: "s", label: "STRONG", term: "s", category: "Custom", bidirectional: true, reversed: false, weight: 3 },
+        { key: "r", label: "REL", term: "r", category: "Custom", bidirectional: true, reversed: false },
+        { key: "a", label: "AGAINST", term: "a", category: "Custom", bidirectional: true, reversed: false, repels: true },
+      ],
+    });
+
+    const distAB = Math.hypot(a.x - b.x, a.y - b.y);
+    const distAC = Math.hypot(a.x - c.x, a.y - c.y);
+    const distAD = Math.hypot(a.x - d.x, a.y - d.y);
+
+    // The strongly weighted pair ends up closest, the repelled one furthest.
+    expect(distAB).toBeLessThan(distAC);
+    expect(distAC).toBeLessThan(distAD);
+    // No pair of nodes coincides. This is an observed property of the finished layout,
+    // not a guarantee the target-distance floor by itself provides.
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        expect(Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y)).toBeGreaterThan(1);
+      }
+    }
   });
 });

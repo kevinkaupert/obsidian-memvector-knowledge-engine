@@ -12,7 +12,7 @@ import {
   writeVocabularyFile,
   type RelationPreset,
 } from "../../relationVocabulary/presets";
-import { applyLayoutEdit } from "../../relationVocabulary/layoutDefaults";
+import { applyLayoutEdit, type LayoutPatch } from "../../relationVocabulary/layoutDefaults";
 import { createVocabularyMutator, type VocabularyMutation, type VocabularyTransform } from "../../relationVocabulary/vocabularyMutations";
 import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
@@ -200,7 +200,14 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
   });
 }
 
-function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePath: string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
+/**
+ * Purpose: Renders the per-label type table and its add form, wiring each control to a
+ * field-level vocabulary mutation.
+ * Architecture: Exported so tests can drive the real handlers. The defects this guards against
+ * (a write built from the rendered snapshot, and one control overwriting the other's field) live
+ * in the handlers, not in the helpers they call, so helper-level tests cannot see them.
+ */
+export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePath: string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const table = parent.createEl("table", { cls: "memvector-relation-type-table" });
   const head = table.createEl("thead").createEl("tr");
   for (const col of [t.relTypeColLabel, t.relTypeColCategory, t.relTypeColWeight, t.relTypeColDirection, t.relTypeColRepels, ""]) {
@@ -258,10 +265,10 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
    * Layout semantics have to be editable in place: deleting and re-adding a type to
    * change its weight would lose its category, wording and reversed flag.
    */
-  const updateLayout = (label: string, weight: number, repels: boolean): Promise<VocabularyMutation> =>
+  const updateLayout = (label: string, patch: LayoutPatch): Promise<VocabularyMutation> =>
     applyMutation((current) =>
       current.map((term) =>
-        term.label.toUpperCase() === label.toUpperCase() ? applyLayoutEdit(term, weight, repels) : term
+        term.label.toUpperCase() === label.toUpperCase() ? applyLayoutEdit(term, patch) : term
       )
     );
 
@@ -284,7 +291,9 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
         weightField.value = String(term.weight ?? 1.0);
         return;
       }
-      void updateLayout(term.label, parsed, repelsField.checked);
+      // Only the field the user touched - sending the checkbox state too would write back
+      // whatever it showed when the table was rendered, reverting a change made meanwhile.
+      void updateLayout(term.label, { weight: parsed });
     };
 
     row.createEl("td", { text: term.bidirectional ? "↔" : "→" });
@@ -293,7 +302,7 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
     const repelsField = repelsCell.createEl("input", { type: "checkbox" });
     repelsField.checked = Boolean(term.repels);
     repelsField.title = t.relTypeColRepels;
-    repelsField.onchange = () => void updateLayout(term.label, Number.parseFloat(weightField.value), repelsField.checked);
+    repelsField.onchange = () => void updateLayout(term.label, { repels: repelsField.checked });
 
     const delCell = row.createEl("td");
     const delBtn = delCell.createEl("button", { text: "✕" });

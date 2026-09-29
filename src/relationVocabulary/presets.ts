@@ -92,28 +92,6 @@ export async function writeVocabularyFile(app: App, path: string, terms: Relatio
 }
 
 /**
- * Purpose: Reads the terms of a vocabulary file for a read-modify-write cycle, keeping
- * "file unreadable" distinguishable from "vocabulary is empty".
- * Architecture: A mutation that rebuilds the file must never mistake a failed read for an
- * empty vocabulary - that would silently truncate every type in the file. Callers abort on
- * null instead. Unlike the display-side read this uses the uncached read, so a value written
- * by a preceding mutation is always visible to the next one.
- */
-export async function readVocabularyFileForUpdate(app: App, path: string): Promise<RelationTermDef[] | null> {
-  const existing = app.vault.getAbstractFileByPath(path);
-  if (!(existing instanceof TFile)) return null;
-  try {
-    const raw = await app.vault.read(existing);
-    const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
-    if (!Array.isArray(parsed.terms)) return null;
-    return parsed.terms.filter(isValidTerm);
-  } catch (err) {
-    console.warn(`MemVector: could not read vocabulary file ${path} for update:`, err);
-    return null;
-  }
-}
-
-/**
  * Reads the terms of an existing vocabulary file. Returns an empty array when
  * the file is missing or malformed (caller decides how to fall back).
  */

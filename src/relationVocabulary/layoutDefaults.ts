@@ -37,20 +37,52 @@ export function withBundledLayoutDefaults(terms: RelationTermDef[]): RelationTer
   });
 }
 
+/** A single-field edit from the Settings table. An absent field is left as it is today. */
+export interface LayoutPatch {
+  weight?: number;
+  repels?: boolean;
+}
+
 /**
- * Purpose: Applies an explicit layout edit to one term so that reloading the file yields exactly
- * the edited values, and omits a field only when the fallback would reproduce it anyway.
- * Architecture: The fallback above makes omission meaningful, which cuts both ways - dropping
- * `repels` from a CONFLICTS_WITH entry would silently restore the bundled `repels: true` on the
- * next load, so an intentional "off" has to be written as an explicit `false`. Likewise a weight
- * set to 1.0 on a label whose bundled weight is 1.3 must be written, not omitted. A field is left
- * out only when it equals the value the fallback would supply, keeping the JSON readable without
- * making the file lie about the user's choice.
+ * Purpose: Reports the layout semantics a term has in effect right now, resolving whether it
+ * carries its own values or inherits the bundled ones.
+ * Architecture: Inheritance is all-or-nothing - withBundledLayoutDefaults fills a term only when
+ * it carries neither field, so a term with an explicit weight does NOT additionally inherit the
+ * bundled `repels`; it falls back to the generic default instead. Anything reasoning about a
+ * term's current values has to mirror that rule or it will report semantics the layout never uses.
  */
-export function applyLayoutEdit(term: RelationTermDef, weight: number, repels: boolean): RelationTermDef {
+export function effectiveLayout(term: RelationTermDef): { weight: number; repels: boolean } {
+  const inherits = term.weight === undefined && term.repels === undefined;
+  const bundled = inherits ? bundledLayoutForLabel(term.label) : undefined;
+  return {
+    weight: term.weight ?? bundled?.weight ?? 1,
+    repels: term.repels ?? bundled?.repels ?? false,
+  };
+}
+
+/**
+ * Purpose: Applies a single-field layout edit to one term so that reloading the file yields
+ * exactly the edited value, and omits a field only when the fallback would reproduce it anyway.
+ * Architecture: The patch carries only the field the user actually touched. Passing both fields
+ * would make every edit write back whatever the other control happened to show when the table was
+ * rendered, silently reverting a change made meanwhile elsewhere. The untouched field is therefore
+ * taken from the term as it is on disk at merge time, not from the form.
+ * The fallback above makes omission meaningful, which cuts both ways - dropping `repels` from a
+ * CONFLICTS_WITH entry would silently restore the bundled `repels: true` on the next load, so an
+ * intentional "off" has to be written as an explicit `false`. Likewise a weight set to 1.0 on a
+ * label whose bundled weight is 1.3 must be written, not omitted. A field is left out only when
+ * the pair equals what the fallback would supply, keeping the JSON readable without making the
+ * file lie about the user's choice.
+ */
+export function applyLayoutEdit(term: RelationTermDef, patch: LayoutPatch): RelationTermDef {
   const bundled = bundledLayoutForLabel(term.label);
   const fallbackWeight = bundled?.weight ?? 1;
   const fallbackRepels = bundled?.repels ?? false;
+
+  const current = effectiveLayout(term);
+  const weight = patch.weight ?? current.weight;
+  const repels = patch.repels ?? current.repels;
+
   const updated: RelationTermDef = { ...term };
 
   // Omission only reproduces the fallback pair when BOTH fields are omitted
