@@ -13,6 +13,7 @@ import {
   type RelationPreset,
 } from "../../relationVocabulary/presets";
 import { applyLayoutEdit } from "../../relationVocabulary/layoutDefaults";
+import { createVocabularyMutator, type VocabularyMutation, type VocabularyTransform } from "../../relationVocabulary/vocabularyMutations";
 import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
@@ -216,17 +217,40 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
   }
   const uniqueTerms = Array.from(byLabel.values());
 
-  const removeType = async (label: string): Promise<void> => {
-    const remaining = terms.filter((term) => term.label.toUpperCase() !== label.toUpperCase());
-    try {
-      await writeVocabularyFile(app, activePath, remaining);
+  // Every write re-reads the file first: rebuilding it from `terms` (captured when the
+  // table was rendered) would revert every edit made since, so a second weight edit,
+  // a delete or an add would silently drop the previous one.
+  const mutator = createVocabularyMutator(app, activePath);
+
+  /**
+   * Applies one vocabulary mutation and reports its outcome to the user. A read failure is
+   * surfaced rather than swallowed - it means the file is gone or unparseable, and writing
+   * anything at that point would truncate the vocabulary.
+   */
+  const applyMutation = async (transform: VocabularyTransform, onWritten?: () => void): Promise<VocabularyMutation> => {
+    const outcome = await mutator.mutate(transform);
+    if (outcome.result === "written") {
       host.applySettingsToOpenViews?.({ relayout: true });
-      new Notice(`[OK] ${t.relTypeRemoved}`);
+      onWritten?.();
+    } else if (outcome.result === "read-failed") {
+      new Notice(`[ERROR] ${t.relTypeWriteError} (${activePath})`);
       rerender();
-    } catch (err) {
+    } else if (outcome.result === "write-failed") {
+      const err = outcome.error;
       new Notice(`[ERROR] ${t.relTypeWriteError} (${err instanceof Error ? err.message : String(err)})`);
+      rerender();
     }
+    return outcome;
   };
+
+  const removeType = (label: string): Promise<VocabularyMutation> =>
+    applyMutation(
+      (current) => current.filter((term) => term.label.toUpperCase() !== label.toUpperCase()),
+      () => {
+        new Notice(`[OK] ${t.relTypeRemoved}`);
+        rerender();
+      }
+    );
 
   /**
    * Writes one label's layout semantics back to the vocabulary file, applied to every
@@ -234,18 +258,12 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
    * Layout semantics have to be editable in place: deleting and re-adding a type to
    * change its weight would lose its category, wording and reversed flag.
    */
-  const updateLayout = async (label: string, weight: number, repels: boolean): Promise<void> => {
-    const next = terms.map((term) =>
-      term.label.toUpperCase() === label.toUpperCase() ? applyLayoutEdit(term, weight, repels) : term
+  const updateLayout = (label: string, weight: number, repels: boolean): Promise<VocabularyMutation> =>
+    applyMutation((current) =>
+      current.map((term) =>
+        term.label.toUpperCase() === label.toUpperCase() ? applyLayoutEdit(term, weight, repels) : term
+      )
     );
-    try {
-      await writeVocabularyFile(app, activePath, next);
-      host.applySettingsToOpenViews?.({ relayout: true });
-    } catch (err) {
-      new Notice(`[ERROR] ${t.relTypeWriteError} (${err instanceof Error ? err.message : String(err)})`);
-      rerender();
-    }
-  };
 
   for (const term of uniqueTerms) {
     const row = tbody.createEl("tr");
@@ -300,37 +318,39 @@ function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePa
   repelsLabel.prepend(repelsToggle);
 
   const addBtn = addForm.createEl("button", { text: t.relTypeAddBtn });
-  addBtn.onclick = async () => {
+  addBtn.onclick = () => {
     const label = sanitizeRelType(labelInput.value);
     if (!label) return;
-    if (terms.some((term) => term.label.toUpperCase() === label.toUpperCase())) {
-      new Notice(`[WARN] ${t.relTypeDuplicate} ${label}`);
-      return;
-    }
     const weight = Number.parseFloat(weightInput.value);
     if (weightInput.value.trim() !== "" && (!Number.isFinite(weight) || weight < 0)) {
       new Notice(`[WARN] ${t.relTypeWeightInvalid}`);
       return;
     }
-    const term: RelationTermDef = {
-      key: `custom${label}`,
-      label,
-      term: label,
-      category: categoryInput.value.trim() || "Custom",
-      bidirectional: bidirectionalToggle.checked,
-      reversed: false,
-    };
-    const weightNum = Number.isFinite(weight) ? weight : 1.0;
-    if (weightNum !== 1.0) term.weight = weightNum;
-    if (repelsToggle.checked) term.repels = true;
 
-    try {
-      await writeVocabularyFile(app, activePath, [...terms, term]);
-      host.applySettingsToOpenViews?.({ relayout: true });
-      new Notice(`[OK] ${t.relTypeAdded}`);
-      rerender();
-    } catch (err) {
-      new Notice(`[ERROR] ${t.relTypeWriteError} (${err instanceof Error ? err.message : String(err)})`);
-    }
+    void applyMutation(
+      (current) => {
+        // Duplicate check against the file's current contents, not the rendered snapshot.
+        if (current.some((existing) => existing.label.toUpperCase() === label.toUpperCase())) {
+          new Notice(`[WARN] ${t.relTypeDuplicate} ${label}`);
+          return null;
+        }
+        const term: RelationTermDef = {
+          key: `custom${label}`,
+          label,
+          term: label,
+          category: categoryInput.value.trim() || "Custom",
+          bidirectional: bidirectionalToggle.checked,
+          reversed: false,
+        };
+        const weightNum = Number.isFinite(weight) ? weight : 1.0;
+        if (weightNum !== 1.0) term.weight = weightNum;
+        if (repelsToggle.checked) term.repels = true;
+        return [...current, term];
+      },
+      () => {
+        new Notice(`[OK] ${t.relTypeAdded}`);
+        rerender();
+      }
+    );
   };
 }
