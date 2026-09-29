@@ -15,3 +15,10 @@ memvector-review-2026-09-14.md
 memvector-code-review-2026-09-19.md
 /test-vault*/
 /testing/fixtures/smoke-test-vault/.obsidian/plugins/
+# Runtime state the smoke-test vault produces when Obsidian opens it: per-session UI
+# layout and the vocabulary/relation files the plugin writes. The fixture ships only
+# its notes, so a test run leaves no diff to review or accidentally commit.
+/testing/fixtures/smoke-test-vault/.obsidian/appearance.json
+/testing/fixtures/smoke-test-vault/.obsidian/core-plugins.json
+/testing/fixtures/smoke-test-vault/.obsidian/workspace.json
+/testing/fixtures/smoke-test-vault/wiki/
