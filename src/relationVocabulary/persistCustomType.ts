@@ -33,7 +33,6 @@ export async function persistCustomRelationTypes(
   const path = ((settings?.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim()) || DEFAULT_RELATION_VOCABULARY_PATH;
 
   let terms: RelationTermDef[] = [];
-  let file: TFile | null = null;
   const existing = app.vault.getAbstractFileByPath(path);
   if (existing instanceof TFile) {
     try {

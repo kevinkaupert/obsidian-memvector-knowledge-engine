@@ -169,7 +169,13 @@ export async function renamePreset(app: App, host: SettingsHost, oldKey: string,
   return { key: newKey, label: newName.trim() || humanizePresetKey(newKey), bundled: false, path: newPath };
 }
 
-/** Trashes a user preset file; bundled presets cannot be deleted. */
+/**
+ * Purpose: Removes a user preset file, honoring the vault's configured deletion behavior;
+ * bundled presets cannot be deleted.
+ * Architecture: FileManager.trashFile follows the user's "Deleted files" setting (system trash,
+ * vault .trash/, or permanent). Vault.trash takes that decision away from them by hardcoding a
+ * destination, which would make this one action behave unlike every other deletion in the vault.
+ */
 export async function deletePreset(app: App, host: SettingsHost, key: string): Promise<void> {
   if (BUNDLED_PRESETS[key]) throw new Error("Bundled presets cannot be deleted");
 
@@ -177,7 +183,7 @@ export async function deletePreset(app: App, host: SettingsHost, key: string): P
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return;
 
-  await app.vault.trash(file, false);
+  await app.fileManager.trashFile(file);
 
   if ((host.settings.relationVocabularyPath || "").trim() === path) {
     host.settings.relationVocabularyPath = DEFAULT_RELATION_VOCABULARY_PATH;

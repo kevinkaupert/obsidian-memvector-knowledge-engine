@@ -53,11 +53,15 @@ function fakeApp(initial: Record<string, string> = {}): FakeVault {
       files.delete(file.path);
       if (content !== undefined) files.set(newPath, content);
     },
-    trash: async (file: TFile) => {
+  };
+  // Deletion goes through FileManager so the vault's configured "Deleted files"
+  // behavior applies; the vault's own trash() is deliberately not offered here.
+  const fileManager = {
+    trashFile: async (file: TFile) => {
       files.delete(file.path);
     },
   };
-  const app = { vault } as unknown as App;
+  const app = { vault, fileManager } as unknown as App;
   return { files, app };
 }
 
