@@ -115,4 +115,27 @@ describe("drawNodes label decluttering (PR #130)", () => {
     drawNodes(ctx, [target], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, placer);
     expect(ctx.drawnLabels).toEqual([]);
   });
+
+  describe("viewport culling (Issue #158)", () => {
+    it("skips rendering dots and labels for nodes outside viewport bounds", () => {
+      const ctx = fakeCtx();
+      const inside = node("inside", 100, 100);
+      const outside = node("outside", 2000, 2000);
+      const vp = { minX: 0, maxX: 500, minY: 0, maxY: 500 };
+
+      drawNodes(ctx, [inside, outside], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer(), vp);
+
+      expect(ctx.drawnLabels.map((l) => l.text)).toEqual(["inside"]);
+    });
+
+    it("renders all nodes when viewport parameter is omitted for backward compatibility", () => {
+      const ctx = fakeCtx();
+      const a = node("a", 100, 100);
+      const b = node("b", 2000, 2000);
+
+      drawNodes(ctx, [a, b], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+
+      expect(ctx.drawnLabels.map((l) => l.text).sort()).toEqual(["a", "b"]);
+    });
+  });
 });

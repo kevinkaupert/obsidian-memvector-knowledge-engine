@@ -5,6 +5,7 @@ import type { RelationEdge, ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 import { hashString } from "../../../hash";
+import { isEdgeInViewport, type ViewportBounds } from "./viewportCulling";
 
 /**
  * Canonical Cypher relation types have dedicated semantic colors for instant
@@ -115,7 +116,8 @@ export function drawEdges(
   pan: PanState,
   themeTextNormal: string,
   themeAccent: string,
-  style: ScatterVisualStyle
+  style: ScatterVisualStyle,
+  viewport?: ViewportBounds
 ): void {
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
@@ -130,6 +132,7 @@ export function drawEdges(
     const tgtNode = nodeMap.get(edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) return;
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
+    if (viewport && !isEdgeInViewport(srcNode, tgtNode, viewport)) return;
 
     const isHovered = edge === hoveredEdge;
     const edgeColor = resolveEdgeColor(edge.relType, style, themeAccent);

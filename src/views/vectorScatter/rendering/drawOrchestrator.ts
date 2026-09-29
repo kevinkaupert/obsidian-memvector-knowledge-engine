@@ -6,6 +6,7 @@ import { drawClusters } from "./drawClusters";
 import { drawEdges } from "./drawEdges";
 import { drawNodes } from "./drawNodes";
 import { createLabelPlacer } from "./labelPlacement";
+import { computeWorldViewport } from "./viewportCulling";
 
 export interface DrawState {
   nodes: ScatterNode[];
@@ -76,6 +77,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
   const labels = createLabelPlacer();
   drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle, labels);
 
+  const viewport = computeWorldViewport(width, height, state.zoom, state.pan);
+
   if (state.showEdges && state.relationEdges.length > 0) {
     drawEdges(
       ctx,
@@ -89,7 +92,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
       state.pan,
       themeTextNormal,
       themeAccent,
-      state.scatterVisualStyle
+      state.scatterVisualStyle,
+      viewport
     );
   }
 
@@ -108,7 +112,8 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
     state.scatterVisualStyle,
     relationTallies,
     state.unselectedLabelOpacity,
-    labels
+    labels,
+    viewport
   );
 
   if (state.isDraggingLasso) {
