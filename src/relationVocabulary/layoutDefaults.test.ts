@@ -75,7 +75,7 @@ describe("applyLayoutEdit (Settings round-trip)", () => {
   const roundTrip = (term: RelationTermDef) => withBundledLayoutDefaults([term])[0];
 
   it("writes repels: false explicitly so unticking a bundled repeller sticks", () => {
-    const edited = applyLayoutEdit(conflicts, 1, false);
+    const edited = applyLayoutEdit(conflicts, { weight: 1, repels: false });
     expect(edited.repels).toBe(false);
     // The whole point: omitting the field here would restore the bundled repels: true.
     expect(roundTrip(edited).repels).toBe(false);
@@ -83,13 +83,13 @@ describe("applyLayoutEdit (Settings round-trip)", () => {
 
   it("writes weight 1.0 explicitly when the bundled default is not 1.0", () => {
     const equivalent: RelationTermDef = { key: "k", label: "EQUIVALENT_TO", term: "is equivalent to", category: "Logic", bidirectional: true, reversed: false, weight: 1.3 };
-    const edited = applyLayoutEdit(equivalent, 1, false);
+    const edited = applyLayoutEdit(equivalent, { weight: 1, repels: false });
     expect(edited.weight).toBe(1);
     expect(roundTrip(edited).weight).toBe(1);
   });
 
   it("omits both fields when the edit matches the bundled pair", () => {
-    const edited = applyLayoutEdit(conflicts, 1, true);
+    const edited = applyLayoutEdit(conflicts, { weight: 1, repels: true });
     expect(edited.weight).toBeUndefined();
     expect(edited.repels).toBeUndefined();
     // The fallback reproduces it, so the file stays clean without lying.
@@ -97,24 +97,24 @@ describe("applyLayoutEdit (Settings round-trip)", () => {
   });
 
   it("omits both fields for a plain 1.0 / no-repel label with no bundled semantics", () => {
-    expect(applyLayoutEdit(implies, 1, false)).toEqual(implies);
-    expect(applyLayoutEdit(custom, 1, false)).toEqual(custom);
+    expect(applyLayoutEdit(implies, { weight: 1, repels: false })).toEqual(implies);
+    expect(applyLayoutEdit(custom, { weight: 1, repels: false })).toEqual(custom);
   });
 
   it("persists a custom label's edited values, which have no fallback to lean on", () => {
-    const edited = applyLayoutEdit(custom, 2.5, true);
+    const edited = applyLayoutEdit(custom, { weight: 2.5, repels: true });
     expect(edited).toMatchObject({ weight: 2.5, repels: true });
     expect(roundTrip(edited)).toMatchObject({ weight: 2.5, repels: true });
   });
 
   it("keeps every non-layout field untouched", () => {
-    const edited = applyLayoutEdit(conflicts, 0.4, false);
+    const edited = applyLayoutEdit(conflicts, { weight: 0.4, repels: false });
     expect(edited).toMatchObject({ key: "relConflictsWith", term: "conflicts with", category: "Logic", bidirectional: true, reversed: false });
   });
 
   it("round-trips an arbitrary edit exactly", () => {
     for (const [w, r] of [[0, false], [0.05, true], [1, true], [1.3, false], [3, true]] as [number, boolean][]) {
-      const back = roundTrip(applyLayoutEdit(conflicts, w, r));
+      const back = roundTrip(applyLayoutEdit(conflicts, { weight: w, repels: r }));
       expect([back.weight ?? 1, back.repels ?? false]).toEqual([w, r]);
     }
   });
