@@ -152,6 +152,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     private readonly host: VectorScatterHost
   ) {
     super(leaf);
+    this.app = host.app;
   }
 
   get settings(): MemVectorSettings {
@@ -221,15 +222,80 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     await this.scanVaultNotes();
     this.toolbarHandles.updateSelectionUI();
+    this.registerVaultWatchers();
   }
 
   onClose(): Promise<void> {
+    if (this.relationsDebounceTimer !== null) {
+      window.clearTimeout(this.relationsDebounceTimer);
+      this.relationsDebounceTimer = null;
+    }
+    if (this.vaultDebounceTimer !== null) {
+      window.clearTimeout(this.vaultDebounceTimer);
+      this.vaultDebounceTimer = null;
+    }
     this.interactionCleanup?.();
     this.interactionCleanup = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.cancelSearchAnim();
     return Promise.resolve();
+  }
+
+  private relationsDebounceTimer: number | null = null;
+  private vaultDebounceTimer: number | null = null;
+
+  /**
+   * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
+   */
+  registerVaultWatchers(): void {
+    if (!this.app?.vault?.on) return;
+
+    const handleFileEvent = (file: { path: string }) => {
+      if (!file?.path) return;
+      if (file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
+        this.triggerRelationsReload();
+      } else if (file.path.endsWith(".md")) {
+        this.triggerVaultRescan();
+      }
+    };
+
+    const handleRenameEvent = (file: { path: string }, oldPath: string) => {
+      const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
+      const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
+
+      if (isRel(file?.path) || isRel(oldPath)) {
+        this.triggerRelationsReload();
+      } else if (isMd(file?.path) || isMd(oldPath)) {
+        this.triggerVaultRescan();
+      }
+    };
+
+    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
+  }
+
+  triggerRelationsReload(): void {
+    if (this.relationsDebounceTimer !== null) window.clearTimeout(this.relationsDebounceTimer);
+    this.relationsDebounceTimer = window.setTimeout(() => {
+      void (async () => {
+        await this.loadRelationEdges();
+        this.applyLayout();
+        this.redraw();
+      })();
+    }, 400);
+  }
+
+  triggerVaultRescan(): void {
+    if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
+    this.vaultDebounceTimer = window.setTimeout(() => {
+      void (async () => {
+        await this.scanVaultNotes();
+        this.toolbarHandles?.updateSelectionUI();
+      })();
+    }, 800);
   }
 
   private hasFittedView = false;
@@ -322,7 +388,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
+    const previousEmbeddings = new Map<string, number[]>();
+    for (const node of this.nodes) {
+      if (node.embedding && node.embedding.length > 0) {
+        previousEmbeddings.set(node.path, node.embedding);
+        previousEmbeddings.set(node.id, node.embedding);
+      }
+    }
+
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
+
+    for (const node of this.nodes) {
+      const existing = previousEmbeddings.get(node.path) ?? previousEmbeddings.get(node.id);
+      if (existing) node.embedding = existing;
+    }
+
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
@@ -338,10 +418,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.nodes.length === 0) return;
     try {
       const store = getVectorStore(this.app, this.settings);
-      const vectors = await store.getVectors(this.nodes.map((n) => n.path));
+      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
+      const vectors = await store.getVectors(queryKeys);
       this.nodes.forEach((n) => {
-        const v = vectors.get(n.path);
-        if (v) n.embedding = v;
+        if (!n.embedding || n.embedding.length === 0) {
+          const v = vectors.get(n.path) ?? vectors.get(n.id);
+          if (v) n.embedding = v;
+        }
       });
     } catch (err) {
       console.warn("MemVector: Failed to hydrate stored embeddings before layout:", err);

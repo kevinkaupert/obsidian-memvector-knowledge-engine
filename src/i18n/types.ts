@@ -270,6 +270,9 @@ export interface TranslationKeys {
   statusSelectedSuffix: string;
   statusVectorsCalculating: string;
   statusCalcEmbeddings: string;
+  statusCacheActive: string;
+  statusUncalculated: string;
+  statusSkippedCached: string;
   warnNoNotesForVectors: string;
   modelLabelPrefix: string;
   embedModelLabelPrefix: string;

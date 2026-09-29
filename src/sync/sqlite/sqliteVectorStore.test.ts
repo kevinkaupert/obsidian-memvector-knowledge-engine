@@ -179,5 +179,33 @@ describe("SqliteVectorStore", () => {
       expect(matches[0].score).toBeCloseTo(1);
     });
   });
+
+  describe("getStoredHashes (Issue #63)", () => {
+    it("returns stored contentHash and mtime mapped by id and path", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([
+        {
+          id: "note-1",
+          vector: [0.1, 0.2],
+          payload: { path: "Folder/Note 1.md", title: "Note 1", content: "text" },
+          contentHash: "hash-12345",
+          mtime: 1700000000,
+        },
+      ]);
+
+      const hashes = await store.getStoredHashes();
+      expect(hashes.get("note-1")).toEqual({ hash: "hash-12345", mtime: 1700000000 });
+      expect(hashes.get("Folder/Note 1.md")).toEqual({ hash: "hash-12345", mtime: 1700000000 });
+    });
+
+    it("omits rows where content_hash is null", async () => {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints([point("legacy", [0.5, 0.5])]);
+
+      const hashes = await store.getStoredHashes();
+      expect(hashes.has("legacy")).toBe(false);
+      expect(hashes.has("legacy.md")).toBe(false);
+    });
+  });
 });
 

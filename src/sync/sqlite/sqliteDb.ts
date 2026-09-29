@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS edges (
 );
 CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src);
 CREATE INDEX IF NOT EXISTS idx_edges_tgt ON edges(tgt);
-CREATE TABLE IF NOT EXISTS vectors (id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT);
+CREATE TABLE IF NOT EXISTS vectors (
+  id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT,
+  content_hash TEXT, mtime INTEGER
+);
 `;
 
 let activePluginId = "memvector-knowledge-engine";
@@ -72,6 +75,16 @@ async function openDb(app: App): Promise<Database> {
   const dbPath = localDbPath(app);
   const db = (await app.vault.adapter.exists(dbPath)) ? new SQL.Database(new Uint8Array(await app.vault.adapter.readBinary(dbPath))) : new SQL.Database();
   db.run(SCHEMA);
+  try {
+    db.run("ALTER TABLE vectors ADD COLUMN content_hash TEXT;");
+  } catch {
+    // Column already exists or table freshly created with column
+  }
+  try {
+    db.run("ALTER TABLE vectors ADD COLUMN mtime INTEGER;");
+  } catch {
+    // Column already exists or table freshly created with column
+  }
   return db;
 }
 

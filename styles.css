@@ -662,6 +662,7 @@
   display: flex;
   flex-direction: column;
   width: 280px;
+  max-height: calc(100% - 24px);
   border-radius: 12px;
   background: var(--background-secondary-alt, var(--background-secondary, rgba(15, 23, 42, 0.88)));
   border: 1px solid var(--background-modifier-border, var(--border-color, rgba(255,255,255,0.08)));
@@ -674,6 +675,46 @@
   pointer-events: none;
   transform: translateY(-6px) scale(0.97);
 }
+.memvector-toolbar-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 6px 12px 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.06));
+  flex-shrink: 0;
+}
+.memvector-toolbar-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--background-modifier-form-field, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--background-modifier-border, rgba(255, 255, 255, 0.08));
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+}
+.memvector-toolbar-icon-btn:hover:not(:disabled) {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.1));
+  color: var(--text-normal);
+  border-color: var(--interactive-accent, #38bdf8);
+}
+.memvector-toolbar-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.memvector-toolbar-icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.memvector-toolbar-scroll-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
 .memvector-hoverbar-container {
   padding: 6px 12px;
   border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
@@ -681,6 +722,7 @@
   font-size: 0.85em;
   color: var(--text-muted);
   z-index: 10;
+  flex-shrink: 0;
 }
 
 /* ── Toolbar Controls ── */

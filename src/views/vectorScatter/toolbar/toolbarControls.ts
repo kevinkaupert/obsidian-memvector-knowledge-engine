@@ -1,3 +1,5 @@
+import { setIcon } from "obsidian";
+
 export interface ToggleHandle {
   setOn(on: boolean): void;
 }
@@ -104,6 +106,18 @@ export function createSlider(
 export function createActionBtn(parent: HTMLElement, label: string, onClick: (() => void) | null, isPrimary = false): HTMLButtonElement {
   const btn = parent.createEl("button", { text: label, cls: "memvector-action-btn" });
   if (isPrimary) btn.addClass("is-primary");
+  if (onClick) btn.onclick = onClick;
+  return btn;
+}
+
+/**
+ * Purpose: Creates a toolbar action button with an Obsidian Lucide icon, tooltip title, and click handler.
+ */
+export function createIconButton(parent: HTMLElement, iconName: string, titleText: string, onClick?: () => void): HTMLButtonElement {
+  const btn = parent.createEl("button", { cls: "memvector-toolbar-icon-btn" });
+  btn.title = titleText;
+  btn.setAttribute("aria-label", titleText);
+  setIcon(btn, iconName);
   if (onClick) btn.onclick = onClick;
   return btn;
 }

@@ -45,6 +45,7 @@ describe("vaultVectorSync", () => {
       search: async () => [],
       getVector: async () => null,
       getVectors: async () => new Map(),
+      getStoredHashes: async () => new Map(),
       reconcile: async (paths: string[]) => {
         reconciledPaths.push(...paths);
         return { removed: 0 };
@@ -54,14 +55,70 @@ describe("vaultVectorSync", () => {
     const result = await syncVaultVectors(fakeApp, DEFAULT_SETTINGS, mockStore);
 
     expect(result.syncedCount).toBe(2);
+    expect(result.skippedCount).toBe(0);
     expect(syncedPoints.length).toBe(2);
 
     expect(syncedPoints[0].id).toBe(pathToId("Work/Overview.md"));
     expect(syncedPoints[0].payload.path).toBe("Work/Overview.md");
+    expect(syncedPoints[0].contentHash).toBeDefined();
 
     expect(syncedPoints[1].id).toBe(pathToId("Concepts/Deep Learning.md"));
     expect(syncedPoints[1].payload.path).toBe("Concepts/Deep Learning.md");
+    expect(syncedPoints[1].contentHash).toBeDefined();
 
     expect(reconciledPaths).toEqual(["Work/Overview.md", "Concepts/Deep Learning.md"]);
+  });
+
+  it("skips unchanged notes when content hash matches stored hash", async () => {
+    const files: TFile[] = [
+      { path: "Work/Overview.md", basename: "Overview", name: "Overview.md" } as unknown as TFile,
+      { path: "Concepts/Deep Learning.md", basename: "Deep Learning", name: "Deep Learning.md" } as unknown as TFile,
+    ];
+
+    const fakeApp = {
+      vault: {
+        getMarkdownFiles: () => files,
+        cachedRead: async (f: TFile) => `Content of ${f.basename}`,
+      },
+      secretStorage: {
+        getSecret: () => "mock-secret-key",
+      },
+    } as unknown as App;
+
+    const fetchSpy = vi.spyOn(fetchEmbeddingModule, "fetchEmbedding").mockResolvedValue({
+      embedding: [0.1, 0.2, 0.3],
+      error: null,
+    });
+    fetchSpy.mockClear();
+
+    // Work/Overview.md content is "Content of Overview"
+    // Sample text: "Overview\nContent of Overview".slice(0, 1500)
+    const { hashString } = await import("../hash");
+    const overviewHash = String(hashString("Overview\nContent of Overview"));
+
+    const storedHashes = new Map<string, { hash: string }>();
+    storedHashes.set("Work/Overview.md", { hash: overviewHash });
+
+    const syncedPoints: VectorPoint[] = [];
+    const mockStore: VectorStore = {
+      testConnection: async () => {},
+      syncPoints: async (points: VectorPoint[]) => {
+        syncedPoints.push(...points);
+      },
+      search: async () => [],
+      getVector: async () => null,
+      getVectors: async () => new Map(),
+      getStoredHashes: async () => storedHashes,
+      reconcile: async () => ({ removed: 0 }),
+    };
+
+    const result = await syncVaultVectors(fakeApp, DEFAULT_SETTINGS, mockStore);
+
+    // Overview was cached and skipped, Deep Learning was calculated
+    expect(result.skippedCount).toBe(1);
+    expect(result.syncedCount).toBe(1);
+    expect(syncedPoints.length).toBe(1);
+    expect(syncedPoints[0].payload.path).toBe("Concepts/Deep Learning.md");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
