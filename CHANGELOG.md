@@ -7,6 +7,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-09-29
+
 ### Fixed
 - The 2D view now schedules its animation frames on the window it actually lives in.
   Both the redraw throttle and the search pulse used a bare `window.` prefix, which
