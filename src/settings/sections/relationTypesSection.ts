@@ -18,6 +18,16 @@ import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
 
+/**
+ * Purpose: Resolves the vault path of the active vocabulary file from settings.
+ * Architecture: Read on each call rather than captured when the section renders - the active
+ * vocabulary can change while the Settings tab is on screen (preset switch, delete, or a direct
+ * path edit), and a write built against a stale path lands in the file the user just left.
+ */
+function activeVocabularyPath(host: SettingsHost): string {
+  return (host.settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
+}
+
 function activePresetKey(settingsPath: string, presets: RelationPreset[]): string | null {
   const path = (settingsPath || "").trim();
   return presets.find((p) => p.path === path)?.key ?? null;
@@ -87,7 +97,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
 
   void (async () => {
     const presets = await listPresets(app);
-    const activePath = (host.settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
+    const activePath = activeVocabularyPath(host);
     const activeKey = activePresetKey(activePath, presets);
     const selected = presets.find((p) => p.key === activeKey);
     const terms = await loadRelationVocabulary(app, host.settings);
@@ -125,13 +135,30 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     vocabSetting.controlEl.addClass("memvector-setting-full-width");
     vocabSetting.addText((text) => {
       text.inputEl.addClass("memvector-textarea-mono");
-      text
-        .setPlaceholder("wiki/relation-types.json")
-        .setValue(activePath)
-        .onChange(async (value) => {
-          host.settings.relationVocabularyPath = value;
-          await host.saveSettings();
-        });
+      text.setPlaceholder(DEFAULT_RELATION_VOCABULARY_PATH).setValue(activePath);
+
+      /**
+       * Commits the typed path once the user is done with the field. Persisting on every
+       * keystroke would store half-typed paths, and the vocabulary loader creates whatever
+       * path it is handed - so an intermediate value can leave a stray file, and a folder,
+       * behind in the vault. Committing also refreshes the open view and rebuilds the type
+       * table, which would otherwise keep editing the previously active file.
+       */
+      const commitPath = async (): Promise<void> => {
+        const next = text.getValue().trim() || DEFAULT_RELATION_VOCABULARY_PATH;
+        if (next === activeVocabularyPath(host)) return;
+        host.settings.relationVocabularyPath = next;
+        await host.saveSettings();
+        host.applySettingsToOpenViews?.({ relayout: true });
+        rerender();
+      };
+
+      text.inputEl.addEventListener("blur", () => void commitPath());
+      text.inputEl.addEventListener("keydown", (ev: KeyboardEvent) => {
+        if (ev.key !== "Enter") return;
+        ev.preventDefault();
+        void commitPath();
+      });
     });
 
     // 3. Preset management buttons
@@ -143,6 +170,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
       if (!name) return;
       try {
         await createPreset(app, host, name);
+        host.applySettingsToOpenViews?.({ relayout: true });
         new Notice(`[OK] ${t.relPresetCreated}`);
         rerender();
       } catch (err) {
@@ -158,6 +186,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
       if (!name) return;
       try {
         await renamePreset(app, host, selected.key, name);
+        host.applySettingsToOpenViews?.({ relayout: true });
         new Notice(`[OK] ${t.relPresetRenamed}`);
         rerender();
       } catch (err) {
@@ -171,6 +200,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
       if (!selected || selected.bundled) return;
       try {
         await deletePreset(app, host, selected.key);
+        host.applySettingsToOpenViews?.({ relayout: true });
         new Notice(`[OK] ${t.relPresetDeleted}`);
         rerender();
       } catch (err) {
@@ -182,7 +212,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     const typesDetails = sectionEl.createEl("details", { cls: "memvector-types-details" });
     typesDetails.createEl("summary", { text: t.relTypesInPreset });
     const typesEl = typesDetails.createDiv({ cls: "memvector-types-details-body" });
-    renderTypeTable(typesEl, terms, activePath, app, host, t, rerender);
+    renderTypeTable(typesEl, terms, () => activeVocabularyPath(host), app, host, t, rerender);
 
     const resetBtn = typesEl.createEl("button", { text: t.relTypeResetBtn });
     resetBtn.onclick = async () => {
@@ -207,7 +237,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
  * (a write built from the rendered snapshot, and one control overwriting the other's field) live
  * in the handlers, not in the helpers they call, so helper-level tests cannot see them.
  */
-export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], activePath: string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
+export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], resolvePath: () => string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const table = parent.createEl("table", { cls: "memvector-relation-type-table" });
   const head = table.createEl("thead").createEl("tr");
   for (const col of [t.relTypeColLabel, t.relTypeColCategory, t.relTypeColWeight, t.relTypeColDirection, t.relTypeColRepels, ""]) {
@@ -227,7 +257,7 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], a
   // Every write re-reads the file first: rebuilding it from `terms` (captured when the
   // table was rendered) would revert every edit made since, so a second weight edit,
   // a delete or an add would silently drop the previous one.
-  const mutator = createVocabularyMutator(app, activePath);
+  const mutator = createVocabularyMutator(app, resolvePath);
 
   /**
    * Applies one vocabulary mutation and reports its outcome to the user. A read failure is
@@ -240,7 +270,7 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], a
       host.applySettingsToOpenViews?.({ relayout: true });
       onWritten?.();
     } else if (outcome.result === "read-failed") {
-      new Notice(`[ERROR] ${t.relTypeWriteError} (${activePath})`);
+      new Notice(`[ERROR] ${t.relTypeWriteError} (${resolvePath()})`);
       rerender();
     } else if (outcome.result === "write-failed") {
       const err = outcome.error;

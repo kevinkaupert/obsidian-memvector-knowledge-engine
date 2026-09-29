@@ -8,6 +8,13 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- Every way of changing the active relation vocabulary now reaches an open 2D view.
+  Deleting, creating or renaming a preset, and editing the vocabulary path, updated
+  the settings while the open canvas kept laying out with the previous vocabulary.
+  The path field is also applied on blur or Enter instead of on every keystroke, so a
+  half-typed path can no longer be persisted or turned into a stray vault file, and
+  table edits are written to whichever file is active at that moment rather than the
+  one that was active when the table was drawn (#135).
 - User presets can no longer take a bundled preset's name. `createPreset` and
   `renamePreset` checked only whether the target file already existed, so a preset
   named e.g. "Law" was accepted while `wiki/presets/law.json` was still absent and

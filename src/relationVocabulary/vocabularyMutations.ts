@@ -33,11 +33,16 @@ export interface VocabularyMutator {
  * another table instance or a concurrent handler can commit a change that the later write then
  * overwrites. Vault.process performs the whole cycle atomically within the vault, which also
  * makes the guarantee hold across every table instance without a shared queue of our own.
+ * The target path is resolved per mutation so a change of the active vocabulary cannot send a
+ * write to the previously active file.
  * Remaining limitation: a writer that edits the file outside the vault API is not covered.
  */
-export function createVocabularyMutator(app: App, path: string): VocabularyMutator {
+export function createVocabularyMutator(app: App, resolvePath: () => string): VocabularyMutator {
   return {
     async mutate(transform: VocabularyTransform): Promise<VocabularyMutation> {
+      // Resolved per mutation, not captured: the active vocabulary can change while the
+      // Settings table is on screen, and a write must land in the file that is active now.
+      const path = resolvePath();
       const file = app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) return { result: "read-failed" };
 
