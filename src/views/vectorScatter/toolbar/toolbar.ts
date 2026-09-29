@@ -63,22 +63,6 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.redraw();
   });
 
-  createIconButton(actionsBar, "refresh-cw", t.btnScanVault, () => {
-    void (async () => {
-      statusText.setText(t.statusScanningVault);
-      setHoverBarText(hoverBar, t.statusScanningVault, "muted");
-      await ctx.scanVaultNotes();
-      updateSelectionUI();
-      const embeddedCount = ctx.nodes.filter((n) => n.embedding && n.embedding.length > 0).length;
-      if (embeddedCount > 0) {
-        setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned} (${embeddedCount} ${t.statusCacheActive})`, "muted");
-      } else {
-        setHoverBarText(hoverBar, `${ctx.nodes.length} ${t.statusNotesScanned}`);
-      }
-      ctx.redraw();
-    })();
-  });
-
   const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
   const calcVectorsBtn = createIconButton(actionsBar, "sparkles", `${t.btnCalcVectors} (${embedModelLabel})`, () => {
     void runCalcVectors(ctx, calcVectorsBtn, statusText, hoverBar);
