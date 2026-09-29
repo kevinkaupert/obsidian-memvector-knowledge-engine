@@ -99,10 +99,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         const match = this.nodes.find((n) => n.id === this.searchHighlight?.nodeId);
         if (match && isRelationNode(match)) {
           this.searchHighlight = null;
-          if (this.searchAnimHandle !== null) {
-            window.cancelAnimationFrame(this.searchAnimHandle);
-            this.searchAnimHandle = null;
-          }
+          this.cancelSearchAnim();
         }
       }
 
@@ -139,7 +136,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private interactionCleanup: (() => void) | null = null;
   private toolbarHandles: ToolbarHandles | null = null;
   private searchHighlight: { nodeId: string; startedAt: number } | null = null;
-  private searchAnimHandle: number | null = null;
+  /**
+   * Pending search-pulse frame, kept together with the window that issued it. The view can be
+   * dragged into an Obsidian popout, which has its own window object; a bare `window.` prefix
+   * resolves to the window the plugin was loaded in, so the pulse would be scheduled on - and
+   * cancelled against - a window the view no longer lives in.
+   */
+  private searchAnim: { win: Window; handle: number } | null = null;
   private lastSearchQuery: string | null = null;
   private lastSearchMatches: ScatterNode[] = [];
   private lastSearchIndex = -1;
@@ -225,7 +228,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.interactionCleanup = null;
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
-    if (this.searchAnimHandle !== null) window.cancelAnimationFrame(this.searchAnimHandle);
+    this.cancelSearchAnim();
     return Promise.resolve();
   }
 
@@ -426,21 +429,34 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.pan.x = this.canvasWrap.clientWidth / 2 - match.x * this.zoom;
     this.pan.y = this.canvasWrap.clientHeight / 2 - match.y * this.zoom;
 
-    if (this.searchAnimHandle !== null) window.cancelAnimationFrame(this.searchAnimHandle);
+    this.cancelSearchAnim();
     const startedAt = performance.now();
     this.searchHighlight = { nodeId: match.id, startedAt };
 
     const tick = (): void => {
       this.redraw();
       if (performance.now() - startedAt < SEARCH_PULSE_DURATION_MS) {
-        this.searchAnimHandle = window.requestAnimationFrame(tick);
+        this.scheduleSearchAnim(tick);
       } else {
         this.searchHighlight = null;
-        this.searchAnimHandle = null;
+        this.searchAnim = null;
         this.redraw();
       }
     };
-    this.searchAnimHandle = window.requestAnimationFrame(tick);
+    this.scheduleSearchAnim(tick);
+  }
+
+  /** Schedules the next pulse frame on the window the view currently lives in. */
+  private scheduleSearchAnim(tick: () => void): void {
+    const win = this.containerEl.win;
+    this.searchAnim = { win, handle: win.requestAnimationFrame(tick) };
+  }
+
+  /** Cancels a pending pulse frame against the window that issued it. */
+  private cancelSearchAnim(): void {
+    if (this.searchAnim === null) return;
+    this.searchAnim.win.cancelAnimationFrame(this.searchAnim.handle);
+    this.searchAnim = null;
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string, excludedContextIds?: ReadonlySet<string>): Promise<void> {
