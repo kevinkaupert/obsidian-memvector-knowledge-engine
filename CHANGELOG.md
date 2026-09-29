@@ -8,6 +8,12 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 ## [Unreleased]
 
 ### Fixed
+- The 2D view now schedules its animation frames on the window it actually lives in.
+  Both the redraw throttle and the search pulse used a bare `window.` prefix, which
+  resolves to the window the plugin was loaded in, so a view dragged into an Obsidian
+  popout scheduled frames on - and cancelled them against - a window it no longer
+  belonged to. The window-level `mouseup` listener follows the canvas across a move as
+  well (#137).
 - Every way of changing the active relation vocabulary now reaches an open 2D view.
   Deleting, creating or renaming a preset, and editing the vocabulary path, updated
   the settings while the open canvas kept laying out with the previous vocabulary.

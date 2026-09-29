@@ -37,16 +37,29 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   // rate; redrawing once per raw event (rather than coalesced to one per frame) overloads
   // the compositor and was observed to leak rendering artifacts into unrelated panes
   // (tab bar, sidebar) while this view was open.
-  // window.requestAnimationFrame, not the bare global: a view living in an Obsidian
-  // popout window has its own window object, and the main window's rAF does not
-  // reliably fire for it (same reason the search pulse uses window.* in the view).
-  let redrawHandle: number | null = null;
+  // The frame is requested on the window the canvas actually belongs to. A bare `window.`
+  // prefix does not do that: it resolves to the window the plugin was loaded in, so a view
+  // dragged into an Obsidian popout would schedule frames on a window it no longer lives in.
+  // `canvas.win` is resolved per call, so a migrated canvas schedules on its new window
+  // without any re-binding, and the handle is kept together with the window that issued it -
+  // cancelling on a different window would silently do nothing.
+  let pendingRedraw: { win: Window; handle: number } | null = null;
   const scheduleRedraw = (): void => {
-    if (redrawHandle !== null) return;
-    redrawHandle = window.requestAnimationFrame(() => {
-      redrawHandle = null;
-      ctx.redraw();
-    });
+    if (pendingRedraw !== null) return;
+    const win = canvas.win;
+    pendingRedraw = {
+      win,
+      handle: win.requestAnimationFrame(() => {
+        pendingRedraw = null;
+        ctx.redraw();
+      }),
+    };
+  };
+
+  const cancelPendingRedraw = (): void => {
+    if (pendingRedraw === null) return;
+    pendingRedraw.win.cancelAnimationFrame(pendingRedraw.handle);
+    pendingRedraw = null;
   };
 
   const onWheel = (e: WheelEvent) => {
@@ -221,17 +234,27 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   canvas.addEventListener("mousemove", onMouseMove);
   canvas.addEventListener("click", onClick);
   canvas.addEventListener("dblclick", onDblClick);
-  window.addEventListener("mouseup", onMouseUp);
+  // mouseup is tracked window-wide so a drag that ends outside the canvas still completes.
+  // It therefore has to follow the canvas when the view moves to another window, otherwise
+  // the release is observed by a window the user is no longer interacting with.
+  let mouseUpWin: Window = canvas.win;
+  mouseUpWin.addEventListener("mouseup", onMouseUp);
+
+  const stopWatchingMigration = canvas.onWindowMigrated((win) => {
+    // Both the pending frame and the listener belong to the window just left.
+    cancelPendingRedraw();
+    mouseUpWin.removeEventListener("mouseup", onMouseUp);
+    mouseUpWin = win;
+    mouseUpWin.addEventListener("mouseup", onMouseUp);
+  });
 
   return () => {
     // A frame scheduled by the last mousemove must not survive the view: it would
     // redraw a detached canvas after onClose (the teardown that PR #114 added for
     // the listeners has to cover the pending frame too).
-    if (redrawHandle !== null) {
-      window.cancelAnimationFrame(redrawHandle);
-      redrawHandle = null;
-    }
-    window.removeEventListener("mouseup", onMouseUp);
+    stopWatchingMigration();
+    cancelPendingRedraw();
+    mouseUpWin.removeEventListener("mouseup", onMouseUp);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("mousedown", onMouseDown);
     canvas.removeEventListener("mousemove", onMouseMove);
