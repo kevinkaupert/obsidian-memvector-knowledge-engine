@@ -227,11 +227,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   onClose(): Promise<void> {
     if (this.relationsDebounceTimer !== null) {
-      clearTimeout(this.relationsDebounceTimer);
+      window.clearTimeout(this.relationsDebounceTimer);
       this.relationsDebounceTimer = null;
     }
     if (this.vaultDebounceTimer !== null) {
-      clearTimeout(this.vaultDebounceTimer);
+      window.clearTimeout(this.vaultDebounceTimer);
       this.vaultDebounceTimer = null;
     }
     this.interactionCleanup?.();
@@ -271,31 +271,31 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       }
     };
 
-    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file as { path: string })));
-    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file as { path: string })));
-    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file as { path: string })));
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file as { path: string }, oldPath)));
+    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
   triggerRelationsReload(): void {
-    if (this.relationsDebounceTimer !== null) clearTimeout(this.relationsDebounceTimer);
-    this.relationsDebounceTimer = Number(setTimeout(() => {
+    if (this.relationsDebounceTimer !== null) window.clearTimeout(this.relationsDebounceTimer);
+    this.relationsDebounceTimer = window.setTimeout(() => {
       void (async () => {
         await this.loadRelationEdges();
         this.applyLayout();
         this.redraw();
       })();
-    }, 400));
+    }, 400);
   }
 
   triggerVaultRescan(): void {
-    if (this.vaultDebounceTimer !== null) clearTimeout(this.vaultDebounceTimer);
-    this.vaultDebounceTimer = Number(setTimeout(() => {
+    if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
+    this.vaultDebounceTimer = window.setTimeout(() => {
       void (async () => {
         await this.scanVaultNotes();
         this.toolbarHandles?.updateSelectionUI();
       })();
-    }, 800));
+    }, 800);
   }
 
   private hasFittedView = false;

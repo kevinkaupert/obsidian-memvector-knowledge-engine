@@ -4,6 +4,10 @@ import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
 
+if (typeof window === "undefined") {
+  (globalThis as any).window = globalThis;
+}
+
 vi.mock("obsidian", () => ({
   ItemView: class {
     containerEl = {
