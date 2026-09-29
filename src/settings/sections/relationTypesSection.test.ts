@@ -1,30 +1,87 @@
 import { describe, expect, it, vi } from "vitest";
 import type { App, TFile } from "obsidian";
-import { renderTypeTable } from "./relationTypesSection";
+import { renderRelationTypesSection, renderTypeTable } from "./relationTypesSection";
 import { getTranslation } from "../../i18n";
 import type { SettingsHost } from "../types";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { withBundledLayoutDefaults } from "../../relationVocabulary/layoutDefaults";
 
-const { MockTFile } = vi.hoisted(() => {
+const { MockTFile, textComponents } = vi.hoisted(() => {
   class MockTFile {
     path: string;
     constructor(path: string) {
       this.path = path;
     }
   }
-  return { MockTFile };
+  // Text components the section creates, in creation order, so a test can drive the real
+  // blur/Enter handlers the vocabulary path field registers.
+  const textComponents: {
+    value: string;
+    listeners: Record<string, ((ev: unknown) => void)[]>;
+    fire: (type: string, ev?: unknown) => void;
+  }[] = [];
+  return { MockTFile, textComponents };
 });
 
-vi.mock("obsidian", () => ({
-  TFile: MockTFile,
-  TFolder: MockTFile,
-  Notice: class {
-    constructor(public message: string) {}
-  },
-  Modal: class {},
-  Setting: class {},
-}));
+vi.mock("obsidian", () => {
+  const stub = () => ({ addClass: () => undefined, removeClass: () => undefined });
+  class FakeSetting {
+    settingEl = stub();
+    controlEl = stub();
+    setName() {
+      return this;
+    }
+    setDesc() {
+      return this;
+    }
+    setHeading() {
+      return this;
+    }
+    addDropdown(cb: (d: unknown) => void) {
+      cb({ addOption: () => undefined, setValue: () => undefined, onChange: () => undefined });
+      return this;
+    }
+    addText(cb: (c: unknown) => void) {
+      const listeners: Record<string, ((ev: unknown) => void)[]> = {};
+      const component = {
+        value: "",
+        listeners,
+        fire: (type: string, ev: unknown = {}) => (listeners[type] ?? []).forEach((fn) => fn(ev)),
+      };
+      textComponents.push(component);
+      const api = {
+        inputEl: {
+          addClass: () => undefined,
+          addEventListener: (type: string, fn: (ev: unknown) => void) => {
+            (listeners[type] ??= []).push(fn);
+          },
+        },
+        setPlaceholder() {
+          return api;
+        },
+        setValue(v: string) {
+          component.value = v;
+          return api;
+        },
+        getValue: () => component.value,
+        onChange() {
+          return api;
+        },
+      };
+      cb(api);
+      return this;
+    }
+  }
+  return {
+    TFile: MockTFile,
+    TFolder: MockTFile,
+    Notice: class {
+      constructor(public message: string) {}
+    },
+    Modal: class {},
+    Setting: FakeSetting,
+  };
+});
 
 const PATH = "wiki/relation-types.json";
 const t = getTranslation("en");
@@ -85,6 +142,12 @@ function fakeApp(terms: RelationTermDef[]) {
   const files = new Map([[PATH, JSON.stringify({ terms }, null, 2)]]);
   let queue: Promise<unknown> = Promise.resolve();
   const vault = {
+    adapter: {
+      list: async (folder: string) => {
+        const prefix = folder.replace(/\/?$/, "/");
+        return { folders: [], files: [...files.keys()].filter((f) => f.startsWith(prefix)) };
+      },
+    },
     getAbstractFileByPath: (p: string) => (files.has(p) ? new MockTFile(p) : null),
     process: (file: TFile, fn: (data: string) => string) => {
       const run = async () => {
@@ -99,8 +162,13 @@ function fakeApp(terms: RelationTermDef[]) {
       return next;
     },
   };
+  const fileManager = {
+    trashFile: async (file: TFile) => {
+      files.delete(file.path);
+    },
+  };
   return {
-    app: { vault } as unknown as App,
+    app: { vault, fileManager } as unknown as App,
     files,
     saved: (): RelationTermDef[] => JSON.parse(files.get(PATH)!).terms,
     find: (label: string) => (JSON.parse(files.get(PATH)!).terms as RelationTermDef[]).find((x) => x.label === label),
@@ -116,7 +184,7 @@ function renderTable(app: App, terms: RelationTermDef[]) {
     applySettingsToOpenViews: () => undefined,
   } as unknown as SettingsHost;
   // The table renders from the loader's view of the file, defaults already filled in.
-  renderTypeTable(asEl(parent), withBundledLayoutDefaults(terms), PATH, app, host, t, () => undefined);
+  renderTypeTable(asEl(parent), withBundledLayoutDefaults(terms), () => PATH, app, host, t, () => undefined);
   const all = walk(parent);
   const inputs = all.filter((n) => n.tag === "input");
   return {
@@ -134,7 +202,7 @@ function renderAddForm(app: App, terms: RelationTermDef[]) {
     saveSettings: async () => undefined,
     applySettingsToOpenViews: () => undefined,
   } as unknown as SettingsHost;
-  renderTypeTable(asEl(parent), withBundledLayoutDefaults(terms), PATH, app, host, t, () => undefined);
+  renderTypeTable(asEl(parent), withBundledLayoutDefaults(terms), () => PATH, app, host, t, () => undefined);
   const all = walk(parent);
   const inputs = all.filter((n) => n.tag === "input");
   const texts = inputs.filter((n) => n.type === "text");
@@ -215,7 +283,7 @@ describe("relation type table handlers", () => {
       saveSettings: async () => undefined,
       applySettingsToOpenViews: () => undefined,
     } as unknown as SettingsHost;
-    renderTypeTable(asEl(parent), [a, b], PATH, env.app, host, t, () => undefined);
+    renderTypeTable(asEl(parent), [a, b], () => PATH, env.app, host, t, () => undefined);
     const numbers = walk(parent).filter((n) => n.tag === "input" && n.type === "number");
 
     numbers[0].value = "2";
@@ -240,8 +308,8 @@ describe("relation type table handlers", () => {
       saveSettings: async () => undefined,
       applySettingsToOpenViews: () => undefined,
     } as unknown as SettingsHost;
-    renderTypeTable(asEl(parentOne), [a, b], PATH, env.app, host, t, () => undefined);
-    renderTypeTable(asEl(parentTwo), [a, b], PATH, env.app, host, t, () => undefined);
+    renderTypeTable(asEl(parentOne), [a, b], () => PATH, env.app, host, t, () => undefined);
+    renderTypeTable(asEl(parentTwo), [a, b], () => PATH, env.app, host, t, () => undefined);
 
     const one = walk(parentOne).filter((n) => n.tag === "input" && n.type === "number");
     const two = walk(parentTwo).filter((n) => n.tag === "input" && n.type === "number");
@@ -326,7 +394,7 @@ describe("relation type table handlers", () => {
       saveSettings: async () => undefined,
       applySettingsToOpenViews: () => undefined,
     } as unknown as SettingsHost;
-    renderTypeTable(asEl(parent), [a, b], PATH, env.app, host, t, () => undefined);
+    renderTypeTable(asEl(parent), [a, b], () => PATH, env.app, host, t, () => undefined);
     const all = walk(parent);
     const numbers = all.filter((n) => n.tag === "input" && n.type === "number");
     const deletes = all.filter((n) => n.tag === "button" && n.text === "✕");
@@ -338,5 +406,154 @@ describe("relation type table handlers", () => {
 
     expect(env.saved().map((x) => x.label)).toEqual(["A"]);
     expect(env.find("A")?.weight).toBe(2);
+  });
+});
+
+describe("changing the active vocabulary source", () => {
+  const OTHER = "wiki/presets/other.json";
+
+  /** Renders the whole section and returns the vocabulary path field plus refresh spies. */
+  async function renderSection(env: ReturnType<typeof fakeApp>, startPath: string) {
+    textComponents.length = 0;
+    const refreshes: unknown[] = [];
+    let renders = 0;
+    const host = {
+      settings: { relationVocabularyPath: startPath, language: "en" },
+      saveSettings: async () => undefined,
+      applySettingsToOpenViews: (o: unknown) => refreshes.push(o),
+    } as unknown as SettingsHost;
+
+    const container = el("div");
+    renderRelationTypesSection(asEl(container), env.app, host, t, () => {
+      renders++;
+    });
+    await settle();
+    // The path field is the only text component the section creates.
+    return { host, refreshes, pathField: textComponents[0], renderCount: () => renders };
+  }
+
+  it("does not persist anything while the path is still being typed", async () => {
+    const env = fakeApp([conflicts]);
+    const { host, refreshes, pathField } = await renderSection(env, PATH);
+
+    // Simulate typing: the component's value changes, but no commit event fires yet.
+    pathField.value = "wiki/pre";
+
+    expect(host.settings.relationVocabularyPath).toBe(PATH);
+    expect(refreshes).toHaveLength(0);
+  });
+
+  it("commits the path on blur and refreshes the open view", async () => {
+    const env = fakeApp([conflicts]);
+    const { host, refreshes, pathField, renderCount } = await renderSection(env, PATH);
+    const rendersBefore = renderCount();
+
+    pathField.value = OTHER;
+    pathField.fire("blur");
+    await settle();
+
+    expect(host.settings.relationVocabularyPath).toBe(OTHER);
+    expect(refreshes).toEqual([{ relayout: true }]);
+    // The table is rebuilt, so its rows stop writing to the previously active file.
+    expect(renderCount()).toBe(rendersBefore + 1);
+  });
+
+  it("commits the path on Enter as well", async () => {
+    const env = fakeApp([conflicts]);
+    const { host, refreshes, pathField } = await renderSection(env, PATH);
+
+    pathField.value = OTHER;
+    pathField.fire("keydown", { key: "Enter", preventDefault: () => undefined });
+    await settle();
+
+    expect(host.settings.relationVocabularyPath).toBe(OTHER);
+    expect(refreshes).toEqual([{ relayout: true }]);
+  });
+
+  it("ignores a commit that does not change the path", async () => {
+    const env = fakeApp([conflicts]);
+    const { refreshes, pathField, renderCount } = await renderSection(env, PATH);
+    const rendersBefore = renderCount();
+
+    pathField.fire("blur");
+    await settle();
+
+    expect(refreshes).toHaveLength(0);
+    expect(renderCount()).toBe(rendersBefore);
+  });
+
+  it("falls back to the default path when the field is cleared", async () => {
+    const env = fakeApp([conflicts]);
+    const { host, pathField } = await renderSection(env, OTHER);
+
+    pathField.value = "   ";
+    pathField.fire("blur");
+    await settle();
+
+    expect(host.settings.relationVocabularyPath).toBe("wiki/relation-types.json");
+  });
+});
+
+describe("table writes follow the active path, not the rendered one", () => {
+  it("sends an edit to the file that is active at write time", async () => {
+    const OTHER = "wiki/presets/other.json";
+    const env = fakeApp([conflicts]);
+    // A second vocabulary file that becomes active after the table was rendered.
+    env.files.set(OTHER, JSON.stringify({ terms: [conflicts] }, null, 2));
+
+    let current = PATH;
+    const parent = el("div");
+    const host = {
+      settings: { relationVocabularyPath: PATH },
+      saveSettings: async () => undefined,
+      applySettingsToOpenViews: () => undefined,
+    } as unknown as SettingsHost;
+    renderTypeTable(asEl(parent), withBundledLayoutDefaults([conflicts]), () => current, env.app, host, t, () => undefined);
+
+    // The active vocabulary changes while the rendered table is still on screen.
+    current = OTHER;
+
+    const weight = walk(parent).find((n) => n.tag === "input" && n.type === "number")!;
+    weight.value = "2";
+    weight.onchange!();
+    await settle();
+
+    expect(JSON.parse(env.files.get(OTHER)!).terms[0].weight).toBe(2);
+    // The previously active file is untouched.
+    expect(JSON.parse(env.files.get(PATH)!).terms[0].weight).toBeUndefined();
+  });
+});
+
+describe("preset management refreshes the open view", () => {
+  const USER_PRESET = "wiki/presets/mine.json";
+
+  async function renderWithUserPreset(env: ReturnType<typeof fakeApp>) {
+    textComponents.length = 0;
+    const refreshes: unknown[] = [];
+    const host = {
+      settings: { relationVocabularyPath: USER_PRESET, language: "en" },
+      saveSettings: async () => undefined,
+      applySettingsToOpenViews: (o: unknown) => refreshes.push(o),
+    } as unknown as SettingsHost;
+
+    const container = el("div");
+    renderRelationTypesSection(asEl(container), env.app, host, t, () => undefined);
+    await settle();
+    return { host, refreshes, buttons: walk(container).filter((n) => n.tag === "button") };
+  }
+
+  it("refreshes the open view when the active preset is deleted", async () => {
+    const env = fakeApp([conflicts]);
+    env.files.set(USER_PRESET, JSON.stringify({ terms: [conflicts] }, null, 2));
+    const { host, refreshes, buttons } = await renderWithUserPreset(env);
+
+    const deleteBtn = buttons.find((b) => b.text === t.relPresetDeleteBtn)!;
+    expect(deleteBtn).toBeDefined();
+    deleteBtn.onclick!();
+    await settle();
+
+    // The active vocabulary fell back to the default, so an open layout is now stale.
+    expect(host.settings.relationVocabularyPath).toBe("wiki/relation-types.json");
+    expect(refreshes).toContainEqual({ relayout: true });
   });
 });

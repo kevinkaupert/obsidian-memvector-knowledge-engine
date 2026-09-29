@@ -88,7 +88,7 @@ const editRepels = (label: string, repels: boolean) => (current: RelationTermDef
 describe("createVocabularyMutator", () => {
   it("keeps an earlier weight edit when a second row is edited afterwards", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     await m.mutate(editWeight("A", 2));
     await m.mutate(editWeight("B", 3));
@@ -99,7 +99,7 @@ describe("createVocabularyMutator", () => {
 
   it("keeps a weight edit when another row is deleted afterwards", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     await m.mutate(editWeight("A", 2));
     await m.mutate((current) => current.filter((x) => x.label !== "B"));
@@ -110,7 +110,7 @@ describe("createVocabularyMutator", () => {
 
   it("keeps a weight edit when a type is added afterwards", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     await m.mutate(editWeight("A", 2));
     await m.mutate((current) => [...current, term("C")]);
@@ -122,7 +122,7 @@ describe("createVocabularyMutator", () => {
   it("does not revert a repels change made elsewhere when a weight is edited", async () => {
     // Regression: the weight handler used to send the checkbox state it had rendered with.
     const env = seeded([term("CONFLICTS_WITH")]);
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     // Another writer turns repulsion off explicitly.
     await m.mutate(editRepels("CONFLICTS_WITH", false));
@@ -137,7 +137,7 @@ describe("createVocabularyMutator", () => {
 
   it("does not revert a weight change made elsewhere when repels is toggled", async () => {
     const env = seeded([term("A")]);
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     await m.mutate(editWeight("A", 2.5));
     await m.mutate(editRepels("A", true));
@@ -149,8 +149,8 @@ describe("createVocabularyMutator", () => {
   it("serializes concurrent mutations from two independent table instances", async () => {
     const env = seeded();
     // Two separately rendered Settings tables, each with its own mutator.
-    const tableOne = createVocabularyMutator(env.app, PATH);
-    const tableTwo = createVocabularyMutator(env.app, PATH);
+    const tableOne = createVocabularyMutator(env.app, () => PATH);
+    const tableTwo = createVocabularyMutator(env.app, () => PATH);
 
     await Promise.all([tableOne.mutate(editWeight("A", 2)), tableTwo.mutate(editWeight("B", 3))]);
 
@@ -161,8 +161,8 @@ describe("createVocabularyMutator", () => {
 
   it("serializes an add from one table against a delete from another", async () => {
     const env = seeded();
-    const tableOne = createVocabularyMutator(env.app, PATH);
-    const tableTwo = createVocabularyMutator(env.app, PATH);
+    const tableOne = createVocabularyMutator(env.app, () => PATH);
+    const tableTwo = createVocabularyMutator(env.app, () => PATH);
 
     await Promise.all([
       tableOne.mutate((current) => [...current, term("C")]),
@@ -174,7 +174,7 @@ describe("createVocabularyMutator", () => {
 
   it("aborts without writing when the file contains invalid JSON", async () => {
     const env = fakeApp({ [PATH]: "{ not json" });
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     const outcome = await m.mutate(editWeight("A", 2));
 
@@ -184,7 +184,7 @@ describe("createVocabularyMutator", () => {
 
   it("aborts without writing when the file has no terms array", async () => {
     const env = fakeApp({ [PATH]: JSON.stringify({ somethingElse: true }) });
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     const outcome = await m.mutate(() => [term("A")]);
 
@@ -195,7 +195,7 @@ describe("createVocabularyMutator", () => {
 
   it("aborts without writing when the file is missing entirely", async () => {
     const env = fakeApp();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     const outcome = await m.mutate(() => [term("A")]);
 
@@ -205,7 +205,7 @@ describe("createVocabularyMutator", () => {
 
   it("reports a write failure and leaves the file untouched", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
     const before = env.files.get(PATH);
 
     env.setFailWrite(true);
@@ -217,7 +217,7 @@ describe("createVocabularyMutator", () => {
 
   it("keeps serving later mutations after one failed", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     env.setFailWrite(true);
     await m.mutate(editWeight("A", 2));
@@ -230,7 +230,7 @@ describe("createVocabularyMutator", () => {
 
   it("skips the write when the transform declines", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
     const before = env.files.get(PATH);
 
     const outcome = await m.mutate(() => null);
@@ -241,7 +241,7 @@ describe("createVocabularyMutator", () => {
 
   it("reads the contents inside the atomic section, not when the mutation is requested", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     // Started but not awaited; the file then changes before the atomic section runs.
     const pending = m.mutate(editWeight("A", 2));
@@ -255,7 +255,7 @@ describe("createVocabularyMutator", () => {
 
   it("picks up a change written outside the panel instead of reverting it", async () => {
     const env = seeded();
-    const m = createVocabularyMutator(env.app, PATH);
+    const m = createVocabularyMutator(env.app, () => PATH);
 
     env.files.set(PATH, JSON.stringify({ terms: [term("A"), term("B"), term("EXTERNAL")] }, null, 2));
     await m.mutate(editWeight("A", 2));

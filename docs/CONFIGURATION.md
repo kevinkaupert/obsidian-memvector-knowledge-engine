@@ -118,7 +118,9 @@ The preselected type uses the same vocabulary resolution as an explicitly select
 
 - The **Settings Relation Type Manager** shows the active preset selector (with create/rename/delete for user presets), a type table (label, category, weight, direction, repels) and a "Reset to STEM default" action. All mutations rewrite the vault-owned preset file.
 - **Weight and repels are edited in place** in the table - change the number or tick the checkbox and it is written immediately. Both fields are omitted from the file only when the bundled defaults for that label would reproduce the exact pair you chose - for a label with no bundled layout semantics that is weight `1.0` with `repels` unticked, which keeps the JSON readable. On a label that ships its own defaults they are written out explicitly, so unticking `repels` on `CONFLICTS_WITH` or setting `EQUIVALENT_TO` to `1.0` sticks instead of being restored on the next load. The add form and the in-place editor follow the same rule. Deleting and re-adding a type is not needed and would lose its category, wording and `reversed` flag.
-- Every change here (add, delete, weight/repels edit, reset, preset switch) re-runs the force layout in an open 2D view straight away, since per-label weights move nodes.
+- Every change to the active vocabulary (add, delete, weight/repels edit, reset, preset switch, preset create/rename/delete, and editing the path below) re-runs the force layout in an open 2D view straight away, since per-label weights move nodes.
+
+- The **Active vocabulary file** path is applied when you leave the field or press Enter, not while you type. A half-typed path is not a state worth keeping: the plugin creates a vocabulary file at whatever path it is given, so committing every keystroke would leave stray files - and folders - behind in your vault.
 
 ---
 
