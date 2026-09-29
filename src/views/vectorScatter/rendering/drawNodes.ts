@@ -4,6 +4,7 @@ import type { ScatterNode } from "../types";
 import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 import { createLabelPlacer, type LabelPlacer } from "./labelPlacement";
+import { isNodeInViewport, type ViewportBounds } from "./viewportCulling";
 
 const TYPE_COLORS_MUTED: Record<string, string> = {
   definition: "#6f93c9",
@@ -44,6 +45,10 @@ function relationColor(ctx: CanvasRenderingContext2D, tally: RelationTally, x: n
   return grad;
 }
 
+/**
+ * Purpose: Renders scatter nodes, halos, and priority labels on the 2D canvas, skipping off-screen nodes when viewport bounds are provided (Issue #158).
+ * Architecture: Employs viewport culling to avoid canvas context calls and label measuring for off-screen nodes in dense graphs.
+ */
 export function drawNodes(
   ctx: CanvasRenderingContext2D,
   nodes: ScatterNode[],
@@ -57,7 +62,8 @@ export function drawNodes(
   style: ScatterVisualStyle,
   relationTallies: Map<string, RelationTally> = new Map(),
   unselectedLabelOpacity = 1,
-  labels: LabelPlacer = createLabelPlacer()
+  labels: LabelPlacer = createLabelPlacer(),
+  viewport?: ViewportBounds
 ): void {
   const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
 
@@ -80,6 +86,9 @@ export function drawNodes(
   const candidates: LabelCandidate[] = [];
 
   nodes.forEach((node) => {
+    if (viewport && !isNodeInViewport(node, viewport)) {
+      return;
+    }
     const pos = worldToScreen(node.x, node.y, zoom, pan);
     const isSelected = selectedNodeIds.has(node.id);
     const isHovered = hoveredNode === node;
