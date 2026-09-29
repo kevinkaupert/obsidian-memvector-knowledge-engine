@@ -30,7 +30,8 @@ vi.mock("obsidian", () => ({
   TFolder: MockTFile,
 }));
 
-function fakeApp(files: Map<string, string>): App {
+function fakeApp(files: Map<string, string>, options: { failWrite?: boolean } = {}): App {
+  let queue: Promise<unknown> = Promise.resolve();
   const vault = {
     files,
     getAbstractFileByPath: (path: string) => (files.has(path) ? new MockTFile(path) : null),
@@ -38,6 +39,20 @@ function fakeApp(files: Map<string, string>): App {
       const content = files.get(file.path);
       if (content === undefined) throw new Error(`no file ${file.path}`);
       return content;
+    },
+    process: (file: TFile, fn: (data: string) => string) => {
+      const run = async () => {
+        await Promise.resolve();
+        const before = files.get(file.path);
+        if (before === undefined) throw new Error(`no file ${file.path}`);
+        const after = fn(before);
+        if (options.failWrite) throw new Error("write boom");
+        files.set(file.path, after);
+        return after;
+      };
+      const next = queue.then(run, run);
+      queue = next.catch(() => undefined);
+      return next;
     },
     modify: async (file: TFile, content: string) => {
       files.set(file.path, content);
@@ -129,4 +144,62 @@ describe("persistCustomRelationTypes (Issue #119)", () => {
     const parsed = JSON.parse(files.get("wiki/relation-types.json")!) as { terms: { key: string }[] };
     expect(new Set(parsed.terms.map((t) => t.key)).size).toBe(2);
   });
+
+  it("appending to a deliberately empty vocabulary ({ terms: [] }) yields exactly the appended type without reseeding STEM (Issue #149)", async () => {
+    const existing = { terms: [] };
+    const files = new Map<string, string>([["wiki/relation-types.json", JSON.stringify(existing)]]);
+
+    const ok = await persistCustomRelationTypes(fakeApp(files), {}, [{ label: "CUSTOM_ONE", term: "custom one", bidirectional: false }]);
+    expect(ok).toBe(true);
+
+    const parsed = JSON.parse(files.get("wiki/relation-types.json")!) as { terms: { label: string }[] };
+    expect(parsed.terms.length).toBe(1);
+    expect(parsed.terms[0].label).toBe("CUSTOM_ONE");
+  });
+
+  it("does not lose concurrent Settings edits when persisting custom types (Issue #149)", async () => {
+    const initial = {
+      terms: [{ key: "k1", label: "IMPLIES", term: "implies", category: "Logic", bidirectional: false, reversed: false, weight: 1.0 }],
+    };
+    const files = new Map<string, string>([["wiki/relation-types.json", JSON.stringify(initial)]]);
+    const app = fakeApp(files);
+
+    // Simulate concurrent settings edit (weight update) and custom relation append
+    const settingsEdit = app.vault.process(new MockTFile("wiki/relation-types.json") as any, (raw) => {
+      const parsed = JSON.parse(raw);
+      parsed.terms[0].weight = 2.5;
+      return JSON.stringify(parsed);
+    });
+
+    const persistCustom = persistCustomRelationTypes(app, {}, [
+      { label: "LEADS_TO", term: "leads to", bidirectional: false },
+    ]);
+
+    const [_, ok] = await Promise.all([settingsEdit, persistCustom]);
+    expect(ok).toBe(true);
+
+    const parsed = JSON.parse(files.get("wiki/relation-types.json")!) as { terms: { label: string; weight?: number }[] };
+    expect(parsed.terms.length).toBe(2);
+    const implies = parsed.terms.find((t) => t.label === "IMPLIES");
+    const leadsTo = parsed.terms.find((t) => t.label === "LEADS_TO");
+    expect(implies?.weight).toBe(2.5);
+    expect(leadsTo).toBeDefined();
+  });
+
+  it("fails safely and returns false on an unreadable or malformed vocabulary file without clobbering it (Issue #149)", async () => {
+    const files = new Map<string, string>([["wiki/relation-types.json", "CORRUPTED_NOT_JSON"]]);
+    const ok = await persistCustomRelationTypes(fakeApp(files), {}, [{ label: "FOO", term: "foo", bidirectional: false }]);
+    expect(ok).toBe(false);
+    expect(files.get("wiki/relation-types.json")).toBe("CORRUPTED_NOT_JSON");
+  });
+
+  it("fails safely and returns false when write fails (Issue #149)", async () => {
+    const existing = { terms: [] };
+    const files = new Map<string, string>([["wiki/relation-types.json", JSON.stringify(existing)]]);
+    const app = fakeApp(files, { failWrite: true });
+
+    const ok = await persistCustomRelationTypes(app, {}, [{ label: "FOO", term: "foo", bidirectional: false }]);
+    expect(ok).toBe(false);
+  });
 });
+

@@ -51,7 +51,13 @@ vi.mock("obsidian", () => ({
     close = vi.fn();
   },
 }));
-vi.mock("../../relationVocabulary/loadRelationVocabulary", () => ({ loadRelationVocabulary: vi.fn() }));
+vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>();
+  return {
+    ...actual,
+    loadRelationVocabulary: vi.fn(),
+  };
+});
 vi.mock("../../sync/storeFactory", () => ({ getGraphStore: vi.fn() }));
 
 const a = { id: "a", path: "A.md", title: "A", type: "concept" };
@@ -67,13 +73,19 @@ function fixture(def: RelationTermDef) {
   const file = (path: string) => Object.assign(new TFile(), { path, name: path.split("/").pop()!, basename: path.split("/").pop()!.slice(0, -3) });
   const create = vi.fn(async (path: string, content: string) => { contents.set(path, content); });
   const modify = vi.fn(async (f: TFile, content: string) => { contents.set(f.path, content); });
+  const process = vi.fn(async (f: TFile, fn: (data: string) => string) => {
+    const before = contents.get(f.path) ?? "";
+    const after = fn(before);
+    contents.set(f.path, after);
+    return after;
+  });
   const trashFile = vi.fn(async (f: TFile) => { contents.delete(f.path); });
   const app = {
     vault: {
       getMarkdownFiles: () => [...contents.keys()].map(file),
       getAbstractFileByPath: (path: string) => contents.has(path) ? file(path) : null,
       read: async (f: TFile) => contents.get(f.path)!,
-      create, modify, createFolder: vi.fn(async () => {}),
+      create, modify, process, createFolder: vi.fn(async () => {}),
     },
     metadataCache: {
       getFileCache: () => null, // Exercise the real markdown fallback in the loader.

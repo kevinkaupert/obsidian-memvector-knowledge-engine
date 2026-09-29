@@ -22,19 +22,13 @@ export function isValidTerm(v: unknown): v is RelationTermDef {
 }
 
 /**
- * Loads the vault's own relation-type vocabulary (settings.relationVocabularyPath,
- * default wiki/relation-types.json). If the file doesn't exist yet, seeds it with
- * the bundled STEM default and returns that - so a fresh vault behaves exactly
- * like before, but the file is now there to edit for any other domain. Malformed
- * files fall back to the bundled default with a Notice rather than breaking the
- * relation builder.
- *
- * Terms that carry neither `weight` nor `repels` inherit the bundled layout
- * semantics for their canonical label (layoutDefaults.ts, ADR-0002), so a vault
- * seeded before those fields existed keeps its previous 2D layout behavior
- * instead of silently collapsing every label to the generic 1.0 attraction.
+ * Purpose: Loads the vault's relation-type vocabulary, preserving an intentional empty preset and falling back to STEM on corrupt files (Issues #139, #149).
+ * Architecture: If the file doesn't exist yet, seeds it with the bundled STEM default and returns that. Malformed or unparseable files fall back to the bundled default with a Notice rather than breaking the relation builder, while an intentional empty vocabulary ({ terms: [] }) is preserved. Terms missing layout fields inherit bundled layout defaults (ADR-0002).
  */
-export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorSettings, "relationVocabularyPath"> & Partial<Pick<MemVectorSettings, "language">>): Promise<RelationTermDef[]> {
+export async function loadRelationVocabulary(
+  app: App,
+  settings: Partial<Pick<MemVectorSettings, "relationVocabularyPath" | "language">> = {}
+): Promise<RelationTermDef[]> {
   const path = (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
   const existing = app.vault.getAbstractFileByPath(path);
 
@@ -52,8 +46,13 @@ export async function loadRelationVocabulary(app: App, settings: Pick<MemVectorS
   try {
     const raw = await app.vault.cachedRead(existing);
     const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
-    const terms = Array.isArray(parsed.terms) ? parsed.terms.filter(isValidTerm) : [];
-    if (terms.length === 0) throw new Error("no valid terms");
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.terms)) {
+      throw new Error("missing terms array");
+    }
+    const terms = parsed.terms.filter(isValidTerm);
+    if (parsed.terms.length > 0 && terms.length === 0) {
+      throw new Error("no valid terms");
+    }
     return withBundledLayoutDefaults(terms);
   } catch (err) {
     const t = getTranslation(settings.language || "de");
