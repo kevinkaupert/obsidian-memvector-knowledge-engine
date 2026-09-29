@@ -1,6 +1,6 @@
 # 0002 — Vocabulary-Driven Layout Weights Replace Hardcoded Type Maps
 
-Status: Accepted
+Status: Accepted (extended by ADR-0003, which defines what a weight above 1.0 does)
 
 ## Context
 

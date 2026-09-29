@@ -7,6 +7,13 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Fixed
+- Relation weights above `1.0` now actually shorten the distance between connected
+  notes. The force simulation clamped every graph weight to `1.0`, so the bundled
+  `EQUIVALENT_TO` (1.3) and `ANALOGOUS_TO` (1.1) and any custom weight produced
+  exactly the same layout as a generic relation. Weights at or below `1.0` keep
+  their previous placement unchanged; see ADR-0003 for the mapping (#134).
+
 ## [0.1.7] - 2026-09-28
 
 ### Added
