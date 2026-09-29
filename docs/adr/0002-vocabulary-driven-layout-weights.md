@@ -63,8 +63,11 @@ repels?: boolean;  // actively push connected notes apart, default false
   editing vocabulary JSON or using the Settings Relation Type Manager, which
   edits `weight` and `repels` in place per row — no code changes, and no
   delete-and-re-add that would lose the type's category, wording and
-  `reversed` flag. A weight of exactly `1.0` and `repels: false` are written as
-  omitted fields so the file stays readable.
+  `reversed` flag. Both fields are omitted only when the fallback below would
+  reproduce the chosen pair exactly; on a label that ships bundled semantics
+  they are written out, so an explicit `1.0` or `repels: false` is not silently
+  restored to the bundled value on the next load (see ADR-0003 for what a
+  weight above `1.0` then does).
 - Behavior for the 13 bundled STEM types is unchanged unless the vault's
   vocabulary explicitly redefines a label; a redefined label overrides the
   bundled default.
