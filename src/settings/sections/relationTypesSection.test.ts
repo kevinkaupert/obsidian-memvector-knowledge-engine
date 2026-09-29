@@ -149,6 +149,11 @@ function fakeApp(terms: RelationTermDef[]) {
       },
     },
     getAbstractFileByPath: (p: string) => (files.has(p) ? new MockTFile(p) : null),
+    cachedRead: async (file: TFile) => {
+      const content = files.get(file.path);
+      if (content === undefined) throw new Error(`no file ${file.path}`);
+      return content;
+    },
     process: (file: TFile, fn: (data: string) => string) => {
       const run = async () => {
         await Promise.resolve();
@@ -406,6 +411,17 @@ describe("relation type table handlers", () => {
 
     expect(env.saved().map((x) => x.label)).toEqual(["A"]);
     expect(env.find("A")?.weight).toBe(2);
+  });
+
+  it("deleting the last type leaves an empty vocabulary file without resurrecting STEM (Issue #139)", async () => {
+    const single: RelationTermDef = { key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false };
+    const env = fakeApp([single]);
+    const table = renderTable(env.app, [single]);
+
+    table.deleteButton.onclick!();
+    await settle();
+
+    expect(env.saved()).toEqual([]);
   });
 });
 

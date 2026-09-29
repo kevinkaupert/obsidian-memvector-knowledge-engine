@@ -1,8 +1,9 @@
 import { TFile, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
-import { DEFAULT_RELATION_VOCABULARY_PATH, isValidTerm } from "./loadRelationVocabulary";
-import type { RelationTermDef, RelationVocabularyFile } from "./types";
+import { DEFAULT_RELATION_VOCABULARY_PATH } from "./loadRelationVocabulary";
+import type { RelationVocabularyFile } from "./types";
+import { createVocabularyMutator } from "./vocabularyMutations";
 
 /** Category under which free-text types entered in the Relation Builder are auto-persisted (Issue #119). */
 export const CUSTOM_CATEGORY = "Custom";
@@ -17,11 +18,10 @@ export interface CustomTypeInput {
 
 /**
  * Purpose: Appends relation types entered as free text in the Relation Builder to the active
- * vocabulary file so they reappear in the dropdown on the next modal open - no manual JSON
- * editing required (Issue #119). First-class citizens: same sanitized Cypher label format,
- * default layout weight 1.0 (field omitted), same graph traversal behavior.
+ * vocabulary file using atomic Vault.process via createVocabularyMutator (Issues #119, #149).
  * Architecture: Non-fatal by design - a failed persistence (read-only vault, malformed file)
  * logs a warning and returns false instead of breaking the relation save that already succeeded.
+ * Deliberately empty vocabularies ({ terms: [] }) are preserved without reseeding STEM.
  */
 export async function persistCustomRelationTypes(
   app: App,
@@ -32,57 +32,64 @@ export async function persistCustomRelationTypes(
 
   const path = ((settings?.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim()) || DEFAULT_RELATION_VOCABULARY_PATH;
 
-  let terms: RelationTermDef[] = [];
   const existing = app.vault.getAbstractFileByPath(path);
-  if (existing instanceof TFile) {
+  if (!(existing instanceof TFile)) {
     try {
-      const raw = await app.vault.cachedRead(existing);
-      const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
-      terms = Array.isArray(parsed.terms) ? parsed.terms.filter(isValidTerm) : [];
-    } catch (err) {
-      console.warn(`MemVector: could not parse ${path}, reseeding before appending custom types:`, err);
-      terms = [];
-    }
-  }
-  if (terms.length === 0) terms = [...DEFAULT_RELATION_VOCABULARY];
-
-  const knownLabels = new Set(terms.map((t) => t.label.toUpperCase()));
-  const knownKeys = new Set(terms.map((t) => t.key));
-
-  let appended = 0;
-  for (const custom of customTypes) {
-    const label = (custom.label || "").trim().toUpperCase();
-    if (!label) continue;
-    if (knownLabels.has(label)) continue;
-    let key = `custom${label}`;
-    let suffix = 2;
-    while (knownKeys.has(key)) key = `custom${label}_${suffix++}`;
-    terms.push({
-      key,
-      label,
-      term: custom.term || label,
-      category: CUSTOM_CATEGORY,
-      bidirectional: custom.bidirectional,
-      reversed: false,
-    });
-    knownLabels.add(label);
-    knownKeys.add(key);
-    appended++;
-  }
-  if (appended === 0) return true;
-
-  try {
-    const payload: RelationVocabularyFile = { terms };
-    const content = JSON.stringify(payload, null, 2);
-    if (existing instanceof TFile) {
-      await app.vault.modify(existing, content);
-    } else {
       await ensureParentFolder(app, path);
-      await app.vault.create(path, content);
+      const seed: RelationVocabularyFile = { terms: DEFAULT_RELATION_VOCABULARY };
+      await app.vault.create(path, JSON.stringify(seed, null, 2));
+    } catch {
+      // Vault may already have the file (race) or be read-only - check if file now exists
+      if (!(app.vault.getAbstractFileByPath(path) instanceof TFile)) {
+        console.warn(`MemVector: failed to create vocabulary file at ${path}`);
+        return false;
+      }
     }
+  }
+
+  const mutator = createVocabularyMutator(app, () => path);
+  const outcome = await mutator.mutate((current) => {
+    const knownLabels = new Set(current.map((t) => t.label.toUpperCase()));
+    const knownKeys = new Set(current.map((t) => t.key));
+
+    const nextTerms = [...current];
+    let appended = 0;
+
+    for (const custom of customTypes) {
+      const label = (custom.label || "").trim().toUpperCase();
+      if (!label || knownLabels.has(label)) continue;
+
+      let key = `custom${label}`;
+      let suffix = 2;
+      while (knownKeys.has(key)) key = `custom${label}_${suffix++}`;
+
+      nextTerms.push({
+        key,
+        label,
+        term: custom.term || label,
+        category: CUSTOM_CATEGORY,
+        bidirectional: custom.bidirectional,
+        reversed: false,
+      });
+      knownLabels.add(label);
+      knownKeys.add(key);
+      appended++;
+    }
+
+    if (appended === 0) return null;
+    return nextTerms;
+  });
+
+  if (outcome.result === "written" || outcome.result === "skipped") {
     return true;
-  } catch (err) {
-    console.warn("MemVector: failed to persist custom relation type to vocabulary:", err);
+  }
+  if (outcome.result === "read-failed") {
+    console.warn(`MemVector: could not parse ${path}, aborting persistCustomRelationTypes`);
     return false;
   }
+  if (outcome.result === "write-failed") {
+    console.warn("MemVector: failed to persist custom relation type to vocabulary:", outcome.error);
+    return false;
+  }
+  return false;
 }
