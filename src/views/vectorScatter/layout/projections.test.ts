@@ -431,4 +431,62 @@ describe("relation weight strength", () => {
       }
     }
   });
+
+  describe("mental map preservation: sign normalization and incremental seeding", () => {
+    it("enforceCanonicalSign flips vector when dominant component is negative", async () => {
+      const { enforceCanonicalSign } = await import("./projections");
+      const vec = new Float64Array([0.1, -0.9, 0.3]);
+      enforceCanonicalSign(vec);
+      // Dominant component was -0.9, must become +0.9
+      expect(vec[1]).toBeCloseTo(0.9);
+      expect(vec[0]).toBeCloseTo(-0.1);
+      expect(vec[2]).toBeCloseTo(-0.3);
+    });
+
+    it("enforceCanonicalSign preserves vector when dominant component is already positive", async () => {
+      const { enforceCanonicalSign } = await import("./projections");
+      const vec = new Float64Array([-0.2, 0.85, -0.4]);
+      enforceCanonicalSign(vec);
+      expect(vec[1]).toBeCloseTo(0.85);
+      expect(vec[0]).toBeCloseTo(-0.2);
+    });
+
+    it("seeds an unplaced node (0, 0) near its most similar neighbor when rest of graph is warm", () => {
+      const nodeA = makeNode("A");
+      nodeA.x = -500;
+      nodeA.y = -500;
+
+      const nodeB = makeNode("B");
+      nodeB.x = 800;
+      nodeB.y = 800;
+
+      // New unplaced node C (0, 0), highly similar to B (0.95), distant from A (0.05)
+      const nodeC = makeNode("C");
+      nodeC.x = 0;
+      nodeC.y = 0;
+
+      const nodes = [nodeA, nodeB, nodeC];
+      const matrix = [
+        [1.0, 0.1, 0.05],
+        [0.1, 1.0, 0.95],
+        [0.05, 0.95, 1.0],
+      ];
+
+      applyGraphVectorProjection({
+        nodes,
+        matrix,
+        nodeSpacing: 350,
+        cloudSpacing: 800,
+        relationEdges: [],
+      });
+
+      // C should be seeded and settle near B, not near A or remaining at origin
+      const distBC = Math.hypot(nodeB.x - nodeC.x, nodeB.y - nodeC.y);
+      const distAC = Math.hypot(nodeA.x - nodeC.x, nodeA.y - nodeC.y);
+      expect(distBC).toBeLessThan(distAC);
+      expect(distBC).toBeLessThan(600);
+      expect(Math.hypot(nodeC.x, nodeC.y)).toBeGreaterThan(200);
+    });
+  });
 });
+
