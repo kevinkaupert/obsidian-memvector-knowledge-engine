@@ -42,6 +42,9 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - Creating, deleting or renaming a relation note now updates the relation-note nodes of an
   open 2D view. The watcher only reloaded edges, so with "show relation notes" on, deleted
   relation notes stayed on the canvas and new ones did not appear (#168).
+- A rescan now aligns the selection, hover and search state with the current notes.
+  Deleted notes stayed counted in the selection, and repeating a search panned to the
+  note's position from before the rescan (#171).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

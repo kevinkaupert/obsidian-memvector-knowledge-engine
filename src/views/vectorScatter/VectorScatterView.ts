@@ -405,6 +405,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
 
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
+    this.reconcileTransientState();
 
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
@@ -414,6 +415,23 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.applyLayout();
     if (!options.preserveView) this.fitToView();
     this.redraw();
+  }
+
+  /**
+   * Purpose: Aligns selection, hover and the search cache with a freshly scanned node list.
+   * Architecture: A rescan replaces every node object. Ids of deleted (or no longer visible) notes would otherwise stay
+   * counted in the selection, and repeating a search would cycle through the old objects and pan to their stale
+   * positions. The selection set is pruned in place because interaction handlers hold a reference to it.
+   */
+  private reconcileTransientState(): void {
+    const visible = new Map(this.getVisibleNodes().map((n) => [n.id, n]));
+    for (const id of [...this.selectedNodeIds]) {
+      if (!visible.has(id)) this.selectedNodeIds.delete(id);
+    }
+    this.hoveredNode = this.hoveredNode ? (visible.get(this.hoveredNode.id) ?? null) : null;
+    this.lastSearchQuery = null;
+    this.lastSearchMatches = [];
+    this.lastSearchIndex = -1;
   }
 
   /**

@@ -419,3 +419,51 @@ describe("VectorScatterView watcher keeps relation note nodes current (#168)", (
     expect(view.getVisibleNodes().map((n) => n.path)).toEqual(["A.md"]);
   });
 });
+
+describe("VectorScatterView reconciles selection and search with rescanned nodes (#171)", () => {
+  it("removes deleted notes from the selection, keeping the same set instance", async () => {
+    const view = makeScanView();
+    view.nodes = [makeNode("a", "A.md", "concept"), makeNode("b", "B.md", "concept")];
+    const selection = view.selectedNodeIds;
+    selection.add("a");
+    selection.add("b");
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    expect(view.selectedNodeIds).toBe(selection);
+    expect([...view.selectedNodeIds]).toEqual(["a"]);
+  });
+
+  it("repeating a search after a rescan pans to the note's current position, not the stale one", async () => {
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    (view as any).containerEl.win = { requestAnimationFrame: vi.fn(() => 1), cancelAnimationFrame: vi.fn() };
+    view.zoom = 1;
+    view.nodes = [{ ...makeNode("alpha", "Alpha.md", "concept"), x: 0, y: 0 }];
+
+    view.searchNote("alpha");
+    expect(view.pan).toEqual({ x: 400, y: 300 });
+
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("alpha", "Alpha.md", "concept"), x: 1000, y: 500 }]);
+    mockStoredVectors(new Map());
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    view.searchNote("alpha");
+    expect(view.pan).toEqual({ x: 400 - 1000, y: 300 - 500 });
+  });
+
+  it("drops a hovered node that no longer exists", async () => {
+    const view = makeScanView();
+    const gone = makeNode("b", "B.md", "concept");
+    view.nodes = [makeNode("a", "A.md", "concept"), gone];
+    view.hoveredNode = gone;
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    expect(view.hoveredNode).toBeNull();
+  });
+});
