@@ -137,6 +137,17 @@ describe("SqliteGraphStore", () => {
       const neighbors = await store.fetchNeighbors(["a"], 1, 10);
       expect(neighbors).toEqual([]);
     });
+
+    it("adversarial (Issue #183): reconcileEdges: false preserves existing edges when incoming edges list is empty", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.upsertTypedEdges([{ src: node("a"), tgt: node("b"), relType: "REQUIRES", description: "" }]);
+
+      // Full sync with empty edges, but reconcileEdges: false (e.g. upstream failure)
+      await store.syncVaultGraph([node("a"), node("b")], [], { reconcileEdges: false });
+
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+    });
   });
 
   it("persists data to the on-disk file so a fresh plugin-load session can read it back", async () => {

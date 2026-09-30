@@ -1,9 +1,10 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { App } from "obsidian";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SqliteGraphStore } from "./sqlite/sqliteGraphStore";
 import { extractVaultGraph, syncVaultGraph } from "./vaultGraphSync";
+import * as relationEdgesModule from "../views/vectorScatter/relationEdges";
 
 interface FakeFile {
   path: string;
@@ -216,6 +217,45 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
 
     await syncVaultGraph(app, store, undefined, false);
     expect(await store.fetchNeighbors(["a"], 1, 10)).toEqual([]);
+  });
+
+  it("adversarial (Issue #183): preserves existing typed relation edges when loadRelationEdges throws an error", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a" },
+      { path: "b.md", basename: "b" },
+    ];
+    const app = fakeAppWithStore(files);
+    const store = new SqliteGraphStore(app);
+
+    // Initial state: typed relation exists in SQLite
+    await store.upsertTypedEdges([
+      {
+        src: { id: "a", title: "a", path: "a.md" },
+        tgt: { id: "b", title: "b", path: "b.md" },
+        relType: "SPECIALIZES",
+        description: "critical relation",
+      },
+    ]);
+    expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toEqual(["b"]);
+
+    // Adversarial condition: loadRelationEdges throws (e.g. transient lock or syntax error in relation folder)
+    const spy = vi.spyOn(relationEdgesModule, "loadRelationEdges").mockRejectedValueOnce(new Error("Transient file lock"));
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await syncVaultGraph(app, store);
+
+      // Existing typed relation edge must survive in SQLite
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("skipping edge deletion to preserve existing relations"),
+        expect.any(Error)
+      );
+    } finally {
+      spy.mockRestore();
+      warnSpy.mockRestore();
+    }
   });
 });
 

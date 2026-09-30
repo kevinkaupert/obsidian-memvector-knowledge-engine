@@ -26,13 +26,24 @@ export interface TypedEdgeInput {
   originalTerm?: string;
 }
 
+export interface SyncVaultGraphOptions {
+  /** If false, existing edges in storage are not deleted (e.g. when upstream relation loading failed). Defaults to true. */
+  reconcileEdges?: boolean;
+  /** If false, existing notes in storage are not deleted. Defaults to true. */
+  reconcileNotes?: boolean;
+}
+
 /**
  * Whatever the plugin needs from the relationship graph (local SQLite store).
  */
 export interface GraphStore {
   testConnection(): Promise<void>;
   /** Full-vault re-index - notes plus typed relation edges, and WikiLink edges only when the caller opts in (includeWikiLinksAsRelations). */
-  syncVaultGraph(nodes: GraphNode[], edges: GraphEdge[]): Promise<{ nodeCount: number; edgeCount: number }>;
+  syncVaultGraph(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    options?: SyncVaultGraphOptions
+  ): Promise<{ nodeCount: number; edgeCount: number }>;
   /** RelationBuilderModal save - one or more manually-typed relations. */
   upsertTypedEdges(edges: TypedEdgeInput[]): Promise<void>;
   /** Edge editor's delete action - removes just that one relationship, leaves both nodes. */
