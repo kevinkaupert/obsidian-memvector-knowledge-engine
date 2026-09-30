@@ -573,3 +573,23 @@ describe("preset management refreshes the open view", () => {
     expect(refreshes).toContainEqual({ relayout: true });
   });
 });
+
+describe("add form layout", () => {
+  it("is the table's footer row with one cell per column, so it aligns and cannot wrap mid-form", () => {
+    const env = fakeApp([conflicts]);
+    const parent = el("div");
+    const host = { settings: { relationVocabularyPath: PATH }, saveSettings: async () => undefined } as unknown as SettingsHost;
+    renderTypeTable(asEl(parent), withBundledLayoutDefaults([conflicts]), () => PATH, env.app, host, t, () => undefined);
+
+    const table = walk(parent).find((n) => n.tag === "table")!;
+    const headerCells = walk(table.children.find((n) => n.tag === "thead")!).filter((n) => n.tag === "th");
+    const footerRow = table.children.find((n) => n.tag === "tfoot")!.children[0];
+    const footerCells = footerRow.children.filter((n) => n.tag === "td");
+
+    expect(footerCells.length).toBe(headerCells.length);
+    const kinds = footerCells.map((cell) => walk(cell).find((n) => n.tag === "input" || n.tag === "button"));
+    expect(kinds.map((n) => (n!.tag === "button" ? "button" : n!.type))).toEqual(["text", "text", "number", "checkbox", "checkbox", "button"]);
+    // Nothing of the form is left outside the table.
+    expect(parent.children.filter((n) => n.tag !== "table")).toEqual([]);
+  });
+});

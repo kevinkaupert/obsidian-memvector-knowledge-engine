@@ -49,6 +49,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   empty preset. The file reader could not tell an empty vocabulary from a missing one, so
   the new preset was seeded with the 13 STEM types; only a missing or unreadable active
   file falls back to STEM now (#170).
+- The form for adding a relation type in Settings is now the last row of the type table,
+  each field under its column (label, category, weight, bidirectional, repels, add). It used
+  to be a wrapping flex row that broke mid-form in a narrow settings pane and aligned with
+  nothing above it; the reset button now sits right-aligned below the table.
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

@@ -1070,12 +1070,21 @@
   font-weight: 600;
   font-family: var(--font-monospace);
 }
-.memvector-type-add-row {
+/* Add form = the type table's last row; text fields fill their column instead of
+   forcing a width that wraps the row in a narrow settings pane. */
+.memvector-relation-type-table tfoot td {
+  padding-top: 8px;
+  border-bottom: none;
+}
+.memvector-type-add-row input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.memvector-type-reset-row {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 12px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 .memvector-type-weight-input {
   width: 70px;
