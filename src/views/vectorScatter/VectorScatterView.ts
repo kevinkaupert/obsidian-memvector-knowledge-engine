@@ -473,8 +473,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.reconcileTransientState();
 
     for (const node of this.nodes) {
-      const existing = previousEmbeddings.get(node.path) ?? previousEmbeddings.get(node.id);
-      if (existing) node.embedding = existing;
       const existingPos = previousPositions.get(node.path) ?? previousPositions.get(node.id);
       if (existingPos) {
         node.x = existingPos.x;
