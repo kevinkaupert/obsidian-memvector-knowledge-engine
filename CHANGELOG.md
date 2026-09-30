@@ -45,6 +45,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - A rescan now aligns the selection, hover and search state with the current notes.
   Deleted notes stayed counted in the selection, and repeating a search panned to the
   note's position from before the rescan (#171).
+- Creating a preset while the active vocabulary is intentionally empty now creates an
+  empty preset. The file reader could not tell an empty vocabulary from a missing one, so
+  the new preset was seeded with the 13 STEM types; only a missing or unreadable active
+  file falls back to STEM now (#170).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

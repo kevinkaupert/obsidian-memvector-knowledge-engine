@@ -3,7 +3,7 @@ import { ensureParentFolder } from "../ensureFolder";
 import type { SettingsHost } from "../settings/types";
 import { LAW_VOCABULARY, MEDICINE_VOCABULARY, PHILOSOPHY_VOCABULARY } from "./bundledPresets";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
-import { DEFAULT_RELATION_VOCABULARY_PATH, isValidTerm } from "./loadRelationVocabulary";
+import { DEFAULT_RELATION_VOCABULARY_PATH, isValidTerm, resolveVocabularyPath } from "./loadRelationVocabulary";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 
 /** Folder holding preset vocabulary files - vault-owned, version-controllable, shareable across vaults (Issue #119). */
@@ -92,19 +92,25 @@ export async function writeVocabularyFile(app: App, path: string, terms: Relatio
 }
 
 /**
- * Reads the terms of an existing vocabulary file. Returns an empty array when
- * the file is missing or malformed (caller decides how to fall back).
+ * Purpose: Reads the terms of an existing vocabulary file.
+ * Architecture: Returns null when the file is missing, unparseable or holds no valid term, and `[]` only for an
+ * intentionally empty vocabulary (`{"terms": []}`) - callers must be able to tell the two apart, since only the
+ * former may fall back to the bundled default (same semantics as loadRelationVocabulary).
  */
-export async function readVocabularyFile(app: App, path: string): Promise<RelationTermDef[]> {
+export async function readVocabularyFile(app: App, path: string): Promise<RelationTermDef[] | null> {
   const existing = app.vault.getAbstractFileByPath(path);
-  if (!(existing instanceof TFile)) return [];
+  if (!(existing instanceof TFile)) return null;
   try {
     const raw = await app.vault.cachedRead(existing);
     const parsed = JSON.parse(raw) as Partial<RelationVocabularyFile>;
-    return Array.isArray(parsed.terms) ? parsed.terms.filter(isValidTerm) : [];
+    if (!Array.isArray(parsed.terms)) throw new Error("missing terms array");
+    if (parsed.terms.length === 0) return [];
+    const valid = parsed.terms.filter(isValidTerm);
+    if (valid.length === 0) throw new Error("no valid terms");
+    return valid;
   } catch (err) {
     console.warn(`MemVector: could not read vocabulary file ${path}:`, err);
-    return [];
+    return null;
   }
 }
 
@@ -143,7 +149,7 @@ export async function activatePreset(app: App, host: SettingsHost, key: string):
   await host.saveSettings();
 }
 
-/** Creates a new user preset seeded with the active vocabulary's terms and activates it. */
+/** Creates a new user preset seeded with the active vocabulary's terms (an empty vocabulary stays empty) and activates it. */
 export async function createPreset(app: App, host: SettingsHost, name: string): Promise<RelationPreset> {
   const key = sanitizePresetKey(name);
   assertKeyNotReserved(key, name);
@@ -152,9 +158,9 @@ export async function createPreset(app: App, host: SettingsHost, name: string): 
     throw new Error(`Preset already exists: ${path}`);
   }
 
-  const activePath = (host.settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
-  const activeTerms = await readVocabularyFile(app, activePath);
-  const terms = activeTerms.length > 0 ? activeTerms : [...DEFAULT_RELATION_VOCABULARY];
+  // An intentionally empty active vocabulary is copied as-is; only a missing or unreadable one falls back to STEM.
+  const activeTerms = await readVocabularyFile(app, resolveVocabularyPath(host.settings));
+  const terms = activeTerms ?? [...DEFAULT_RELATION_VOCABULARY];
   await writeVocabularyFile(app, path, terms);
 
   host.settings.relationVocabularyPath = path;
