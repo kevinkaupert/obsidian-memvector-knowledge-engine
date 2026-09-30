@@ -5,6 +5,7 @@ import { getShortModelName } from "../../../llm/getShortModelName";
 import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
 import { buildEmbeddingInput } from "../../../sync/embeddingText";
+import { resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
@@ -63,7 +64,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.redraw();
   });
 
-  const embedModelLabel = ctx.settings.embeddingModel || "bge-m3";
+  const embedModelLabel = resolveEmbeddingTarget(ctx.settings).model;
   const calcVectorsBtn = createIconButton(actionsBar, "sparkles", `${t.btnCalcVectors} (${embedModelLabel})`, () => {
     void runCalcVectors(ctx, calcVectorsBtn, statusText, hoverBar);
   });
@@ -361,8 +362,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
  */
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
-  const embedModel = ctx.settings.embeddingModel || "bge-m3";
-  const apiBase = ctx.settings.embeddingApiBaseUrl || "http://localhost:11434/v1";
+  const { model: embedModel, apiBase } = resolveEmbeddingTarget(ctx.settings);
   const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
 
   if (!ctx.nodes || ctx.nodes.length === 0) {

@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 import { getGraphStore, getVectorStore } from "./storeFactory";
 import { SqliteGraphStore } from "./sqlite/sqliteGraphStore";
 import { SqliteVectorStore } from "./sqlite/sqliteVectorStore";
+import { DEFAULT_SETTINGS } from "../settings/defaults";
 
 function fakeApp(): App {
   return {
@@ -23,7 +24,7 @@ describe("storeFactory", () => {
   });
 
   it("provides SqliteVectorStore instance", () => {
-    const store = getVectorStore(fakeApp());
+    const store = getVectorStore(fakeApp(), DEFAULT_SETTINGS);
     expect(store).toBeInstanceOf(SqliteVectorStore);
   });
 });

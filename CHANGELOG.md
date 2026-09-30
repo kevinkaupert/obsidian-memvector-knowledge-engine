@@ -13,6 +13,12 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   characters, the toolbar used the display title plus an 800-character scan excerpt, so
   each path treated the other's stored vectors as stale and re-embedded unchanged notes.
   Both now build the text through one shared function from the note file itself (#161).
+- Switching the embedding model or endpoint no longer mixes vectors from different
+  models. The cache compared only the content hash, so unchanged notes kept their old
+  model's vectors and search compared incompatible vector spaces. Each vector now
+  records the model and endpoint that produced it; other models' vectors count as cache
+  misses and are excluded from search, hydration and the radar. Existing vectors are
+  assigned to the model configured when the updated plugin first opens the database (#164).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

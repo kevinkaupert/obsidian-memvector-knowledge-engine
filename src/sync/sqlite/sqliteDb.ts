@@ -14,7 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_edges_src ON edges(src);
 CREATE INDEX IF NOT EXISTS idx_edges_tgt ON edges(tgt);
 CREATE TABLE IF NOT EXISTS vectors (
   id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT,
-  content_hash TEXT, mtime INTEGER
+  content_hash TEXT, mtime INTEGER, embedding_fingerprint TEXT
 );
 `;
 
@@ -82,6 +82,11 @@ async function openDb(app: App): Promise<Database> {
   }
   try {
     db.run("ALTER TABLE vectors ADD COLUMN mtime INTEGER;");
+  } catch {
+    // Column already exists or table freshly created with column
+  }
+  try {
+    db.run("ALTER TABLE vectors ADD COLUMN embedding_fingerprint TEXT;");
   } catch {
     // Column already exists or table freshly created with column
   }

@@ -134,7 +134,8 @@ All note embeddings and graph relationships are stored in:
 - **Tables:**
   - `notes`: `(id TEXT PRIMARY KEY, title TEXT, path TEXT)`
   - `edges`: `(src TEXT, tgt TEXT, type TEXT, description TEXT, bidirectional INTEGER, original_term TEXT, updated_at TEXT)`
-  - `vectors`: `(id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT)`
+  - `vectors`: `(id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT, content_hash TEXT, mtime INTEGER, embedding_fingerprint TEXT)`
+- **Embedding fingerprint:** Every stored vector records the model and endpoint that produced it (`embedding_fingerprint`, model name plus normalized API base URL). A stored vector counts as a cache hit only when both its content hash and its fingerprint match the current settings, and semantic search, the related-notes radar and the 2D layout only use vectors of the active fingerprint. After changing `embeddingModel` or `embeddingApiBaseUrl`, the next indexing run re-embeds every note; until then, notes not yet re-embedded are left out of search instead of being compared across incompatible vector spaces. Vectors stored before fingerprints existed are assigned to the model configured when the plugin first opens the database after the update.
 - **Multi-Hop Traversal:** Executed locally via recursive SQL CTE queries (`WITH RECURSIVE reachable...`). Traversal is bidirectional: both directions of a stored edge are followed. Bidirectional relations are stored as two rows (one per direction), so live-saved relations are traversable from either endpoint immediately (Issue #120).
 
 ---

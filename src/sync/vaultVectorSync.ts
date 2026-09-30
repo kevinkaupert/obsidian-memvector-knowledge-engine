@@ -5,6 +5,7 @@ import type { MemVectorSettings } from "../settings/types";
 import { shouldIncludeFile } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
 import { buildEmbeddingInput } from "./embeddingText";
+import { resolveEmbeddingTarget } from "./embeddingTarget";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -15,10 +16,13 @@ export interface VectorSyncResult {
 
 /**
  * Purpose: Synchronizes vault markdown embeddings to the VectorStore incrementally and reconciles removed files.
+ * The store must be scoped to the same embedding target (getVectorStore(app, settings)); its stored hashes then only
+ * cover vectors of the configured model and endpoint, so a model switch re-embeds unchanged notes.
  */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const vaultFiles = app.vault.getMarkdownFiles();
   const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
+  const target = resolveEmbeddingTarget(settings);
 
   const points: VectorPoint[] = [];
   // Every currently-included file, regardless of whether its embedding attempt
@@ -45,13 +49,13 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
       continue;
     }
 
-    const { embedding, error } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
+    const { embedding, error } = await fetchEmbedding(sampleText, target.apiBase, embeddingApiKey, target.model);
 
     if (error) {
       consecutiveErrors++;
       if (!firstErrorMsg) firstErrorMsg = error;
       if (consecutiveErrors >= 3 || (points.length === 0 && consecutiveErrors >= 1)) {
-        throw new Error(`Embedding error (${settings.embeddingModel}): ${firstErrorMsg}`);
+        throw new Error(`Embedding error (${target.model}): ${firstErrorMsg}`);
       }
       continue;
     }
