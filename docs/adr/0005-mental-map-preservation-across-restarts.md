@@ -1,4 +1,4 @@
-# 0004 — Mental Map Preservation Across Restarts
+# 0005 — Mental Map Preservation Across Restarts
 
 Status: Accepted
 
