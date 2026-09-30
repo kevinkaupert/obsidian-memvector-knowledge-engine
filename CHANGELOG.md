@@ -7,6 +7,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
 ### Added
 - Settings -> General -> **Vault folders**: the folders for relation notes
   (`relationsFolder`), synthesis notes (`synthesisFolder`) and vocabulary presets
@@ -17,7 +19,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   ones (#173).
 
 ### Fixed
-- "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same
+- "Index vault locally now" (Settings) and "Calculate Vectors" (2D view) now embed the same
   text and compute the same cache hash. Settings used the file name plus up to 1500
   characters, the toolbar used the display title plus an 800-character scan excerpt, so
   each path treated the other's stored vectors as stale and re-embedded unchanged notes.
@@ -31,8 +33,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   than attributed to the currently configured one: the first indexing run after the
   update re-embeds every note, and until then search and the radar skip them (#176).
 - An open 2D view no longer keeps vectors of the previous embedding model. Changing the
-  model or endpoint, and every "Index entire vault" run, reloads the stored vectors into
-  open views; "Calculate vectors" takes the stored vector on a cache hit even when the
+  model or endpoint, and every "Index vault locally now" run, reloads the stored vectors into
+  open views; "Calculate Vectors" takes the stored vector on a cache hit even when the
   view still holds one, and GraphRAG context enrichment builds its query only from stored
   vectors. Before, a stale in-memory vector could silently search the new model's index (#175).
 - The embedding fingerprint no longer treats endpoints whose URL paths differ only in case
@@ -40,17 +42,17 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   compared case-insensitively (#177).
 - Relation notes are recognized by one rule everywhere (edges, graph index, GraphRAG,
   scatter nodes, vault watcher, radar): frontmatter `type: relation`, or a note inside
-  `wiki/relations/`. Moved relation notes and a top-level `relations/` folder now work;
+  the relations folder (default `wiki/relations/`). Moved relation notes and a top-level `relations/` folder now work;
   ordinary notes in an unrelated folder named `relations` without the type are no
   longer treated as edges. See ADR-0004 (#173).
-- "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
+- "Calculate Vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).
 - A retry after a failed database write no longer reports success for vectors that were
   never saved. The failed vectors stayed in memory, so the retry saw them as cached and
   wrote nothing. Changes a failed write left behind are now tracked, and both indexing
   paths write them to disk before reporting success, or report the storage error again (#166).
-- A live vault update during "Calculate vectors" no longer aborts the calculation with
+- A live vault update during "Calculate Vectors" no longer aborts the calculation with
   `Cannot read properties of undefined` and leaves the button disabled. The loop now
   works on a snapshot of the notes, hands the results to the refreshed notes by path,
   and re-enables the button and reports the error on any failure. Notes deleted in the
