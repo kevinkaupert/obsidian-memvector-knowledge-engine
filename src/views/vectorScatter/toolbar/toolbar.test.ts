@@ -475,3 +475,69 @@ describe("runCalcVectors persists pending changes before reporting success (#166
     expect(statusText.text).toBe("Storage error");
   });
 });
+
+describe("runCalcVectors survives a live rescan and always re-enables the button (#169)", () => {
+  const vaultFiles = { "A.md": "a body", "B.md": "b body", "C.md": "c body" };
+  const node = (path: string) => ({ id: pathToId(path), path, title: path, content: "", x: 0, y: 0 });
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+  });
+
+  it("finishes when the watcher replaces ctx.nodes with a shorter list mid-run", async () => {
+    const ctx = {
+      app: { vault: createMockVault(vaultFiles) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [node("A.md"), node("B.md"), node("C.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+    const rescanned = [node("A.md")];
+    vi.mocked(fetchEmbedding).mockImplementation(async (text: string) => {
+      // Simulates triggerVaultRescan firing while the first request is in flight.
+      ctx.nodes = rescanned as typeof ctx.nodes;
+      return { embedding: [text.length, 1], error: null };
+    });
+    const btn = createMockEl() as any;
+
+    await runCalcVectors(ctx, btn, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).toHaveBeenCalledTimes(3);
+    expect(btn.disabled).toBe(false);
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]"))).toBe(false);
+    // The rescanned node object receives the vector computed for its path.
+    expect(rescanned[0]).toHaveProperty("embedding", [buildEmbeddingInput("A", "a body", 8000).text.length, 1]);
+  });
+
+  it("re-enables the button and reports the error when the run throws unexpectedly", async () => {
+    const vault = createMockVault(vaultFiles);
+    vault.cachedRead = async () => {
+      throw new Error("read failed");
+    };
+    const ctx = {
+      app: { vault },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [node("A.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+    const btn = createMockEl() as any;
+    const hoverBar = createMockEl() as any;
+
+    await runCalcVectors(ctx, btn, createMockEl() as any, hoverBar);
+
+    expect(btn.disabled).toBe(false);
+    expect(hoverBar.text).toContain("read failed");
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]") && n.message.includes("read failed"))).toBe(true);
+  });
+});

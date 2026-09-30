@@ -10,6 +10,7 @@ import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
+import type { ScatterNode } from "../types";
 import { enrichContext } from "../contextEnrichment";
 import { buildPreviewEntries } from "../contextPreview";
 import { createActionBtn, createDropdown, createIconButton, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
@@ -359,24 +360,48 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 }
 
 /**
- * Purpose: Iteratively calculates embeddings for scanned nodes (text built by the shared buildEmbeddingInput, so cache hashes match the Settings vault sync), persists them to SQLite, and displays progress and error feedback.
+ * Purpose: Calculates embeddings for the scanned nodes, persists them to SQLite, and displays progress and error
+ * feedback; the button is re-enabled whatever happens.
+ * Architecture: Works on a snapshot of the node list. The live vault watcher replaces ctx.nodes while embedding
+ * requests are awaited, so indexing into ctx.nodes per iteration could read past a shorter list or pair a vector with
+ * a different note.
  */
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
-  const { model: embedModel, apiBase } = resolveEmbeddingTarget(ctx.settings);
-  const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
 
   if (!ctx.nodes || ctx.nodes.length === 0) {
     await ctx.scanVaultNotes();
   }
 
-  const total = ctx.nodes.length;
-  if (total === 0) {
+  const workNodes = [...ctx.nodes];
+  if (workNodes.length === 0) {
     setHoverBarText(hoverBar, `[WARN] ${vT.warnNoNotesForVectors}`, "warning");
     return;
   }
 
   setActionBtnEnabled(btn, false);
+  try {
+    await calcAndPersistVectors(ctx, workNodes, statusText, hoverBar);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("MemVector: Vector calculation aborted:", err);
+    statusText.setText(vT.statusErrorCount);
+    setHoverBarText(hoverBar, `[ERROR] ${vT.noticeEmbeddingError}: ${msg}`, "error");
+    new Notice(`[ERROR] ${vT.noticeEmbeddingError}: ${msg}`, 8000);
+  } finally {
+    setActionBtnEnabled(btn, true);
+  }
+}
+
+/**
+ * Purpose: Embeds every node of the stable work list (text built by the shared buildEmbeddingInput, so cache hashes
+ * match the Settings vault sync), persists the results and reports the outcome.
+ */
+async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: ScatterNode[], statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
+  const vT = getTranslation(ctx.settings.language || "de");
+  const { model: embedModel, apiBase } = resolveEmbeddingTarget(ctx.settings);
+  const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
+  const total = workNodes.length;
   statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
 
   let successCount = 0;
@@ -394,7 +419,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
   }
 
   for (let i = 0; i < total; i++) {
-    const node = ctx.nodes[i];
+    const node = workNodes[i];
     // Embed from the note file itself, not from node.content: that is a short display/layout
     // excerpt, and the text and hash must match the Settings vault sync exactly.
     const file = ctx.app.vault.getAbstractFileByPath(node.path);
@@ -444,6 +469,8 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     }
   }
 
+  adoptEmbeddings(ctx, workNodes);
+
   let syncFailed = false;
   let syncErrorMsg: string | null = null;
 
@@ -480,8 +507,6 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     }
   }
 
-  setActionBtnEnabled(btn, true);
-
   if (syncFailed) {
     statusText.setText(vT.statusPersistenceError);
     setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
@@ -504,6 +529,16 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     }
   } else if (lastError) {
     statusText.setText(`${vT.statusErrorCount} (${successCount}/${total})`);
+  }
+}
+
+/** Carries embeddings from the work list over to node objects a rescan created in the meantime (matched by path). */
+function adoptEmbeddings(ctx: ScatterViewContext, workNodes: ScatterNode[]): void {
+  const byPath = new Map<string, number[]>();
+  for (const n of workNodes) if (n.embedding && n.embedding.length > 0) byPath.set(n.path, n.embedding);
+  for (const n of ctx.nodes) {
+    const embedding = byPath.get(n.path);
+    if (embedding) n.embedding = embedding;
   }
 }
 

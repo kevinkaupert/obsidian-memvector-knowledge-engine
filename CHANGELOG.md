@@ -26,6 +26,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   never saved. The failed vectors stayed in memory, so the retry saw them as cached and
   wrote nothing. Changes a failed write left behind are now tracked, and both indexing
   paths write them to disk before reporting success, or report the storage error again (#166).
+- A live vault update during "Calculate vectors" no longer aborts the calculation with
+  `Cannot read properties of undefined` and leaves the button disabled. The loop now
+  works on a snapshot of the notes, hands the results to the refreshed notes by path,
+  and re-enables the button and reports the error on any failure (#169).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three
