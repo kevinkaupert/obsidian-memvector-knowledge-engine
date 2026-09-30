@@ -7,8 +7,8 @@ const DEFAULT_RELATION_WEIGHT = 1.0;
 const WIKILINK_WEIGHT = 0.7;
 export const BASELINE_WEIGHT = 0.05;
 const MAX_HOPS = 4;
-/** Decayed attraction for notes that are close in the graph but not directly connected - a real hop-distance instead of the old binary linked/not-linked split. */
-const HOP_DECAY: Record<number, number> = { 2: 0.45, 3: 0.22, 4: 0.1 };
+/** Decayed attraction for notes that are close in the graph but not directly connected. Kept below spring attraction threshold (0.15) to prevent multi-hop cluster collapse. */
+const HOP_DECAY: Record<number, number> = { 2: 0.12, 3: 0.08, 4: 0.05 };
 
 export interface GraphTopologyWeights {
   /** n x n attraction weight matrix; BASELINE_WEIGHT for anything unreached within MAX_HOPS. */

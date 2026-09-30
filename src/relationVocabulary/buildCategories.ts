@@ -13,7 +13,7 @@ export interface RelationCategory {
 /**
  * Purpose: Groups canonical Cypher relation labels by category for 1:1 dropdown selection without lossy remapping.
  */
-export function buildRelationCategories(defs: RelationTermDef[], customLabel: string): RelationCategory[] {
+export function buildRelationCategories(defs: RelationTermDef[], _customLabel?: string): RelationCategory[] {
   const order: string[] = [];
   const byCategory = new Map<string, RelationTypeOption[]>();
   const seenLabels = new Set<string>();
@@ -29,8 +29,6 @@ export function buildRelationCategories(defs: RelationTermDef[], customLabel: st
     byCategory.get(def.category)!.push({ val: def.label, label: def.label });
   }
 
-  const categories = order.map((name) => ({ name, items: byCategory.get(name)! }));
-  categories.push({ name: customLabel, items: [{ val: "CUSTOM", label: customLabel }] });
-  return categories;
+  return order.map((name) => ({ name, items: byCategory.get(name)! }));
 }
 

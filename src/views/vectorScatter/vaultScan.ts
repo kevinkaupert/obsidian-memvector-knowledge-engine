@@ -3,12 +3,19 @@ import { stripFrontmatter } from "../../noteContent";
 import { pathToId } from "../../noteSlug";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { shouldIncludeFile } from "../../vaultFilter";
+import { isRelationNote } from "../../relationNotes";
 export { shouldIncludeFile };
 
 /**
- * Purpose: Scans markdown notes in the vault deterministically, filtering by exclusions and view filter, initializing unplaced coordinates to (0, 0).
+ * Purpose: Scans markdown notes in the vault deterministically, filtering by exclusions, view filter, and relation note visibility.
  */
-export async function scanVaultNotes(app: App, filterQuery: string | undefined, defaultExclusions: string): Promise<ScatterNode[]> {
+export async function scanVaultNotes(
+  app: App,
+  filterQuery: string | undefined,
+  defaultExclusions: string,
+  relationsDir?: string,
+  showRelationNotes = false
+): Promise<ScatterNode[]> {
   const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
   const nodes: ScatterNode[] = [];
 
@@ -16,9 +23,15 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
     if (defaultExclusions && !shouldIncludeFile(file, defaultExclusions)) continue;
     if (filterQuery && !shouldIncludeFile(file, filterQuery)) continue;
 
-    const content = await app.vault.cachedRead(file);
-    const fileCache = app.metadataCache.getFileCache(file);
+    const fileCache = app.metadataCache?.getFileCache(file);
     const fm = fileCache?.frontmatter;
+    const rawFmType = typeof fm?.type === "string" ? fm.type : undefined;
+
+    if (!showRelationNotes && relationsDir && isRelationNote(file.path, rawFmType, relationsDir)) {
+      continue;
+    }
+
+    const content = await app.vault.cachedRead(file);
     let type: ScatterNoteType = "concept";
     let title = file.basename;
 

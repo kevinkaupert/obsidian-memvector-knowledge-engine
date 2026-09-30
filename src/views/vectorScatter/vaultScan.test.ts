@@ -119,5 +119,19 @@ describe("scanVaultNotes two-tier filtering (Issue #45)", () => {
       "wiki/z_last.md",
     ]);
   });
+
+  it("omits relation notes from scanned nodes when showRelationNotes is false", async () => {
+    const filesWithRelations = [
+      { path: "wiki/algebra.md", basename: "algebra" },
+      { path: "wiki/relations/algebra-implies-analysis.md", basename: "algebra-implies-analysis" },
+    ];
+    const app = makeMockApp(filesWithRelations);
+    const nodes = await scanVaultNotes(app, "", "", "wiki/relations", false);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].path).toBe("wiki/algebra.md");
+
+    const nodesWithRelations = await scanVaultNotes(app, "", "", "wiki/relations", true);
+    expect(nodesWithRelations.length).toBe(2);
+  });
 });
 
