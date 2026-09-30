@@ -1,11 +1,10 @@
 import type { App } from "obsidian";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
-import { stripFrontmatter } from "../noteContent";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
 import { shouldIncludeFile } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
-import { hashString } from "../hash";
+import { buildEmbeddingInput } from "./embeddingText";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -38,9 +37,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
     includedPaths.push(file.path);
     const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
-    const content = stripFrontmatter(rawContent);
-    const sampleText = `${file.basename}\n${content}`.slice(0, 1500);
-    const currentHash = String(hashString(sampleText));
+    const { text: sampleText, hash: currentHash, body: content } = buildEmbeddingInput(file.basename, rawContent, settings.embeddingMaxChars);
 
     const cached = storedHashes.get(file.path) ?? storedHashes.get(pathToId(file.path));
     if (cached && cached.hash === currentHash) {

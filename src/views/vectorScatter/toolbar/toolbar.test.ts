@@ -4,6 +4,13 @@ import type { ScatterViewContext } from "../context";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { pathToId } from "../../../noteSlug";
 import { getVectorStore } from "../../../sync/storeFactory";
+import { buildEmbeddingInput } from "../../../sync/embeddingText";
+import { syncVaultVectors } from "../../../sync/vaultVectorSync";
+import type { VectorPoint, VectorStore } from "../../../sync/vectorStore";
+import { TFile } from "obsidian";
+import { DEFAULT_SETTINGS } from "../../../settings/defaults";
+
+const DEFAULT_SETTINGS_FOR_TEST = { ...DEFAULT_SETTINGS, language: "en" };
 
 const noticeCalls: { message: string; duration?: number }[] = [];
 
@@ -15,6 +22,10 @@ vi.mock("obsidian", () => {
       }
     },
     setIcon: vi.fn(),
+    TFile: class {
+      path = "";
+      basename = "";
+    },
   };
 });
 
@@ -37,6 +48,22 @@ interface MockEl {
   setText(t: string): void;
   addClass(c: string): void;
   removeClass(...c: string[]): void;
+}
+
+/** Fake vault holding `files` (path -> raw markdown) - enough for the file reads runCalcVectors and syncVaultVectors perform. */
+function createMockVault(files: Record<string, string>) {
+  const tfiles = Object.keys(files).map((path) => {
+    const f = new TFile();
+    f.path = path;
+    f.basename = path.replace(/^.*\//, "").replace(/\.md$/, "");
+    (f as unknown as { name: string }).name = path.replace(/^.*\//, "");
+    return f;
+  });
+  return {
+    getAbstractFileByPath: (path: string) => tfiles.find((f) => f.path === path) ?? null,
+    getMarkdownFiles: () => tfiles,
+    cachedRead: async (f: TFile) => files[f.path],
+  };
 }
 
 function createMockEl(): MockEl {
@@ -90,8 +117,9 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     });
 
     mockCtx = {
-      app: {} as any,
+      app: { vault: createMockVault({ "note-1.md": "Content of note 1" }) } as any,
       settings: {
+        embeddingMaxChars: 8000,
         embeddingModel: "bge-m3",
         embeddingApiBaseUrl: "http://localhost:11434/v1",
         language: "de",
@@ -204,9 +232,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
   });
 
   it("skips fetchEmbedding when note content hash matches stored hash", async () => {
-    const { hashString } = await import("../../../hash");
-    const nodeText = `${mockCtx.nodes[0].title}\n${mockCtx.nodes[0].content}`.slice(0, 2000);
-    const expectedHash = String(hashString(nodeText));
+    const expectedHash = buildEmbeddingInput("note-1", "Content of note 1", 8000).hash;
 
     const storedHashes = new Map<string, { hash: string }>();
     storedHashes.set("note-1.md", { hash: expectedHash });
@@ -229,5 +255,99 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect((mockHoverBar as any).text).toContain("bereits im Cache");
     expect(mockCtx.applyLayout).toHaveBeenCalledTimes(1);
     expect(mockCtx.redraw).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runCalcVectors shares embedding text with the Settings vault sync (#161)", () => {
+  const longBody = "Intro paragraph. " + "x".repeat(3000) + " tail only visible past 1500 chars";
+  const files = {
+    "Folder/Long Note.md": `---\ntitle: Display Title\n---\n${longBody}`,
+    "Short.md": "Short body",
+  };
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2, 0.3], error: null });
+  });
+
+  function createStore(): VectorStore {
+    const rows = new Map<string, VectorPoint>();
+    return {
+      testConnection: async () => {},
+      syncPoints: async (points: VectorPoint[]) => {
+        for (const p of points) rows.set(p.payload.path, p);
+      },
+      search: async () => [],
+      getVector: async (id: string) => rows.get(id)?.vector ?? null,
+      getVectors: async () => new Map(),
+      getStoredHashes: async () => new Map([...rows].map(([path, p]) => [path, { hash: p.contentHash! }])),
+      reconcile: async () => ({ removed: 0 }),
+    };
+  }
+
+  function createCtx(settings: Record<string, unknown>): ScatterViewContext {
+    return {
+      app: { vault: createMockVault(files) },
+      settings,
+      // node.title is the frontmatter title and node.content the 800-char scan excerpt;
+      // neither may leak into the embedding text.
+      nodes: [
+        { id: pathToId("Folder/Long Note.md"), path: "Folder/Long Note.md", title: "Display Title", content: longBody.slice(0, 800), x: 0, y: 0 },
+        { id: pathToId("Short.md"), path: "Short.md", title: "Short", content: "Short body", x: 0, y: 0 },
+      ],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+  }
+
+  it("yields 100% cache hits after a Settings vault sync", async () => {
+    const settings = { ...DEFAULT_SETTINGS_FOR_TEST };
+    const store = createStore();
+    vi.mocked(getVectorStore).mockReturnValue(store as ReturnType<typeof getVectorStore>);
+
+    const synced = await syncVaultVectors({ vault: createMockVault(files) } as any, settings as any, store);
+    expect(synced.syncedCount).toBe(2);
+    vi.mocked(fetchEmbedding).mockClear();
+
+    await runCalcVectors(createCtx(settings), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(noticeCalls.some((n) => n.message.includes("[OK] 2"))).toBe(true);
+  });
+
+  it("yields 100% cache hits for a Settings vault sync after the toolbar calculated the vectors", async () => {
+    const settings = { ...DEFAULT_SETTINGS_FOR_TEST };
+    const store = createStore();
+    vi.mocked(getVectorStore).mockReturnValue(store as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx(settings), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(fetchEmbedding).toHaveBeenCalledTimes(2);
+    vi.mocked(fetchEmbedding).mockClear();
+
+    const synced = await syncVaultVectors({ vault: createMockVault(files) } as any, settings as any, store);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(synced.skippedCount).toBe(2);
+  });
+
+  it("embeds the file basename and body beyond the old 800/1500-char windows", async () => {
+    vi.mocked(getVectorStore).mockReturnValue(createStore() as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx({ ...DEFAULT_SETTINGS_FOR_TEST }), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    const sentText = vi.mocked(fetchEmbedding).mock.calls[0][0];
+    expect(sentText.startsWith("Long Note\nIntro paragraph.")).toBe(true);
+    expect(sentText).toContain("tail only visible past 1500 chars");
+    expect(sentText).not.toContain("Display Title");
+  });
+
+  it("caps the embedded text at embeddingMaxChars", async () => {
+    vi.mocked(getVectorStore).mockReturnValue(createStore() as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx({ ...DEFAULT_SETTINGS_FOR_TEST, embeddingMaxChars: 1000 }), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(vi.mocked(fetchEmbedding).mock.calls[0][0].length).toBe(1000);
   });
 });

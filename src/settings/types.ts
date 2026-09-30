@@ -12,6 +12,13 @@ export interface MemVectorSettings {
   embeddingProvider: LlmProvider;
   embeddingApiBaseUrl: string;
   embeddingModel: string;
+  /**
+   * Max characters of a note (basename + frontmatter-stripped body) sent to the embedding
+   * provider - 0 means no cap. Keep it within the model's input limit (bge-m3 and OpenAI
+   * embedding models accept ~8k tokens); providers either truncate or reject longer input.
+   * Changing it re-embeds only the notes whose capped text changes.
+   */
+  embeddingMaxChars: number;
 
   llmProvider: LlmProvider;
   apiBaseUrl: string;

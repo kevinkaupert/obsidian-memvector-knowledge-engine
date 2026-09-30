@@ -1,10 +1,10 @@
-import { Notice } from "obsidian";
+import { Notice, TFile } from "obsidian";
 import { getTranslation, type TranslationKeys } from "../../../i18n";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
 import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
-import { hashString } from "../../../hash";
+import { buildEmbeddingInput } from "../../../sync/embeddingText";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
@@ -357,7 +357,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
 }
 
 /**
- * Purpose: Iteratively calculates embeddings for scanned nodes, persists them to SQLite, and displays progress and error feedback.
+ * Purpose: Iteratively calculates embeddings for scanned nodes (text built by the shared buildEmbeddingInput, so cache hashes match the Settings vault sync), persists them to SQLite, and displays progress and error feedback.
  */
 async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
@@ -394,8 +394,15 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   for (let i = 0; i < total; i++) {
     const node = ctx.nodes[i];
-    const sampleText = `${node.title}\n${node.content}`.slice(0, 2000);
-    const currentHash = String(hashString(sampleText));
+    // Embed from the note file itself, not from node.content: that is a short display/layout
+    // excerpt, and the text and hash must match the Settings vault sync exactly.
+    const file = ctx.app.vault.getAbstractFileByPath(node.path);
+    if (!(file instanceof TFile)) {
+      // Deleted since the scan - nothing left to embed.
+      successCount++;
+      continue;
+    }
+    const { text: sampleText, hash: currentHash, body } = buildEmbeddingInput(file.basename, await ctx.app.vault.cachedRead(file), ctx.settings.embeddingMaxChars);
     const cached = storedHashes.get(node.path) ?? storedHashes.get(node.id);
 
     if (cached && cached.hash === currentHash) {
@@ -428,7 +435,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
       points.push({
         id: pathToId(node.path),
         vector: res.embedding,
-        payload: { path: node.path, title: node.title, content: node.content.slice(0, 500) },
+        payload: { path: node.path, title: node.title, content: body.slice(0, 500) },
         contentHash: currentHash,
       });
       successCount++;

@@ -7,6 +7,19 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Fixed
+- "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same
+  text and compute the same cache hash. Settings used the file name plus up to 1500
+  characters, the toolbar used the display title plus an 800-character scan excerpt, so
+  each path treated the other's stored vectors as stale and re-embedded unchanged notes.
+  Both now build the text through one shared function from the note file itself (#161).
+
+### Changed
+- The embedded text per note is no longer limited to 800-2000 characters by three
+  independent hardcoded cuts. A single setting, `embeddingMaxChars` (default 8000,
+  0 = no cap), controls it; the fixed 2000-character cut inside the embedding request
+  is removed. Longer notes are re-embedded once with more of their content (#161).
+
 ## [0.1.8] - 2026-09-29
 
 ### Fixed

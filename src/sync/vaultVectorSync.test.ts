@@ -92,7 +92,7 @@ describe("vaultVectorSync", () => {
     fetchSpy.mockClear();
 
     // Work/Overview.md content is "Content of Overview"
-    // Sample text: "Overview\nContent of Overview".slice(0, 1500)
+    // Embedding text: basename + body, well under the default embeddingMaxChars cap
     const { hashString } = await import("../hash");
     const overviewHash = String(hashString("Overview\nContent of Overview"));
 

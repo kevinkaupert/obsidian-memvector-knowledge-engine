@@ -6,6 +6,7 @@ import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
+import { DEFAULT_SETTINGS } from "../defaults";
 
 interface EmbeddingProviderDefaults {
   embeddingApiBaseUrl: string;
@@ -144,6 +145,22 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
         })
     );
   }
+
+  new Setting(containerEl)
+    .setName(t.embedMaxCharsTitle)
+    .setDesc(t.embedMaxCharsDesc)
+    .addText((text) => {
+      text.inputEl.type = "number";
+      text.inputEl.min = "0";
+      text
+        .setPlaceholder(String(DEFAULT_SETTINGS.embeddingMaxChars))
+        .setValue(String(settings.embeddingMaxChars ?? DEFAULT_SETTINGS.embeddingMaxChars))
+        .onChange(async (value) => {
+          const parsed = parseInt(value, 10);
+          settings.embeddingMaxChars = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_SETTINGS.embeddingMaxChars;
+          await host.saveSettings();
+        });
+    });
 
   new Setting(containerEl)
     .setName(t.wikiLinksAsRelationsName)
