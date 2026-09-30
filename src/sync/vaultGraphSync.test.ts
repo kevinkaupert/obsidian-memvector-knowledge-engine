@@ -238,8 +238,8 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
     ]);
     expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toEqual(["b"]);
 
-    // Adversarial condition: loadRelationEdges throws (e.g. transient lock or syntax error in relation folder)
-    const spy = vi.spyOn(relationEdgesModule, "loadRelationEdges").mockRejectedValueOnce(new Error("Transient file lock"));
+    // Adversarial condition: loadRelationEdgesResult throws (e.g. transient lock or syntax error in relation folder)
+    const spy = vi.spyOn(relationEdgesModule, "loadRelationEdgesResult").mockRejectedValueOnce(new Error("Transient file lock"));
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     try {
@@ -254,6 +254,46 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
       );
     } finally {
       spy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("adversarial (Issue #183): preserves existing edges when a single relation file throws an error during read", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a" },
+      { path: "b.md", basename: "b" },
+      { path: "wiki/relations/a--specializes--b.md", basename: "a--specializes--b" },
+      { path: "wiki/relations/b--requires--a.md", basename: "b--requires--a" },
+    ];
+    const app = fakeAppWithStore(files);
+    // Wire vault.read so b--requires--a throws (simulating transient file lock)
+    const readSpy = vi.fn(async (file: any) => {
+      if (file.path === "wiki/relations/b--requires--a.md") {
+        throw new Error("File locked by external process");
+      }
+      return "---\ntype: relation\n---\n[[a]] -> [[b]]\n";
+    });
+    app.vault.read = readSpy;
+
+    const store = new SqliteGraphStore(app);
+    await store.upsertTypedEdges([
+      { src: { id: "a", title: "a", path: "a.md" }, tgt: { id: "b", title: "b", path: "b.md" }, relType: "SPECIALIZES", description: "" },
+      { src: { id: "b", title: "b", path: "b.md" }, tgt: { id: "a", title: "a", path: "a.md" }, relType: "REQUIRES", description: "" },
+    ]);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await syncVaultGraph(app, store);
+
+      // Both edges must still be present in SQLite! The locked edge was NOT deleted!
+      const fromA = await store.fetchNeighbors(["a"], 1, 10);
+      const fromB = await store.fetchNeighbors(["b"], 1, 10);
+      expect(fromA.map((n) => n.id)).toContain("b");
+      expect(fromB.map((n) => n.id)).toContain("a");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Partial failure while reading relation notes, skipping edge deletion")
+      );
+    } finally {
       warnSpy.mockRestore();
     }
   });

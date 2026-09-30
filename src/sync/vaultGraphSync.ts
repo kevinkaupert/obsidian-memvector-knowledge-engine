@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import { pathToId, toSlug } from "../noteSlug";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
-import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
+import { loadRelationEdgesResult } from "../views/vectorScatter/relationEdges";
 import { shouldIncludeFile } from "../vaultFilter";
 import { DEFAULT_RELATIONS_FOLDER } from "../vaultLayout";
 
@@ -45,7 +45,7 @@ export function extractVaultGraph(
 
 /**
  * Purpose: Full-vault graph re-index against the configured GraphStore, applying exclusion filters and synchronizing typed relations (F03).
- * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed. If loading typed relations throws, edge reconciliation is skipped to preserve existing relations in SQLite (Issue #183).
+ * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed. If loading typed relations throws or encounters unreadable/unparseable files, edge reconciliation is skipped to preserve existing relations in SQLite (Issue #183).
  */
 export async function syncVaultGraph(
   app: App,
@@ -59,7 +59,11 @@ export async function syncVaultGraph(
 
   let relationLoadFailed = false;
   try {
-    const relationEdges = await loadRelationEdges(app, exclusions, relationsFolder);
+    const { edges: relationEdges, hasErrors } = await loadRelationEdgesResult(app, exclusions, relationsFolder);
+    if (hasErrors) {
+      relationLoadFailed = true;
+      console.warn("MemVector: Partial failure while reading relation notes, skipping edge deletion to preserve existing relations");
+    }
     for (const rel of relationEdges) {
       if (exclusions && (!knownNodeIds.has(rel.srcId) || !knownNodeIds.has(rel.tgtId))) {
         continue;
