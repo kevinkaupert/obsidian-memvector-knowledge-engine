@@ -126,12 +126,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // ── Ansicht ───────────────────────────────────────────────────────────
   const ansichtBody = createSection(scrollBody, t.secView, true);
 
-  if (!ctx.nodeSpacing || ctx.nodeSpacing < 250) {
-    ctx.nodeSpacing = ctx.settings.scatterNodeSpacing || 350;
-  }
-  if (!ctx.cloudSpacing || ctx.cloudSpacing < 500) {
-    ctx.cloudSpacing = ctx.settings.scatterCloudSpacing || 800;
-  }
+  const rawNodeSpacing = ctx.nodeSpacing || ctx.settings.scatterNodeSpacing || 350;
+  ctx.nodeSpacing = Math.max(120, Math.min(1600, rawNodeSpacing));
+
+  const rawCloudSpacing = ctx.cloudSpacing || ctx.settings.scatterCloudSpacing || 800;
+  ctx.cloudSpacing = Math.max(300, Math.min(3000, rawCloudSpacing));
 
   createSlider(ansichtBody, t.lblNodeSpacing, 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
     void (async () => {

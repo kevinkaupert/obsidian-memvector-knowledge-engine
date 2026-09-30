@@ -20,11 +20,20 @@ vi.mock("obsidian", () => ({
     };
     addAction = vi.fn();
     registerEvent = vi.fn();
+    getState(): Record<string, unknown> {
+      return {};
+    }
+    async setState(_state: unknown, _result: unknown): Promise<void> {}
   },
   Modal: class {},
   Notice: class {},
   TFile: class {},
   setIcon: vi.fn(),
+}));
+
+vi.mock("./vaultScan", () => ({
+  scanVaultNotes: vi.fn(async () => []),
+  shouldIncludeFile: vi.fn(() => true),
 }));
 
 vi.mock("./canvasInteraction", () => ({
@@ -43,6 +52,7 @@ vi.mock("./relationEdges", () => ({
   loadRelationEdges: vi.fn(async () => []),
 }));
 
+<<<<<<< HEAD
 vi.mock("./vaultScan", () => ({
   scanVaultNotes: vi.fn(async () => []),
 }));
@@ -54,6 +64,17 @@ vi.mock("../../sync/storeFactory", () => ({
 vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>()),
   loadRelationVocabulary: vi.fn(async () => []),
+=======
+vi.mock("../../sync/sqlite/nodePositions", () => ({
+  getStoredNodePositions: vi.fn(async () => new Map()),
+  saveNodePositions: vi.fn(async () => {}),
+}));
+
+vi.mock("../../sync/storeFactory", () => ({
+  getVectorStore: vi.fn(() => ({
+    getVectors: vi.fn(async () => new Map()),
+  })),
+>>>>>>> 670348d (feat(view): preserve mental map across sessions via warm position hydration, camera state and rescan continuity)
 }));
 
 function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode {
@@ -71,15 +92,26 @@ function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode 
   };
 }
 
+function createMockHost(settingsOverrides: Partial<typeof DEFAULT_SETTINGS> = {}): VectorScatterHost {
+  return {
+    app: {
+      vault: {
+        getAbstractFileByPath: vi.fn(() => null),
+        read: vi.fn(async () => ""),
+        getMarkdownFiles: vi.fn(() => []),
+        on: vi.fn(),
+      },
+    } as any,
+    settings: { ...DEFAULT_SETTINGS, ...settingsOverrides },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+}
+
 describe("VectorScatterView.setShowRelationNotes (#110)", () => {
   function makeView(): VectorScatterView {
     const leaf = {} as WorkspaceLeaf;
-    const host: VectorScatterHost = {
-      app: {} as any,
-      settings: { ...DEFAULT_SETTINGS },
-      saveSettings: vi.fn(async () => {}),
-      focusSidebarNote: vi.fn(),
-    };
+    const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
     view.redraw = vi.fn();
     return view;
@@ -126,12 +158,7 @@ describe("VectorScatterView.setShowRelationNotes (#110)", () => {
 describe("VectorScatterView.applyExternalSettingsChange", () => {
   function makeView(settings: Partial<typeof DEFAULT_SETTINGS> = {}): VectorScatterView {
     const leaf = {} as WorkspaceLeaf;
-    const host: VectorScatterHost = {
-      app: {} as any,
-      settings: { ...DEFAULT_SETTINGS, ...settings },
-      saveSettings: vi.fn(async () => {}),
-      focusSidebarNote: vi.fn(),
-    };
+    const host = createMockHost(settings);
     const view = new VectorScatterView(leaf, host);
     view.redraw = vi.fn();
     return view;
@@ -261,6 +288,7 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
   });
 });
 
+<<<<<<< HEAD
 /** View with the pure vault scan and vector store mocked, for exercising scanVaultNotes end to end. */
 function makeScanView(): VectorScatterView {
   const host: VectorScatterHost = {
@@ -511,10 +539,88 @@ describe("VectorScatterView watcher recognizes moved relation notes (#173)", () 
     expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
     expect(view.triggerVaultRescan).not.toHaveBeenCalled();
 
-    // An ordinary note in a folder that happens to be called "relations" is a note, not an edge.
     callbacks.get("modify")!(Object.assign(new TFile(), { path: "Customers/relations/b.md" }));
     expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
     expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView camera viewport persistence (getState/setState)", () => {
+  it("serializes current pan and zoom into workspace state", () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+    view.pan = { x: 123.4, y: -56.7 };
+    view.zoom = 1.45;
+
+    const state = view.getState();
+    expect(state).toEqual(expect.objectContaining({
+      pan: { x: 123.4, y: -56.7 },
+      zoom: 1.45,
+    }));
+  });
+
+  it("restores pan and zoom from workspace state and marks hasFittedView", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8 }, {} as any);
+
+    expect(view.pan).toEqual({ x: 300, y: 400 });
+    expect(view.zoom).toBe(0.8);
+  });
+});
+
+describe("VectorScatterView position preservation across rescans", () => {
+  it("preserves in-memory coordinates of existing nodes during vault rescans", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    // Initial node with established coordinates
+    const initialNode = makeNode("n1", "wiki/n1.md", "concept");
+    initialNode.x = 250;
+    initialNode.y = 350;
+    view.nodes = [initialNode];
+
+    // Mock scanVaultNotesPure returning fresh instance of n1 at x:0, y:0
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValueOnce([
+      makeNode("n1", "wiki/n1.md", "concept"),
+      makeNode("n2_new", "wiki/n2_new.md", "concept"),
+    ]);
+
+    await view.scanVaultNotes();
+
+    const n1 = view.nodes.find((n) => n.id === "n1");
+    expect(n1).toBeDefined();
+    // Existing node preserved its coordinates
+    expect(n1!.x).toBe(250);
+    expect(n1!.y).toBe(350);
+  });
+
+  it("hydrates stored positions from SQLite for unplaced nodes", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValueOnce([
+      makeNode("stored_note", "wiki/stored_note.md", "concept"),
+    ]);
+
+    const { getStoredNodePositions } = await import("../../sync/sqlite/nodePositions");
+    vi.mocked(getStoredNodePositions).mockResolvedValueOnce(
+      new Map([["stored_note", { x: 777, y: 888 }]])
+    );
+
+    await view.scanVaultNotes();
+
+    const node = view.nodes.find((n) => n.id === "stored_note");
+    expect(node).toBeDefined();
+    expect(node!.x).toBe(777);
+    expect(node!.y).toBe(888);
+  });
+});
+
 
