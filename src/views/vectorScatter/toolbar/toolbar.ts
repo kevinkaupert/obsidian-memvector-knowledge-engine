@@ -6,6 +6,7 @@ import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
 import { buildEmbeddingInput } from "../../../sync/embeddingText";
 import { resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
+import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
@@ -458,7 +459,9 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 
   if (!syncFailed && successCount === total) {
     try {
-      await vectorStore.reconcile(ctx.nodes.map((n) => n.path));
+      // Reconcile against the whole indexable vault, not ctx.nodes: the node list honours the transient view
+      // filter, and reconciling against it would delete the vectors of every note filtered out of the view.
+      await vectorStore.reconcile(listIndexableFiles(ctx.app, ctx.settings.vectorSearchExclusions).map((f) => f.path));
     } catch (syncErr) {
       syncFailed = true;
       syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);

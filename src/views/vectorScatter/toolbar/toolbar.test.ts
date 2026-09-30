@@ -351,3 +351,70 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
     expect(vi.mocked(fetchEmbedding).mock.calls[0][0].length).toBe(1000);
   });
 });
+
+describe("runCalcVectors reconciles against the whole vault, not the filtered view (#165)", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2, 0.3], error: null });
+  });
+
+  it("keeps stored vectors of notes filtered out of the view", async () => {
+    const stored = new Map<string, number[]>([
+      ["Visible.md", [1, 0]],
+      ["Hidden.md", [0, 1]],
+      ["Deleted.md", [1, 1]],
+    ]);
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn(async (points: VectorPoint[]) => {
+        for (const p of points) stored.set(p.payload.path, p.vector);
+      }),
+      reconcile: vi.fn(async (paths: string[]) => {
+        const keep = new Set(paths);
+        for (const path of [...stored.keys()]) if (!keep.has(path)) stored.delete(path);
+        return { removed: 0 };
+      }),
+    } as unknown as ReturnType<typeof getVectorStore>);
+
+    // The view is filtered down to Visible.md; Hidden.md still exists in the vault, Deleted.md does not.
+    const ctx = {
+      app: { vault: createMockVault({ "Visible.md": "visible body", "Hidden.md": "hidden body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "visible body", x: 0, y: 0 }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(stored.has("Hidden.md")).toBe(true);
+    expect(stored.has("Visible.md")).toBe(true);
+    expect(stored.has("Deleted.md")).toBe(false);
+  });
+
+  it("does not keep notes excluded from indexing", async () => {
+    const reconcile = vi.fn().mockResolvedValue({ removed: 0 });
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile,
+    } as unknown as ReturnType<typeof getVectorStore>);
+
+    const ctx = {
+      app: { vault: createMockVault({ "Visible.md": "a", "private/Secret.md": "b" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:private" },
+      nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "a", x: 0, y: 0 }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(reconcile).toHaveBeenCalledWith(["Visible.md"]);
+  });
+});

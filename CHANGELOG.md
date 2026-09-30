@@ -19,6 +19,9 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   records the model and endpoint that produced it; other models' vectors count as cache
   misses and are excluded from search, hydration and the radar. Existing vectors are
   assigned to the model configured when the updated plugin first opens the database (#164).
+- "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
+  every note outside the filter. Index cleanup compared the stored vectors against the
+  filtered node list; it now compares against every indexable note in the vault (#165).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

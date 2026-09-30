@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
-import { shouldIncludeFile } from "../vaultFilter";
+import { listIndexableFiles } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
 import { buildEmbeddingInput } from "./embeddingText";
 import { resolveEmbeddingTarget } from "./embeddingTarget";
@@ -20,7 +20,8 @@ export interface VectorSyncResult {
  * cover vectors of the configured model and endpoint, so a model switch re-embeds unchanged notes.
  */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
-  const vaultFiles = app.vault.getMarkdownFiles();
+  const totalFiles = app.vault.getMarkdownFiles().length;
+  const indexableFiles = listIndexableFiles(app, settings.vectorSearchExclusions);
   const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
   const target = resolveEmbeddingTarget(settings);
 
@@ -35,9 +36,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
   const storedHashes = await store.getStoredHashes();
 
-  for (let i = 0; i < vaultFiles.length; i++) {
-    const file = vaultFiles[i];
-    if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
+  for (const file of indexableFiles) {
     includedPaths.push(file.path);
     const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
@@ -78,6 +77,6 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   }
   await store.reconcile(includedPaths);
 
-  return { totalFiles: vaultFiles.length, syncedCount: points.length, skippedCount };
+  return { totalFiles, syncedCount: points.length, skippedCount };
 }
 
