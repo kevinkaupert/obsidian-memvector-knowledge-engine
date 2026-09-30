@@ -52,19 +52,10 @@ vi.mock("./relationEdges", () => ({
   loadRelationEdges: vi.fn(async () => []),
 }));
 
-<<<<<<< HEAD
 vi.mock("./vaultScan", () => ({
   scanVaultNotes: vi.fn(async () => []),
 }));
 
-vi.mock("../../sync/storeFactory", () => ({
-  getVectorStore: vi.fn(),
-}));
-
-vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>()),
-  loadRelationVocabulary: vi.fn(async () => []),
-=======
 vi.mock("../../sync/sqlite/nodePositions", () => ({
   getStoredNodePositions: vi.fn(async () => new Map()),
   saveNodePositions: vi.fn(async () => {}),
@@ -74,7 +65,11 @@ vi.mock("../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(() => ({
     getVectors: vi.fn(async () => new Map()),
   })),
->>>>>>> 670348d (feat(view): preserve mental map across sessions via warm position hydration, camera state and rescan continuity)
+}));
+
+vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>()),
+  loadRelationVocabulary: vi.fn(async () => []),
 }));
 
 function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode {
@@ -288,7 +283,6 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
   });
 });
 
-<<<<<<< HEAD
 /** View with the pure vault scan and vector store mocked, for exercising scanVaultNotes end to end. */
 function makeScanView(): VectorScatterView {
   const host: VectorScatterHost = {
