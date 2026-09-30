@@ -33,7 +33,8 @@ node testing/mock-echo-server.js 8092
    Every indexed note should report `hasEmbedding: true` immediately, without
    any embedding recompute.
 3. **Relation creation.** Select both notes, create a typed relation, save.
-   Confirm a file appears under `wiki/relations/`. Create a *second*, 
+   Confirm a file appears in the relations folder (`wiki/relations/` unless
+   changed under Settings -> General -> Vault folders). Create a *second*, 
    differently-typed relation between the same pair and confirm a *second*
    file appears (not an overwrite of the first).
 4. **Deletion + reconciliation.** Delete one of the two notes, then
@@ -48,6 +49,12 @@ node testing/mock-echo-server.js 8092
    prompt the plugin sent - confirm it contains `B`'s content (GraphRAG) and
    `SMOKETEST-AGENTS-GUIDELINE-OK` (AGENTS.md guidelines), and that a
    free-text question typed into the synthesis field appears as the task.
+
+6. **Configurable folders.** Under Settings -> General -> Vault folders, set
+   the relation notes folder to `Beziehungen`. Create a relation: its file must
+   appear under `Beziehungen/`. Move an existing relation note out of
+   `wiki/relations/` into any other folder: it must stay an edge in the 2D view
+   and in GraphRAG context, because it carries `type: relation`.
 
 This whole procedure - and the finding that the plugin's own success
 `Notice`s aren't proof anything actually landed in storage - is exactly what

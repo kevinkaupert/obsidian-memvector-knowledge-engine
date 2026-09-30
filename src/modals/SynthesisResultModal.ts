@@ -1,6 +1,6 @@
 import { Component, MarkdownRenderer, Modal, Notice, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
-import { getTranslation } from "../i18n";
+import { getTranslation, withFolder } from "../i18n";
 import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
 import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
@@ -46,7 +46,7 @@ export class SynthesisResultModal extends Modal {
     const btnRow = contentEl.createDiv({ cls: "memvector-synthesis-actions" });
 
     const saveBtn = btnRow.createEl("button", {
-      text: t.synthSaveBtn,
+      text: withFolder(t.synthSaveBtn, synthesisFolder(this.settings ?? {})),
       cls: "mod-cta",
     });
 
@@ -85,7 +85,7 @@ ${this.synthesisText}
         this.close();
       } catch (err) {
         saveBtn.disabled = false;
-        saveBtn.setText(t.synthSaveBtn);
+        saveBtn.setText(withFolder(t.synthSaveBtn, synthesisFolder(this.settings ?? {})));
         new Notice(`[ERROR] ${t.saveErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
       }
     };

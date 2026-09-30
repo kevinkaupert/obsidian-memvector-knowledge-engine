@@ -13,7 +13,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   (`presetsFolder`) are configurable. Defaults stay `wiki/relations`, `wiki/synthesis` and
   `wiki/presets`, so existing vaults are unchanged; changing a folder does not move existing
   notes. The relations folder is also the fallback criterion for relation notes without
-  `type: relation` (#173).
+  `type: relation`. Texts that named the fixed `wiki/...` folders now show the configured
+  ones (#173).
 
 ### Fixed
 - "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same

@@ -1,5 +1,5 @@
 import { Modal, Notice, TFile, type App } from "obsidian";
-import { getTranslation } from "../../i18n";
+import { getTranslation, withFolder } from "../../i18n";
 import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
 import { relationsFolder } from "../../vaultLayout";
@@ -368,7 +368,7 @@ export class RelationBuilderModal extends Modal {
       }
 
       if (failedCount > 0) new Notice(`${t.relSaveError}: ${failedCount}`, 8000);
-      if (createdCount > 0) new Notice(`${createdCount} ${t.relSaveSuccess}`);
+      if (createdCount > 0) new Notice(`${createdCount} ${withFolder(t.relSaveSuccess, relationsFolder(this.host.settings))}`);
 
       this.onSaved?.();
       this.close();
