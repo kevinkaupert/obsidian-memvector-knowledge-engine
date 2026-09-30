@@ -8,6 +8,11 @@ import { getTranslation } from "../i18n";
 
 export const DEFAULT_RELATION_VOCABULARY_PATH = "wiki/relation-types.json";
 
+/** Purpose: Resolves the active vocabulary file path from settings, falling back to the default for an empty value. */
+export function resolveVocabularyPath(settings: Partial<Pick<MemVectorSettings, "relationVocabularyPath">>): string {
+  return (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
+}
+
 export function isValidTerm(v: unknown): v is RelationTermDef {
   if (!v || typeof v !== "object") return false;
   const t = v as Record<string, unknown>;
@@ -29,7 +34,7 @@ export async function loadRelationVocabulary(
   app: App,
   settings: Partial<Pick<MemVectorSettings, "relationVocabularyPath" | "language">> = {}
 ): Promise<RelationTermDef[]> {
-  const path = (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
+  const path = resolveVocabularyPath(settings);
   const existing = app.vault.getAbstractFileByPath(path);
 
   if (!(existing instanceof TFile)) {

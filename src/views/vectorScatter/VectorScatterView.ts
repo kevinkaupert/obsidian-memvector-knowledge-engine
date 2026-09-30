@@ -1,7 +1,7 @@
 import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
-import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { loadRelationVocabulary, resolveVocabularyPath } from "../../relationVocabulary/loadRelationVocabulary";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings } from "../../settings/types";
@@ -251,9 +251,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
+    // The vocabulary file carries the per-label layout weights, so an edit made outside the Settings table (or by sync)
+    // must re-run the layout just like a relation edit.
+    const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
+
     const handleFileEvent = (file: { path: string }) => {
       if (!file?.path) return;
-      if (file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
+      if (isVocabulary(file.path) || file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
         this.triggerRelationsReload();
       } else if (file.path.endsWith(".md")) {
         this.triggerVaultRescan();
@@ -264,7 +268,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
       const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
 
-      if (isRel(file?.path) || isRel(oldPath)) {
+      if (isVocabulary(file?.path) || isVocabulary(oldPath) || isRel(file?.path) || isRel(oldPath)) {
         this.triggerRelationsReload();
       } else if (isMd(file?.path) || isMd(oldPath)) {
         this.triggerVaultRescan();
@@ -292,7 +296,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
     this.vaultDebounceTimer = window.setTimeout(() => {
       void (async () => {
-        await this.scanVaultNotes();
+        await this.scanVaultNotes(undefined, { preserveView: true });
         this.toolbarHandles?.updateSelectionUI();
       })();
     }, 800);
@@ -383,8 +387,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /**
    * Purpose: Scans vault notes using transient view filter and persistent indexing exclusions, then updates embeddings and layout.
+   * Architecture: Explicit scans (opening the view, changing the filter) fit the camera to the new node set;
+   * `preserveView` keeps the user's pan and zoom for background rescans triggered by the vault watcher, which fire
+   * while the user is editing notes.
    */
-  async scanVaultNotes(filterOverride?: string): Promise<void> {
+  async scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
@@ -404,7 +411,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     await this.hydrateStoredEmbeddings(previousEmbeddings);
     await this.loadRelationEdges();
     this.applyLayout();
-    this.fitToView();
+    if (!options.preserveView) this.fitToView();
     this.redraw();
   }
 

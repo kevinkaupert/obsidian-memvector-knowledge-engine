@@ -38,7 +38,7 @@ export interface ScatterViewContext {
   getVisibleNodes(): ScatterNode[];
   setShowRelationNotes(show: boolean): void;
   redraw(): void;
-  scanVaultNotes(filterOverride?: string): Promise<void>;
+  scanVaultNotes(filterOverride?: string, options?: { preserveView?: boolean }): Promise<void>;
   applyLayout(): void;
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;

@@ -51,7 +51,8 @@ vi.mock("../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(),
 }));
 
-vi.mock("../../relationVocabulary/loadRelationVocabulary", () => ({
+vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>()),
   loadRelationVocabulary: vi.fn(async () => []),
 }));
 
@@ -315,3 +316,69 @@ describe("VectorScatterView.scanVaultNotes uses the vector store as source of tr
   });
 });
 
+
+/** View with vault watchers registered against a fake vault; returns the captured event callbacks. */
+function makeWatchedView(settings: Partial<typeof DEFAULT_SETTINGS> = {}) {
+  const callbacks = new Map<string, Function>();
+  const vault = { on: vi.fn((event: string, cb: Function) => (callbacks.set(event, cb), { event, cb })) };
+  const host: VectorScatterHost = {
+    app: { vault } as any,
+    settings: { ...DEFAULT_SETTINGS, ...settings },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+  const view = new VectorScatterView({} as WorkspaceLeaf, host);
+  view.registerVaultWatchers();
+  view.triggerRelationsReload = vi.fn();
+  view.triggerVaultRescan = vi.fn();
+  return { view, callbacks };
+}
+
+describe("VectorScatterView watcher and camera (#162)", () => {
+  it("reloads relations when the active vocabulary file changes", () => {
+    const { view, callbacks } = makeWatchedView();
+    callbacks.get("modify")!({ path: "wiki/relation-types.json" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows a configured vocabulary path, including renames to and from it", () => {
+    const { view, callbacks } = makeWatchedView({ relationVocabularyPath: "wiki/presets/law.json" });
+    callbacks.get("modify")!({ path: "wiki/presets/law.json" });
+    callbacks.get("rename")!({ path: "wiki/presets/law.json" }, "wiki/presets/tmp.json");
+    callbacks.get("modify")!({ path: "wiki/relation-types.json" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+    expect(view.triggerVaultRescan).not.toHaveBeenCalled();
+  });
+
+  it("background rescans keep the user's pan and zoom", async () => {
+    vi.useFakeTimers();
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }]);
+    mockStoredVectors(new Map());
+    view.zoom = 2.5;
+    view.pan = { x: 123, y: 456 };
+
+    view.triggerVaultRescan();
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    expect(scanVaultNotesPure).toHaveBeenCalled();
+    expect(view.zoom).toBe(2.5);
+    expect(view.pan).toEqual({ x: 123, y: 456 });
+  });
+
+  it("explicit scans still fit the camera to the node set", async () => {
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }]);
+    mockStoredVectors(new Map());
+    view.zoom = 2.5;
+    view.pan = { x: 123, y: 456 };
+
+    await view.scanVaultNotes("A");
+
+    expect(view.pan).not.toEqual({ x: 123, y: 456 });
+  });
+});

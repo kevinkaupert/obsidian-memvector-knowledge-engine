@@ -34,6 +34,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   model switch) on its next rescan. It used to copy its previous in-memory embeddings onto
   the rescanned notes and only filled gaps from the database; the stored vectors now take
   precedence, and in-memory ones are kept only if the database cannot be read (#167).
+- Editing a note no longer makes the 2D view jump back to the full overview. Background
+  rescans from the live vault watcher keep the current pan and zoom; opening the view and
+  changing the view filter still fit the camera (#162).
+- Changes to the active relation vocabulary file made outside the Settings table (by hand
+  or by sync) now reload the relations and layout weights of an open 2D view (#162).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three
