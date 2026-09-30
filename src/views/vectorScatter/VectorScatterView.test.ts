@@ -9,15 +9,40 @@ import { getVectorStore } from "../../sync/storeFactory";
 if (typeof window === "undefined") {
   (globalThis as any).window = globalThis;
 }
+if (typeof (globalThis as any).ResizeObserver === "undefined") {
+  (globalThis as any).ResizeObserver = class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+  };
+}
+
+function makeMockDiv(): any {
+  const el: any = {
+    addClass: vi.fn(),
+    removeClass: vi.fn(),
+    empty: vi.fn(),
+    children: [],
+    createDiv: vi.fn(() => makeMockDiv()),
+    createEl: vi.fn(() => ({
+      getContext: vi.fn(() => ({
+        setTransform: vi.fn(),
+        clearRect: vi.fn(),
+      })),
+      createDiv: vi.fn(() => makeMockDiv()),
+      createEl: vi.fn(() => ({})),
+      createSpan: vi.fn(() => ({ setText: vi.fn() })),
+      classList: { toggle: vi.fn() },
+      addEventListener: vi.fn(),
+    })),
+    createSpan: vi.fn(() => ({ setText: vi.fn() })),
+    classList: { toggle: vi.fn() },
+  };
+  return el;
+}
 
 vi.mock("obsidian", () => ({
   ItemView: class {
-    containerEl = {
-      addClass: vi.fn(),
-      children: [],
-      createDiv: vi.fn(),
-      empty: vi.fn(),
-    };
+    containerEl = makeMockDiv();
     addAction = vi.fn();
     registerEvent = vi.fn();
     getState(): Record<string, unknown> {
@@ -29,6 +54,14 @@ vi.mock("obsidian", () => ({
   Notice: class {},
   TFile: class {},
   setIcon: vi.fn(),
+}));
+
+vi.mock("./toolbar/toolbar", () => ({
+  buildToolbar: vi.fn(() => ({
+    statusText: {} as any,
+    updateSelectionUI: vi.fn(),
+    updateEdgeHops: vi.fn(),
+  })),
 }));
 
 vi.mock("./vaultScan", () => ({
@@ -191,6 +224,15 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     view.refreshRelationEdges = vi.fn();
     view.applyExternalSettingsChange();
     expect(view.refreshRelationEdges).not.toHaveBeenCalled();
+  });
+
+  it("picks up scatterEdgeHops changes from external settings", () => {
+    const view = makeView();
+    view.edgeHops = 1;
+    view.settings.scatterEdgeHops = 0;
+    view.applyExternalSettingsChange();
+    expect(view.edgeHops).toBe(0);
+    expect(view.redraw).toHaveBeenCalled();
   });
 });
 
@@ -540,28 +582,40 @@ describe("VectorScatterView watcher recognizes moved relation notes (#173)", () 
 });
 
 describe("VectorScatterView camera viewport persistence (getState/setState)", () => {
-  it("serializes current pan and zoom into workspace state", () => {
+  it("serializes current pan, zoom, and edgeHops into workspace state", () => {
     const leaf = {} as WorkspaceLeaf;
     const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
     view.pan = { x: 123.4, y: -56.7 };
     view.zoom = 1.45;
+    view.edgeHops = 3;
 
     const state = view.getState();
     expect(state).toEqual(expect.objectContaining({
       pan: { x: 123.4, y: -56.7 },
       zoom: 1.45,
+      edgeHops: 3,
     }));
   });
 
-  it("restores pan and zoom from workspace state and marks hasFittedView", async () => {
+  it("restores pan, zoom, and edgeHops from workspace state and marks hasFittedView", async () => {
     const leaf = {} as WorkspaceLeaf;
     const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
-    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8 }, {} as any);
+    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8, edgeHops: 2 }, {} as any);
 
     expect(view.pan).toEqual({ x: 300, y: 400 });
     expect(view.zoom).toBe(0.8);
+    expect(view.edgeHops).toBe(2);
+  });
+
+  it("initializes edgeHops from settings.scatterEdgeHops on onOpen", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost({ scatterEdgeHops: 3 });
+    const view = new VectorScatterView(leaf, host);
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+    await view.onOpen();
+    expect(view.edgeHops).toBe(3);
   });
 });
 

@@ -105,6 +105,8 @@ export interface MemVectorSettings {
   scatterNodeSpacing?: number;
   /** Distance scaling between semantic cluster clouds in the 2D scatter view. */
   scatterCloudSpacing?: number;
+  /** Number of graph hops (0 = all, 1-3, 999 = unlimited) rendered for edge connectivity in the 2D scatter view. */
+  scatterEdgeHops?: number;
 }
 
 export interface RelationGraphNode {

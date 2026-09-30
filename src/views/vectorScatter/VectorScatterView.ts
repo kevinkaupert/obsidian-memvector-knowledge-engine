@@ -72,6 +72,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.setShowRelationNotes(show);
       return;
     }
+    if (this.settings.scatterEdgeHops !== undefined && this.settings.scatterEdgeHops !== this.edgeHops) {
+      this.edgeHops = this.settings.scatterEdgeHops;
+      this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
+    }
     this.redraw();
   }
 
@@ -180,26 +184,31 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
-   * Purpose: Serializes canvas viewport camera state (pan and zoom) to Obsidian workspace.
+   * Purpose: Serializes canvas viewport camera state and view preferences to Obsidian workspace.
    */
   getState(): Record<string, unknown> {
     return {
       pan: this.pan,
       zoom: this.zoom,
+      edgeHops: this.edgeHops,
     };
   }
 
   /**
-   * Purpose: Restores canvas viewport camera state from Obsidian workspace on startup.
+   * Purpose: Restores canvas viewport camera state and view preferences from Obsidian workspace on startup.
    */
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     if (state && typeof state === "object") {
-      const s = state as { pan?: PanState; zoom?: number };
+      const s = state as { pan?: PanState; zoom?: number; edgeHops?: number };
       if (s.pan && typeof s.pan.x === "number" && typeof s.pan.y === "number") {
         this.pan = { x: s.pan.x, y: s.pan.y };
       }
       if (typeof s.zoom === "number" && !Number.isNaN(s.zoom)) {
         this.zoom = s.zoom;
+      }
+      if (typeof s.edgeHops === "number" && !Number.isNaN(s.edgeHops)) {
+        this.edgeHops = s.edgeHops;
+        this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
       }
       this.hasFittedView = true;
     }
@@ -239,6 +248,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
     this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
+    this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
