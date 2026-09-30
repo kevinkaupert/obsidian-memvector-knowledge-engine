@@ -21,6 +21,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   earlier versions carry no record of their model, so they are treated as unknown rather
   than attributed to the currently configured one: the first indexing run after the
   update re-embeds every note, and until then search and the radar skip them (#176).
+- An open 2D view no longer keeps vectors of the previous embedding model. Changing the
+  model or endpoint, and every "Index entire vault" run, reloads the stored vectors into
+  open views; "Calculate vectors" takes the stored vector on a cache hit even when the
+  view still holds one, and GraphRAG context enrichment builds its query only from stored
+  vectors. Before, a stale in-memory vector could silently search the new model's index (#175).
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).

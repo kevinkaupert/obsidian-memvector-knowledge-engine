@@ -120,5 +120,5 @@ export interface SettingsHost {
    * used to redraw directly, while saveSettings() only persists, so without this
    * the change would only appear after closing and reopening the view.
    */
-  applySettingsToOpenViews?(options?: { relayout?: boolean }): void;
+  applySettingsToOpenViews?(options?: { relayout?: boolean; embeddings?: boolean }): void;
 }

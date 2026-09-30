@@ -57,7 +57,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * already persists and refreshes, so it is reused for the relation-note flag; everything else the
    * view reads straight off `this.settings` on each redraw and only needs the redraw itself.
    */
-  applyExternalSettingsChange(options?: { relayout?: boolean }): void {
+  applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+    if (options?.embeddings) this.reloadEmbeddings();
     // A vocabulary edit changes per-label attraction/repulsion, so the force layout
     // has to run again - a redraw alone would only repaint the old positions.
     if (options?.relayout) {
@@ -233,6 +234,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.vaultDebounceTimer !== null) {
       window.clearTimeout(this.vaultDebounceTimer);
       this.vaultDebounceTimer = null;
+    }
+    if (this.embeddingReloadTimer !== null) {
+      window.clearTimeout(this.embeddingReloadTimer);
+      this.embeddingReloadTimer = null;
     }
     this.interactionCleanup?.();
     this.interactionCleanup = null;
@@ -415,6 +420,27 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.applyLayout();
     if (!options.preserveView) this.fitToView();
     this.redraw();
+  }
+
+  private embeddingReloadTimer: number | null = null;
+
+  /**
+   * Purpose: Replaces every node's embedding with the stored one after the embedding target or the index changed,
+   * then re-runs the layout.
+   * Architecture: In-memory vectors are discarded, not kept as fallback: after a model switch they belong to another
+   * vector space. Debounced because the model and URL fields save on every keystroke.
+   */
+  reloadEmbeddings(): void {
+    if (this.embeddingReloadTimer !== null) window.clearTimeout(this.embeddingReloadTimer);
+    this.embeddingReloadTimer = window.setTimeout(() => {
+      this.embeddingReloadTimer = null;
+      void (async () => {
+        for (const n of this.nodes) n.embedding = undefined;
+        await this.hydrateStoredEmbeddings(new Map());
+        this.applyLayout();
+        this.redraw();
+      })();
+    }, 300);
   }
 
   /**

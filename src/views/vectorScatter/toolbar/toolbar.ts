@@ -418,6 +418,12 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   } catch (err) {
     console.warn("MemVector: Failed to load stored vector hashes, calculating unconditionally:", err);
   }
+  let storedVectors = new Map<string, number[]>();
+  try {
+    storedVectors = await vectorStore.getVectors(workNodes.map((n) => n.path));
+  } catch (err) {
+    console.warn("MemVector: Failed to load stored vectors, calculating unconditionally:", err);
+  }
 
   for (let i = 0; i < total; i++) {
     const node = workNodes[i];
@@ -433,15 +439,11 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     const cached = storedHashes.get(node.path) ?? storedHashes.get(node.id);
 
     if (cached && cached.hash === currentHash) {
-      if (!node.embedding || node.embedding.length === 0) {
-        try {
-          const vec = await vectorStore.getVector(node.path);
-          if (vec && vec.length > 0) node.embedding = vec;
-        } catch {
-          // Fall through to recompute if vector retrieval fails
-        }
-      }
-      if (node.embedding && node.embedding.length > 0) {
+      // Take the stored vector even if the node already holds one: the store is scoped to the active model, while an
+      // in-memory vector may still come from the previous one (e.g. after a model switch and a Settings re-index).
+      const stored = storedVectors.get(node.path);
+      if (stored && stored.length > 0) {
+        node.embedding = stored;
         skippedCount++;
         successCount++;
         continue;

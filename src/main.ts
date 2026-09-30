@@ -8,11 +8,14 @@ import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 import { setPluginId, setPluginDir, closeLocalDb } from "./sync/sqlite/sqliteDb";
 import { getTranslation } from "./i18n";
+import { resolveEmbeddingTarget } from "./sync/embeddingTarget";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
   private sidebarView: MathWikiSidebarView | null = null;
   private sidebarDebounceTimer: number | null = null;
+  /** Embedding fingerprint the open views were last hydrated for - see saveSettings. */
+  private embeddingFingerprint = "";
 
   private triggerSidebarRender(): void {
     if (this.sidebarDebounceTimer !== null) {
@@ -105,6 +108,7 @@ export default class MemVectorPlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const raw: unknown = await this.loadData();
     this.settings = migrateSettings(raw);
+    this.embeddingFingerprint = resolveEmbeddingTarget(this.settings).fingerprint;
     // One-time move of any plaintext secrets left over from before 1.6.1
     // (per-provider LLM keys, the legacy shared deepseekApiKey, the
     // embedding/Qdrant API keys, the Memgraph password) into Obsidian's
@@ -114,8 +118,19 @@ export default class MemVectorPlugin extends Plugin {
     }
   }
 
+  /**
+   * Purpose: Persists settings; when the embedding model or endpoint changed, open 2D views reload their embeddings.
+   * Architecture: Detected here rather than in each settings control, so every path that changes the embedding
+   * target (provider switch, URL, model field or dropdown, connection test) is covered. Otherwise an open view keeps
+   * vectors of the previous model in memory and feeds them into layout and GraphRAG enrichment.
+   */
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    const fingerprint = resolveEmbeddingTarget(this.settings).fingerprint;
+    if (fingerprint !== this.embeddingFingerprint) {
+      this.embeddingFingerprint = fingerprint;
+      this.applySettingsToOpenViews({ embeddings: true });
+    }
   }
 
   /**
@@ -124,7 +139,7 @@ export default class MemVectorPlugin extends Plugin {
    * and redrew the canvas themselves. After the move into Settings, saveSettings() alone would leave an
    * open view stale until it is reopened, so the settings tab calls this right after persisting.
    */
-  applySettingsToOpenViews(options?: { relayout?: boolean }): void {
+  applySettingsToOpenViews(options?: { relayout?: boolean; embeddings?: boolean }): void {
     for (const leaf of this.app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)) {
       const view = leaf.view;
       if (view instanceof VectorScatterView) view.applyExternalSettingsChange(options);

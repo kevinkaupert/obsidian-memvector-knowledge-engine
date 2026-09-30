@@ -44,20 +44,17 @@ async function fetchVectorNeighbors(
   const found = new Map<string, EnrichedNote>();
   const store = getVectorStore(app, settings);
 
+  // Query vectors come from the store only. It is scoped to the active embedding model; a node's in-memory vector may
+  // still belong to the previous model, and searching the new index with it silently returns unrelated notes.
   const rawEmbeddings: number[][] = [];
-  for (const n of selected) {
-    if (n.embedding && n.embedding.length > 0) {
-      rawEmbeddings.push(n.embedding);
-    } else {
-      try {
-        const stored = await store.getVector(n.path);
-        if (stored && stored.length > 0) {
-          rawEmbeddings.push(stored);
-        }
-      } catch {
-        // Stored vector not available
-      }
+  try {
+    const stored = await store.getVectors(selected.map((n) => n.path));
+    for (const n of selected) {
+      const v = stored.get(n.path);
+      if (v && v.length > 0) rawEmbeddings.push(v);
     }
+  } catch (err) {
+    console.warn("MemVector: Failed to load stored vectors for context enrichment:", err);
   }
 
   const queryVector = averageEmbedding(rawEmbeddings);
