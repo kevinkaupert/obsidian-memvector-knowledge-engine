@@ -35,6 +35,16 @@ describe("computeGraphTopologyWeights", () => {
     expect(conn[0][2]).toBeLessThan(conn[0][1]);
   });
 
+  it("keeps multi-hop decay strictly below the spring attraction threshold (0.15) to prevent cluster collapse", () => {
+    const nodes = [node("a"), node("b"), node("c"), node("d")];
+    const edges = [edge("a", "b", "REQUIRES"), edge("b", "c", "REQUIRES"), edge("c", "d", "REQUIRES")];
+    const { conn } = computeGraphTopologyWeights(nodes, edges);
+    // 2-hop (a to c)
+    expect(conn[0][2]).toBeLessThan(0.15);
+    // 3-hop (a to d)
+    expect(conn[0][3]).toBeLessThan(0.15);
+  });
+
   it("falls back to the baseline weight beyond the hop cap or when unreachable", () => {
     const nodes = [node("a"), node("b"), node("far")];
     const edges = [edge("a", "b", "REQUIRES")];

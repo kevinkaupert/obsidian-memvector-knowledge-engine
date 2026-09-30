@@ -315,7 +315,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (!this.app?.vault?.on) return;
 
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    // Only decides modify events (edge-only reload vs. rescan); the file already exists, so its frontmatter is cached.
     const isRel = (file: { path: string }) =>
       isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined, relationsFolder(this.settings));
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
@@ -477,7 +476,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       }
     }
 
-    this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
+    this.nodes = await scanVaultNotesPure(
+      this.app,
+      this.viewFilterQuery,
+      this.settings.vectorSearchExclusions,
+      relationsFolder(this.settings),
+      this.showRelationNotes
+    );
     this.reconcileTransientState();
 
     for (const node of this.nodes) {
@@ -544,8 +549,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Loads each scanned node's embedding from the vector store, so a reopened/rescanned graph uses the existing
    * semantic index instead of recomputing it through a provider.
    * Architecture: The store is the source of truth - it holds vectors re-indexed from Settings or another view, and is
-   * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are only used when
-   * the store cannot be read; otherwise they would keep stale or other-model vectors alive in the layout.
+   * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are preserved when
+   * the store does not return a vector for a note, ensuring in-memory layouts do not collapse.
    */
   private async hydrateStoredEmbeddings(fallback: Map<string, number[]>): Promise<void> {
     if (this.nodes.length === 0) return;
