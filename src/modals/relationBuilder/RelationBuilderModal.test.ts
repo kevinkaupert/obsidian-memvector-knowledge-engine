@@ -204,23 +204,15 @@ describe("Relation Builder save integration", () => {
     expect(originalArray[1]).toBe(b);
   });
 
-  it("auto-persists a free-text custom type into the vocabulary file (Issue #119)", async () => {
+  it("restricts edge selection to vocabulary presets and does not render a custom input", async () => {
     const f = fixture(reversed);
     const ui = await f.open();
 
+    const customInput = ui.root.find((el) => el.cls === "memvector-relation-custom-input");
+    expect(customInput).toBeUndefined();
+
     const select = ui.root.find((el) => el.tag === "select")!;
-    select.value = "CUSTOM";
-    select.onchange!();
-    const customInput = ui.root.find((el) => el.cls === "memvector-relation-custom-input")!;
-    customInput.value = "IS_HOMOMORPHIC_TO";
-    (customInput as unknown as { oninput?: () => void }).oninput!();
-
-    await ui.save();
-
-    const vocabRaw = f.contents.get("wiki/relation-types.json");
-    expect(vocabRaw).toBeDefined();
-    const parsed = JSON.parse(vocabRaw!) as { terms: { label: string; category: string }[] };
-    expect(parsed.terms.some((term) => term.label === "IS_HOMOMORPHIC_TO" && term.category === "Custom")).toBe(true);
+    expect(select.children.some((optgroup) => optgroup.children.some((opt) => opt.value === "CUSTOM"))).toBe(false);
   });
 });
 

@@ -5,7 +5,6 @@ import type { SettingsHost } from "../../settings/types";
 import { relationsFolder } from "../../vaultLayout";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
 import { buildRelationCategories, type RelationCategory } from "../../relationVocabulary/buildCategories";
-import { persistCustomRelationTypes, type CustomTypeInput } from "../../relationVocabulary/persistCustomType";
 import { defaultTermForLabel, resolveEdgesForSave } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { generateEdges, type EdgeTopology, type RelationEdgeDraft, type RelationNode } from "./relationEdgeBuilder";
@@ -30,8 +29,6 @@ export class RelationBuilderModal extends Modal {
   private edgeRelTypes: Record<number, string> = {};
   private relDesc = "";
   private selectedNodes: RelationNode[];
-  /** True when editing an edge whose stored label isn't in the current vocabulary - the dropdown falls back to "Custom" with the raw label pre-filled instead of silently remapping it. */
-  private isCustomFallback = false;
 
   constructor(
     app: App,
@@ -45,6 +42,9 @@ export class RelationBuilderModal extends Modal {
     if (initialEdge) this.relDesc = initialEdge.description;
   }
 
+  /**
+   * Purpose: Loads active relation vocabulary from presets/settings, ensures initial edge label is available, and mounts the UI.
+   */
   onOpen(): void {
     this.modalEl.addClass("memvector-relation-modal");
 
@@ -56,7 +56,7 @@ export class RelationBuilderModal extends Modal {
     contentEl.createEl("p", { text: t.relLoadingVocabulary, cls: "memvector-muted-text" });
 
     void loadRelationVocabulary(this.app, this.host.settings).then((defs) => {
-      if (!this.relType) this.relType = defs[0]?.label || defs[0]?.key || "CUSTOM";
+      const allDefs = [...defs];
       if (this.initialEdge) {
         const termKey = defaultTermForLabel(defs, this.initialEdge.relType);
         if (termKey) {
@@ -64,14 +64,27 @@ export class RelationBuilderModal extends Modal {
           this.edgeRelTypes[0] = termKey;
         } else {
           this.relType = this.initialEdge.relType;
-          this.isCustomFallback = true;
-          this.edgeRelTypes[0] = "CUSTOM";
+          this.edgeRelTypes[0] = this.initialEdge.relType;
+          if (!allDefs.some((d) => d.label === this.initialEdge!.relType)) {
+            allDefs.push({
+              key: this.initialEdge.relType,
+              label: this.initialEdge.relType,
+              term: this.initialEdge.relType.toLowerCase(),
+              category: "Current",
+              reversed: false,
+              bidirectional: false,
+            });
+          }
         }
       }
-      this.renderBody(defs);
+      if (!this.relType) this.relType = allDefs[0]?.label || allDefs[0]?.key || "RELATED_TO";
+      this.renderBody(allDefs);
     });
   }
 
+  /**
+   * Purpose: Renders topology selector, relation dropdowns exclusively from vocabulary presets, description field, and actions.
+   */
   private renderBody(defs: RelationTermDef[]): void {
     const { contentEl } = this;
     contentEl.empty();
@@ -91,15 +104,6 @@ export class RelationBuilderModal extends Modal {
       cls: "memvector-flow-swap-btn",
     });
     const flowBody = flowCard.createDiv({ cls: "memvector-relation-flow-body" });
-    const customInput = flowCard.createEl("input", {
-      type: "text",
-      placeholder: t.relCustomPlaceholder,
-      cls: "memvector-relation-custom-input",
-    });
-    if (this.isCustomFallback) {
-      customInput.addClass("is-visible");
-      customInput.value = this.relType;
-    }
 
     const step1 = contentEl.createDiv({ cls: "memvector-relation-step" });
     step1.createDiv({ text: t.relTopologyTitle, cls: "memvector-relation-step-title" });
@@ -139,7 +143,6 @@ export class RelationBuilderModal extends Modal {
       });
       select.onchange = () => {
         this.edgeRelTypes[edgeIdx] = select.value;
-        customInput.style.display = select.value === "CUSTOM" ? "block" : "none";
         updateFlowPreview();
         updateCypherPreview();
       };
@@ -179,12 +182,6 @@ export class RelationBuilderModal extends Modal {
       edges.forEach((e, idx) => {
         this.renderEdgeRow(listEl, e, idx, createSingleDropdown);
       });
-    };
-
-    customInput.oninput = () => {
-      this.relType = customInput.value.toUpperCase().replace(/\s+/g, "_") || "RELATED_TO";
-      updateFlowPreview();
-      updateCypherPreview();
     };
 
     swapBtn.onclick = () => {
@@ -328,13 +325,6 @@ export class RelationBuilderModal extends Modal {
 
       let createdCount = 0;
       let failedCount = 0;
-      const customTypes: CustomTypeInput[] = [];
-      for (const e of resolvedEdges) {
-        const known = defs.some((d) => d.label.toUpperCase() === e.label.toUpperCase());
-        if (!known && !customTypes.some((c) => c.label === e.label)) {
-          customTypes.push({ label: e.label, term: e.originalTerm || e.label, bidirectional: e.bidirectional });
-        }
-      }
 
       const store = getGraphStore(this.app, this.host.settings);
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
@@ -354,16 +344,6 @@ export class RelationBuilderModal extends Modal {
         } catch (err) {
           failedCount++;
           console.error(`${t.relSaveError} ${paths[idx]}:`, err);
-        }
-      }
-
-      // Free-text types become permanent vocabulary entries (Issue #119) - after the
-      // relation files are saved, so a failed save never pollutes the vocabulary.
-      if (createdCount > 0 && customTypes.length > 0) {
-        try {
-          await persistCustomRelationTypes(this.app, this.host.settings, customTypes);
-        } catch (err) {
-          console.warn("MemVector: failed to persist custom relation types:", err);
         }
       }
 
