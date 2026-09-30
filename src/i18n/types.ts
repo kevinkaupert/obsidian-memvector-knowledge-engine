@@ -8,6 +8,13 @@ export interface TranslationKeys {
   langDesc: string;
   secGeneralScan: string;
   secGeneralSynthesis: string;
+  secGeneralFolders: string;
+  folderRelationsName: string;
+  folderRelationsDesc: string;
+  folderSynthesisName: string;
+  folderSynthesisDesc: string;
+  folderPresetsName: string;
+  folderPresetsDesc: string;
   linkModeName: string;
   linkModeDesc: string;
   linkModeSuggested: string;

@@ -185,3 +185,21 @@ describe("relation-note identification (#173)", () => {
   });
 });
 
+describe("configured relations folder (#173)", () => {
+  const untyped = (path: string) => ({
+    path,
+    basename: "r",
+    frontmatter: { source_note: "[[Alpha|Alpha]]", target_note: "[[Beta|Beta]]", relation_type: "REQUIRES" },
+  });
+  const notes = [
+    { path: "Alpha.md", basename: "Alpha" },
+    { path: "Beta.md", basename: "Beta" },
+  ];
+
+  it("treats untyped notes in the configured folder as relations, and no longer those in wiki/relations", async () => {
+    const app = fakeApp([...notes, untyped("Beziehungen/r.md"), untyped("wiki/relations/old.md")]);
+    const edges = await loadRelationEdges(app, "", "Beziehungen");
+    expect(edges.map((e) => e.path)).toEqual(["Beziehungen/r.md"]);
+  });
+});
+

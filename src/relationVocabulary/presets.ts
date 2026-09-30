@@ -3,11 +3,11 @@ import { ensureParentFolder } from "../ensureFolder";
 import type { SettingsHost } from "../settings/types";
 import { LAW_VOCABULARY, MEDICINE_VOCABULARY, PHILOSOPHY_VOCABULARY } from "./bundledPresets";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
-import { DEFAULT_RELATION_VOCABULARY_PATH, isValidTerm, resolveVocabularyPath } from "./loadRelationVocabulary";
+import { isValidTerm } from "./loadRelationVocabulary";
+import { DEFAULT_PRESETS_FOLDER, DEFAULT_RELATION_VOCABULARY_PATH, presetsFolder, resolveVocabularyPath } from "../vaultLayout";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 
 /** Folder holding preset vocabulary files - vault-owned, version-controllable, shareable across vaults (Issue #119). */
-export const PRESET_DIR = "wiki/presets";
 
 export interface RelationPreset {
   /** File basename without extension - also the stable preset identifier. */
@@ -39,8 +39,8 @@ export function sanitizePresetKey(name: string): string {
   return cleaned || "preset";
 }
 
-export function presetFilePath(key: string): string {
-  return `${PRESET_DIR}/${sanitizePresetKey(key)}.json`;
+export function presetFilePath(key: string, folder: string = DEFAULT_PRESETS_FOLDER): string {
+  return `${folder}/${sanitizePresetKey(key)}.json`;
 }
 
 /** Humanizes a preset key for display when no bundled label exists (e.g. "my-domain" -> "My Domain"). */
@@ -52,18 +52,18 @@ export function humanizePresetKey(key: string): string {
     .join(" ");
 }
 
-/** Lists bundled presets plus user preset files found in wiki/presets/. */
-export async function listPresets(app: App): Promise<RelationPreset[]> {
+/** Lists bundled presets plus user preset files found in the presets folder. */
+export async function listPresets(app: App, folder: string = DEFAULT_PRESETS_FOLDER): Promise<RelationPreset[]> {
   const presets: RelationPreset[] = [];
   const seen = new Set<string>();
 
   for (const [key, bundled] of Object.entries(BUNDLED_PRESETS)) {
-    presets.push({ key, label: bundled.label, bundled: true, path: presetFilePath(key) });
+    presets.push({ key, label: bundled.label, bundled: true, path: presetFilePath(key, folder) });
     seen.add(key);
   }
 
   try {
-    const listing = await app.vault.adapter.list(PRESET_DIR);
+    const listing = await app.vault.adapter.list(folder);
     for (const filePath of (listing.files ?? []).sort()) {
       const base = filePath.split("/").pop() || "";
       if (!base.toLowerCase().endsWith(".json")) continue;
@@ -136,7 +136,7 @@ function assertKeyNotReserved(key: string, name: string): void {
  */
 export async function activatePreset(app: App, host: SettingsHost, key: string): Promise<void> {
   const bundled = BUNDLED_PRESETS[key];
-  const path = presetFilePath(key);
+  const path = presetFilePath(key, presetsFolder(host.settings));
 
   const existing = app.vault.getAbstractFileByPath(path);
   if (bundled && !(existing instanceof TFile)) {
@@ -153,7 +153,7 @@ export async function activatePreset(app: App, host: SettingsHost, key: string):
 export async function createPreset(app: App, host: SettingsHost, name: string): Promise<RelationPreset> {
   const key = sanitizePresetKey(name);
   assertKeyNotReserved(key, name);
-  const path = presetFilePath(key);
+  const path = presetFilePath(key, presetsFolder(host.settings));
   if (app.vault.getAbstractFileByPath(path) instanceof TFile) {
     throw new Error(`Preset already exists: ${path}`);
   }
@@ -172,13 +172,13 @@ export async function createPreset(app: App, host: SettingsHost, name: string): 
 export async function renamePreset(app: App, host: SettingsHost, oldKey: string, newName: string): Promise<RelationPreset> {
   if (BUNDLED_PRESETS[oldKey]) throw new Error("Bundled presets cannot be renamed");
 
-  const oldPath = presetFilePath(oldKey);
+  const oldPath = presetFilePath(oldKey, presetsFolder(host.settings));
   const oldFile = app.vault.getAbstractFileByPath(oldPath);
   if (!(oldFile instanceof TFile)) throw new Error(`Preset file not found: ${oldPath}`);
 
   const newKey = sanitizePresetKey(newName);
   assertKeyNotReserved(newKey, newName);
-  const newPath = presetFilePath(newKey);
+  const newPath = presetFilePath(newKey, presetsFolder(host.settings));
   if (newPath !== oldPath && app.vault.getAbstractFileByPath(newPath) instanceof TFile) {
     throw new Error(`Preset already exists: ${newPath}`);
   }
@@ -201,7 +201,7 @@ export async function renamePreset(app: App, host: SettingsHost, oldKey: string,
 export async function deletePreset(app: App, host: SettingsHost, key: string): Promise<void> {
   if (BUNDLED_PRESETS[key]) throw new Error("Bundled presets cannot be deleted");
 
-  const path = presetFilePath(key);
+  const path = presetFilePath(key, presetsFolder(host.settings));
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return;
 

@@ -29,6 +29,7 @@ function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCap
 }
 
 import { detectModelTier } from "../../llm/modelTiers";
+import { relationsFolder } from "../../vaultLayout";
 
 export interface SynthesisNoteContent extends ScatterNode {
   /** Full current note body, freshly re-read from the vault - never the scanner's fixed-size canvas preview (vaultScan.ts caps that at 800 chars for layout/similarity purposes unrelated to synthesis quality). */
@@ -338,7 +339,7 @@ export async function runSynthesis(
     enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);
   }
 
-  const allEdges = await loadRelationEdges(app, settings.vectorSearchExclusions);
+  const allEdges = await loadRelationEdges(app, settings.vectorSearchExclusions, relationsFolder(settings));
   const activeIds = new Set<string>([
     ...selected.map((n) => n.id.toLowerCase()),
     ...enriched.map((n) => n.id.toLowerCase()),

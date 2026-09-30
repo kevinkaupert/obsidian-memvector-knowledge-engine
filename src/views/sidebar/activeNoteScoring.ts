@@ -35,8 +35,8 @@ export function shouldExcludeFromRadar(file: NoteFileLike, exclusions?: string):
   return file.path.includes("schema") || EXCLUDED_NAME_SUBSTRINGS.some((s) => file.name.includes(s));
 }
 
-export function classifyNoteType(path: string, name: string, frontmatterType?: unknown): RadarNoteType {
-  if (isRelationNote(path, frontmatterType)) return "relation";
+export function classifyNoteType(path: string, name: string, frontmatterType?: unknown, relationsFolder?: string): RadarNoteType {
+  if (isRelationNote(path, frontmatterType, relationsFolder)) return "relation";
   if (path.includes("/definitions/") || name.includes("def-")) return "definition";
   if (path.includes("/theorems/") || name.includes("satz-") || name.includes("theorem-")) return "theorem";
   if (path.includes("/synthesis/")) return "synthesis";

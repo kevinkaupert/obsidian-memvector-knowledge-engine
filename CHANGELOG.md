@@ -7,6 +7,14 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Added
+- Settings -> General -> **Vault folders**: the folders for relation notes
+  (`relationsFolder`), synthesis notes (`synthesisFolder`) and vocabulary presets
+  (`presetsFolder`) are configurable. Defaults stay `wiki/relations`, `wiki/synthesis` and
+  `wiki/presets`, so existing vaults are unchanged; changing a folder does not move existing
+  notes. The relations folder is also the fallback criterion for relation notes without
+  `type: relation` (#173).
+
 ### Fixed
 - "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same
   text and compute the same cache hash. Settings used the file name plus up to 1500

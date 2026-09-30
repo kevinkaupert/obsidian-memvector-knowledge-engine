@@ -17,6 +17,7 @@ import { createVocabularyMutator, type VocabularyMutation, type VocabularyTransf
 import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
+import { presetsFolder } from "../../vaultLayout";
 
 /**
  * Purpose: Resolves the vault path of the active vocabulary file from settings.
@@ -96,7 +97,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
   const sectionEl = containerEl.createDiv({ cls: "memvector-relation-types-section" });
 
   void (async () => {
-    const presets = await listPresets(app);
+    const presets = await listPresets(app, presetsFolder(host.settings));
     const activePath = activeVocabularyPath(host);
     const activeKey = activePresetKey(activePath, presets);
     const selected = presets.find((p) => p.key === activeKey);

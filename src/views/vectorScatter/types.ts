@@ -51,16 +51,16 @@ export function buildNodeMap(nodes: ScatterNode[]): Map<string, ScatterNode> {
 /**
  * Purpose: Determines whether a scatter node represents a typed relation file.
  */
-export function isRelationNode(node: ScatterNode): boolean {
+export function isRelationNode(node: ScatterNode, relationsFolder?: string): boolean {
   // node.type is the note's frontmatter type (vaultScan), so this is the shared relation-note rule.
-  return isRelationNote(node.path, node.type);
+  return isRelationNote(node.path, node.type, relationsFolder);
 }
 
 /**
  * Purpose: Filters visible scatter nodes based on relation notes display toggle.
  */
-export function filterVisibleNodes(nodes: ScatterNode[], showRelationNotes: boolean): ScatterNode[] {
+export function filterVisibleNodes(nodes: ScatterNode[], showRelationNotes: boolean, relationsFolder?: string): ScatterNode[] {
   if (showRelationNotes) return nodes;
-  return nodes.filter((n) => !isRelationNode(n));
+  return nodes.filter((n) => !isRelationNode(n, relationsFolder));
 }
 

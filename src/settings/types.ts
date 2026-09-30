@@ -77,6 +77,13 @@ export interface MemVectorSettings {
   /** Vault path to the relation-type vocabulary file (relationVocabulary/loadRelationVocabulary.ts). Auto-created with a bundled STEM preset on first use - fully editable/replaceable for any other domain. */
   relationVocabularyPath: string;
 
+  /** Vault folder the relation builder writes relation notes to; also the fallback criterion for relation notes (ADR-0004). Existing notes are not moved when it changes. */
+  relationsFolder: string;
+  /** Vault folder saved synthesis notes are written to. */
+  synthesisFolder: string;
+  /** Vault folder user relation-vocabulary presets are listed from and created in. */
+  presetsFolder: string;
+
   /**
    * Max characters of a selected note's (and, identically, a GraphRAG neighbor's)
    * body sent into the synthesis prompt - 0 means unlimited (full note text).

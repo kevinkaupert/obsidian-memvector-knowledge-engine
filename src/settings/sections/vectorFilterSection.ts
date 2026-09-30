@@ -7,6 +7,7 @@ import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 import { DEFAULT_SETTINGS } from "../defaults";
+import { relationsFolder } from "../../vaultLayout";
 
 interface EmbeddingProviderDefaults {
   embeddingApiBaseUrl: string;
@@ -188,7 +189,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
-            const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations);
+            const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations, relationsFolder(settings));
             // The index just changed - open views must drop vectors they still hold from before.
             host.applySettingsToOpenViews?.({ embeddings: true });
             btn.setButtonText(t.indexVaultSuccess);

@@ -264,3 +264,21 @@ describe("preset lifecycle (Issue #119)", () => {
     expect(BUNDLED_PRESETS.philosophy.terms.length).toBeGreaterThan(0);
   });
 });
+
+describe("configured presets folder (#173)", () => {
+  it("creates new presets in the configured folder and activates that path", async () => {
+    const { files, app } = fakeApp({ "wiki/relation-types.json": JSON.stringify({ terms: [] }) });
+    const h = host({ presetsFolder: "config/presets" });
+    const preset = await createPreset(app, h, "Mine");
+    expect(preset.path).toBe("config/presets/mine.json");
+    expect(files.has("config/presets/mine.json")).toBe(true);
+    expect(h.settings.relationVocabularyPath).toBe("config/presets/mine.json");
+  });
+
+  it("lists user presets from the configured folder, not from wiki/presets", async () => {
+    const { app } = fakeApp({ "config/presets/mine.json": "{}", "wiki/presets/old.json": "{}" });
+    const keys = (await listPresets(app, "config/presets")).filter((p) => !p.bundled).map((p) => p.path);
+    expect(keys).toEqual(["config/presets/mine.json"]);
+  });
+});
+

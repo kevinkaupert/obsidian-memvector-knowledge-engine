@@ -3,6 +3,7 @@ import { pathToId, toSlug } from "../noteSlug";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
 import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
 import { shouldIncludeFile } from "../vaultFilter";
+import { DEFAULT_RELATIONS_FOLDER } from "../vaultLayout";
 
 /**
  * Purpose: Scans the vault's Markdown files into a node list and, when opted in, into LINKS_TO edges from WikiLinks (F03).
@@ -49,13 +50,14 @@ export async function syncVaultGraph(
   app: App,
   store: GraphStore,
   exclusions?: string,
-  includeWikiLinksAsRelations = false
+  includeWikiLinksAsRelations = false,
+  relationsFolder = DEFAULT_RELATIONS_FOLDER
 ): Promise<{ nodeCount: number; edgeCount: number }> {
   const { nodes, edges } = extractVaultGraph(app, exclusions, includeWikiLinksAsRelations);
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
   try {
-    const relationEdges = await loadRelationEdges(app, exclusions);
+    const relationEdges = await loadRelationEdges(app, exclusions, relationsFolder);
     for (const rel of relationEdges) {
       if (exclusions && (!knownNodeIds.has(rel.srcId) || !knownNodeIds.has(rel.tgtId))) {
         continue;

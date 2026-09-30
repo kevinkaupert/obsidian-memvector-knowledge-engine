@@ -6,12 +6,10 @@ import { withBundledLayoutDefaults } from "./layoutDefaults";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 import { getTranslation } from "../i18n";
 
-export const DEFAULT_RELATION_VOCABULARY_PATH = "wiki/relation-types.json";
+import { resolveVocabularyPath } from "../vaultLayout";
 
-/** Purpose: Resolves the active vocabulary file path from settings, falling back to the default for an empty value. */
-export function resolveVocabularyPath(settings: Partial<Pick<MemVectorSettings, "relationVocabularyPath">>): string {
-  return (settings.relationVocabularyPath || DEFAULT_RELATION_VOCABULARY_PATH).trim() || DEFAULT_RELATION_VOCABULARY_PATH;
-}
+// Re-exported so existing importers keep working; the paths are defined in vaultLayout.
+export { DEFAULT_RELATION_VOCABULARY_PATH, resolveVocabularyPath } from "../vaultLayout";
 
 export function isValidTerm(v: unknown): v is RelationTermDef {
   if (!v || typeof v !== "object") return false;

@@ -1,21 +1,21 @@
 import type { TranslationKeys } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
-import { DEFAULT_RELATIONS_FOLDER } from "../../relationNotes";
+import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
 
 /**
  * Keep a short readable prefix, but derive identity from the complete ordered IDs
  * and label. Slugs alone collapse folders, punctuation and component boundaries.
  * SHA-256 also bounds filename length without introducing a native dependency.
  */
-export async function relationFilePath(edge: ResolvedRelationEdge): Promise<string> {
+export async function relationFilePath(edge: ResolvedRelationEdge, folder: string = DEFAULT_RELATIONS_FOLDER): Promise<string> {
   const identity = JSON.stringify([edge.src.id, edge.tgt.id, edge.label]);
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(identity));
   const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   const src = toSlug(edge.src.id).slice(0, 32);
   const tgt = toSlug(edge.tgt.id).slice(0, 32);
   const label = toSlug(edge.label).slice(0, 32);
-  return `${DEFAULT_RELATIONS_FOLDER}/rel-${src}-to-${tgt}-${label}-${hash}.md`;
+  return `${folder}/rel-${src}-to-${tgt}-${label}-${hash}.md`;
 }
 
 /**
@@ -26,7 +26,8 @@ export async function relationFilePath(edge: ResolvedRelationEdge): Promise<stri
 export async function relationFilePaths(
   edges: ResolvedRelationEdge[],
   existing: { srcId: string; tgtId: string; relType: string; path: string }[],
-  initialEdgePath?: string
+  initialEdgePath?: string,
+  folder: string = DEFAULT_RELATIONS_FOLDER
 ): Promise<string[]> {
   return Promise.all(edges.map((edge) => {
     const matches = existing.filter((entry) =>
@@ -34,7 +35,7 @@ export async function relationFilePaths(
     );
     // If duplicate files already exist, do not silently edit through that conflict.
     const match = matches.find((entry) => entry.path !== initialEdgePath) || matches[0];
-    return match ? Promise.resolve(match.path) : relationFilePath(edge);
+    return match ? Promise.resolve(match.path) : relationFilePath(edge, folder);
   }));
 }
 

@@ -3,6 +3,7 @@ import { ensureParentFolder } from "../ensureFolder";
 import { getTranslation } from "../i18n";
 import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
+import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
 
 interface SynthesisNode {
   id: string;
@@ -59,12 +60,7 @@ export class SynthesisResultModal extends Modal {
         .map((n) => n.id)
         .join("-")
         .slice(0, 50)
-      let finalPath = `wiki/synthesis/synthese-${slug}.md`;
-      let counter = 1;
-      while (this.app.vault.getAbstractFileByPath(finalPath)) {
-        finalPath = `wiki/synthesis/synthese-${slug}-${counter}.md`;
-        counter++;
-      }
+      const finalPath = uniqueNotePath(synthesisFolder(this.settings ?? {}), `synthese-${slug}`, (p) => Boolean(this.app.vault.getAbstractFileByPath(p)));
 
       const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
       const frontmatter = `---

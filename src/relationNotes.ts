@@ -1,5 +1,4 @@
-/** Folder the relation builder writes new relation notes to. */
-export const DEFAULT_RELATIONS_FOLDER = "wiki/relations";
+import { DEFAULT_RELATIONS_FOLDER } from "./vaultLayout";
 
 /**
  * Purpose: Tells whether a vault path lies inside `folder` (or is the folder itself), by path prefix.

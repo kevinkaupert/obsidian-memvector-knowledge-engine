@@ -1,7 +1,8 @@
 import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
-import { loadRelationVocabulary, resolveVocabularyPath } from "../../relationVocabulary/loadRelationVocabulary";
+import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings } from "../../settings/types";
@@ -48,7 +49,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Returns the currently visible scatter nodes according to display toggles.
    */
   getVisibleNodes(): ScatterNode[] {
-    return filterVisibleNodes(this.nodes, this.showRelationNotes);
+    return filterVisibleNodes(this.nodes, this.showRelationNotes, relationsFolder(this.settings));
   }
 
   /**
@@ -85,11 +86,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       const pruned = new Set<string>();
       for (const id of this.selectedNodeIds) {
         const node = this.nodes.find((n) => n.id === id);
-        if (node && !isRelationNode(node)) pruned.add(id);
+        if (node && !isRelationNode(node, relationsFolder(this.settings))) pruned.add(id);
       }
       this.selectedNodeIds = pruned;
 
-      if (this.hoveredNode && isRelationNode(this.hoveredNode)) {
+      if (this.hoveredNode && isRelationNode(this.hoveredNode, relationsFolder(this.settings))) {
         this.hoveredNode = null;
       }
 
@@ -99,7 +100,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
       if (this.searchHighlight) {
         const match = this.nodes.find((n) => n.id === this.searchHighlight?.nodeId);
-        if (match && isRelationNode(match)) {
+        if (match && isRelationNode(match, relationsFolder(this.settings))) {
           this.searchHighlight = null;
           this.cancelSearchAnim();
         }
@@ -264,7 +265,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
     // Only decides modify events (edge-only reload vs. rescan); the file already exists, so its frontmatter is cached.
     const isRel = (file: { path: string }) =>
-      isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined);
+      isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined, relationsFolder(this.settings));
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
 
     const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
@@ -491,7 +492,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   async loadRelationEdges(): Promise<void> {
-    this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions);
+    this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions, relationsFolder(this.settings));
     // Per-label attraction/repulsion comes from the vault's own vocabulary
     // file (ADR-0002); refresh it together with the edges so saved custom
     // types feed the force layout immediately.
