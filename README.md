@@ -13,8 +13,6 @@ Not a graph viewer. Not a replacement for Obsidian Graph. A space where you
 map what you believe connects your concepts — and why — and the map becomes
 a navigable, queryable artifact of your thinking.
 
-<img width="1016" height="963" alt="MemVector 2D Canvas" src="https://github.com/user-attachments/assets/11dceff4-1a42-411b-8d7a-e116396090cd" />
-
 ---
 
 ## The core idea
