@@ -630,6 +630,7 @@ describe("VectorScatterView position preservation across rescans", () => {
     initialNode.x = 250;
     initialNode.y = 350;
     view.nodes = [initialNode];
+    (view as any).positionsHydrated = true;
 
     // Mock scanVaultNotesPure returning fresh instance of n1 at x:0, y:0
     const { scanVaultNotes } = await import("./vaultScan");
@@ -694,6 +695,51 @@ describe("VectorScatterView position preservation across rescans", () => {
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("aborting position persistence to protect mental map"),
         expect.any(Error)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("adversarial (Issue #184 deferred clobber): failed hydration followed by successful hydration restores store coordinates instead of being shadowed by in-memory positions", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValue([
+      makeNode("target_note", "wiki/target.md", "concept"),
+    ]);
+
+    const { getStoredNodePositions, saveNodePositions } = await import("../../sync/sqlite/nodePositions");
+    // Scan 1: hydration throws error
+    vi.mocked(getStoredNodePositions).mockRejectedValueOnce(new Error("Transient SQLite lock"));
+    vi.mocked(saveNodePositions).mockClear();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await view.scanVaultNotes();
+
+      // View computed in-memory coordinates during scan 1, but saveNodePositions was not called
+      expect(saveNodePositions).not.toHaveBeenCalled();
+
+      // Scan 2: SQLite is now available and returns the authoritative position
+      vi.mocked(getStoredNodePositions).mockResolvedValueOnce(
+        new Map([["target_note", { x: 999, y: 888 }]])
+      );
+
+      await view.scanVaultNotes();
+
+      const node = view.nodes.find((n) => n.id === "target_note");
+      expect(node).toBeDefined();
+      // Must be restored to the true stored position (999, 888) and NOT shadowed by Scan 1's PCA coordinates!
+      expect(node!.x).toBe(999);
+      expect(node!.y).toBe(888);
+
+      // Now that hydration succeeded, persist saves the authoritative position
+      expect(saveNodePositions).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.arrayContaining([expect.objectContaining({ id: "target_note", x: 999, y: 888 })])
       );
     } finally {
       warnSpy.mockRestore();

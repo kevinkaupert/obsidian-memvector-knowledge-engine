@@ -464,9 +464,16 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         previousEmbeddings.set(node.path, node.embedding);
         previousEmbeddings.set(node.id, node.embedding);
       }
-      if (node.x !== 0 || node.y !== 0) {
-        previousPositions.set(node.path, { x: node.x, y: node.y });
-        previousPositions.set(node.id, { x: node.x, y: node.y });
+    }
+    // Only carry forward in-memory coordinates if they are grounded in persistent storage.
+    // If the previous scan failed hydration, carrying forward ungrounded PCA coordinates would
+    // shadow the database and cause a deferred clobber on subsequent scans (Issue #184).
+    if (this.positionsHydrated) {
+      for (const node of this.nodes) {
+        if (node.x !== 0 || node.y !== 0) {
+          previousPositions.set(node.path, { x: node.x, y: node.y });
+          previousPositions.set(node.id, { x: node.x, y: node.y });
+        }
       }
     }
 

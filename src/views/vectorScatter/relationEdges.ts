@@ -84,10 +84,23 @@ export function parseRelationMetadata(
   return { rawSrc, rawTgt, relType, bidirectional, desc };
 }
 
-/** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */
-export async function loadRelationFiles(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
+export interface RelationFilesResult {
+  edges: RelationEdge[];
+  hasErrors: boolean;
+}
+
+/**
+ * Purpose: Loads every explicit relation file, retaining duplicate identities and tracking read errors.
+ * Architecture: Returns hasErrors flag so callers like syncVaultGraph know if the scan was partial (Issue #183).
+ */
+export async function loadRelationFilesResult(
+  app: App,
+  exclusions = "",
+  relationsFolder = DEFAULT_RELATIONS_FOLDER
+): Promise<RelationFilesResult> {
   const edges: RelationEdge[] = [];
-  const files = app.vault.getMarkdownFiles();
+  let hasErrors = false;
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
 
   for (const f of files) {
     const fileCache = app.metadataCache.getFileCache(f);
@@ -118,21 +131,47 @@ export async function loadRelationFiles(app: App, exclusions = "", relationsFold
         });
       }
     } catch (err) {
-      console.debug(`MemVector: skipping unparseable relation note ${f.path}`, err);
+      hasErrors = true;
+      console.warn(`MemVector: skipping unparseable relation note ${f.path}`, err);
     }
   }
 
-  return edges;
+  return { edges, hasErrors };
 }
 
-/** Deduplicates graph edges by ordered endpoints and type for rendering and graph sync. */
-export async function loadRelationEdges(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
-  const files = await loadRelationFiles(app, exclusions, relationsFolder);
+/** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */
+export async function loadRelationFiles(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
+  const result = await loadRelationFilesResult(app, exclusions, relationsFolder);
+  return result.edges;
+}
+
+export interface RelationEdgesResult {
+  edges: RelationEdge[];
+  hasErrors: boolean;
+}
+
+/**
+ * Purpose: Deduplicates graph edges by ordered endpoints and type, reporting any partial load errors.
+ * Architecture: Exposes hasErrors indicator so graph sync can skip edge reconciliation on partial reads (Issue #183).
+ */
+export async function loadRelationEdgesResult(
+  app: App,
+  exclusions = "",
+  relationsFolder = DEFAULT_RELATIONS_FOLDER
+): Promise<RelationEdgesResult> {
+  const { edges: files, hasErrors } = await loadRelationFilesResult(app, exclusions, relationsFolder);
   const seen = new Set<string>();
-  return files.filter((edge) => {
+  const edges = files.filter((edge) => {
     const key = JSON.stringify([edge.srcId, edge.tgtId, edge.relType]);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+  return { edges, hasErrors };
+}
+
+/** Deduplicates graph edges by ordered endpoints and type for rendering and graph sync. */
+export async function loadRelationEdges(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
+  const result = await loadRelationEdgesResult(app, exclusions, relationsFolder);
+  return result.edges;
 }
