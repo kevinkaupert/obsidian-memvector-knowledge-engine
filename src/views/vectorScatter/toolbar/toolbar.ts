@@ -25,6 +25,7 @@ export interface ToolbarRefs {
 export interface ToolbarHandles {
   statusText: HTMLElement;
   updateSelectionUI(): void;
+  updateEdgeHops?(hops: number): void;
 }
 
 function setHoverBarText(hoverBar: HTMLElement, text: string, status?: "warning" | "error" | "muted"): void {
@@ -126,12 +127,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // ── Ansicht ───────────────────────────────────────────────────────────
   const ansichtBody = createSection(scrollBody, t.secView, true);
 
-  if (!ctx.nodeSpacing || ctx.nodeSpacing < 250) {
-    ctx.nodeSpacing = ctx.settings.scatterNodeSpacing || 350;
-  }
-  if (!ctx.cloudSpacing || ctx.cloudSpacing < 500) {
-    ctx.cloudSpacing = ctx.settings.scatterCloudSpacing || 800;
-  }
+  const rawNodeSpacing = ctx.nodeSpacing || ctx.settings.scatterNodeSpacing || 350;
+  ctx.nodeSpacing = Math.max(120, Math.min(1600, rawNodeSpacing));
+
+  const rawCloudSpacing = ctx.cloudSpacing || ctx.settings.scatterCloudSpacing || 800;
+  ctx.cloudSpacing = Math.max(300, Math.min(3000, rawCloudSpacing));
 
   createSlider(ansichtBody, t.lblNodeSpacing, 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
     void (async () => {
@@ -151,11 +151,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       ctx.redraw();
     })();
   });
-  createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
+  const edgeHopsSelect = createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
     // 0 ("Alle") is a valid, meaningful value here - `parseInt(val, 10) || 1`
     // would silently coerce it back to 1 since 0 is falsy in JS.
     const parsed = parseInt(val, 10);
-    ctx.edgeHops = Number.isNaN(parsed) ? 1 : parsed;
+    const resolvedHops = Number.isNaN(parsed) ? 1 : parsed;
+    ctx.edgeHops = resolvedHops;
+    ctx.settings.scatterEdgeHops = resolvedHops;
+    void ctx.saveSettings();
     ctx.redraw();
   });
 
@@ -356,7 +359,13 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     ctx.redraw();
   };
 
-  return { statusText, updateSelectionUI };
+  return {
+    statusText,
+    updateSelectionUI,
+    updateEdgeHops: (hops: number) => {
+      edgeHopsSelect.value = String(hops);
+    },
+  };
 }
 
 /**

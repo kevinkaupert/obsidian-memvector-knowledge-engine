@@ -39,5 +39,6 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   unselectedLabelOpacity: 0.35,
   scatterNodeSpacing: 350,
   scatterCloudSpacing: 800,
+  scatterEdgeHops: 1,
 };
 

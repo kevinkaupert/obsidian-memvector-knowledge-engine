@@ -16,6 +16,10 @@ CREATE TABLE IF NOT EXISTS vectors (
   id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT,
   content_hash TEXT, mtime INTEGER, embedding_fingerprint TEXT
 );
+CREATE TABLE IF NOT EXISTS node_positions (
+  id TEXT PRIMARY KEY, path TEXT, x REAL NOT NULL, y REAL NOT NULL,
+  updated_at INTEGER
+);
 `;
 
 let activePluginId = "memvector-knowledge-engine";
@@ -93,6 +97,11 @@ async function openDb(app: App): Promise<Database> {
     db.run("ALTER TABLE vectors ADD COLUMN embedding_fingerprint TEXT;");
   } catch {
     // Column already exists or table freshly created with column
+  }
+  try {
+    db.run("CREATE TABLE IF NOT EXISTS node_positions (id TEXT PRIMARY KEY, path TEXT, x REAL NOT NULL, y REAL NOT NULL, updated_at INTEGER);");
+  } catch {
+    // Table already exists or freshly created with schema
   }
   return db;
 }

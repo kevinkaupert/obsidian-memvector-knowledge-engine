@@ -9,22 +9,64 @@ import { getVectorStore } from "../../sync/storeFactory";
 if (typeof window === "undefined") {
   (globalThis as any).window = globalThis;
 }
+if (typeof (globalThis as any).ResizeObserver === "undefined") {
+  (globalThis as any).ResizeObserver = class {
+    observe = vi.fn();
+    disconnect = vi.fn();
+  };
+}
+
+function makeMockDiv(): any {
+  const el: any = {
+    addClass: vi.fn(),
+    removeClass: vi.fn(),
+    empty: vi.fn(),
+    children: [],
+    createDiv: vi.fn(() => makeMockDiv()),
+    createEl: vi.fn(() => ({
+      getContext: vi.fn(() => ({
+        setTransform: vi.fn(),
+        clearRect: vi.fn(),
+      })),
+      createDiv: vi.fn(() => makeMockDiv()),
+      createEl: vi.fn(() => ({})),
+      createSpan: vi.fn(() => ({ setText: vi.fn() })),
+      classList: { toggle: vi.fn() },
+      addEventListener: vi.fn(),
+    })),
+    createSpan: vi.fn(() => ({ setText: vi.fn() })),
+    classList: { toggle: vi.fn() },
+  };
+  return el;
+}
 
 vi.mock("obsidian", () => ({
   ItemView: class {
-    containerEl = {
-      addClass: vi.fn(),
-      children: [],
-      createDiv: vi.fn(),
-      empty: vi.fn(),
-    };
+    containerEl = makeMockDiv();
     addAction = vi.fn();
     registerEvent = vi.fn();
+    getState(): Record<string, unknown> {
+      return {};
+    }
+    async setState(_state: unknown, _result: unknown): Promise<void> {}
   },
   Modal: class {},
   Notice: class {},
   TFile: class {},
   setIcon: vi.fn(),
+}));
+
+vi.mock("./toolbar/toolbar", () => ({
+  buildToolbar: vi.fn(() => ({
+    statusText: {} as any,
+    updateSelectionUI: vi.fn(),
+    updateEdgeHops: vi.fn(),
+  })),
+}));
+
+vi.mock("./vaultScan", () => ({
+  scanVaultNotes: vi.fn(async () => []),
+  shouldIncludeFile: vi.fn(() => true),
 }));
 
 vi.mock("./canvasInteraction", () => ({
@@ -47,8 +89,15 @@ vi.mock("./vaultScan", () => ({
   scanVaultNotes: vi.fn(async () => []),
 }));
 
+vi.mock("../../sync/sqlite/nodePositions", () => ({
+  getStoredNodePositions: vi.fn(async () => new Map()),
+  saveNodePositions: vi.fn(async () => {}),
+}));
+
 vi.mock("../../sync/storeFactory", () => ({
-  getVectorStore: vi.fn(),
+  getVectorStore: vi.fn(() => ({
+    getVectors: vi.fn(async () => new Map()),
+  })),
 }));
 
 vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
@@ -71,15 +120,26 @@ function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode 
   };
 }
 
+function createMockHost(settingsOverrides: Partial<typeof DEFAULT_SETTINGS> = {}): VectorScatterHost {
+  return {
+    app: {
+      vault: {
+        getAbstractFileByPath: vi.fn(() => null),
+        read: vi.fn(async () => ""),
+        getMarkdownFiles: vi.fn(() => []),
+        on: vi.fn(),
+      },
+    } as any,
+    settings: { ...DEFAULT_SETTINGS, ...settingsOverrides },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+}
+
 describe("VectorScatterView.setShowRelationNotes (#110)", () => {
   function makeView(): VectorScatterView {
     const leaf = {} as WorkspaceLeaf;
-    const host: VectorScatterHost = {
-      app: {} as any,
-      settings: { ...DEFAULT_SETTINGS },
-      saveSettings: vi.fn(async () => {}),
-      focusSidebarNote: vi.fn(),
-    };
+    const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
     view.redraw = vi.fn();
     return view;
@@ -126,12 +186,7 @@ describe("VectorScatterView.setShowRelationNotes (#110)", () => {
 describe("VectorScatterView.applyExternalSettingsChange", () => {
   function makeView(settings: Partial<typeof DEFAULT_SETTINGS> = {}): VectorScatterView {
     const leaf = {} as WorkspaceLeaf;
-    const host: VectorScatterHost = {
-      app: {} as any,
-      settings: { ...DEFAULT_SETTINGS, ...settings },
-      saveSettings: vi.fn(async () => {}),
-      focusSidebarNote: vi.fn(),
-    };
+    const host = createMockHost(settings);
     const view = new VectorScatterView(leaf, host);
     view.redraw = vi.fn();
     return view;
@@ -169,6 +224,15 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     view.refreshRelationEdges = vi.fn();
     view.applyExternalSettingsChange();
     expect(view.refreshRelationEdges).not.toHaveBeenCalled();
+  });
+
+  it("picks up scatterEdgeHops changes from external settings", () => {
+    const view = makeView();
+    view.edgeHops = 1;
+    view.settings.scatterEdgeHops = 0;
+    view.applyExternalSettingsChange();
+    expect(view.edgeHops).toBe(0);
+    expect(view.redraw).toHaveBeenCalled();
   });
 });
 
@@ -511,10 +575,100 @@ describe("VectorScatterView watcher recognizes moved relation notes (#173)", () 
     expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
     expect(view.triggerVaultRescan).not.toHaveBeenCalled();
 
-    // An ordinary note in a folder that happens to be called "relations" is a note, not an edge.
     callbacks.get("modify")!(Object.assign(new TFile(), { path: "Customers/relations/b.md" }));
     expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
     expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView camera viewport persistence (getState/setState)", () => {
+  it("serializes current pan, zoom, and edgeHops into workspace state", () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+    view.pan = { x: 123.4, y: -56.7 };
+    view.zoom = 1.45;
+    view.edgeHops = 3;
+
+    const state = view.getState();
+    expect(state).toEqual(expect.objectContaining({
+      pan: { x: 123.4, y: -56.7 },
+      zoom: 1.45,
+      edgeHops: 3,
+    }));
+  });
+
+  it("restores pan, zoom, and edgeHops from workspace state and marks hasFittedView", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8, edgeHops: 2 }, {} as any);
+
+    expect(view.pan).toEqual({ x: 300, y: 400 });
+    expect(view.zoom).toBe(0.8);
+    expect(view.edgeHops).toBe(2);
+  });
+
+  it("initializes edgeHops from settings.scatterEdgeHops on onOpen", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost({ scatterEdgeHops: 3 });
+    const view = new VectorScatterView(leaf, host);
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+    await view.onOpen();
+    expect(view.edgeHops).toBe(3);
+  });
+});
+
+describe("VectorScatterView position preservation across rescans", () => {
+  it("preserves in-memory coordinates of existing nodes during vault rescans", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    // Initial node with established coordinates
+    const initialNode = makeNode("n1", "wiki/n1.md", "concept");
+    initialNode.x = 250;
+    initialNode.y = 350;
+    view.nodes = [initialNode];
+
+    // Mock scanVaultNotesPure returning fresh instance of n1 at x:0, y:0
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValueOnce([
+      makeNode("n1", "wiki/n1.md", "concept"),
+      makeNode("n2_new", "wiki/n2_new.md", "concept"),
+    ]);
+
+    await view.scanVaultNotes();
+
+    const n1 = view.nodes.find((n) => n.id === "n1");
+    expect(n1).toBeDefined();
+    // Existing node preserved its coordinates
+    expect(n1!.x).toBe(250);
+    expect(n1!.y).toBe(350);
+  });
+
+  it("hydrates stored positions from SQLite for unplaced nodes", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValueOnce([
+      makeNode("stored_note", "wiki/stored_note.md", "concept"),
+    ]);
+
+    const { getStoredNodePositions } = await import("../../sync/sqlite/nodePositions");
+    vi.mocked(getStoredNodePositions).mockResolvedValueOnce(
+      new Map([["stored_note", { x: 777, y: 888 }]])
+    );
+
+    await view.scanVaultNotes();
+
+    const node = view.nodes.find((n) => n.id === "stored_note");
+    expect(node).toBeDefined();
+    expect(node!.x).toBe(777);
+    expect(node!.y).toBe(888);
+  });
+});
+
 

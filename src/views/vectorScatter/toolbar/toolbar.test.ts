@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { runCalcVectors } from "./toolbar";
+import { buildToolbar, runCalcVectors } from "./toolbar";
 import type { ScatterViewContext } from "../context";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { pathToId } from "../../../noteSlug";
@@ -11,6 +11,10 @@ import { TFile } from "obsidian";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
 
 const DEFAULT_SETTINGS_FOR_TEST = { ...DEFAULT_SETTINGS, language: "en" };
+
+if (typeof window === "undefined") {
+  (globalThis as any).window = globalThis;
+}
 
 const noticeCalls: { message: string; duration?: number }[] = [];
 
@@ -615,5 +619,81 @@ describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)",
 
     expect(fetchEmbedding).not.toHaveBeenCalled();
     expect(ctx.nodes[0].embedding).toEqual([1, 0, 0]);
+  });
+});
+
+describe("buildToolbar edgeHops persistence", () => {
+  it("persists scatterEdgeHops to settings on dropdown change and exposes updateEdgeHops handle", async () => {
+    const { getTranslation } = await import("../../../i18n");
+    const t = getTranslation("de");
+
+    const createdSelects: any[] = [];
+
+    function createMockDiv(): any {
+      const el: any = {
+        addClass: vi.fn(),
+        removeClass: vi.fn(),
+        toggleClass: vi.fn(),
+        setText: vi.fn(),
+        setAttribute: vi.fn(),
+        createDiv: vi.fn(() => createMockDiv()),
+        createSpan: vi.fn(() => createMockDiv()),
+        createEl: vi.fn((tag: string) => {
+          if (tag === "select") {
+            const sel: any = {
+              value: "1",
+              onchange: null,
+              createEl: vi.fn(() => ({ selected: false })),
+            };
+            createdSelects.push(sel);
+            return sel;
+          }
+          return createMockDiv();
+        }),
+      };
+      return el;
+    }
+
+    const mockCtx = {
+      edgeHops: 1,
+      settings: {
+        scatterEdgeHops: 1,
+      },
+      saveSettings: vi.fn().mockResolvedValue(undefined),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+      nodes: [],
+      selectedNodeIds: new Set(),
+      fitToView: vi.fn(),
+      openRelationBuilder: vi.fn(),
+      searchNote: vi.fn(),
+    } as any;
+
+    const refs = {
+      canvasWrap: createMockDiv(),
+      canvas: createMockDiv(),
+      toolbarEl: createMockDiv(),
+      hoverBar: createMockDiv(),
+    };
+
+    const handles = buildToolbar(mockCtx, refs, t);
+    expect(handles.updateEdgeHops).toBeDefined();
+
+    // createdSelects[0] is the edge hops dropdown in Ansicht section
+    const edgeHopsSelect = createdSelects[0];
+    expect(edgeHopsSelect).toBeDefined();
+
+    // Trigger onchange on select
+    edgeHopsSelect.value = "2";
+    edgeHopsSelect.onchange();
+
+    expect(mockCtx.edgeHops).toBe(2);
+    expect(mockCtx.settings.scatterEdgeHops).toBe(2);
+    expect(mockCtx.saveSettings).toHaveBeenCalledTimes(1);
+    expect(mockCtx.redraw).toHaveBeenCalled();
+
+    // Now test handles.updateEdgeHops
+    handles.updateEdgeHops!(3);
+    expect(edgeHopsSelect.value).toBe("3");
   });
 });

@@ -1,4 +1,4 @@
-import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
+import { Notice, ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
@@ -9,7 +9,7 @@ import type { MemVectorSettings } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
 import type { ScatterViewContext } from "./context";
-import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure } from "./hitTesting";
+import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
 import { applyVectorLayout } from "./layout/applyVectorLayout";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
@@ -18,6 +18,7 @@ import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
 import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
+import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
@@ -70,6 +71,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (show !== this.showRelationNotes) {
       this.setShowRelationNotes(show);
       return;
+    }
+    if (this.settings.scatterEdgeHops !== undefined && this.settings.scatterEdgeHops !== this.edgeHops) {
+      this.edgeHops = this.settings.scatterEdgeHops;
+      this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
     }
     this.redraw();
   }
@@ -179,6 +184,40 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
+   * Purpose: Serializes canvas viewport camera state and view preferences to Obsidian workspace.
+   */
+  getState(): Record<string, unknown> {
+    return {
+      pan: this.pan,
+      zoom: this.zoom,
+      edgeHops: this.edgeHops,
+    };
+  }
+
+  /**
+   * Purpose: Restores canvas viewport camera state and view preferences from Obsidian workspace on startup.
+   */
+  async setState(state: unknown, result: ViewStateResult): Promise<void> {
+    if (state && typeof state === "object") {
+      const s = state as { pan?: PanState; zoom?: number; edgeHops?: number };
+      if (s.pan && typeof s.pan.x === "number" && typeof s.pan.y === "number") {
+        this.pan = { x: s.pan.x, y: s.pan.y };
+      }
+      if (typeof s.zoom === "number" && !Number.isNaN(s.zoom)) {
+        this.zoom = s.zoom;
+      }
+      if (typeof s.edgeHops === "number" && !Number.isNaN(s.edgeHops)) {
+        this.edgeHops = s.edgeHops;
+        this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
+      }
+      this.hasFittedView = true;
+    }
+    if (typeof super.setState === "function") {
+      await super.setState(state, result);
+    }
+  }
+
+  /**
    * Purpose: Initializes the scatter view canvas, toolbar, hoverbar, and scans vault notes on open.
    */
   async onOpen(): Promise<void> {
@@ -209,6 +248,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
     this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
+    this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
@@ -223,8 +263,19 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       updateSelectionUI: () => this.toolbarHandles?.updateSelectionUI(),
     });
 
-    await this.scanVaultNotes();
-    this.toolbarHandles.updateSelectionUI();
+    const initScan = async () => {
+      await this.scanVaultNotes();
+      this.toolbarHandles?.updateSelectionUI();
+    };
+
+    if (this.app?.workspace?.onLayoutReady && !this.app.workspace.layoutReady) {
+      this.app.workspace.onLayoutReady(() => {
+        void initScan();
+      });
+    } else {
+      await initScan();
+    }
+
     this.registerVaultWatchers();
   }
 
@@ -406,23 +457,40 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.viewFilterQuery = filterOverride;
     }
     const previousEmbeddings = new Map<string, number[]>();
+    const previousPositions = new Map<string, { x: number; y: number }>();
     for (const node of this.nodes) {
       if (node.embedding && node.embedding.length > 0) {
         previousEmbeddings.set(node.path, node.embedding);
         previousEmbeddings.set(node.id, node.embedding);
+      }
+      if (node.x !== 0 || node.y !== 0) {
+        previousPositions.set(node.path, { x: node.x, y: node.y });
+        previousPositions.set(node.id, { x: node.x, y: node.y });
       }
     }
 
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
     this.reconcileTransientState();
 
+    for (const node of this.nodes) {
+      const existingPos = previousPositions.get(node.path) ?? previousPositions.get(node.id);
+      if (existingPos) {
+        node.x = existingPos.x;
+        node.y = existingPos.y;
+      }
+    }
+
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
     await this.hydrateStoredEmbeddings(previousEmbeddings);
+    await this.hydrateStoredPositions();
     await this.loadRelationEdges();
     this.applyLayout();
-    if (!options.preserveView) this.fitToView();
+    if (!this.hasFittedView && !options.preserveView) {
+      this.fitToView();
+      this.hasFittedView = true;
+    }
     this.redraw();
   }
 
@@ -487,8 +555,50 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
+  /**
+   * Purpose: Loads each scanned node's persisted 2D coordinates from SQLite if unplaced.
+   * Architecture: Preserves the user's mental map across restarts (ADR-0005).
+   */
+  private async hydrateStoredPositions(): Promise<void> {
+    if (this.nodes.length === 0) return;
+    try {
+      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
+      const stored = await getStoredNodePositions(this.app, queryKeys);
+      this.nodes.forEach((n) => {
+        if (n.x === 0 && n.y === 0) {
+          const pos = stored.get(n.id) ?? stored.get(n.path);
+          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+            n.x = pos.x;
+            n.y = pos.y;
+          }
+        }
+      });
+    } catch (err) {
+      console.warn("MemVector: Failed to hydrate stored node positions:", err);
+    }
+  }
+
+  /**
+   * Purpose: Persists non-zero 2D coordinates of all currently placed nodes to SQLite.
+   * Architecture: Preserves node positions across sessions and restarts (ADR-0005).
+   */
+  private async persistCurrentPositions(): Promise<void> {
+    if (this.nodes.length === 0) return;
+    try {
+      const records = this.nodes
+        .filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.x !== 0 || n.y !== 0))
+        .map((n) => ({ id: n.id, path: n.path, x: n.x, y: n.y }));
+      if (records.length > 0) {
+        await saveNodePositions(this.app, records);
+      }
+    } catch (err) {
+      console.warn("MemVector: Failed to persist node positions:", err);
+    }
+  }
+
   applyLayout(): void {
     applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges, this.vocabulary);
+    void this.persistCurrentPositions();
   }
 
   async loadRelationEdges(): Promise<void> {

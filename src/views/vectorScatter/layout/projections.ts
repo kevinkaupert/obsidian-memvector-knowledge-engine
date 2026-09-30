@@ -26,6 +26,26 @@ export interface ProjectionParams {
 }
 
 /**
+ * Purpose: Enforces deterministic eigenvector orientation (SVD-flip convention) so 2D projection axes never randomly mirror across sessions.
+ */
+export function enforceCanonicalSign(vec: Float64Array): void {
+  let maxAbs = 0;
+  let sign = 1;
+  for (let d = 0; d < vec.length; d++) {
+    const abs = Math.abs(vec[d]);
+    if (abs > maxAbs) {
+      maxAbs = abs;
+      sign = vec[d] < 0 ? -1 : 1;
+    }
+  }
+  if (sign === -1) {
+    for (let d = 0; d < vec.length; d++) {
+      vec[d] = -vec[d];
+    }
+  }
+}
+
+/**
  * Purpose: Fast 2D PCA projection of high-dimensional embeddings via power iteration for organic initial placement.
  */
 export function compute2DPcaProjection(nodes: ScatterNode[], cloudSpacing: number): boolean {
@@ -77,7 +97,9 @@ export function compute2DPcaProjection(nodes: ScatterNode[], cloudSpacing: numbe
   }
 
   const pc1 = getComponent(null);
+  enforceCanonicalSign(pc1);
   const pc2 = getComponent(pc1);
+  enforceCanonicalSign(pc2);
 
   const rawCoords = centered.map((row) => {
     let x = 0;
@@ -159,7 +181,9 @@ export function compute2DProjectionFromMatrix(nodes: ScatterNode[], matrix: numb
   }
 
   const v1 = powerIter(null, 1);
+  enforceCanonicalSign(v1);
   const v2 = powerIter(v1, 7);
+  enforceCanonicalSign(v2);
 
   const coords = centered.map((row) => {
     let x = 0;
@@ -249,6 +273,31 @@ export function applyGraphVectorProjection({
         }
       });
     }
+  } else {
+    // Incremental placement for newly-added unplaced notes when existing graph is already placed
+    nodes.forEach((node, i) => {
+      if (node.x === 0 && node.y === 0) {
+        let bestSim = -1;
+        let bestNeighbor: ScatterNode | null = null;
+        for (let j = 0; j < n; j++) {
+          if (i === j) continue;
+          if (nodes[j].x !== 0 || nodes[j].y !== 0) {
+            if (matrix[i][j] > bestSim) {
+              bestSim = matrix[i][j];
+              bestNeighbor = nodes[j];
+            }
+          }
+        }
+        const phi = i * 2.399963;
+        if (bestNeighbor && bestSim > 0.15) {
+          node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
+          node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
+        } else {
+          node.x = Math.cos(phi) * targetSpacing * 0.5;
+          node.y = Math.sin(phi) * targetSpacing * 0.5;
+        }
+      }
+    });
   }
 
   // 2. Iterative Organic Force Simulation
