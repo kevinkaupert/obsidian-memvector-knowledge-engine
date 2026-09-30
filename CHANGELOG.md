@@ -39,6 +39,9 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   changing the view filter still fit the camera (#162).
 - Changes to the active relation vocabulary file made outside the Settings table (by hand
   or by sync) now reload the relations and layout weights of an open 2D view (#162).
+- Creating, deleting or renaming a relation note now updates the relation-note nodes of an
+  open 2D view. The watcher only reloaded edges, so with "show relation notes" on, deleted
+  relation notes stayed on the canvas and new ones did not appear (#168).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

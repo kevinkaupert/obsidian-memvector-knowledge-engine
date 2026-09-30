@@ -247,37 +247,38 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /**
    * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
+   * Architecture: Relation notes are edges *and* scatter nodes (shown with "show relation notes"). Editing one only
+   * changes its edge, so a modify reloads edges; creating, deleting or renaming one changes the node set too and
+   * needs a full rescan (which reloads the edges as well). The vocabulary file carries the per-label layout weights,
+   * so any change to it reloads relations like an edge edit.
    */
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
-    // The vocabulary file carries the per-label layout weights, so an edit made outside the Settings table (or by sync)
-    // must re-run the layout just like a relation edit.
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
+    const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
+    const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
 
-    const handleFileEvent = (file: { path: string }) => {
+    const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
-      if (isVocabulary(file.path) || file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
+      if (isVocabulary(file.path) || (kind === "modify" && isRel(file.path))) {
         this.triggerRelationsReload();
-      } else if (file.path.endsWith(".md")) {
+      } else if (isMd(file.path)) {
         this.triggerVaultRescan();
       }
     };
 
     const handleRenameEvent = (file: { path: string }, oldPath: string) => {
-      const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
-      const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
-
-      if (isVocabulary(file?.path) || isVocabulary(oldPath) || isRel(file?.path) || isRel(oldPath)) {
+      if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
         this.triggerRelationsReload();
       } else if (isMd(file?.path) || isMd(oldPath)) {
         this.triggerVaultRescan();
       }
     };
 
-    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file)));
-    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file)));
-    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file, "create")));
+    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file, "modify")));
+    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file, "delete")));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
