@@ -17,7 +17,8 @@ export function extractVaultGraph(
   const nodeMap = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
-  for (const file of app.vault.getMarkdownFiles()) {
+  const markdownFiles = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
+  for (const file of markdownFiles) {
     if (exclusions && !shouldIncludeFile(file, exclusions)) continue;
 
     const id = pathToId(file.path);
@@ -44,7 +45,7 @@ export function extractVaultGraph(
 
 /**
  * Purpose: Full-vault graph re-index against the configured GraphStore, applying exclusion filters and synchronizing typed relations (F03).
- * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed.
+ * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed. If loading typed relations throws, edge reconciliation is skipped to preserve existing relations in SQLite (Issue #183).
  */
 export async function syncVaultGraph(
   app: App,
@@ -56,6 +57,7 @@ export async function syncVaultGraph(
   const { nodes, edges } = extractVaultGraph(app, exclusions, includeWikiLinksAsRelations);
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
+  let relationLoadFailed = false;
   try {
     const relationEdges = await loadRelationEdges(app, exclusions, relationsFolder);
     for (const rel of relationEdges) {
@@ -76,7 +78,8 @@ export async function syncVaultGraph(
       }
     }
   } catch (err) {
-    console.warn("MemVector: Failed to include typed relation edges in sync:", err);
+    relationLoadFailed = true;
+    console.warn("MemVector: Failed to include typed relation edges in sync, skipping edge deletion to preserve existing relations:", err);
   }
-  return store.syncVaultGraph(nodes, edges);
+  return store.syncVaultGraph(nodes, edges, { reconcileEdges: !relationLoadFailed });
 }

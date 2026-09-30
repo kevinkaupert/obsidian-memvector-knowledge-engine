@@ -1,6 +1,6 @@
 import type { App } from "obsidian";
 import type { Database, QueryExecResult } from "sql.js";
-import type { GraphEdge, GraphNeighbor, GraphNode, GraphStore, TypedEdgeInput } from "../graphStore";
+import type { GraphEdge, GraphNeighbor, GraphNode, GraphStore, SyncVaultGraphOptions, TypedEdgeInput } from "../graphStore";
 import { getLocalDb, persistLocalDb } from "./sqliteDb";
 import { buildNeighborQuery } from "./sqliteGraphQueries";
 
@@ -27,15 +27,15 @@ export class SqliteGraphStore implements GraphStore {
   }
 
   /**
-   * Full-vault re-index: upserts the given (complete) node/edge set, then
-   * reconciles storage to match it exactly - deleting notes and edges that
-   * are no longer present (deleted/renamed files, removed WikiLinks,
-   * newly-excluded notes). `nodes`/`edges` must represent the vault's
-   * complete current state, not a partial/incremental subset - skipped
-   * entirely (upsert-only, no deletion) when `nodes` is empty, so a failed
-   * or aborted scan can never wipe otherwise-valid data.
+   * Purpose: Full-vault re-index: upserts node and edge sets, optionally reconciling deletions.
+   * Architecture: Reconciles storage to match vault state. When options.reconcileEdges is false,
+   * edge deletion is skipped to protect existing stored relations against upstream scan errors (Issue #183).
    */
-  async syncVaultGraph(nodes: GraphNode[], edges: GraphEdge[]): Promise<{ nodeCount: number; edgeCount: number }> {
+  async syncVaultGraph(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    options?: SyncVaultGraphOptions
+  ): Promise<{ nodeCount: number; edgeCount: number }> {
     const db = await getLocalDb(this.app);
     nodes.forEach((n) => upsertNote(db, n));
     edges.forEach((e) => {
@@ -50,21 +50,27 @@ export class SqliteGraphStore implements GraphStore {
     const currentNodeIds = new Set(nodes.map((n) => n.id));
     const currentEdgeKeys = new Set(edges.map((e) => `${e.src}|${e.tgt}|${e.type}`));
 
-    const existingEdges = execToRows(db.exec("SELECT src, tgt, type FROM edges"));
-    for (const row of existingEdges) {
-      const src = String(row.src);
-      const tgt = String(row.tgt);
-      const type = String(row.type);
-      if (!currentEdgeKeys.has(`${src}|${tgt}|${type}`)) {
-        db.run("DELETE FROM edges WHERE src = ? AND tgt = ? AND type = ?", [src, tgt, type]);
+    const shouldReconcileEdges = options?.reconcileEdges ?? true;
+    if (shouldReconcileEdges) {
+      const existingEdges = execToRows(db.exec("SELECT src, tgt, type FROM edges"));
+      for (const row of existingEdges) {
+        const src = String(row.src);
+        const tgt = String(row.tgt);
+        const type = String(row.type);
+        if (!currentEdgeKeys.has(`${src}|${tgt}|${type}`)) {
+          db.run("DELETE FROM edges WHERE src = ? AND tgt = ? AND type = ?", [src, tgt, type]);
+        }
       }
     }
 
-    const existingNotes = execToRows(db.exec("SELECT id FROM notes"));
-    for (const row of existingNotes) {
-      const id = String(row.id);
-      if (!currentNodeIds.has(id)) {
-        db.run("DELETE FROM notes WHERE id = ?", [id]);
+    const shouldReconcileNotes = options?.reconcileNotes ?? true;
+    if (shouldReconcileNotes) {
+      const existingNotes = execToRows(db.exec("SELECT id FROM notes"));
+      for (const row of existingNotes) {
+        const id = String(row.id);
+        if (!currentNodeIds.has(id)) {
+          db.run("DELETE FROM notes WHERE id = ?", [id]);
+        }
       }
     }
 
