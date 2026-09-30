@@ -1,3 +1,4 @@
+import { isRelationNote } from "../../relationNotes";
 export type ScatterNoteType =
   | "definition"
   | "theorem"
@@ -51,13 +52,8 @@ export function buildNodeMap(nodes: ScatterNode[]): Map<string, ScatterNode> {
  * Purpose: Determines whether a scatter node represents a typed relation file.
  */
 export function isRelationNode(node: ScatterNode): boolean {
-  return (
-    node.type === "relation" ||
-    node.path.includes("wiki/relations/") ||
-    node.path.includes("/relations/") ||
-    node.path.startsWith("wiki/relations/") ||
-    node.path === "wiki/relations"
-  );
+  // node.type is the note's frontmatter type (vaultScan), so this is the shared relation-note rule.
+  return isRelationNote(node.path, node.type);
 }
 
 /**

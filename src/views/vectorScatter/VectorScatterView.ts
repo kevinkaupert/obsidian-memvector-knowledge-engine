@@ -20,6 +20,7 @@ import { getVectorStore } from "../../sync/storeFactory";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+import { isRelationNote } from "../../relationNotes";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
 
@@ -261,12 +262,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (!this.app?.vault?.on) return;
 
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
+    // Only decides modify events (edge-only reload vs. rescan); the file already exists, so its frontmatter is cached.
+    const isRel = (file: { path: string }) =>
+      isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined);
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
 
     const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
-      if (isVocabulary(file.path) || (kind === "modify" && isRel(file.path))) {
+      if (isVocabulary(file.path) || (kind === "modify" && isRel(file))) {
         this.triggerRelationsReload();
       } else if (isMd(file.path)) {
         this.triggerVaultRescan();

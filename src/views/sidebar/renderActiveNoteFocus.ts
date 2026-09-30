@@ -36,7 +36,7 @@ async function findVectorNeighbors(app: App, settings: MemVectorSettings, active
       seen.add(hit.payload.path);
       neighbors.push({
         file,
-        type: classifyNoteType(file.path, file.name),
+        type: classifyNoteType(file.path, file.name, app.metadataCache.getFileCache(file)?.frontmatter?.type),
         score: hit.score,
         formulas: extractFormulas(hit.payload.content || ""),
         content: hit.payload.content || "",

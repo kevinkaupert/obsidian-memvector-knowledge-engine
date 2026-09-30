@@ -1,6 +1,7 @@
 import type { TranslationKeys } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
+import { DEFAULT_RELATIONS_FOLDER } from "../../relationNotes";
 
 /**
  * Keep a short readable prefix, but derive identity from the complete ordered IDs
@@ -14,7 +15,7 @@ export async function relationFilePath(edge: ResolvedRelationEdge): Promise<stri
   const src = toSlug(edge.src.id).slice(0, 32);
   const tgt = toSlug(edge.tgt.id).slice(0, 32);
   const label = toSlug(edge.label).slice(0, 32);
-  return `wiki/relations/rel-${src}-to-${tgt}-${label}-${hash}.md`;
+  return `${DEFAULT_RELATIONS_FOLDER}/rel-${src}-to-${tgt}-${label}-${hash}.md`;
 }
 
 /**

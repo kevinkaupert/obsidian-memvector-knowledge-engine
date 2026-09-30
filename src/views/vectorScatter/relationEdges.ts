@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 import { pathToId, toSlug } from "../../noteSlug";
 import type { RelationEdge } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
+import { isRelationNote } from "../../relationNotes";
 
 /**
  * Resolves a relation file's stored WikiLink text (e.g. from `source_note`)
@@ -88,10 +89,10 @@ export async function loadRelationFiles(app: App, exclusions = ""): Promise<Rela
   const files = app.vault.getMarkdownFiles();
 
   for (const f of files) {
-    if (!(f.path.includes("wiki/relation") || f.path.includes("/relations/"))) continue;
+    const fileCache = app.metadataCache.getFileCache(f);
+    if (!isRelationNote(f.path, fileCache?.frontmatter?.type)) continue;
     if (!shouldIncludeFile(f, exclusions)) continue;
     try {
-      const fileCache = app.metadataCache.getFileCache(f);
       let meta = parseRelationMetadata(fileCache?.frontmatter);
 
       if (!meta.rawSrc || !meta.rawTgt || !meta.desc) {

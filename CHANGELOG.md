@@ -29,6 +29,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - The embedding fingerprint no longer treats endpoints whose URL paths differ only in case
   (e.g. `/ModelA/v1` and `/modela/v1`) as the same vector space; only scheme and host are
   compared case-insensitively (#177).
+- Relation notes are recognized by one rule everywhere (edges, graph index, GraphRAG,
+  scatter nodes, vault watcher, radar): frontmatter `type: relation`, or a note inside
+  `wiki/relations/`. Moved relation notes and a top-level `relations/` folder now work;
+  ordinary notes in an unrelated folder named `relations` without the type are no
+  longer treated as edges. See ADR-0004 (#173).
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).

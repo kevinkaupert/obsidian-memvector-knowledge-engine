@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { WorkspaceLeaf } from "obsidian";
+import { TFile, type WorkspaceLeaf } from "obsidian";
 import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
@@ -500,3 +500,21 @@ describe("VectorScatterView reloads embeddings when the embedding target or inde
     expect(view.nodes[0].embedding).toEqual([1, 0, 0]);
   });
 });
+
+describe("VectorScatterView watcher recognizes moved relation notes (#173)", () => {
+  it("keeps a modify of a relation note outside wiki/relations on the edge-only reload", () => {
+    const { view, callbacks } = makeWatchedView();
+    (view.app as any).metadataCache = {
+      getFileCache: (f: { path: string }) => (f.path === "Beziehungen/a.md" ? { frontmatter: { type: "relation" } } : null),
+    };
+    callbacks.get("modify")!(Object.assign(new TFile(), { path: "Beziehungen/a.md" }));
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    expect(view.triggerVaultRescan).not.toHaveBeenCalled();
+
+    // An ordinary note in a folder that happens to be called "relations" is a note, not an edge.
+    callbacks.get("modify")!(Object.assign(new TFile(), { path: "Customers/relations/b.md" }));
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
+  });
+});
+
