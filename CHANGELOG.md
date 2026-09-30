@@ -26,6 +26,9 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   open views; "Calculate vectors" takes the stored vector on a cache hit even when the
   view still holds one, and GraphRAG context enrichment builds its query only from stored
   vectors. Before, a stale in-memory vector could silently search the new model's index (#175).
+- The embedding fingerprint no longer treats endpoints whose URL paths differ only in case
+  (e.g. `/ModelA/v1` and `/modela/v1`) as the same vector space; only scheme and host are
+  compared case-insensitively (#177).
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).
