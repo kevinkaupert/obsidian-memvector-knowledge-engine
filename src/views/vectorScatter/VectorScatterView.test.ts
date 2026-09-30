@@ -669,6 +669,36 @@ describe("VectorScatterView position preservation across rescans", () => {
     expect(node!.x).toBe(777);
     expect(node!.y).toBe(888);
   });
+
+  it("adversarial (Issue #184): does not overwrite stored positions in SQLite if hydration throws an error", async () => {
+    const leaf = {} as WorkspaceLeaf;
+    const host = createMockHost();
+    const view = new VectorScatterView(leaf, host);
+
+    const { scanVaultNotes } = await import("./vaultScan");
+    vi.mocked(scanVaultNotes).mockResolvedValueOnce([
+      makeNode("unplaced_note", "wiki/unplaced.md", "concept"),
+    ]);
+
+    const { getStoredNodePositions, saveNodePositions } = await import("../../sync/sqlite/nodePositions");
+    vi.mocked(getStoredNodePositions).mockRejectedValueOnce(new Error("Transient SQLite read lock"));
+    vi.mocked(saveNodePositions).mockClear();
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    try {
+      await view.scanVaultNotes();
+
+      // Guarantee: saveNodePositions was NOT called when hydration failed
+      expect(saveNodePositions).not.toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("aborting position persistence to protect mental map"),
+        expect.any(Error)
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
 
 
