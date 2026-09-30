@@ -1,6 +1,6 @@
 # 0002 - Configurable plugin folders and one relation-note rule
 
-Status: Planned
+Status: Implemented (PR for #173)
 Date: 2026-09-30
 Issue: #173
 
@@ -88,7 +88,7 @@ Consequences:
 - Update `docs/CONFIGURATION.md`, `README.md`, `docs/ARCHITECTURE.md` and
   `docs/TESTING.md` where they state these paths as fixed.
 
-## Decided (pending sign-off with the implementation issue)
+## Decided
 
 - Frontmatter `type: relation` is the primary criterion, the folder the
   fallback. The plugin already writes the type into every relation note, and it
