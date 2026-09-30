@@ -45,6 +45,7 @@ vi.mock("obsidian", () => ({
 // Mock storeFactory to return controlled mock vector and graph stores
 const mockVectorStore: Partial<VectorStore> = {
   getVector: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
+  getVectors: async (ids: string[]) => new Map(ids.map((id) => [id, [0.1, 0.2, 0.3]])),
   search: vi.fn(),
 };
 
@@ -638,3 +639,32 @@ describe("assembleContextNotes channel balancing (#110)", () => {
   });
 });
 
+
+describe("contextEnrichment query vector comes from the store (#175)", () => {
+  it("searches with the stored vector, not a stale in-memory one from a previous model", async () => {
+    const original = mockVectorStore.getVectors;
+    mockVectorStore.getVectors = async (ids: string[]) => new Map(ids.map((id) => [id, [1, 0, 0]]));
+    vi.mocked(mockVectorStore.search!).mockClear();
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    const stale = makeScatterNode("wiki/selected", "wiki/selected.md", [0, 9, 9, 9]);
+    await enrichContext(makeMockApp(new Map()), { ...DEFAULT_SETTINGS }, [stale], 500);
+
+    expect(vi.mocked(mockVectorStore.search!).mock.calls[0][0]).toEqual([1, 0, 0]);
+    mockVectorStore.getVectors = original;
+  });
+
+  it("does not search with an in-memory vector the store does not have", async () => {
+    const original = mockVectorStore.getVectors;
+    mockVectorStore.getVectors = async () => new Map();
+    vi.mocked(mockVectorStore.search!).mockClear();
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+
+    const stale = makeScatterNode("wiki/selected", "wiki/selected.md", [0, 9, 9, 9]);
+    await enrichContext(makeMockApp(new Map()), { ...DEFAULT_SETTINGS }, [stale], 500);
+
+    expect(mockVectorStore.search).not.toHaveBeenCalled();
+    mockVectorStore.getVectors = original;
+  });
+});

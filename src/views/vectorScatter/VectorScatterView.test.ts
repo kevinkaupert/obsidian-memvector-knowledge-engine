@@ -467,3 +467,36 @@ describe("VectorScatterView reconciles selection and search with rescanned nodes
     expect(view.hoveredNode).toBeNull();
   });
 });
+
+describe("VectorScatterView reloads embeddings when the embedding target or index changes (#175)", () => {
+  it("replaces in-memory vectors with the stored ones and drops those the store lacks", async () => {
+    vi.useFakeTimers();
+    const view = makeScanView();
+    view.nodes = [
+      { ...makeNode("a", "A.md", "concept"), embedding: [0, 9, 9, 9] },
+      { ...makeNode("b", "B.md", "concept"), embedding: [0, 8, 8, 8] },
+    ];
+    mockStoredVectors(new Map([["A.md", [1, 0, 0]]]));
+
+    view.applyExternalSettingsChange({ embeddings: true });
+    await vi.advanceTimersByTimeAsync(400);
+    vi.useRealTimers();
+
+    expect(view.nodes[0].embedding).toEqual([1, 0, 0]);
+    expect(view.nodes[1].embedding).toBeUndefined();
+  });
+
+  it("debounces bursts of changes (the model field saves on every keystroke)", async () => {
+    vi.useFakeTimers();
+    const view = makeScanView();
+    view.nodes = [makeNode("a", "A.md", "concept")];
+    const getVectors = vi.fn().mockResolvedValue(new Map([["A.md", [1, 0, 0]]]));
+    vi.mocked(getVectorStore).mockReturnValue({ getVectors } as unknown as ReturnType<typeof getVectorStore>);
+    for (let i = 0; i < 5; i++) view.applyExternalSettingsChange({ embeddings: true });
+    await vi.advanceTimersByTimeAsync(400);
+    vi.useRealTimers();
+
+    expect(getVectors).toHaveBeenCalledTimes(1);
+    expect(view.nodes[0].embedding).toEqual([1, 0, 0]);
+  });
+});

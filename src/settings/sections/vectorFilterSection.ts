@@ -189,6 +189,8 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations);
+            // The index just changed - open views must drop vectors they still hold from before.
+            host.applySettingsToOpenViews?.({ embeddings: true });
             btn.setButtonText(t.indexVaultSuccess);
             new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
           } catch (err) {

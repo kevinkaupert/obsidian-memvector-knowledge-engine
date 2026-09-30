@@ -17,8 +17,18 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   models. The cache compared only the content hash, so unchanged notes kept their old
   model's vectors and search compared incompatible vector spaces. Each vector now
   records the model and endpoint that produced it; other models' vectors count as cache
-  misses and are excluded from search, hydration and the radar. Existing vectors are
-  assigned to the model configured when the updated plugin first opens the database (#164).
+  misses and are excluded from search, hydration and the radar (#164). Vectors stored by
+  earlier versions carry no record of their model, so they are treated as unknown rather
+  than attributed to the currently configured one: the first indexing run after the
+  update re-embeds every note, and until then search and the radar skip them (#176).
+- An open 2D view no longer keeps vectors of the previous embedding model. Changing the
+  model or endpoint, and every "Index entire vault" run, reloads the stored vectors into
+  open views; "Calculate vectors" takes the stored vector on a cache hit even when the
+  view still holds one, and GraphRAG context enrichment builds its query only from stored
+  vectors. Before, a stale in-memory vector could silently search the new model's index (#175).
+- The embedding fingerprint no longer treats endpoints whose URL paths differ only in case
+  (e.g. `/ModelA/v1` and `/modela/v1`) as the same vector space; only scheme and host are
+  compared case-insensitively (#177).
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).

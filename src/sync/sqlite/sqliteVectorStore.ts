@@ -4,15 +4,14 @@ import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from
 import { cosineSimilarity } from "./cosineSimilarity";
 import { flushLocalDb, getLocalDb, persistLocalDb } from "./sqliteDb";
 
-/** Databases whose pre-fingerprint rows were already stamped this session. */
-const legacyRowsAdopted = new WeakSet<Database>();
-
 /**
  * VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale).
  *
  * Scoped to one embedding fingerprint (model + endpoint, see resolveEmbeddingTarget): writes stamp it on every row, and
  * reads, hashes and search only see rows with the same fingerprint, so vectors from another model are never mixed in and
- * count as cache misses. `fingerprint: null` leaves the store unscoped.
+ * count as cache misses. Rows written before fingerprints existed (NULL) have unknown provenance: a scoped store never
+ * sees them, so they are re-embedded - and overwritten - instead of being attributed to whatever model is configured
+ * now. `fingerprint: null` leaves the store unscoped.
  */
 export class SqliteVectorStore implements VectorStore {
   constructor(
@@ -24,28 +23,8 @@ export class SqliteVectorStore implements VectorStore {
     await this.openDb();
   }
 
-  /**
-   * Purpose: Opens the shared DB and, once per session, stamps rows written before fingerprints existed with the
-   * active fingerprint.
-   * Architecture: Those rows carry no record of their model. Adopting them as the current one keeps search working
-   * right after an upgrade instead of hiding the whole index until a full re-embed; it is the same assumption the
-   * cache made before fingerprints existed. Persisted immediately so a later model change in another session cannot
-   * adopt them under the wrong model.
-   */
   private async openDb(): Promise<Database> {
-    const db = await getLocalDb(this.app);
-    if (this.fingerprint !== null && !legacyRowsAdopted.has(db)) {
-      legacyRowsAdopted.add(db);
-      db.run("UPDATE vectors SET embedding_fingerprint = ? WHERE embedding_fingerprint IS NULL", [this.fingerprint]);
-      if (db.getRowsModified() > 0) {
-        try {
-          await persistLocalDb(this.app, db);
-        } catch (err) {
-          console.warn("MemVector: Failed to persist embedding fingerprint for legacy vector rows:", err);
-        }
-      }
-    }
-    return db;
+    return getLocalDb(this.app);
   }
 
   /** SQL condition + params restricting a query to this store's fingerprint (no-op when unscoped). */

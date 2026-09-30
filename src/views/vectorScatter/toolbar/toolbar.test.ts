@@ -110,6 +110,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
       flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
     } as unknown as ReturnType<typeof getVectorStore>);
 
     vi.mocked(fetchEmbedding).mockResolvedValue({
@@ -244,6 +245,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
       flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(storedHashes),
       getVector: vi.fn().mockResolvedValue([0.9, 0.8, 0.7]),
+      getVectors: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, [0.9, 0.8, 0.7]]))),
     } as unknown as ReturnType<typeof getVectorStore>);
 
     await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
@@ -282,7 +284,7 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
       },
       search: async () => [],
       getVector: async (id: string) => rows.get(id)?.vector ?? null,
-      getVectors: async () => new Map(),
+      getVectors: async (ids: string[]) => new Map(ids.filter((id) => rows.has(id)).map((id) => [id, rows.get(id)!.vector])),
       flush: async () => {},
       getStoredHashes: async () => new Map([...rows].map(([path, p]) => [path, { hash: p.contentHash! }])),
       reconcile: async () => ({ removed: 0 }),
@@ -372,6 +374,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
       syncPoints: vi.fn(async (points: VectorPoint[]) => {
         for (const p of points) stored.set(p.payload.path, p.vector);
       }),
@@ -405,6 +408,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
       syncPoints: vi.fn().mockResolvedValue(undefined),
       reconcile,
     } as unknown as ReturnType<typeof getVectorStore>);
@@ -446,6 +450,7 @@ describe("runCalcVectors persists pending changes before reporting success (#166
     vi.mocked(getVectorStore).mockReturnValue({
       getStoredHashes: vi.fn().mockResolvedValue(new Map([["note-1.md", { hash }]])),
       getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      getVectors: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, [0.5, 0.5]]))),
       syncPoints: vi.fn().mockResolvedValue(undefined),
       reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
       flush,
@@ -486,6 +491,7 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
     vi.mocked(getVectorStore).mockReturnValue({
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
       syncPoints: vi.fn().mockResolvedValue(undefined),
       reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
       flush: vi.fn().mockResolvedValue(undefined),
@@ -554,6 +560,7 @@ describe("runCalcVectors does not count notes deleted since the scan", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       getStoredHashes: vi.fn().mockResolvedValue(new Map([["Kept.md", { hash }]])),
       getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      getVectors: vi.fn(async (ids: string[]) => new Map(ids.map((id) => [id, [0.5, 0.5]]))),
       syncPoints: vi.fn().mockResolvedValue(undefined),
       reconcile,
       flush: vi.fn().mockResolvedValue(undefined),
@@ -579,5 +586,34 @@ describe("runCalcVectors does not count notes deleted since the scan", () => {
     expect(statusText.text.startsWith("1 | ")).toBe(true);
     expect(reconcile).toHaveBeenCalledTimes(1);
     expect(fetchEmbedding).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)", () => {
+  it("takes the stored vector although the node already holds one", async () => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    const hash = buildEmbeddingInput("A", "a body", DEFAULT_SETTINGS_FOR_TEST.embeddingMaxChars).hash;
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map([["A.md", { hash }]])),
+      getVectors: vi.fn().mockResolvedValue(new Map([["A.md", [1, 0, 0]]])),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+    const node = { id: pathToId("A.md"), path: "A.md", title: "A", content: "", x: 0, y: 0, embedding: [0, 9, 9, 9] };
+    const ctx = {
+      app: { vault: createMockVault({ "A.md": "a body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [node],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(ctx.nodes[0].embedding).toEqual([1, 0, 0]);
   });
 });

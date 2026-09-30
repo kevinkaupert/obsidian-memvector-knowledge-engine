@@ -16,16 +16,30 @@ export interface EmbeddingTarget {
  * Architecture: A stored vector is only valid for the fingerprint it was computed under.
  * Vectors from different models (or different servers serving a same-named model) live in
  * incompatible spaces, so the cache check, search and hydration all compare against this
- * fingerprint. The base URL is normalized (case, trailing slashes, an explicit
+ * fingerprint. The base URL is normalized (scheme/host case, trailing slashes, an explicit
  * `/embeddings` suffix fetchEmbedding would add anyway) so equivalent spellings do not
  * force a full re-embed.
  */
 export function resolveEmbeddingTarget(settings: Pick<MemVectorSettings, "embeddingModel" | "embeddingApiBaseUrl">): EmbeddingTarget {
   const model = (settings.embeddingModel || DEFAULT_SETTINGS.embeddingModel).trim();
   const apiBase = (settings.embeddingApiBaseUrl || DEFAULT_SETTINGS.embeddingApiBaseUrl).trim();
-  const normalizedBase = apiBase
-    .toLowerCase()
-    .replace(/\/+$/, "")
-    .replace(/\/embeddings$/, "");
-  return { model, apiBase, fingerprint: `${model}@${normalizedBase}` };
+  return { model, apiBase, fingerprint: `${model}@${normalizeBaseUrl(apiBase)}` };
+}
+
+/**
+ * Purpose: Normalizes an API base URL for fingerprint comparison.
+ * Architecture: Only scheme and host are case-insensitive (URL parsing lowercases them); the path keeps its case,
+ * since a server may route `/ModelA/v1` and `/modela/v1` differently. Trailing slashes and an explicit `/embeddings`
+ * suffix are dropped because fetchEmbedding treats those spellings as the same endpoint. An unparseable value is
+ * compared as typed.
+ */
+function normalizeBaseUrl(apiBase: string): string {
+  let base = apiBase;
+  try {
+    const url = new URL(apiBase);
+    base = `${url.protocol}//${url.host}${url.pathname}${url.search}`;
+  } catch {
+    // Not an absolute URL - fetchEmbedding will fail on it anyway; keep it distinguishable.
+  }
+  return base.replace(/\/+$/, "").replace(/\/embeddings$/, "");
 }
