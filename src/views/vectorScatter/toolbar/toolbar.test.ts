@@ -4,6 +4,13 @@ import type { ScatterViewContext } from "../context";
 import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { pathToId } from "../../../noteSlug";
 import { getVectorStore } from "../../../sync/storeFactory";
+import { buildEmbeddingInput } from "../../../sync/embeddingText";
+import { syncVaultVectors } from "../../../sync/vaultVectorSync";
+import type { VectorPoint, VectorStore } from "../../../sync/vectorStore";
+import { TFile } from "obsidian";
+import { DEFAULT_SETTINGS } from "../../../settings/defaults";
+
+const DEFAULT_SETTINGS_FOR_TEST = { ...DEFAULT_SETTINGS, language: "en" };
 
 const noticeCalls: { message: string; duration?: number }[] = [];
 
@@ -15,6 +22,10 @@ vi.mock("obsidian", () => {
       }
     },
     setIcon: vi.fn(),
+    TFile: class {
+      path = "";
+      basename = "";
+    },
   };
 });
 
@@ -37,6 +48,22 @@ interface MockEl {
   setText(t: string): void;
   addClass(c: string): void;
   removeClass(...c: string[]): void;
+}
+
+/** Fake vault holding `files` (path -> raw markdown) - enough for the file reads runCalcVectors and syncVaultVectors perform. */
+function createMockVault(files: Record<string, string>) {
+  const tfiles = Object.keys(files).map((path) => {
+    const f = new TFile();
+    f.path = path;
+    f.basename = path.replace(/^.*\//, "").replace(/\.md$/, "");
+    (f as unknown as { name: string }).name = path.replace(/^.*\//, "");
+    return f;
+  });
+  return {
+    getAbstractFileByPath: (path: string) => tfiles.find((f) => f.path === path) ?? null,
+    getMarkdownFiles: () => tfiles,
+    cachedRead: async (f: TFile) => files[f.path],
+  };
 }
 
 function createMockEl(): MockEl {
@@ -80,6 +107,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       syncPoints: mockSyncPoints,
       reconcile: mockReconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
     } as unknown as ReturnType<typeof getVectorStore>);
@@ -90,8 +118,9 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     });
 
     mockCtx = {
-      app: {} as any,
+      app: { vault: createMockVault({ "note-1.md": "Content of note 1" }) } as any,
       settings: {
+        embeddingMaxChars: 8000,
         embeddingModel: "bge-m3",
         embeddingApiBaseUrl: "http://localhost:11434/v1",
         language: "de",
@@ -204,9 +233,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
   });
 
   it("skips fetchEmbedding when note content hash matches stored hash", async () => {
-    const { hashString } = await import("../../../hash");
-    const nodeText = `${mockCtx.nodes[0].title}\n${mockCtx.nodes[0].content}`.slice(0, 2000);
-    const expectedHash = String(hashString(nodeText));
+    const expectedHash = buildEmbeddingInput("note-1", "Content of note 1", 8000).hash;
 
     const storedHashes = new Map<string, { hash: string }>();
     storedHashes.set("note-1.md", { hash: expectedHash });
@@ -214,6 +241,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       syncPoints: mockSyncPoints,
       reconcile: mockReconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(storedHashes),
       getVector: vi.fn().mockResolvedValue([0.9, 0.8, 0.7]),
     } as unknown as ReturnType<typeof getVectorStore>);
@@ -229,5 +257,327 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect((mockHoverBar as any).text).toContain("bereits im Cache");
     expect(mockCtx.applyLayout).toHaveBeenCalledTimes(1);
     expect(mockCtx.redraw).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("runCalcVectors shares embedding text with the Settings vault sync (#161)", () => {
+  const longBody = "Intro paragraph. " + "x".repeat(3000) + " tail only visible past 1500 chars";
+  const files = {
+    "Folder/Long Note.md": `---\ntitle: Display Title\n---\n${longBody}`,
+    "Short.md": "Short body",
+  };
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2, 0.3], error: null });
+  });
+
+  function createStore(): VectorStore {
+    const rows = new Map<string, VectorPoint>();
+    return {
+      testConnection: async () => {},
+      syncPoints: async (points: VectorPoint[]) => {
+        for (const p of points) rows.set(p.payload.path, p);
+      },
+      search: async () => [],
+      getVector: async (id: string) => rows.get(id)?.vector ?? null,
+      getVectors: async () => new Map(),
+      flush: async () => {},
+      getStoredHashes: async () => new Map([...rows].map(([path, p]) => [path, { hash: p.contentHash! }])),
+      reconcile: async () => ({ removed: 0 }),
+    };
+  }
+
+  function createCtx(settings: Record<string, unknown>): ScatterViewContext {
+    return {
+      app: { vault: createMockVault(files) },
+      settings,
+      // node.title is the frontmatter title and node.content the 800-char scan excerpt;
+      // neither may leak into the embedding text.
+      nodes: [
+        { id: pathToId("Folder/Long Note.md"), path: "Folder/Long Note.md", title: "Display Title", content: longBody.slice(0, 800), x: 0, y: 0 },
+        { id: pathToId("Short.md"), path: "Short.md", title: "Short", content: "Short body", x: 0, y: 0 },
+      ],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+  }
+
+  it("yields 100% cache hits after a Settings vault sync", async () => {
+    const settings = { ...DEFAULT_SETTINGS_FOR_TEST };
+    const store = createStore();
+    vi.mocked(getVectorStore).mockReturnValue(store as ReturnType<typeof getVectorStore>);
+
+    const synced = await syncVaultVectors({ vault: createMockVault(files) } as any, settings as any, store);
+    expect(synced.syncedCount).toBe(2);
+    vi.mocked(fetchEmbedding).mockClear();
+
+    await runCalcVectors(createCtx(settings), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(noticeCalls.some((n) => n.message.includes("[OK] 2"))).toBe(true);
+  });
+
+  it("yields 100% cache hits for a Settings vault sync after the toolbar calculated the vectors", async () => {
+    const settings = { ...DEFAULT_SETTINGS_FOR_TEST };
+    const store = createStore();
+    vi.mocked(getVectorStore).mockReturnValue(store as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx(settings), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(fetchEmbedding).toHaveBeenCalledTimes(2);
+    vi.mocked(fetchEmbedding).mockClear();
+
+    const synced = await syncVaultVectors({ vault: createMockVault(files) } as any, settings as any, store);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(synced.skippedCount).toBe(2);
+  });
+
+  it("embeds the file basename and body beyond the old 800/1500-char windows", async () => {
+    vi.mocked(getVectorStore).mockReturnValue(createStore() as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx({ ...DEFAULT_SETTINGS_FOR_TEST }), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    const sentText = vi.mocked(fetchEmbedding).mock.calls[0][0];
+    expect(sentText.startsWith("Long Note\nIntro paragraph.")).toBe(true);
+    expect(sentText).toContain("tail only visible past 1500 chars");
+    expect(sentText).not.toContain("Display Title");
+  });
+
+  it("caps the embedded text at embeddingMaxChars", async () => {
+    vi.mocked(getVectorStore).mockReturnValue(createStore() as ReturnType<typeof getVectorStore>);
+
+    await runCalcVectors(createCtx({ ...DEFAULT_SETTINGS_FOR_TEST, embeddingMaxChars: 1000 }), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(vi.mocked(fetchEmbedding).mock.calls[0][0].length).toBe(1000);
+  });
+});
+
+describe("runCalcVectors reconciles against the whole vault, not the filtered view (#165)", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2, 0.3], error: null });
+  });
+
+  it("keeps stored vectors of notes filtered out of the view", async () => {
+    const stored = new Map<string, number[]>([
+      ["Visible.md", [1, 0]],
+      ["Hidden.md", [0, 1]],
+      ["Deleted.md", [1, 1]],
+    ]);
+    vi.mocked(getVectorStore).mockReturnValue({
+      flush: vi.fn().mockResolvedValue(undefined),
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn(async (points: VectorPoint[]) => {
+        for (const p of points) stored.set(p.payload.path, p.vector);
+      }),
+      reconcile: vi.fn(async (paths: string[]) => {
+        const keep = new Set(paths);
+        for (const path of [...stored.keys()]) if (!keep.has(path)) stored.delete(path);
+        return { removed: 0 };
+      }),
+    } as unknown as ReturnType<typeof getVectorStore>);
+
+    // The view is filtered down to Visible.md; Hidden.md still exists in the vault, Deleted.md does not.
+    const ctx = {
+      app: { vault: createMockVault({ "Visible.md": "visible body", "Hidden.md": "hidden body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "visible body", x: 0, y: 0 }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(stored.has("Hidden.md")).toBe(true);
+    expect(stored.has("Visible.md")).toBe(true);
+    expect(stored.has("Deleted.md")).toBe(false);
+  });
+
+  it("does not keep notes excluded from indexing", async () => {
+    const reconcile = vi.fn().mockResolvedValue({ removed: 0 });
+    vi.mocked(getVectorStore).mockReturnValue({
+      flush: vi.fn().mockResolvedValue(undefined),
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile,
+    } as unknown as ReturnType<typeof getVectorStore>);
+
+    const ctx = {
+      app: { vault: createMockVault({ "Visible.md": "a", "private/Secret.md": "b" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:private" },
+      nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "a", x: 0, y: 0 }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(reconcile).toHaveBeenCalledWith(["Visible.md"]);
+  });
+});
+
+describe("runCalcVectors persists pending changes before reporting success (#166)", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+  });
+
+  function cachedCtx(): ScatterViewContext {
+    return {
+      app: { vault: createMockVault({ "note-1.md": "Content of note 1" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [{ id: pathToId("note-1.md"), path: "note-1.md", title: "Note 1", content: "", x: 0, y: 0, embedding: [0.5, 0.5] }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+  }
+
+  function storeWithAllCached(flush: ReturnType<typeof vi.fn>) {
+    const hash = buildEmbeddingInput("note-1", "Content of note 1", DEFAULT_SETTINGS_FOR_TEST.embeddingMaxChars).hash;
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map([["note-1.md", { hash }]])),
+      getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush,
+    } as unknown as ReturnType<typeof getVectorStore>);
+  }
+
+  it("flushes even when every note was a cache hit", async () => {
+    const flush = vi.fn().mockResolvedValue(undefined);
+    storeWithAllCached(flush);
+
+    await runCalcVectors(cachedCtx(), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(true);
+  });
+
+  it("reports a persistence error instead of cached success when the pending write fails again", async () => {
+    storeWithAllCached(vi.fn().mockRejectedValue(new Error("disk still full")));
+    const btn = createMockEl() as any;
+    const statusText = createMockEl() as any;
+
+    await runCalcVectors(cachedCtx(), btn, statusText, createMockEl() as any);
+
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]") && n.message.includes("disk still full"))).toBe(true);
+    expect(statusText.text).toBe("Storage error");
+  });
+});
+
+describe("runCalcVectors survives a live rescan and always re-enables the button (#169)", () => {
+  const vaultFiles = { "A.md": "a body", "B.md": "b body", "C.md": "c body" };
+  const node = (path: string) => ({ id: pathToId(path), path, title: path, content: "", x: 0, y: 0 });
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVector: vi.fn().mockResolvedValue(null),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+  });
+
+  it("finishes when the watcher replaces ctx.nodes with a shorter list mid-run", async () => {
+    const ctx = {
+      app: { vault: createMockVault(vaultFiles) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [node("A.md"), node("B.md"), node("C.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+    const rescanned = [node("A.md")];
+    vi.mocked(fetchEmbedding).mockImplementation(async (text: string) => {
+      // Simulates triggerVaultRescan firing while the first request is in flight.
+      ctx.nodes = rescanned as typeof ctx.nodes;
+      return { embedding: [text.length, 1], error: null };
+    });
+    const btn = createMockEl() as any;
+
+    await runCalcVectors(ctx, btn, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).toHaveBeenCalledTimes(3);
+    expect(btn.disabled).toBe(false);
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]"))).toBe(false);
+    // The rescanned node object receives the vector computed for its path.
+    expect(rescanned[0]).toHaveProperty("embedding", [buildEmbeddingInput("A", "a body", 8000).text.length, 1]);
+  });
+
+  it("re-enables the button and reports the error when the run throws unexpectedly", async () => {
+    const vault = createMockVault(vaultFiles);
+    vault.cachedRead = async () => {
+      throw new Error("read failed");
+    };
+    const ctx = {
+      app: { vault },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [node("A.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+    const btn = createMockEl() as any;
+    const hoverBar = createMockEl() as any;
+
+    await runCalcVectors(ctx, btn, createMockEl() as any, hoverBar);
+
+    expect(btn.disabled).toBe(false);
+    expect(hoverBar.text).toContain("read failed");
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]") && n.message.includes("read failed"))).toBe(true);
+  });
+});
+
+describe("runCalcVectors does not count notes deleted since the scan", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+  });
+
+  it("reports only the notes that still exist as cached, and still completes", async () => {
+    const hash = buildEmbeddingInput("Kept", "kept body", DEFAULT_SETTINGS_FOR_TEST.embeddingMaxChars).hash;
+    const reconcile = vi.fn().mockResolvedValue({ removed: 0 });
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map([["Kept.md", { hash }]])),
+      getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+    const statusText = createMockEl() as any;
+    const ctx = {
+      // Gone.md is still in the scanned node list but no longer in the vault.
+      app: { vault: createMockVault({ "Kept.md": "kept body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [
+        { id: pathToId("Kept.md"), path: "Kept.md", title: "Kept", content: "", x: 0, y: 0 },
+        { id: pathToId("Gone.md"), path: "Gone.md", title: "Gone", content: "", x: 0, y: 0 },
+      ],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, statusText, createMockEl() as any);
+
+    expect(noticeCalls).toHaveLength(1);
+    expect(noticeCalls[0].message.startsWith("[OK] 1 ")).toBe(true);
+    expect(statusText.text.startsWith("1 | ")).toBe(true);
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(fetchEmbedding).not.toHaveBeenCalled();
   });
 });

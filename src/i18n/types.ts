@@ -43,6 +43,8 @@ export interface TranslationKeys {
   embedApiKeyDesc: string;
   embedModelName: string;
   embedModelDesc: string;
+  embedMaxCharsTitle: string;
+  embedMaxCharsDesc: string;
   exclusionsName: string;
   exclusionsDesc: string;
   wikiLinksAsRelationsName: string;

@@ -7,6 +7,60 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Fixed
+- "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same
+  text and compute the same cache hash. Settings used the file name plus up to 1500
+  characters, the toolbar used the display title plus an 800-character scan excerpt, so
+  each path treated the other's stored vectors as stale and re-embedded unchanged notes.
+  Both now build the text through one shared function from the note file itself (#161).
+- Switching the embedding model or endpoint no longer mixes vectors from different
+  models. The cache compared only the content hash, so unchanged notes kept their old
+  model's vectors and search compared incompatible vector spaces. Each vector now
+  records the model and endpoint that produced it; other models' vectors count as cache
+  misses and are excluded from search, hydration and the radar. Existing vectors are
+  assigned to the model configured when the updated plugin first opens the database (#164).
+- "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
+  every note outside the filter. Index cleanup compared the stored vectors against the
+  filtered node list; it now compares against every indexable note in the vault (#165).
+- A retry after a failed database write no longer reports success for vectors that were
+  never saved. The failed vectors stayed in memory, so the retry saw them as cached and
+  wrote nothing. Changes a failed write left behind are now tracked, and both indexing
+  paths write them to disk before reporting success, or report the storage error again (#166).
+- A live vault update during "Calculate vectors" no longer aborts the calculation with
+  `Cannot read properties of undefined` and leaves the button disabled. The loop now
+  works on a snapshot of the notes, hands the results to the refreshed notes by path,
+  and re-enables the button and reports the error on any failure. Notes deleted in the
+  meantime are skipped and no longer counted as cached in the success message (#169).
+- An open 2D view now picks up vectors re-indexed elsewhere (Settings, another view, a
+  model switch) on its next rescan. It used to copy its previous in-memory embeddings onto
+  the rescanned notes and only filled gaps from the database; the stored vectors now take
+  precedence, and in-memory ones are kept only if the database cannot be read (#167).
+- Editing a note no longer makes the 2D view jump back to the full overview. Background
+  rescans from the live vault watcher keep the current pan and zoom; opening the view and
+  changing the view filter still fit the camera (#162).
+- Changes to the active relation vocabulary file made outside the Settings table (by hand
+  or by sync) now reload the relations and layout weights of an open 2D view (#162).
+- Creating, deleting or renaming a relation note now updates the relation-note nodes of an
+  open 2D view. The watcher only reloaded edges, so with "show relation notes" on, deleted
+  relation notes stayed on the canvas and new ones did not appear (#168).
+- A rescan now aligns the selection, hover and search state with the current notes.
+  Deleted notes stayed counted in the selection, and repeating a search panned to the
+  note's position from before the rescan (#171).
+- Creating a preset while the active vocabulary is intentionally empty now creates an
+  empty preset. The file reader could not tell an empty vocabulary from a missing one, so
+  the new preset was seeded with the 13 STEM types; only a missing or unreadable active
+  file falls back to STEM now (#170).
+- The form for adding a relation type in Settings is now the last row of the type table,
+  each field under its column (label, category, weight, bidirectional, repels, add). It used
+  to be a wrapping flex row that broke mid-form in a narrow settings pane and aligned with
+  nothing above it; the reset button now sits right-aligned below the table.
+
+### Changed
+- The embedded text per note is no longer limited to 800-2000 characters by three
+  independent hardcoded cuts. A single setting, `embeddingMaxChars` (default 8000,
+  0 = no cap), controls it; the fixed 2000-character cut inside the embedding request
+  is removed. Longer notes are re-embedded once with more of their content (#161).
+
 ## [0.1.8] - 2026-09-29
 
 ### Fixed

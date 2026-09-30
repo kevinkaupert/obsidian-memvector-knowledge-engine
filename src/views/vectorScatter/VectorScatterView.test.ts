@@ -3,6 +3,8 @@ import type { WorkspaceLeaf } from "obsidian";
 import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
+import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+import { getVectorStore } from "../../sync/storeFactory";
 
 if (typeof window === "undefined") {
   (globalThis as any).window = globalThis;
@@ -39,6 +41,19 @@ vi.mock("./rendering/drawOrchestrator", () => ({
 
 vi.mock("./relationEdges", () => ({
   loadRelationEdges: vi.fn(async () => []),
+}));
+
+vi.mock("./vaultScan", () => ({
+  scanVaultNotes: vi.fn(async () => []),
+}));
+
+vi.mock("../../sync/storeFactory", () => ({
+  getVectorStore: vi.fn(),
+}));
+
+vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>()),
+  loadRelationVocabulary: vi.fn(async () => []),
 }));
 
 function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode {
@@ -199,15 +214,16 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
     modifyCb!({ path: "wiki/concepts/math.md" });
     expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
 
-    // Renaming a relation file triggers triggerRelationsReload
+    // Renaming a relation file changes the node set too, so it triggers a full rescan (#168)
     const renameCb = registeredCallbacks.get("rename");
     expect(renameCb).toBeDefined();
     renameCb!({ path: "wiki/relations/new-rel.md" }, "wiki/relations/old-rel.md");
-    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
 
     // Renaming a regular note triggers triggerVaultRescan
     renameCb!({ path: "wiki/concepts/new-note.md" }, "wiki/concepts/old-note.md");
-    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(3);
   });
 
   it("clears debounce timers and cleans up on onClose", async () => {
@@ -242,5 +258,212 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
     expect(view.scanVaultNotes).not.toHaveBeenCalled();
 
     vi.useRealTimers();
+  });
+});
+
+/** View with the pure vault scan and vector store mocked, for exercising scanVaultNotes end to end. */
+function makeScanView(): VectorScatterView {
+  const host: VectorScatterHost = {
+    app: {} as any,
+    settings: { ...DEFAULT_SETTINGS },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+  const view = new VectorScatterView({} as WorkspaceLeaf, host);
+  view.redraw = vi.fn();
+  return view;
+}
+
+function mockStoredVectors(vectors: Map<string, number[]> | Error): void {
+  vi.mocked(getVectorStore).mockReturnValue({
+    getVectors: vectors instanceof Error ? vi.fn().mockRejectedValue(vectors) : vi.fn().mockResolvedValue(vectors),
+  } as unknown as ReturnType<typeof getVectorStore>);
+}
+
+describe("VectorScatterView.scanVaultNotes uses the vector store as source of truth (#167)", () => {
+  it("replaces a stale in-memory embedding with the re-indexed stored vector", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map([["A.md", [0, 1]]]));
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toEqual([0, 1]);
+  });
+
+  it("drops an in-memory embedding the store no longer has (e.g. after an embedding model switch)", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toBeUndefined();
+  });
+
+  it("keeps in-memory embeddings when the store cannot be read", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Error("db locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toEqual([1, 0]);
+    warn.mockRestore();
+  });
+});
+
+
+/** View with vault watchers registered against a fake vault; returns the captured event callbacks. */
+function makeWatchedView(settings: Partial<typeof DEFAULT_SETTINGS> = {}) {
+  const callbacks = new Map<string, Function>();
+  const vault = { on: vi.fn((event: string, cb: Function) => (callbacks.set(event, cb), { event, cb })) };
+  const host: VectorScatterHost = {
+    app: { vault } as any,
+    settings: { ...DEFAULT_SETTINGS, ...settings },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+  const view = new VectorScatterView({} as WorkspaceLeaf, host);
+  view.registerVaultWatchers();
+  view.triggerRelationsReload = vi.fn();
+  view.triggerVaultRescan = vi.fn();
+  return { view, callbacks };
+}
+
+describe("VectorScatterView watcher and camera (#162)", () => {
+  it("reloads relations when the active vocabulary file changes", () => {
+    const { view, callbacks } = makeWatchedView();
+    callbacks.get("modify")!({ path: "wiki/relation-types.json" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+  });
+
+  it("follows a configured vocabulary path, including renames to and from it", () => {
+    const { view, callbacks } = makeWatchedView({ relationVocabularyPath: "wiki/presets/law.json" });
+    callbacks.get("modify")!({ path: "wiki/presets/law.json" });
+    callbacks.get("rename")!({ path: "wiki/presets/law.json" }, "wiki/presets/tmp.json");
+    callbacks.get("modify")!({ path: "wiki/relation-types.json" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+    expect(view.triggerVaultRescan).not.toHaveBeenCalled();
+  });
+
+  it("background rescans keep the user's pan and zoom", async () => {
+    vi.useFakeTimers();
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }]);
+    mockStoredVectors(new Map());
+    view.zoom = 2.5;
+    view.pan = { x: 123, y: 456 };
+
+    view.triggerVaultRescan();
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+
+    expect(scanVaultNotesPure).toHaveBeenCalled();
+    expect(view.zoom).toBe(2.5);
+    expect(view.pan).toEqual({ x: 123, y: 456 });
+  });
+
+  it("explicit scans still fit the camera to the node set", async () => {
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("a", "A.md", "concept"), x: 5000, y: 5000 }]);
+    mockStoredVectors(new Map());
+    view.zoom = 2.5;
+    view.pan = { x: 123, y: 456 };
+
+    await view.scanVaultNotes("A");
+
+    expect(view.pan).not.toEqual({ x: 123, y: 456 });
+  });
+});
+
+describe("VectorScatterView watcher keeps relation note nodes current (#168)", () => {
+  it("rescans nodes when a relation note is created or deleted", () => {
+    const { view, callbacks } = makeWatchedView();
+    callbacks.get("create")!({ path: "wiki/relations/a--supports--b.md" });
+    callbacks.get("delete")!({ path: "wiki/relations/c--supports--d.md" });
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+    expect(view.triggerRelationsReload).not.toHaveBeenCalled();
+  });
+
+  it("rescans nodes when a relation note is renamed into or out of the relations folder", () => {
+    const { view, callbacks } = makeWatchedView();
+    callbacks.get("rename")!({ path: "wiki/concepts/moved.md" }, "wiki/relations/moved.md");
+    callbacks.get("rename")!({ path: "wiki/relations/moved.md" }, "wiki/concepts/moved.md");
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a plain relation note edit on the lighter edge reload", () => {
+    const { view, callbacks } = makeWatchedView();
+    callbacks.get("modify")!({ path: "wiki/relations/a--supports--b.md" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    expect(view.triggerVaultRescan).not.toHaveBeenCalled();
+  });
+
+  it("drops a deleted relation note's node on the rescan", async () => {
+    const view = makeScanView();
+    view.showRelationNotes = true;
+    view.nodes = [makeNode("a", "A.md", "concept"), makeNode("rel", "wiki/relations/rel.md", "relation")];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    expect(view.getVisibleNodes().map((n) => n.path)).toEqual(["A.md"]);
+  });
+});
+
+describe("VectorScatterView reconciles selection and search with rescanned nodes (#171)", () => {
+  it("removes deleted notes from the selection, keeping the same set instance", async () => {
+    const view = makeScanView();
+    view.nodes = [makeNode("a", "A.md", "concept"), makeNode("b", "B.md", "concept")];
+    const selection = view.selectedNodeIds;
+    selection.add("a");
+    selection.add("b");
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    expect(view.selectedNodeIds).toBe(selection);
+    expect([...view.selectedNodeIds]).toEqual(["a"]);
+  });
+
+  it("repeating a search after a rescan pans to the note's current position, not the stale one", async () => {
+    const view = makeScanView();
+    (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+    (view as any).containerEl.win = { requestAnimationFrame: vi.fn(() => 1), cancelAnimationFrame: vi.fn() };
+    view.zoom = 1;
+    view.nodes = [{ ...makeNode("alpha", "Alpha.md", "concept"), x: 0, y: 0 }];
+
+    view.searchNote("alpha");
+    expect(view.pan).toEqual({ x: 400, y: 300 });
+
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("alpha", "Alpha.md", "concept"), x: 1000, y: 500 }]);
+    mockStoredVectors(new Map());
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    view.searchNote("alpha");
+    expect(view.pan).toEqual({ x: 400 - 1000, y: 300 - 500 });
+  });
+
+  it("drops a hovered node that no longer exists", async () => {
+    const view = makeScanView();
+    const gone = makeNode("b", "B.md", "concept");
+    view.nodes = [makeNode("a", "A.md", "concept"), gone];
+    view.hoveredNode = gone;
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes(undefined, { preserveView: true });
+
+    expect(view.hoveredNode).toBeNull();
   });
 });

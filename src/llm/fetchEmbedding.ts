@@ -33,7 +33,7 @@ export async function fetchEmbedding(
       url: standardUrl,
       method: "POST",
       headers,
-      body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
+      body: JSON.stringify({ model: modelName, input: text }),
       throwOnError: false,
     });
     if (res.status === 200) {
@@ -53,7 +53,7 @@ export async function fetchEmbedding(
         url: `${rawOllamaBase}/api/embed`,
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelName, input: text.slice(0, 2000) }),
+        body: JSON.stringify({ model: modelName, input: text }),
         throwOnError: false,
       });
       const data = res.json as OllamaEmbedResponse | undefined;

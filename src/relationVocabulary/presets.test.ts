@@ -153,6 +153,30 @@ describe("preset lifecycle (Issue #119)", () => {
     expect(parsed.terms.length).toBe(DEFAULT_RELATION_VOCABULARY.length);
   });
 
+  it("keeps a new preset empty when the active vocabulary is intentionally empty (#170)", async () => {
+    const { files, app } = fakeApp({ "wiki/relation-types.json": JSON.stringify({ terms: [] }) });
+    const h = host();
+    await createPreset(app, h, "Blank");
+    const parsed = JSON.parse(files.get("wiki/presets/blank.json")!) as { terms: unknown[] };
+    expect(parsed.terms).toEqual([]);
+  });
+
+  it("copies an empty vocabulary from a configured active path, not only the default one (#170)", async () => {
+    const { files, app } = fakeApp({ "wiki/presets/empty.json": JSON.stringify({ terms: [] }) });
+    const h = host({ relationVocabularyPath: "wiki/presets/empty.json" });
+    await createPreset(app, h, "Copy");
+    expect((JSON.parse(files.get("wiki/presets/copy.json")!) as { terms: unknown[] }).terms).toEqual([]);
+  });
+
+  it("falls back to the STEM default when the active vocabulary is unreadable (#170)", async () => {
+    const { files, app } = fakeApp({ "wiki/relation-types.json": "{ not json" });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await createPreset(app, host(), "Recovered");
+    warn.mockRestore();
+    const parsed = JSON.parse(files.get("wiki/presets/recovered.json")!) as { terms: unknown[] };
+    expect(parsed.terms.length).toBe(DEFAULT_RELATION_VOCABULARY.length);
+  });
+
   it("refuses to create a preset whose file already exists", async () => {
     const { app } = fakeApp({ "wiki/presets/dup.json": "{}" });
     const h = host();

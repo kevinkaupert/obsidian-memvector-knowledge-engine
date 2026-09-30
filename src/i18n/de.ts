@@ -48,6 +48,8 @@ export const de: TranslationKeys = {
   embedApiKeyDesc: "API-Schlüssel für Embedding-API (für Ollama 'ollama' eintragen). Wird sicher in Obsidians Secret Storage gespeichert, nicht in data.json.",
   embedModelName: "Embedding Modellname",
   embedModelDesc: "Exakter Modellname für Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
+  embedMaxCharsTitle: "Embedding-Textlimit (Zeichen pro Notiz)",
+  embedMaxCharsDesc: "Maximale Zeichen pro Notiz (Dateiname + Inhalt, ohne Frontmatter), die an das Embedding-Modell gesendet werden. 0 = kein Limit. Innerhalb des Eingabelimits des Modells bleiben (bge-m3 und OpenAI-Embedding-Modelle: ca. 8k Tokens) - längere Eingaben kürzt oder verweigert der Anbieter. Eine Änderung berechnet nur Notizen neu, deren Embedding-Text sich ändert.",
   exclusionsName: "Pfad- & Datei-Ausschließungen",
   exclusionsDesc: "Globale Ausschlussregeln für Vektor-Indizierung, Graph-Kanten und den 2D-Graph (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
   wikiLinksAsRelationsName: "WikiLinks als Graph-Relationen indizieren",

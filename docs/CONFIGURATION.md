@@ -41,6 +41,7 @@ The settings menu is organized into 3 focused sections:
 - **Embedding API Base URL (`embeddingApiBaseUrl`):** Endpoint URL for vector embeddings.
 - **Embedding API Key (`embeddingApiKey`):** API key for vector embeddings (type `ollama` for local Ollama).
 - **Embedding Model Name (`embeddingModel`):** Exact model name (e.g. `bge-m3`, `nomic-embed-text`, `text-embedding-3-small`).
+- **Embedding text cap (`embeddingMaxChars`):** Maximum characters per note sent to the embedding model, default `8000`, `0` = no cap. The embedded text is the file name followed by the note body without frontmatter, built identically by "Index entire vault" and the 2D view's "Calculate vectors" button, so vectors computed by one path are cache hits for the other. Keep the value within the model's input limit (`bge-m3` and the OpenAI embedding models accept about 8k tokens); longer input is truncated or rejected depending on the provider. The cache hash covers the capped text, so changing the cap re-embeds only the notes whose embedded text actually changes.
 - **WikiLinks as graph relations (`includeWikiLinksAsRelations`):** Off by default. When off, `[[WikiLinks]]` are **not** indexed as `LINKS_TO` graph edges - GraphRAG multi-hop context and 2D topology weights rely on semantic vectors and explicit typed relations from the Relation Builder only (see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`). Turn on to treat WikiLinks as `LINKS_TO` relationships again. Takes effect on the next full vault re-index.
 - **Gesamtes Vault lokal indizieren:** Computes embeddings and graph connections for all markdown files and stores them directly in the local `memvector-local.sqlite` database.
 
@@ -133,7 +134,8 @@ All note embeddings and graph relationships are stored in:
 - **Tables:**
   - `notes`: `(id TEXT PRIMARY KEY, title TEXT, path TEXT)`
   - `edges`: `(src TEXT, tgt TEXT, type TEXT, description TEXT, bidirectional INTEGER, original_term TEXT, updated_at TEXT)`
-  - `vectors`: `(id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT)`
+  - `vectors`: `(id TEXT PRIMARY KEY, path TEXT, title TEXT, content TEXT, vector TEXT, content_hash TEXT, mtime INTEGER, embedding_fingerprint TEXT)`
+- **Embedding fingerprint:** Every stored vector records the model and endpoint that produced it (`embedding_fingerprint`, model name plus normalized API base URL). A stored vector counts as a cache hit only when both its content hash and its fingerprint match the current settings, and semantic search, the related-notes radar and the 2D layout only use vectors of the active fingerprint. After changing `embeddingModel` or `embeddingApiBaseUrl`, the next indexing run re-embeds every note; until then, notes not yet re-embedded are left out of search instead of being compared across incompatible vector spaces. Vectors stored before fingerprints existed are assigned to the model configured when the plugin first opens the database after the update.
 - **Multi-Hop Traversal:** Executed locally via recursive SQL CTE queries (`WITH RECURSIVE reachable...`). Traversal is bidirectional: both directions of a stored edge are followed. Bidirectional relations are stored as two rows (one per direction), so live-saved relations are traversable from either endpoint immediately (Issue #120).
 
 ---

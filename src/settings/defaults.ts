@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   embeddingProvider: "ollama",
   embeddingApiBaseUrl: "http://localhost:11434/v1",
   embeddingModel: "bge-m3",
+  embeddingMaxChars: 8000,
 
   llmProvider: "ollama",
   apiBaseUrl: "http://localhost:11434/v1",

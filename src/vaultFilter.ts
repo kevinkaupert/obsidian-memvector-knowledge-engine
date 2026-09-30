@@ -1,3 +1,5 @@
+import type { App, TFile } from "obsidian";
+
 /**
  * Purpose: Evaluates vault file paths and names against Obsidian-style include/exclude query patterns (-path:x -file:y term).
  */
@@ -57,4 +59,14 @@ export function shouldIncludeFile(file: { path: string; name: string; basename: 
   }
 
   return true;
+}
+
+/**
+ * Purpose: Lists every markdown file the vector index covers - the global indexing exclusions applied, never a
+ * transient view filter.
+ * Architecture: Single source for the file set that index reconciliation compares against. Reconciling against any
+ * narrower list (e.g. a filtered 2D view) deletes stored vectors of notes that still exist.
+ */
+export function listIndexableFiles(app: App, exclusions: string): TFile[] {
+  return app.vault.getMarkdownFiles().filter((file) => shouldIncludeFile(file, exclusions));
 }

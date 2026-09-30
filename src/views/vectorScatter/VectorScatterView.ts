@@ -1,7 +1,7 @@
 import { Notice, ItemView, TFile, type App, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
-import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
+import { loadRelationVocabulary, resolveVocabularyPath } from "../../relationVocabulary/loadRelationVocabulary";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings } from "../../settings/types";
@@ -247,33 +247,38 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /**
    * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
+   * Architecture: Relation notes are edges *and* scatter nodes (shown with "show relation notes"). Editing one only
+   * changes its edge, so a modify reloads edges; creating, deleting or renaming one changes the node set too and
+   * needs a full rescan (which reloads the edges as well). The vocabulary file carries the per-label layout weights,
+   * so any change to it reloads relations like an edge edit.
    */
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
-    const handleFileEvent = (file: { path: string }) => {
+    const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
+    const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
+    const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
+
+    const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
-      if (file.path.includes("wiki/relations/") || file.path.includes("/relations/")) {
+      if (isVocabulary(file.path) || (kind === "modify" && isRel(file.path))) {
         this.triggerRelationsReload();
-      } else if (file.path.endsWith(".md")) {
+      } else if (isMd(file.path)) {
         this.triggerVaultRescan();
       }
     };
 
     const handleRenameEvent = (file: { path: string }, oldPath: string) => {
-      const isRel = (p?: string) => Boolean(p && (p.includes("wiki/relations/") || p.includes("/relations/")));
-      const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
-
-      if (isRel(file?.path) || isRel(oldPath)) {
+      if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
         this.triggerRelationsReload();
       } else if (isMd(file?.path) || isMd(oldPath)) {
         this.triggerVaultRescan();
       }
     };
 
-    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file)));
-    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file)));
-    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file)));
+    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file, "create")));
+    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file, "modify")));
+    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file, "delete")));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
@@ -292,7 +297,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
     this.vaultDebounceTimer = window.setTimeout(() => {
       void (async () => {
-        await this.scanVaultNotes();
+        await this.scanVaultNotes(undefined, { preserveView: true });
         this.toolbarHandles?.updateSelectionUI();
       })();
     }, 800);
@@ -383,8 +388,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /**
    * Purpose: Scans vault notes using transient view filter and persistent indexing exclusions, then updates embeddings and layout.
+   * Architecture: Explicit scans (opening the view, changing the filter) fit the camera to the new node set;
+   * `preserveView` keeps the user's pan and zoom for background rescans triggered by the vault watcher, which fire
+   * while the user is editing notes.
    */
-  async scanVaultNotes(filterOverride?: string): Promise<void> {
+  async scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
@@ -397,37 +405,55 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
 
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
-
-    for (const node of this.nodes) {
-      const existing = previousEmbeddings.get(node.path) ?? previousEmbeddings.get(node.id);
-      if (existing) node.embedding = existing;
-    }
+    this.reconcileTransientState();
 
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
-    await this.hydrateStoredEmbeddings();
+    await this.hydrateStoredEmbeddings(previousEmbeddings);
     await this.loadRelationEdges();
     this.applyLayout();
-    this.fitToView();
+    if (!options.preserveView) this.fitToView();
     this.redraw();
   }
 
-  /** Loads each scanned node's already-computed embedding from the vector store, so a reopened/rescanned graph uses the existing semantic index instead of recomputing it through a provider. */
-  private async hydrateStoredEmbeddings(): Promise<void> {
+  /**
+   * Purpose: Aligns selection, hover and the search cache with a freshly scanned node list.
+   * Architecture: A rescan replaces every node object. Ids of deleted (or no longer visible) notes would otherwise stay
+   * counted in the selection, and repeating a search would cycle through the old objects and pan to their stale
+   * positions. The selection set is pruned in place because interaction handlers hold a reference to it.
+   */
+  private reconcileTransientState(): void {
+    const visible = new Map(this.getVisibleNodes().map((n) => [n.id, n]));
+    for (const id of [...this.selectedNodeIds]) {
+      if (!visible.has(id)) this.selectedNodeIds.delete(id);
+    }
+    this.hoveredNode = this.hoveredNode ? (visible.get(this.hoveredNode.id) ?? null) : null;
+    this.lastSearchQuery = null;
+    this.lastSearchMatches = [];
+    this.lastSearchIndex = -1;
+  }
+
+  /**
+   * Purpose: Loads each scanned node's embedding from the vector store, so a reopened/rescanned graph uses the existing
+   * semantic index instead of recomputing it through a provider.
+   * Architecture: The store is the source of truth - it holds vectors re-indexed from Settings or another view, and is
+   * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are only used when
+   * the store cannot be read; otherwise they would keep stale or other-model vectors alive in the layout.
+   */
+  private async hydrateStoredEmbeddings(fallback: Map<string, number[]>): Promise<void> {
     if (this.nodes.length === 0) return;
+    let stored: Map<string, number[]>;
     try {
       const store = getVectorStore(this.app, this.settings);
-      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
-      const vectors = await store.getVectors(queryKeys);
-      this.nodes.forEach((n) => {
-        if (!n.embedding || n.embedding.length === 0) {
-          const v = vectors.get(n.path) ?? vectors.get(n.id);
-          if (v) n.embedding = v;
-        }
-      });
+      stored = await store.getVectors([...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)]);
     } catch (err) {
-      console.warn("MemVector: Failed to hydrate stored embeddings before layout:", err);
+      console.warn("MemVector: Failed to hydrate stored embeddings before layout, keeping in-memory embeddings:", err);
+      stored = fallback;
+    }
+    for (const n of this.nodes) {
+      const v = stored.get(n.path) ?? stored.get(n.id);
+      if (v) n.embedding = v;
     }
   }
 

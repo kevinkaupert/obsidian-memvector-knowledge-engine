@@ -1,37 +1,80 @@
 import type { App } from "obsidian";
+import type { Database } from "sql.js";
 import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { cosineSimilarity } from "./cosineSimilarity";
-import { getLocalDb, persistLocalDb } from "./sqliteDb";
+import { flushLocalDb, getLocalDb, persistLocalDb } from "./sqliteDb";
 
-/** VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale). */
+/** Databases whose pre-fingerprint rows were already stamped this session. */
+const legacyRowsAdopted = new WeakSet<Database>();
+
+/**
+ * VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale).
+ *
+ * Scoped to one embedding fingerprint (model + endpoint, see resolveEmbeddingTarget): writes stamp it on every row, and
+ * reads, hashes and search only see rows with the same fingerprint, so vectors from another model are never mixed in and
+ * count as cache misses. `fingerprint: null` leaves the store unscoped.
+ */
 export class SqliteVectorStore implements VectorStore {
-  constructor(private readonly app: App) {}
+  constructor(
+    private readonly app: App,
+    private readonly fingerprint: string | null = null
+  ) {}
 
   async testConnection(): Promise<void> {
-    await getLocalDb(this.app);
+    await this.openDb();
   }
 
   /**
-   * Purpose: Persists vector points, embeddings, content hashes, and mtimes to SQLite with conflict resolution.
+   * Purpose: Opens the shared DB and, once per session, stamps rows written before fingerprints existed with the
+   * active fingerprint.
+   * Architecture: Those rows carry no record of their model. Adopting them as the current one keeps search working
+   * right after an upgrade instead of hiding the whole index until a full re-embed; it is the same assumption the
+   * cache made before fingerprints existed. Persisted immediately so a later model change in another session cannot
+   * adopt them under the wrong model.
+   */
+  private async openDb(): Promise<Database> {
+    const db = await getLocalDb(this.app);
+    if (this.fingerprint !== null && !legacyRowsAdopted.has(db)) {
+      legacyRowsAdopted.add(db);
+      db.run("UPDATE vectors SET embedding_fingerprint = ? WHERE embedding_fingerprint IS NULL", [this.fingerprint]);
+      if (db.getRowsModified() > 0) {
+        try {
+          await persistLocalDb(this.app, db);
+        } catch (err) {
+          console.warn("MemVector: Failed to persist embedding fingerprint for legacy vector rows:", err);
+        }
+      }
+    }
+    return db;
+  }
+
+  /** SQL condition + params restricting a query to this store's fingerprint (no-op when unscoped). */
+  private scope(): { where: string; params: string[] } {
+    return this.fingerprint === null ? { where: "1 = 1", params: [] } : { where: "embedding_fingerprint = ?", params: [this.fingerprint] };
+  }
+
+  /**
+   * Purpose: Persists vector points, embeddings, content hashes, mtimes and this store's embedding fingerprint to SQLite with conflict resolution.
    */
   async syncPoints(points: VectorPoint[]): Promise<void> {
     if (points.length === 0) return;
-    const db = await getLocalDb(this.app);
+    const db = await this.openDb();
     points.forEach((p) => {
       // Purge any legacy rows stored under a different ID (e.g. raw path vs pathToId hash)
       db.run("DELETE FROM vectors WHERE path = ? AND id != ?", [p.payload.path, p.id]);
       db.run(
-        `INSERT INTO vectors (id, path, title, content, vector, content_hash, mtime) VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET path = excluded.path, title = excluded.title, content = excluded.content, vector = excluded.vector, content_hash = excluded.content_hash, mtime = excluded.mtime`,
-        [p.id, p.payload.path, p.payload.title, p.payload.content, JSON.stringify(p.vector), p.contentHash ?? null, p.mtime ?? null]
+        `INSERT INTO vectors (id, path, title, content, vector, content_hash, mtime, embedding_fingerprint) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET path = excluded.path, title = excluded.title, content = excluded.content, vector = excluded.vector, content_hash = excluded.content_hash, mtime = excluded.mtime, embedding_fingerprint = excluded.embedding_fingerprint`,
+        [p.id, p.payload.path, p.payload.title, p.payload.content, JSON.stringify(p.vector), p.contentHash ?? null, p.mtime ?? null, this.fingerprint]
       );
     });
     await persistLocalDb(this.app, db);
   }
 
   async getVector(id: string): Promise<number[] | null> {
-    const db = await getLocalDb(this.app);
-    const result = db.exec("SELECT vector FROM vectors WHERE id = ? OR path = ?", [id, id]);
+    const db = await this.openDb();
+    const { where, params } = this.scope();
+    const result = db.exec(`SELECT vector FROM vectors WHERE (id = ? OR path = ?) AND ${where}`, [id, id, ...params]);
     if (result.length === 0 || result[0].values.length === 0) return null;
     return JSON.parse(String(result[0].values[0][0])) as number[];
   }
@@ -39,8 +82,9 @@ export class SqliteVectorStore implements VectorStore {
   async getVectors(ids: string[]): Promise<Map<string, number[]>> {
     const found = new Map<string, number[]>();
     if (ids.length === 0) return found;
-    const db = await getLocalDb(this.app);
-    const result = db.exec("SELECT id, path, vector FROM vectors");
+    const db = await this.openDb();
+    const { where, params } = this.scope();
+    const result = db.exec(`SELECT id, path, vector FROM vectors WHERE ${where}`, params);
     if (result.length === 0) return found;
 
     const wanted = new Set(ids);
@@ -62,11 +106,13 @@ export class SqliteVectorStore implements VectorStore {
 
   /**
    * Purpose: Retrieves persisted content hashes and modification timestamps to enable incremental embedding skips.
+   * Rows from another embedding fingerprint are left out, so a model/endpoint change turns them into cache misses.
    */
   async getStoredHashes(): Promise<Map<string, StoredVectorHash>> {
     const found = new Map<string, StoredVectorHash>();
-    const db = await getLocalDb(this.app);
-    const result = db.exec("SELECT id, path, content_hash, mtime FROM vectors WHERE content_hash IS NOT NULL");
+    const db = await this.openDb();
+    const { where, params } = this.scope();
+    const result = db.exec(`SELECT id, path, content_hash, mtime FROM vectors WHERE content_hash IS NOT NULL AND ${where}`, params);
     if (result.length === 0) return found;
 
     const { columns, values } = result[0];
@@ -93,7 +139,7 @@ export class SqliteVectorStore implements VectorStore {
   }
 
   async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
-    const db = await getLocalDb(this.app);
+    const db = await this.openDb();
     const current = new Set(currentPaths);
 
     const result = db.exec("SELECT path FROM vectors");
@@ -111,9 +157,15 @@ export class SqliteVectorStore implements VectorStore {
     return { removed };
   }
 
+  async flush(): Promise<void> {
+    await this.openDb();
+    await flushLocalDb(this.app);
+  }
+
   async search(vector: number[], limit: number): Promise<VectorSearchHit[]> {
-    const db = await getLocalDb(this.app);
-    const result = db.exec("SELECT path, title, content, vector FROM vectors");
+    const db = await this.openDb();
+    const { where, params } = this.scope();
+    const result = db.exec(`SELECT path, title, content, vector FROM vectors WHERE ${where}`, params);
     if (result.length === 0) return [];
 
     const { columns, values } = result[0];

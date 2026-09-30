@@ -207,5 +207,55 @@ describe("SqliteVectorStore", () => {
       expect(hashes.has("legacy.md")).toBe(false);
     });
   });
-});
 
+  describe("embedding fingerprint scoping (#164)", () => {
+    const hashed = (id: string, vector: number[]): VectorPoint => ({ ...point(id, vector), contentHash: `hash-${id}` });
+
+    it("hides another fingerprint's vectors from hashes, lookups and search", async () => {
+      const app = fakeApp();
+      await new SqliteVectorStore(app, "model-a@local").syncPoints([hashed("a", [1, 0])]);
+      const storeB = new SqliteVectorStore(app, "model-b@local");
+
+      expect((await storeB.getStoredHashes()).size).toBe(0);
+      expect(await storeB.getVector("a.md")).toBeNull();
+      expect((await storeB.getVectors(["a.md"])).size).toBe(0);
+      expect(await storeB.search([1, 0], 10)).toEqual([]);
+    });
+
+    it("keeps the matching fingerprint's rows visible", async () => {
+      const app = fakeApp();
+      await new SqliteVectorStore(app, "model-a@local").syncPoints([hashed("a", [1, 0])]);
+      const storeA = new SqliteVectorStore(app, "model-a@local");
+
+      expect((await storeA.getStoredHashes()).get("a.md")?.hash).toBe("hash-a");
+      expect(await storeA.getVector("a.md")).toEqual([1, 0]);
+      expect((await storeA.search([1, 0], 10)).map((h) => h.payload.path)).toEqual(["a.md"]);
+    });
+
+    it("re-embedding under a new fingerprint replaces the row instead of keeping both", async () => {
+      const app = fakeApp();
+      const storeA = new SqliteVectorStore(app, "model-a@local");
+      const storeB = new SqliteVectorStore(app, "model-b@local");
+      await storeA.syncPoints([hashed("a", [1, 0])]);
+      await storeB.syncPoints([hashed("a", [0, 1])]);
+
+      expect(await storeA.getVector("a.md")).toBeNull();
+      expect(await storeB.getVector("a.md")).toEqual([0, 1]);
+      expect((await new SqliteVectorStore(app).search([0, 1], 10)).length).toBe(1);
+    });
+
+    it("adopts pre-fingerprint rows for the active fingerprint and persists that, so a later model does not see them", async () => {
+      const files = new Map<string, ArrayBuffer>();
+      await new SqliteVectorStore(fakeApp(files)).syncPoints([hashed("legacy", [1, 0])]);
+
+      // Next session, still on the model that produced the legacy rows.
+      const adopted = new SqliteVectorStore(fakeApp(files), "model-a@local");
+      expect(await adopted.getVector("legacy.md")).toEqual([1, 0]);
+
+      // Later session after a model switch - no write happened in between.
+      const switched = new SqliteVectorStore(fakeApp(files), "model-b@local");
+      expect(await switched.getVector("legacy.md")).toBeNull();
+      expect((await switched.getStoredHashes()).size).toBe(0);
+    });
+  });
+});

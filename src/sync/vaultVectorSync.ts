@@ -1,11 +1,11 @@
 import type { App } from "obsidian";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
-import { stripFrontmatter } from "../noteContent";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
-import { shouldIncludeFile } from "../vaultFilter";
+import { listIndexableFiles } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
-import { hashString } from "../hash";
+import { buildEmbeddingInput } from "./embeddingText";
+import { resolveEmbeddingTarget } from "./embeddingTarget";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -16,10 +16,14 @@ export interface VectorSyncResult {
 
 /**
  * Purpose: Synchronizes vault markdown embeddings to the VectorStore incrementally and reconciles removed files.
+ * The store must be scoped to the same embedding target (getVectorStore(app, settings)); its stored hashes then only
+ * cover vectors of the configured model and endpoint, so a model switch re-embeds unchanged notes.
  */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
-  const vaultFiles = app.vault.getMarkdownFiles();
+  const totalFiles = app.vault.getMarkdownFiles().length;
+  const indexableFiles = listIndexableFiles(app, settings.vectorSearchExclusions);
   const embeddingApiKey = resolveEmbeddingApiKey(app, settings);
+  const target = resolveEmbeddingTarget(settings);
 
   const points: VectorPoint[] = [];
   // Every currently-included file, regardless of whether its embedding attempt
@@ -32,15 +36,11 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
   const storedHashes = await store.getStoredHashes();
 
-  for (let i = 0; i < vaultFiles.length; i++) {
-    const file = vaultFiles[i];
-    if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
+  for (const file of indexableFiles) {
     includedPaths.push(file.path);
     const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
-    const content = stripFrontmatter(rawContent);
-    const sampleText = `${file.basename}\n${content}`.slice(0, 1500);
-    const currentHash = String(hashString(sampleText));
+    const { text: sampleText, hash: currentHash, body: content } = buildEmbeddingInput(file.basename, rawContent, settings.embeddingMaxChars);
 
     const cached = storedHashes.get(file.path) ?? storedHashes.get(pathToId(file.path));
     if (cached && cached.hash === currentHash) {
@@ -48,13 +48,13 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
       continue;
     }
 
-    const { embedding, error } = await fetchEmbedding(sampleText, settings.embeddingApiBaseUrl, embeddingApiKey, settings.embeddingModel);
+    const { embedding, error } = await fetchEmbedding(sampleText, target.apiBase, embeddingApiKey, target.model);
 
     if (error) {
       consecutiveErrors++;
       if (!firstErrorMsg) firstErrorMsg = error;
       if (consecutiveErrors >= 3 || (points.length === 0 && consecutiveErrors >= 1)) {
-        throw new Error(`Embedding error (${settings.embeddingModel}): ${firstErrorMsg}`);
+        throw new Error(`Embedding error (${target.model}): ${firstErrorMsg}`);
       }
       continue;
     }
@@ -76,7 +76,9 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
     await store.syncPoints(points);
   }
   await store.reconcile(includedPaths);
+  // Also covers runs where every note was a cache hit: their hashes may stem from an earlier failed write.
+  await store.flush();
 
-  return { totalFiles: vaultFiles.length, syncedCount: points.length, skippedCount };
+  return { totalFiles, syncedCount: points.length, skippedCount };
 }
 

@@ -214,7 +214,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     const typesEl = typesDetails.createDiv({ cls: "memvector-types-details-body" });
     renderTypeTable(typesEl, terms, () => activeVocabularyPath(host), app, host, t, rerender);
 
-    const resetBtn = typesEl.createEl("button", { text: t.relTypeResetBtn });
+    const resetBtn = typesEl.createDiv({ cls: "memvector-type-reset-row" }).createEl("button", { text: t.relTypeResetBtn });
     resetBtn.onclick = async () => {
       try {
         await writeVocabularyFile(app, activePath, DEFAULT_RELATION_VOCABULARY);
@@ -341,22 +341,28 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
     delBtn.onclick = () => void removeType(term.label);
   }
 
-  // 4. Add-type form
-  const addForm = parent.createDiv({ cls: "memvector-type-add-row" });
-  const labelInput = addForm.createEl("input", { type: "text", placeholder: t.relTypeAddLabelPlaceholder });
-  const categoryInput = addForm.createEl("input", { type: "text", placeholder: t.relTypeAddCategoryPlaceholder });
+  // 4. Add-type form - the table's last row, each control under the column it fills, so it
+  // reads as the next type to add and never wraps mid-form in a narrow settings pane.
+  const addRow = table.createEl("tfoot").createEl("tr", { cls: "memvector-type-add-row" });
+  const labelInput = addRow.createEl("td").createEl("input", { type: "text", placeholder: t.relTypeAddLabelPlaceholder });
+  labelInput.title = t.relTypeAddLabelPlaceholder;
+  const categoryInput = addRow.createEl("td").createEl("input", { type: "text", placeholder: t.relTypeAddCategoryPlaceholder });
+  categoryInput.title = t.relTypeAddCategoryPlaceholder;
   categoryInput.value = "Custom";
-  const weightInput = addForm.createEl("input", { type: "number", placeholder: "1.0" });
+  const weightInput = addRow.createEl("td").createEl("input", { type: "number", placeholder: "1.0" });
   weightInput.addClass("memvector-type-weight-input");
+  weightInput.title = t.relTypeColWeight;
   weightInput.value = "1.0";
-  const bidirectionalToggle = addForm.createEl("input", { type: "checkbox" });
-  const bidirectionalLabel = addForm.createEl("label", { text: t.relTypeAddBidirectional, cls: "memvector-type-toggle-label" });
-  bidirectionalLabel.prepend(bidirectionalToggle);
-  const repelsToggle = addForm.createEl("input", { type: "checkbox" });
-  const repelsLabel = addForm.createEl("label", { text: t.relTypeAddRepels, cls: "memvector-type-toggle-label" });
-  repelsLabel.prepend(repelsToggle);
+  const bidirectionalToggle = addRow.createEl("td").createEl("label", { text: "↔", cls: "memvector-type-toggle-label" }).createEl("input", { type: "checkbox" });
+  bidirectionalToggle.title = t.relTypeAddBidirectional;
+  bidirectionalToggle.setAttribute("aria-label", t.relTypeAddBidirectional);
+  const repelsToggle = addRow.createEl("td").createEl("input", { type: "checkbox" });
+  repelsToggle.title = t.relTypeAddRepels;
+  repelsToggle.setAttribute("aria-label", t.relTypeAddRepels);
 
-  const addBtn = addForm.createEl("button", { text: t.relTypeAddBtn });
+  const addBtn = addRow.createEl("td").createEl("button", { text: "+" });
+  addBtn.title = t.relTypeAddBtn;
+  addBtn.setAttribute("aria-label", t.relTypeAddBtn);
   addBtn.onclick = () => {
     const label = sanitizeRelType(labelInput.value);
     if (!label) return;
