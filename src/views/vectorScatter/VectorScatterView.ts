@@ -555,7 +555,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
-  /** Loads each scanned node's persisted 2D coordinates from SQLite if unplaced, preserving the user's mental map across restarts. */
+  /**
+   * Purpose: Loads each scanned node's persisted 2D coordinates from SQLite if unplaced.
+   * Architecture: Preserves the user's mental map across restarts (ADR-0005).
+   */
   private async hydrateStoredPositions(): Promise<void> {
     if (this.nodes.length === 0) return;
     try {
@@ -575,7 +578,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
-  /** Persists non-zero 2D coordinates of all currently placed nodes to SQLite for session continuity. */
+  /**
+   * Purpose: Persists non-zero 2D coordinates of all currently placed nodes to SQLite.
+   * Architecture: Preserves node positions across sessions and restarts (ADR-0005).
+   */
   private async persistCurrentPositions(): Promise<void> {
     if (this.nodes.length === 0) return;
     try {
