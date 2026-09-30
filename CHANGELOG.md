@@ -29,7 +29,8 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - A live vault update during "Calculate vectors" no longer aborts the calculation with
   `Cannot read properties of undefined` and leaves the button disabled. The loop now
   works on a snapshot of the notes, hands the results to the refreshed notes by path,
-  and re-enables the button and reports the error on any failure (#169).
+  and re-enables the button and reports the error on any failure. Notes deleted in the
+  meantime are skipped and no longer counted as cached in the success message (#169).
 - An open 2D view now picks up vectors re-indexed elsewhere (Settings, another view, a
   model switch) on its next rescan. It used to copy its previous in-memory embeddings onto
   the rescanned notes and only filled gaps from the database; the stored vectors now take

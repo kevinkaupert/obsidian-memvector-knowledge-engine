@@ -541,3 +541,43 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
     expect(noticeCalls.some((n) => n.message.includes("[ERROR]") && n.message.includes("read failed"))).toBe(true);
   });
 });
+
+describe("runCalcVectors does not count notes deleted since the scan", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+  });
+
+  it("reports only the notes that still exist as cached, and still completes", async () => {
+    const hash = buildEmbeddingInput("Kept", "kept body", DEFAULT_SETTINGS_FOR_TEST.embeddingMaxChars).hash;
+    const reconcile = vi.fn().mockResolvedValue({ removed: 0 });
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map([["Kept.md", { hash }]])),
+      getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+    const statusText = createMockEl() as any;
+    const ctx = {
+      // Gone.md is still in the scanned node list but no longer in the vault.
+      app: { vault: createMockVault({ "Kept.md": "kept body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [
+        { id: pathToId("Kept.md"), path: "Kept.md", title: "Kept", content: "", x: 0, y: 0 },
+        { id: pathToId("Gone.md"), path: "Gone.md", title: "Gone", content: "", x: 0, y: 0 },
+      ],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+
+    await runCalcVectors(ctx, createMockEl() as any, statusText, createMockEl() as any);
+
+    expect(noticeCalls).toHaveLength(1);
+    expect(noticeCalls[0].message.startsWith("[OK] 1 ")).toBe(true);
+    expect(statusText.text.startsWith("1 | ")).toBe(true);
+    expect(reconcile).toHaveBeenCalledTimes(1);
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+  });
+});

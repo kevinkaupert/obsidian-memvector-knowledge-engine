@@ -407,6 +407,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   let successCount = 0;
   let skippedCount = 0;
   let newCalculatedCount = 0;
+  let vanishedCount = 0;
   let lastError: string | null = null;
   const points: VectorPoint[] = [];
 
@@ -424,8 +425,8 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     // excerpt, and the text and hash must match the Settings vault sync exactly.
     const file = ctx.app.vault.getAbstractFileByPath(node.path);
     if (!(file instanceof TFile)) {
-      // Deleted since the scan - nothing left to embed.
-      successCount++;
+      // Deleted since the scan - nothing left to embed, and not counted as calculated or cached either.
+      vanishedCount++;
       continue;
     }
     const { text: sampleText, hash: currentHash, body } = buildEmbeddingInput(file.basename, await ctx.app.vault.cachedRead(file), ctx.settings.embeddingMaxChars);
@@ -470,6 +471,8 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   }
 
   adoptEmbeddings(ctx, workNodes);
+  // Notes that still exist - the base for completion and for every count reported below.
+  const done = total - vanishedCount;
 
   let syncFailed = false;
   let syncErrorMsg: string | null = null;
@@ -484,7 +487,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     }
   }
 
-  if (!syncFailed && successCount === total) {
+  if (!syncFailed && successCount === done) {
     try {
       // Reconcile against the whole indexable vault, not ctx.nodes: the node list honours the transient view
       // filter, and reconciling against it would delete the vectors of every note filtered out of the view.
@@ -511,24 +514,24 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     statusText.setText(vT.statusPersistenceError);
     setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
     new Notice(`[ERROR] ${vT.noticePersistenceError}: ${syncErrorMsg}`, 8000);
-  } else if (successCount === total) {
+  } else if (successCount === done) {
     ctx.applyLayout();
     ctx.redraw();
     if (newCalculatedCount === 0 && skippedCount > 0) {
-      setHoverBarText(hoverBar, `[OK] ${total}/${total} ${vT.statusSkippedCached}`, "muted");
-      statusText.setText(`${total} | ${vT.statusCacheActive}`);
-      new Notice(`[OK] ${total} ${vT.statusSkippedCached}`);
+      setHoverBarText(hoverBar, `[OK] ${done}/${done} ${vT.statusSkippedCached}`, "muted");
+      statusText.setText(`${done} | ${vT.statusCacheActive}`);
+      new Notice(`[OK] ${done} ${vT.statusSkippedCached}`);
     } else if (skippedCount > 0) {
-      setHoverBarText(hoverBar, `[OK] ${newCalculatedCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`, "muted");
-      statusText.setText(`${total} | ${vT.statusVectorsOk}`);
+      setHoverBarText(hoverBar, `[OK] ${newCalculatedCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`, "muted");
+      statusText.setText(`${done} | ${vT.statusVectorsOk}`);
       new Notice(`[OK] ${newCalculatedCount} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`);
     } else {
-      setHoverBarText(hoverBar, `[OK] ${successCount}/${total} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
-      statusText.setText(`${total} | ${vT.statusVectorsOk}`);
+      setHoverBarText(hoverBar, `[OK] ${successCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
+      statusText.setText(`${done} | ${vT.statusVectorsOk}`);
       new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
     }
   } else if (lastError) {
-    statusText.setText(`${vT.statusErrorCount} (${successCount}/${total})`);
+    statusText.setText(`${vT.statusErrorCount} (${successCount}/${done})`);
   }
 }
 
