@@ -1,5 +1,6 @@
 import type { MemVectorSettings } from "./types";
 import { PROVIDER_DEFAULT_MODELS } from "../llm/modelDefaults";
+import { DEFAULT_PRESETS_FOLDER, DEFAULT_RELATION_VOCABULARY_PATH, DEFAULT_RELATIONS_FOLDER, DEFAULT_SYNTHESIS_FOLDER } from "../vaultLayout";
 
 export const DEFAULT_SETTINGS: MemVectorSettings = {
   language: "de",
@@ -28,7 +29,10 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   agentsGuidelinesCharCap: 0,
   includeAgentsGuidelines: false,
   agentsGuidelinePaths: "AGENTS.md",
-  relationVocabularyPath: "wiki/relation-types.json",
+  relationVocabularyPath: DEFAULT_RELATION_VOCABULARY_PATH,
+  relationsFolder: DEFAULT_RELATIONS_FOLDER,
+  synthesisFolder: DEFAULT_SYNTHESIS_FOLDER,
+  presetsFolder: DEFAULT_PRESETS_FOLDER,
   synthesisContentCapChars: 0,
   scatterVisualStyle: "ink",
   showRelationNotes: false,

@@ -91,3 +91,11 @@ describe("rankCandidates", () => {
     expect(ranked[0].score).toBe(0);
   });
 });
+
+describe("classifyNoteType uses the shared relation-note rule (#173)", () => {
+  it("classifies by frontmatter type, not by a /relations/ substring", () => {
+    expect(classifyNoteType("Beziehungen/a.md", "a.md", "relation")).toBe("relation");
+    expect(classifyNoteType("Customers/relations/a.md", "a.md", "concept")).toBe("concept");
+  });
+});
+

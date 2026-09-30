@@ -158,3 +158,48 @@ spanning multiple lines.
   });
 });
 
+describe("relation-note identification (#173)", () => {
+  const rel = (path: string, frontmatter: Record<string, unknown> = {}) => ({
+    path,
+    basename: path.replace(/^.*\//, "").replace(/\.md$/, ""),
+    frontmatter: { source_note: "[[Alpha|Alpha]]", target_note: "[[Beta|Beta]]", relation_type: "REQUIRES", ...frontmatter },
+  });
+  const notes = [
+    { path: "Alpha.md", basename: "Alpha" },
+    { path: "Beta.md", basename: "Beta" },
+  ];
+
+  it("loads a relation note moved out of wiki/relations by its frontmatter type", async () => {
+    const edges = await loadRelationEdges(fakeApp([...notes, rel("Beziehungen/moved.md", { type: "relation" })]));
+    expect(edges).toHaveLength(1);
+  });
+
+  it("loads relation notes from a top-level relations folder when they carry the type", async () => {
+    const edges = await loadRelationEdges(fakeApp([...notes, rel("relations/top.md", { type: "relation" })]));
+    expect(edges).toHaveLength(1);
+  });
+
+  it("ignores notes in unrelated folders named like relations without the type", async () => {
+    const edges = await loadRelationEdges(fakeApp([...notes, rel("Customers/relations/x.md"), rel("wiki/relationships/y.md")]));
+    expect(edges).toHaveLength(0);
+  });
+});
+
+describe("configured relations folder (#173)", () => {
+  const untyped = (path: string) => ({
+    path,
+    basename: "r",
+    frontmatter: { source_note: "[[Alpha|Alpha]]", target_note: "[[Beta|Beta]]", relation_type: "REQUIRES" },
+  });
+  const notes = [
+    { path: "Alpha.md", basename: "Alpha" },
+    { path: "Beta.md", basename: "Beta" },
+  ];
+
+  it("treats untyped notes in the configured folder as relations, and no longer those in wiki/relations", async () => {
+    const app = fakeApp([...notes, untyped("Beziehungen/r.md"), untyped("wiki/relations/old.md")]);
+    const edges = await loadRelationEdges(app, "", "Beziehungen");
+    expect(edges.map((e) => e.path)).toEqual(["Beziehungen/r.md"]);
+  });
+});
+

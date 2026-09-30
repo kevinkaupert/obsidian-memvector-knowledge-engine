@@ -1,7 +1,8 @@
 import { Modal, Notice, TFile, type App } from "obsidian";
-import { getTranslation } from "../../i18n";
+import { getTranslation, withFolder } from "../../i18n";
 import { getGraphStore } from "../../sync/storeFactory";
 import type { SettingsHost } from "../../settings/types";
+import { relationsFolder } from "../../vaultLayout";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
 import { buildRelationCategories, type RelationCategory } from "../../relationVocabulary/buildCategories";
 import { persistCustomRelationTypes, type CustomTypeInput } from "../../relationVocabulary/persistCustomType";
@@ -308,7 +309,8 @@ export class RelationBuilderModal extends Modal {
       let paths: string[];
       try {
         // Include excluded relation files too: they still own their paths and identities.
-        paths = await relationFilePaths(resolvedEdges, await loadRelationFiles(this.app), this.initialEdge?.path);
+        const folder = relationsFolder(this.host.settings);
+        paths = await relationFilePaths(resolvedEdges, await loadRelationFiles(this.app, "", folder), this.initialEdge?.path, folder);
       } catch (err) {
         console.error(t.relSaveError, err);
         new Notice(t.relSaveError, 8000);
@@ -366,7 +368,7 @@ export class RelationBuilderModal extends Modal {
       }
 
       if (failedCount > 0) new Notice(`${t.relSaveError}: ${failedCount}`, 8000);
-      if (createdCount > 0) new Notice(`${createdCount} ${t.relSaveSuccess}`);
+      if (createdCount > 0) new Notice(`${createdCount} ${withFolder(t.relSaveSuccess, relationsFolder(this.host.settings))}`);
 
       this.onSaved?.();
       this.close();

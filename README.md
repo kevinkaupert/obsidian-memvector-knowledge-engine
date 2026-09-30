@@ -37,7 +37,8 @@ That declaration does three things at once:
    layout is a direct expression of your declared structure.
 
 2. **Creates a Markdown file in your vault.** The relation lives in
-   `wiki/relations/` as a normal `.md` file — readable, editable,
+   the relations folder (`wiki/relations/` by default, configurable) as a normal
+   `.md` file with `type: relation` in its frontmatter — readable, editable,
    version-controlled, searchable. You can write a reason in plain text.
    Nothing is hidden in a database you cannot inspect.
 

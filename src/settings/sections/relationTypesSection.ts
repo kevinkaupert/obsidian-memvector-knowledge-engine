@@ -1,5 +1,5 @@
 import { Modal, Notice, Setting, type App } from "obsidian";
-import type { TranslationKeys } from "../../i18n";
+import { withFolder, type TranslationKeys } from "../../i18n";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import { DEFAULT_RELATION_VOCABULARY_PATH } from "../../relationVocabulary/loadRelationVocabulary";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
@@ -17,6 +17,7 @@ import { createVocabularyMutator, type VocabularyMutation, type VocabularyTransf
 import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
+import { presetsFolder } from "../../vaultLayout";
 
 /**
  * Purpose: Resolves the vault path of the active vocabulary file from settings.
@@ -96,7 +97,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
   const sectionEl = containerEl.createDiv({ cls: "memvector-relation-types-section" });
 
   void (async () => {
-    const presets = await listPresets(app);
+    const presets = await listPresets(app, presetsFolder(host.settings));
     const activePath = activeVocabularyPath(host);
     const activeKey = activePresetKey(activePath, presets);
     const selected = presets.find((p) => p.key === activeKey);
@@ -105,7 +106,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     // 1. Active preset selector
     new Setting(sectionEl)
       .setName(t.relPresetName)
-      .setDesc(t.relPresetDesc)
+      .setDesc(withFolder(t.relPresetDesc, presetsFolder(host.settings)))
       .addDropdown((dropdown) => {
         for (const p of presets) dropdown.addOption(p.key, p.label);
         if (!activeKey) {
@@ -130,7 +131,7 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
     // 2. Active vocabulary file path (advanced - normally managed via presets above)
     const vocabSetting = new Setting(sectionEl)
       .setName(t.relVocabPathName)
-      .setDesc(t.relVocabPathDesc);
+      .setDesc(withFolder(t.relVocabPathDesc, presetsFolder(host.settings)));
     vocabSetting.settingEl.addClass("memvector-setting-block");
     vocabSetting.controlEl.addClass("memvector-setting-full-width");
     vocabSetting.addText((text) => {

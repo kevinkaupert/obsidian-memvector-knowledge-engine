@@ -1,6 +1,8 @@
 import { Setting } from "obsidian";
-import type { TranslationKeys } from "../../i18n";
+import { withFolder, type TranslationKeys } from "../../i18n";
+import { relationsFolder } from "../../vaultLayout";
 import type { ScatterVisualStyle, SettingsHost } from "../types";
+import { renderFolderSettings } from "./folderSettings";
 
 /** Everything that shapes overall plugin behavior rather than one specific provider/database - previously scattered across languageSection.ts and the top of vectorFilterSection.ts. */
 export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
@@ -21,6 +23,8 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
           rerender();
         })
     );
+
+  renderFolderSettings(containerEl, host, t, rerender);
 
   new Setting(containerEl).setName(t.secGeneralScan).setHeading();
 
@@ -74,7 +78,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
 
   new Setting(containerEl)
     .setName(t.lblShowRelationNotes)
-    .setDesc(t.showRelationNotesDesc)
+    .setDesc(withFolder(t.showRelationNotesDesc, relationsFolder(settings)))
     .addToggle((toggle) =>
       toggle.setValue(settings.showRelationNotes ?? false).onChange(async (value) => {
         settings.showRelationNotes = value;

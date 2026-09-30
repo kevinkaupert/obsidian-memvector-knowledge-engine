@@ -106,3 +106,15 @@ describe("relation filename identity (#74)", () => {
     expect(await relationFilePaths([edge()], [legacy, duplicate], legacy.path)).toEqual([duplicate.path]);
   });
 });
+
+describe("relation file folder (#173)", () => {
+  it("writes new relation notes into the configured folder", async () => {
+    expect((await relationFilePath(edge(), "Beziehungen")).startsWith("Beziehungen/rel-")).toBe(true);
+    expect((await relationFilePaths([edge()], [], undefined, "Beziehungen"))[0].startsWith("Beziehungen/rel-")).toBe(true);
+  });
+
+  it("keeps wiki/relations as the default", async () => {
+    expect((await relationFilePath(edge())).startsWith("wiki/relations/rel-")).toBe(true);
+  });
+});
+

@@ -7,6 +7,15 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Added
+- Settings -> General -> **Vault folders**: the folders for relation notes
+  (`relationsFolder`), synthesis notes (`synthesisFolder`) and vocabulary presets
+  (`presetsFolder`) are configurable. Defaults stay `wiki/relations`, `wiki/synthesis` and
+  `wiki/presets`, so existing vaults are unchanged; changing a folder does not move existing
+  notes. The relations folder is also the fallback criterion for relation notes without
+  `type: relation`. Texts that named the fixed `wiki/...` folders now show the configured
+  ones (#173).
+
 ### Fixed
 - "Index entire vault" (Settings) and "Calculate vectors" (2D view) now embed the same
   text and compute the same cache hash. Settings used the file name plus up to 1500
@@ -29,6 +38,11 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - The embedding fingerprint no longer treats endpoints whose URL paths differ only in case
   (e.g. `/ModelA/v1` and `/modela/v1`) as the same vector space; only scheme and host are
   compared case-insensitively (#177).
+- Relation notes are recognized by one rule everywhere (edges, graph index, GraphRAG,
+  scatter nodes, vault watcher, radar): frontmatter `type: relation`, or a note inside
+  `wiki/relations/`. Moved relation notes and a top-level `relations/` folder now work;
+  ordinary notes in an unrelated folder named `relations` without the type are no
+  longer treated as edges. See ADR-0004 (#173).
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).

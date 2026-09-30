@@ -1,5 +1,6 @@
 import { stripFrontmatter } from "../../noteContent";
 import { shouldIncludeFile } from "../../vaultFilter";
+import { frontmatterTypeOf, isRelationNote } from "../../relationNotes";
 
 export interface NoteFileLike {
   path: string;
@@ -34,10 +35,10 @@ export function shouldExcludeFromRadar(file: NoteFileLike, exclusions?: string):
   return file.path.includes("schema") || EXCLUDED_NAME_SUBSTRINGS.some((s) => file.name.includes(s));
 }
 
-export function classifyNoteType(path: string, name: string): RadarNoteType {
+export function classifyNoteType(path: string, name: string, frontmatterType?: unknown, relationsFolder?: string): RadarNoteType {
+  if (isRelationNote(path, frontmatterType, relationsFolder)) return "relation";
   if (path.includes("/definitions/") || name.includes("def-")) return "definition";
   if (path.includes("/theorems/") || name.includes("satz-") || name.includes("theorem-")) return "theorem";
-  if (path.includes("/relations/")) return "relation";
   if (path.includes("/synthesis/")) return "synthesis";
   if (path.includes("/courses/")) return "course";
   if (path.includes("/questions/")) return "question";
@@ -96,7 +97,7 @@ export function rankCandidates(
   const scored = candidates.map(({ file, content }) => {
     const body = stripFrontmatter(content);
     const { score, formulas } = scoreAgainstActive(activeWords, activeFormulas, body);
-    return { file, type: classifyNoteType(file.path, file.name), score, formulas, content: body };
+    return { file, type: classifyNoteType(file.path, file.name, frontmatterTypeOf(content)), score, formulas, content: body };
   });
 
   scored.sort((a, b) => b.score - a.score);

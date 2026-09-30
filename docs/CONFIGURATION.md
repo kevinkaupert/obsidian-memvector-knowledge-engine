@@ -16,10 +16,15 @@ The settings menu is organized into 3 focused sections:
 
 ### Section 1: General (Allgemein)
 - **Language / Sprache:** Choose UI language (`Deutsch` / `English`). All setting titles, descriptions, dropdown options, and notices translate automatically when toggled.
+- **Vault folders:** Where the plugin writes its own notes. Changing a folder does not move existing notes.
+  - **Relation notes folder (`relationsFolder`, default `wiki/relations`):** New relation notes from the Relation Builder go here. A note counts as a relation note if its frontmatter has `type: relation` (anywhere in the vault) or it lies inside this folder (ADR-0004), so moved relation notes keep working.
+  - **Synthesis notes folder (`synthesisFolder`, default `wiki/synthesis`):** Saved synthesis notes go here.
+  - **Vocabulary presets folder (`presetsFolder`, default `wiki/presets`):** User presets are listed from and created in this folder.
+  Values are trimmed and stripped of leading/trailing slashes; an empty value falls back to the default. The field is applied on blur or Enter, not on every keystroke.
 - **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).
-- **Show Relation Notes (`showRelationNotes`):** Render relation notes (`wiki/relations/`) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots. Takes effect immediately in an open 2D view.
+- **Show Relation Notes (`showRelationNotes`):** Render relation notes (frontmatter `type: relation`, or notes in the relations folder) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots. Takes effect immediately in an open 2D view.
 - **2D Canvas Visual Style (`scatterVisualStyle`):** `Monochrome` / `Muted Type Colors` / `Ink & Focus Glow` (default `ink`). Moved from the floating toolbar into Settings.
 - **Include Agent Guidelines (`includeAgentsGuidelines`):** Include the vault's own `AGENTS.md` (or the configured guideline files) as house-style guidance in the synthesis prompt (default off). Moved from the floating toolbar into Settings.
 - **Agent Guideline Files (`agentsGuidelinePaths`):** Vault paths (comma-separated) loaded as house-style rules for synthesis when "Include agent guidelines" is enabled (default `AGENTS.md`).
@@ -112,7 +117,7 @@ The preselected type uses the same vocabulary resolution as an explicitly select
 
 ### Relation type presets & manager (Settings → Relation Types)
 
-- **Presets** are named vocabulary files in `wiki/presets/` (e.g. `stem.json`, `law.json`). The active preset is simply the file `settings.relationVocabularyPath` points to. Bundled presets ship in-memory (STEM default, plus Law, Medicine, and Philosophy stubs) and are written to `wiki/presets/` on first activation. Switching presets reloads the vocabulary in memory - no re-embedding or re-indexing is required because edge labels are stored as strings in SQLite.
+- **Presets** are named vocabulary files in the presets folder (`presetsFolder`, default `wiki/presets/`; e.g. `stem.json`, `law.json`). The active preset is simply the file `settings.relationVocabularyPath` points to. Bundled presets ship in-memory (STEM default, plus Law, Medicine, and Philosophy stubs) and are written to `wiki/presets/` on first activation. Switching presets reloads the vocabulary in memory - no re-embedding or re-indexing is required because edge labels are stored as strings in SQLite.
 - **Free-text custom types:** when you save a relation with a free-text type in the Relation Builder, the type is automatically appended to the active vocabulary file under the `"Custom"` category (default weight `1.0`) and appears in the dropdown on the next open - no manual JSON editing.
 - **Bundled preset names are reserved.** `stem`, `law`, `medicine` and `philosophy` identify the bundled presets, and a preset is identified by its file key alone. Creating or renaming a user preset to one of those names is rejected with a message naming the conflict. Only the exact key is reserved - "Law & Contracts" becomes `law-contracts.json` and is fine.
   If a vault created such a preset before this was enforced, its file still sits at the reserved key and the manager presents it under the bundled label, where it cannot be renamed or deleted. The plugin does not detect this automatically, and deliberately so: the type table writes to whichever preset is active, so a legitimately customized bundled preset and a name collision produce files that look exactly alike. To recover, rename the file in `wiki/presets/` yourself - it then reappears as your own preset under its new name.

@@ -2,6 +2,8 @@ import type { App } from "obsidian";
 import { pathToId, toSlug } from "../../noteSlug";
 import type { RelationEdge } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
+import { isRelationNote } from "../../relationNotes";
+import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
 
 /**
  * Resolves a relation file's stored WikiLink text (e.g. from `source_note`)
@@ -83,15 +85,15 @@ export function parseRelationMetadata(
 }
 
 /** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */
-export async function loadRelationFiles(app: App, exclusions = ""): Promise<RelationEdge[]> {
+export async function loadRelationFiles(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
   const edges: RelationEdge[] = [];
   const files = app.vault.getMarkdownFiles();
 
   for (const f of files) {
-    if (!(f.path.includes("wiki/relation") || f.path.includes("/relations/"))) continue;
+    const fileCache = app.metadataCache.getFileCache(f);
+    if (!isRelationNote(f.path, fileCache?.frontmatter?.type, relationsFolder)) continue;
     if (!shouldIncludeFile(f, exclusions)) continue;
     try {
-      const fileCache = app.metadataCache.getFileCache(f);
       let meta = parseRelationMetadata(fileCache?.frontmatter);
 
       if (!meta.rawSrc || !meta.rawTgt || !meta.desc) {
@@ -124,8 +126,8 @@ export async function loadRelationFiles(app: App, exclusions = ""): Promise<Rela
 }
 
 /** Deduplicates graph edges by ordered endpoints and type for rendering and graph sync. */
-export async function loadRelationEdges(app: App, exclusions = ""): Promise<RelationEdge[]> {
-  const files = await loadRelationFiles(app, exclusions);
+export async function loadRelationEdges(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
+  const files = await loadRelationFiles(app, exclusions, relationsFolder);
   const seen = new Set<string>();
   return files.filter((edge) => {
     const key = JSON.stringify([edge.srcId, edge.tgtId, edge.relType]);

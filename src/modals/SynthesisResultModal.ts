@@ -1,8 +1,9 @@
 import { Component, MarkdownRenderer, Modal, Notice, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
-import { getTranslation } from "../i18n";
+import { getTranslation, withFolder } from "../i18n";
 import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
+import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
 
 interface SynthesisNode {
   id: string;
@@ -45,7 +46,7 @@ export class SynthesisResultModal extends Modal {
     const btnRow = contentEl.createDiv({ cls: "memvector-synthesis-actions" });
 
     const saveBtn = btnRow.createEl("button", {
-      text: t.synthSaveBtn,
+      text: withFolder(t.synthSaveBtn, synthesisFolder(this.settings ?? {})),
       cls: "mod-cta",
     });
 
@@ -59,12 +60,7 @@ export class SynthesisResultModal extends Modal {
         .map((n) => n.id)
         .join("-")
         .slice(0, 50)
-      let finalPath = `wiki/synthesis/synthese-${slug}.md`;
-      let counter = 1;
-      while (this.app.vault.getAbstractFileByPath(finalPath)) {
-        finalPath = `wiki/synthesis/synthese-${slug}-${counter}.md`;
-        counter++;
-      }
+      const finalPath = uniqueNotePath(synthesisFolder(this.settings ?? {}), `synthese-${slug}`, (p) => Boolean(this.app.vault.getAbstractFileByPath(p)));
 
       const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
       const frontmatter = `---
@@ -89,7 +85,7 @@ ${this.synthesisText}
         this.close();
       } catch (err) {
         saveBtn.disabled = false;
-        saveBtn.setText(t.synthSaveBtn);
+        saveBtn.setText(withFolder(t.synthSaveBtn, synthesisFolder(this.settings ?? {})));
         new Notice(`[ERROR] ${t.saveErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
       }
     };

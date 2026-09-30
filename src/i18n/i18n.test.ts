@@ -21,3 +21,17 @@ describe("i18n", () => {
     expect(getTranslation("unknown").provCustomRest).toBe("Benutzerdefinierter REST-Endpunkt");
   });
 });
+
+describe("folder placeholders (#173)", () => {
+  it("fills {folder} with the configured folder", async () => {
+    const { withFolder } = await import("./index");
+    expect(withFolder(en.synthSaveBtn, "Notes/Synth")).toBe("Save as Synthesis Note (Notes/Synth/)");
+  });
+
+  it("names no fixed wiki/ folder in any translation", () => {
+    for (const table of [de, en]) {
+      const hardcoded = Object.entries(table).filter(([, v]) => typeof v === "string" && v.includes("wiki/"));
+      expect(hardcoded.map(([k]) => k)).toEqual([]);
+    }
+  });
+});

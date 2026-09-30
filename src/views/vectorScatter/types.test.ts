@@ -36,13 +36,17 @@ describe("isRelationNode (#59)", () => {
     expect(isRelationNode(node)).toBe(true);
   });
 
-  it("detects relation notes by /relations/ path segment", () => {
+  it("does not treat an unrelated folder named relations as relation notes (#173)", () => {
     const node = createMockNode({
       id: "custom/relations/is-a",
       path: "custom/relations/is-a.md",
       type: "concept",
     });
-    expect(isRelationNode(node)).toBe(true);
+    expect(isRelationNode(node)).toBe(false);
+  });
+
+  it("detects a relation note moved out of the relations folder by its frontmatter type (#173)", () => {
+    expect(isRelationNode(createMockNode({ id: "beziehungen/a", path: "Beziehungen/a.md", type: "relation" }))).toBe(true);
   });
 
   it("returns false for standard concept, definition, and theorem notes", () => {
