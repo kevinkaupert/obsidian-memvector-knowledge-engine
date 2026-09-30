@@ -30,6 +30,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
   `Cannot read properties of undefined` and leaves the button disabled. The loop now
   works on a snapshot of the notes, hands the results to the refreshed notes by path,
   and re-enables the button and reports the error on any failure (#169).
+- An open 2D view now picks up vectors re-indexed elsewhere (Settings, another view, a
+  model switch) on its next rescan. It used to copy its previous in-memory embeddings onto
+  the rescanned notes and only filled gaps from the database; the stored vectors now take
+  precedence, and in-memory ones are kept only if the database cannot be read (#167).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

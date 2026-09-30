@@ -3,6 +3,8 @@ import type { WorkspaceLeaf } from "obsidian";
 import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
+import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+import { getVectorStore } from "../../sync/storeFactory";
 
 if (typeof window === "undefined") {
   (globalThis as any).window = globalThis;
@@ -39,6 +41,18 @@ vi.mock("./rendering/drawOrchestrator", () => ({
 
 vi.mock("./relationEdges", () => ({
   loadRelationEdges: vi.fn(async () => []),
+}));
+
+vi.mock("./vaultScan", () => ({
+  scanVaultNotes: vi.fn(async () => []),
+}));
+
+vi.mock("../../sync/storeFactory", () => ({
+  getVectorStore: vi.fn(),
+}));
+
+vi.mock("../../relationVocabulary/loadRelationVocabulary", () => ({
+  loadRelationVocabulary: vi.fn(async () => []),
 }));
 
 function makeNode(id: string, path: string, type: ScatterNoteType): ScatterNode {
@@ -244,3 +258,60 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
     vi.useRealTimers();
   });
 });
+
+/** View with the pure vault scan and vector store mocked, for exercising scanVaultNotes end to end. */
+function makeScanView(): VectorScatterView {
+  const host: VectorScatterHost = {
+    app: {} as any,
+    settings: { ...DEFAULT_SETTINGS },
+    saveSettings: vi.fn(async () => {}),
+    focusSidebarNote: vi.fn(),
+  };
+  const view = new VectorScatterView({} as WorkspaceLeaf, host);
+  view.redraw = vi.fn();
+  return view;
+}
+
+function mockStoredVectors(vectors: Map<string, number[]> | Error): void {
+  vi.mocked(getVectorStore).mockReturnValue({
+    getVectors: vectors instanceof Error ? vi.fn().mockRejectedValue(vectors) : vi.fn().mockResolvedValue(vectors),
+  } as unknown as ReturnType<typeof getVectorStore>);
+}
+
+describe("VectorScatterView.scanVaultNotes uses the vector store as source of truth (#167)", () => {
+  it("replaces a stale in-memory embedding with the re-indexed stored vector", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map([["A.md", [0, 1]]]));
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toEqual([0, 1]);
+  });
+
+  it("drops an in-memory embedding the store no longer has (e.g. after an embedding model switch)", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map());
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toBeUndefined();
+  });
+
+  it("keeps in-memory embeddings when the store cannot be read", async () => {
+    const view = makeScanView();
+    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Error("db locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toEqual([1, 0]);
+    warn.mockRestore();
+  });
+});
+

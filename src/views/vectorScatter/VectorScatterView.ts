@@ -398,36 +398,36 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     this.nodes = await scanVaultNotesPure(this.app, this.viewFilterQuery, this.settings.vectorSearchExclusions);
 
-    for (const node of this.nodes) {
-      const existing = previousEmbeddings.get(node.path) ?? previousEmbeddings.get(node.id);
-      if (existing) node.embedding = existing;
-    }
-
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
-    await this.hydrateStoredEmbeddings();
+    await this.hydrateStoredEmbeddings(previousEmbeddings);
     await this.loadRelationEdges();
     this.applyLayout();
     this.fitToView();
     this.redraw();
   }
 
-  /** Loads each scanned node's already-computed embedding from the vector store, so a reopened/rescanned graph uses the existing semantic index instead of recomputing it through a provider. */
-  private async hydrateStoredEmbeddings(): Promise<void> {
+  /**
+   * Purpose: Loads each scanned node's embedding from the vector store, so a reopened/rescanned graph uses the existing
+   * semantic index instead of recomputing it through a provider.
+   * Architecture: The store is the source of truth - it holds vectors re-indexed from Settings or another view, and is
+   * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are only used when
+   * the store cannot be read; otherwise they would keep stale or other-model vectors alive in the layout.
+   */
+  private async hydrateStoredEmbeddings(fallback: Map<string, number[]>): Promise<void> {
     if (this.nodes.length === 0) return;
+    let stored: Map<string, number[]>;
     try {
       const store = getVectorStore(this.app, this.settings);
-      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
-      const vectors = await store.getVectors(queryKeys);
-      this.nodes.forEach((n) => {
-        if (!n.embedding || n.embedding.length === 0) {
-          const v = vectors.get(n.path) ?? vectors.get(n.id);
-          if (v) n.embedding = v;
-        }
-      });
+      stored = await store.getVectors([...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)]);
     } catch (err) {
-      console.warn("MemVector: Failed to hydrate stored embeddings before layout:", err);
+      console.warn("MemVector: Failed to hydrate stored embeddings before layout, keeping in-memory embeddings:", err);
+      stored = fallback;
+    }
+    for (const n of this.nodes) {
+      const v = stored.get(n.path) ?? stored.get(n.id);
+      if (v) n.embedding = v;
     }
   }
 
