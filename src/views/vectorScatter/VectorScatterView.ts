@@ -137,6 +137,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   cloudSpacing = 800;
   projectionMode: ProjectionMode = "graphvector";
 
+  private positionsHydrated = false;
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
   private canvasWrap!: HTMLElement;
@@ -557,10 +558,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /**
    * Purpose: Loads each scanned node's persisted 2D coordinates from SQLite if unplaced.
-   * Architecture: Preserves the user's mental map across restarts (ADR-0005).
+   * Architecture: Preserves the user's mental map across restarts (ADR-0005). Fails safe
+   * by gating position persistence so transient read errors never overwrite stored coordinates (Issue #184).
    */
   private async hydrateStoredPositions(): Promise<void> {
-    if (this.nodes.length === 0) return;
+    if (this.nodes.length === 0) {
+      this.positionsHydrated = true;
+      return;
+    }
     try {
       const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
       const stored = await getStoredNodePositions(this.app, queryKeys);
@@ -573,17 +578,20 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
           }
         }
       });
+      this.positionsHydrated = true;
     } catch (err) {
-      console.warn("MemVector: Failed to hydrate stored node positions:", err);
+      this.positionsHydrated = false;
+      console.warn("MemVector: Failed to hydrate stored node positions, aborting position persistence to protect mental map:", err);
     }
   }
 
   /**
    * Purpose: Persists non-zero 2D coordinates of all currently placed nodes to SQLite.
-   * Architecture: Preserves node positions across sessions and restarts (ADR-0005).
+   * Architecture: Preserves node positions across sessions and restarts (ADR-0005). Gated by
+   * positionsHydrated to prevent overwriting valid storage on hydration failure (Issue #184).
    */
   private async persistCurrentPositions(): Promise<void> {
-    if (this.nodes.length === 0) return;
+    if (!this.positionsHydrated || this.nodes.length === 0) return;
     try {
       const records = this.nodes
         .filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.x !== 0 || n.y !== 0))
