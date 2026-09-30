@@ -7,6 +7,37 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-30
+
+### Added
+- **Mental Map Continuity across Restarts (ADR-0005)**: 2D scatter node positions are now persisted
+  to local SQLite (`node_positions`) and restored when reopening the canvas, preserving the user's
+  spatial memory across restarts (#182).
+- **Edge Radius Persistence**: The edge hops radius dropdown state is persisted across workspace
+  sessions and settings updates.
+
+### Fixed
+- **Canvas Layout Collapse on Edge Addition**: Adding a new relation edge previously dragged
+  connected components together into a dense clump until vectors were recalculated. Multi-hop
+  topology decay (`HOP_DECAY`) was reduced to stay below the spring attraction threshold (0.15),
+  and relation notes in `wiki/relations/` are excluded from the canvas node set when
+  `showRelationNotes` is disabled (#200).
+- **Edge Deletion Protection Gate (`reconcileEdges`)**: Skip destructive edge reconciliation if
+  loading relation notes fails or encounters partial file read locks, preventing transient file
+  system errors from wiping SQLite graph edges (#183, #197, #199).
+- **Position Persistence Protection Gate (`positionsHydrated`)**: Position writes to SQLite are
+  blocked if hydration failed, and in-memory coordinates from failed hydrations are discarded on
+  subsequent scans to prevent deferred coordinate clobbering (#184, #198, #199).
+- **Deterministic 2D Orientation**: SVD sign-flip canonical normalization on PCA projection axes
+  ensures reproducible orientation of the 2D layout without coordinate reflection flips (#182).
+- **Incremental Placement for Unplaced Notes**: Newly added notes are seeded next to their highest
+  similarity neighbor rather than disturbing settled nodes in the graph (#182).
+
+### Changed
+- **Relation Builder Dropdown**: Removed the ad-hoc "Frei..." / `CUSTOM` free-text option from the
+  Relation Builder modal. Relation types are now configured and managed exclusively via relation
+  presets and Settings (#200).
+
 ## [0.2.0] - 2026-09-30
 
 ### Added
