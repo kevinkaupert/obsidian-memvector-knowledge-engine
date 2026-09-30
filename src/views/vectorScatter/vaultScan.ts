@@ -2,27 +2,14 @@ import type { App } from "obsidian";
 import { stripFrontmatter } from "../../noteContent";
 import { pathToId } from "../../noteSlug";
 import type { ScatterNode, ScatterNoteType } from "./types";
-
-const TYPE_OFFSETS: Record<ScatterNoteType, { x: number; y: number }> = {
-  definition: { x: -250, y: -150 },
-  theorem: { x: 200, y: -150 },
-  concept: { x: 0, y: 150 },
-  relation: { x: -200, y: 150 },
-  synthesis: { x: 250, y: 150 },
-  course: { x: 0, y: -250 },
-  question: { x: -300, y: 0 },
-  source: { x: 300, y: 0 },
-};
-
 import { shouldIncludeFile } from "../../vaultFilter";
-import { hashString } from "../../hash";
 export { shouldIncludeFile };
 
 /**
- * Purpose: Scans markdown notes in the vault, filtering by global indexing exclusions and transient canvas view filter.
+ * Purpose: Scans markdown notes in the vault deterministically, filtering by exclusions and view filter, initializing unplaced coordinates to (0, 0).
  */
 export async function scanVaultNotes(app: App, filterQuery: string | undefined, defaultExclusions: string): Promise<ScatterNode[]> {
-  const files = app.vault.getMarkdownFiles();
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
   const nodes: ScatterNode[] = [];
 
   for (const file of files) {
@@ -55,14 +42,7 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
 
     const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());
     const linkMatches = [...content.matchAll(/\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)].map((m) => m[1].trim().toLowerCase());
-
-    // Bugfix: notes with a long frontmatter block (e.g. a big `sources:`
-    // list) previously had their entire truncation window consumed by
-    // frontmatter noise, leaving zero real body content for the similarity
-    // calc and layout hash to work with. Strip it first.
     const body = stripFrontmatter(content);
-    const hash = hashString(title + body.slice(0, 500) + latexMatches.join(""));
-    const baseOffset = TYPE_OFFSETS[type] || { x: 0, y: 0 };
 
     nodes.push({
       id: pathToId(file.path),
@@ -70,8 +50,8 @@ export async function scanVaultNotes(app: App, filterQuery: string | undefined, 
       title,
       type,
       path: file.path,
-      x: baseOffset.x + ((Math.abs(hash) % 300) - 150),
-      y: baseOffset.y + ((Math.abs(hash >> 3) % 300) - 150),
+      x: 0,
+      y: 0,
       latexFormulas: latexMatches,
       links: linkMatches,
       content: body.slice(0, 800),

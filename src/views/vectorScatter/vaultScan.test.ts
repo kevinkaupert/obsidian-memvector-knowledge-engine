@@ -94,4 +94,30 @@ describe("scanVaultNotes two-tier filtering (Issue #45)", () => {
     expect(nodes.length).toBe(1);
     expect(nodes[0].path).toBe("TEST/test-note.md");
   });
+
+  it("initializes all scanned notes with coordinates x: 0 and y: 0 for organic placement", async () => {
+    const app = makeMockApp(testFiles);
+    const nodes = await scanVaultNotes(app, "", "");
+    expect(nodes.length).toBeGreaterThan(0);
+    for (const node of nodes) {
+      expect(node.x).toBe(0);
+      expect(node.y).toBe(0);
+    }
+  });
+
+  it("sorts notes deterministically by path regardless of input enumeration order", async () => {
+    const unsortedFiles = [
+      { path: "wiki/z_last.md", basename: "z_last" },
+      { path: "wiki/a_first.md", basename: "a_first" },
+      { path: "wiki/m_middle.md", basename: "m_middle" },
+    ];
+    const app = makeMockApp(unsortedFiles);
+    const nodes = await scanVaultNotes(app, "", "");
+    expect(nodes.map((n) => n.path)).toEqual([
+      "wiki/a_first.md",
+      "wiki/m_middle.md",
+      "wiki/z_last.md",
+    ]);
+  });
 });
+
