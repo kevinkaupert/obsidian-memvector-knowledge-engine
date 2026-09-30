@@ -2,7 +2,7 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { App } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { localDbPath, persistLocalDb, pluginDirPath, setPluginDir, setPluginId } from "./sqliteDb";
+import { flushLocalDb, localDbPath, persistLocalDb, pluginDirPath, setPluginDir, setPluginId } from "./sqliteDb";
 import { SqliteVectorStore } from "./sqliteVectorStore";
 import type { Database } from "sql.js";
 
@@ -59,6 +59,56 @@ describe("persistLocalDb", () => {
     await expect(store.syncPoints([{ id: "b", vector: [0, 1], payload: { path: "b.md", title: "b", content: "b" } }])).resolves.toBeUndefined();
 
     expect(files.has(`${app.vault.configDir}/plugins/memvector-knowledge-engine/memvector-local.sqlite`)).toBe(true);
+  });
+});
+
+describe("flushLocalDb (#166)", () => {
+  const dbFile = ".obsidian/plugins/memvector-knowledge-engine/memvector-local.sqlite";
+  const hashed = (id: string) => ({ id, vector: [1, 0], payload: { path: `${id}.md`, title: id, content: id }, contentHash: `h-${id}` });
+
+  it("persists vectors whose write failed, so a retry that finds only cache hits still puts them on disk", async () => {
+    const files = new Map<string, ArrayBuffer>();
+    let failWrites = true;
+    const app = fakeAppWithFiles(files, async (path, data) => {
+      if (failWrites) throw new Error("synthetic disk full");
+      files.set(path, data);
+    });
+    const store = new SqliteVectorStore(app, "m@local");
+    await expect(store.syncPoints([hashed("a")])).rejects.toThrow("synthetic disk full");
+
+    // The failed vectors are visible as cache hits in memory ...
+    expect((await store.getStoredHashes()).get("a.md")?.hash).toBe("h-a");
+    failWrites = false;
+    await store.flush();
+
+    // ... and are on disk after the flush.
+    const reopened = new SqliteVectorStore(fakeAppWithFiles(files, async () => {}), "m@local");
+    expect(await reopened.getVector("a.md")).toEqual([1, 0]);
+  });
+
+  it("rethrows when the flush write fails again", async () => {
+    const files = new Map<string, ArrayBuffer>();
+    const app = fakeAppWithFiles(files, async () => {
+      throw new Error("still full");
+    });
+    const store = new SqliteVectorStore(app, "m@local");
+    await expect(store.syncPoints([hashed("a")])).rejects.toThrow();
+    await expect(store.flush()).rejects.toThrow("still full");
+    expect(files.has(dbFile)).toBe(false);
+  });
+
+  it("does not write when nothing is pending", async () => {
+    const files = new Map<string, ArrayBuffer>();
+    const writeBinary = vi.fn(async (path: string, data: ArrayBuffer) => void files.set(path, data));
+    const app = fakeAppWithFiles(files, writeBinary);
+    const store = new SqliteVectorStore(app, "m@local");
+    await store.syncPoints([hashed("a")]);
+    writeBinary.mockClear();
+
+    await flushLocalDb(app);
+    await store.flush();
+
+    expect(writeBinary).not.toHaveBeenCalled();
   });
 });
 

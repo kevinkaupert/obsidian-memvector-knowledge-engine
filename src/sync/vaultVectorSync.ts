@@ -76,6 +76,8 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
     await store.syncPoints(points);
   }
   await store.reconcile(includedPaths);
+  // Also covers runs where every note was a cache hit: their hashes may stem from an earlier failed write.
+  await store.flush();
 
   return { totalFiles, syncedCount: points.length, skippedCount };
 }

@@ -43,4 +43,9 @@ export interface VectorStore {
    * embedding pass), rather than pass a partial one.
    */
   reconcile(currentPaths: string[]): Promise<{ removed: number }>;
+  /**
+   * Persists changes that are still only in memory, e.g. vectors whose earlier write failed. Indexing paths call it
+   * before reporting success, including runs that found every note cached. Throws if persisting fails.
+   */
+  flush(): Promise<void>;
 }

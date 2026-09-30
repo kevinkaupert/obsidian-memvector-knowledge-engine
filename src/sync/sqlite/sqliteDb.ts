@@ -49,6 +49,10 @@ export function localDbPath(app: App): string {
 
 let cached: { app: App; db: Promise<Database> } | null = null;
 let persistQueue: Promise<void> = Promise.resolve();
+/** True while the in-memory database holds changes the last completed write did not put on disk. */
+let unpersisted = false;
+/** Sequence number of the most recently requested write - only its success proves the file is current. */
+let latestWriteSeq = 0;
 
 /** Initializes sql.js engine with disk or embedded fallback WASM, then opens or creates the local database. */
 async function openDb(app: App): Promise<Database> {
@@ -97,6 +101,7 @@ async function openDb(app: App): Promise<Database> {
 export async function getLocalDb(app: App): Promise<Database> {
   if (!cached || cached.app !== app) {
     cached = { app, db: openDb(app) };
+    unpersisted = false;
   }
   return cached.db;
 }
@@ -106,8 +111,13 @@ export async function getLocalDb(app: App): Promise<Database> {
  * write race conditions. The shared queue is kept always-settled so one failed write does not
  * block subsequent writes from being attempted; the failure is instead propagated to the
  * caller of this specific call via the returned/thrown promise.
+ *
+ * A failed write leaves the changes in memory only; they stay flagged as unpersisted until a
+ * later write succeeds, so flushLocalDb can still put them on disk (see there).
  */
 export async function persistLocalDb(app: App, db: Database): Promise<void> {
+  unpersisted = true;
+  const seq = ++latestWriteSeq;
   const bytes = db.export();
   const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
@@ -126,10 +136,26 @@ export async function persistLocalDb(app: App, db: Database): Promise<void> {
 
   try {
     await thisWrite;
+    // Each write exports the full in-memory DB, so the newest successful write covers every earlier change.
+    if (seq === latestWriteSeq) unpersisted = false;
   } catch (err) {
     console.error("MemVector: Failed to persist local SQLite DB:", err);
     throw err;
   }
+}
+
+/**
+ * Purpose: Writes the in-memory database to disk if it holds changes a previous write failed to persist.
+ * Architecture: sql.js applies every change in memory before the file write. After a failed write, content hashes of
+ * the new vectors are visible to the next indexing run, which then treats those notes as cache hits and writes
+ * nothing - reporting success for data that exists only in memory. Indexing paths call this before reporting success.
+ * Throws if the write fails again.
+ */
+export async function flushLocalDb(app: App): Promise<void> {
+  if (!unpersisted) return;
+  const db = await getLocalDb(app);
+  if (!unpersisted) return;
+  await persistLocalDb(app, db);
 }
 
 /** Closes the active database connection and frees WASM memory when the plugin unloads. */

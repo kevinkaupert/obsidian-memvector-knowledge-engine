@@ -48,6 +48,7 @@ describe("vaultVectorSync", () => {
       search: async () => [],
       getVector: async () => null,
       getVectors: async () => new Map(),
+      flush: async () => {},
       getStoredHashes: async () => new Map(),
       reconcile: async (paths: string[]) => {
         reconciledPaths.push(...paths);
@@ -111,6 +112,7 @@ describe("vaultVectorSync", () => {
       search: async () => [],
       getVector: async () => null,
       getVectors: async () => new Map(),
+      flush: async () => {},
       getStoredHashes: async () => storedHashes,
       reconcile: async () => ({ removed: 0 }),
     };

@@ -469,6 +469,17 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
     }
   }
 
+  if (!syncFailed) {
+    // Cache hits may stem from an earlier run whose write failed - put them on disk before reporting success.
+    try {
+      await vectorStore.flush();
+    } catch (syncErr) {
+      syncFailed = true;
+      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
+      console.error("MemVector: Failed to persist pending vector changes to SQLite:", syncErr);
+    }
+  }
+
   setActionBtnEnabled(btn, true);
 
   if (syncFailed) {

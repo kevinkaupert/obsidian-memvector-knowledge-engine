@@ -107,6 +107,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       syncPoints: mockSyncPoints,
       reconcile: mockReconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
     } as unknown as ReturnType<typeof getVectorStore>);
@@ -240,6 +241,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     vi.mocked(getVectorStore).mockReturnValue({
       syncPoints: mockSyncPoints,
       reconcile: mockReconcile,
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(storedHashes),
       getVector: vi.fn().mockResolvedValue([0.9, 0.8, 0.7]),
     } as unknown as ReturnType<typeof getVectorStore>);
@@ -281,6 +283,7 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
       search: async () => [],
       getVector: async (id: string) => rows.get(id)?.vector ?? null,
       getVectors: async () => new Map(),
+      flush: async () => {},
       getStoredHashes: async () => new Map([...rows].map(([path, p]) => [path, { hash: p.contentHash! }])),
       reconcile: async () => ({ removed: 0 }),
     };
@@ -366,6 +369,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       ["Deleted.md", [1, 1]],
     ]);
     vi.mocked(getVectorStore).mockReturnValue({
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
       syncPoints: vi.fn(async (points: VectorPoint[]) => {
@@ -398,6 +402,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
   it("does not keep notes excluded from indexing", async () => {
     const reconcile = vi.fn().mockResolvedValue({ removed: 0 });
     vi.mocked(getVectorStore).mockReturnValue({
+      flush: vi.fn().mockResolvedValue(undefined),
       getStoredHashes: vi.fn().mockResolvedValue(new Map()),
       getVector: vi.fn().mockResolvedValue(null),
       syncPoints: vi.fn().mockResolvedValue(undefined),
@@ -416,5 +421,57 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
     await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
 
     expect(reconcile).toHaveBeenCalledWith(["Visible.md"]);
+  });
+});
+
+describe("runCalcVectors persists pending changes before reporting success (#166)", () => {
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+  });
+
+  function cachedCtx(): ScatterViewContext {
+    return {
+      app: { vault: createMockVault({ "note-1.md": "Content of note 1" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST },
+      nodes: [{ id: pathToId("note-1.md"), path: "note-1.md", title: "Note 1", content: "", x: 0, y: 0, embedding: [0.5, 0.5] }],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+  }
+
+  function storeWithAllCached(flush: ReturnType<typeof vi.fn>) {
+    const hash = buildEmbeddingInput("note-1", "Content of note 1", DEFAULT_SETTINGS_FOR_TEST.embeddingMaxChars).hash;
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map([["note-1.md", { hash }]])),
+      getVector: vi.fn().mockResolvedValue([0.5, 0.5]),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush,
+    } as unknown as ReturnType<typeof getVectorStore>);
+  }
+
+  it("flushes even when every note was a cache hit", async () => {
+    const flush = vi.fn().mockResolvedValue(undefined);
+    storeWithAllCached(flush);
+
+    await runCalcVectors(cachedCtx(), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    expect(flush).toHaveBeenCalledTimes(1);
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(true);
+  });
+
+  it("reports a persistence error instead of cached success when the pending write fails again", async () => {
+    storeWithAllCached(vi.fn().mockRejectedValue(new Error("disk still full")));
+    const btn = createMockEl() as any;
+    const statusText = createMockEl() as any;
+
+    await runCalcVectors(cachedCtx(), btn, statusText, createMockEl() as any);
+
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
+    expect(noticeCalls.some((n) => n.message.includes("[ERROR]") && n.message.includes("disk still full"))).toBe(true);
+    expect(statusText.text).toBe("Storage error");
   });
 });

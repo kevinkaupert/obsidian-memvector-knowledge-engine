@@ -22,6 +22,10 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 - "Calculate vectors" in a filtered 2D view no longer deletes the stored vectors of
   every note outside the filter. Index cleanup compared the stored vectors against the
   filtered node list; it now compares against every indexable note in the vault (#165).
+- A retry after a failed database write no longer reports success for vectors that were
+  never saved. The failed vectors stayed in memory, so the retry saw them as cached and
+  wrote nothing. Changes a failed write left behind are now tracked, and both indexing
+  paths write them to disk before reporting success, or report the storage error again (#166).
 
 ### Changed
 - The embedded text per note is no longer limited to 800-2000 characters by three

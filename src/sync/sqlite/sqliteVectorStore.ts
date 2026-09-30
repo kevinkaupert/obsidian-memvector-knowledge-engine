@@ -2,7 +2,7 @@ import type { App } from "obsidian";
 import type { Database } from "sql.js";
 import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { cosineSimilarity } from "./cosineSimilarity";
-import { getLocalDb, persistLocalDb } from "./sqliteDb";
+import { flushLocalDb, getLocalDb, persistLocalDb } from "./sqliteDb";
 
 /** Databases whose pre-fingerprint rows were already stamped this session. */
 const legacyRowsAdopted = new WeakSet<Database>();
@@ -155,6 +155,11 @@ export class SqliteVectorStore implements VectorStore {
 
     if (removed > 0) await persistLocalDb(this.app, db);
     return { removed };
+  }
+
+  async flush(): Promise<void> {
+    await this.openDb();
+    await flushLocalDb(this.app);
   }
 
   async search(vector: number[], limit: number): Promise<VectorSearchHit[]> {
