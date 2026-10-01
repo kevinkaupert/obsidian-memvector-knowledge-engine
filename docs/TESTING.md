@@ -21,6 +21,15 @@ have running for the earlier steps too - only step 5 actually calls it):
 node testing/mock-echo-server.js 8092
 ```
 
+Add `--delay <ms>` to hold every embedding and chat response for that long
+(the models list stays immediate). With e.g. `--delay 300` and a few dozen
+notes, a vector calculation runs long enough to change settings while it is
+still going:
+
+```sh
+node testing/mock-echo-server.js 8092 --delay 300
+```
+
 1. **Indexing.** Settings → MemVector → **"Jetzt Vault lokal indizieren"**
    → expect a `[OK]` success notice with a non-zero vector/edge count and no
    `[ERROR]` in the developer console.
@@ -55,6 +64,14 @@ node testing/mock-echo-server.js 8092
    appear under `Beziehungen/`. Move an existing relation note out of
    `wiki/relations/` into any other folder: it must stay an edge in the 2D view
    and in GraphRAG context, because it carries `type: relation`.
+
+7. **Model switch during indexing.** Start the mock server with
+   `--delay 300` and make sure the vault has a few dozen notes. Start
+   "Vektoren berechnen" in the 2D view and, while it runs, change the
+   embedding model name in Settings. Expect the notice "Vektorberechnung
+   abgebrochen ..." and the status "Abgebrochen"; the view must not switch
+   back to the vectors of the old model. Repeat with "Jetzt Vault lokal
+   indizieren" in Settings: same notice, no success message.
 
 This whole procedure - and the finding that the plugin's own success
 `Notice`s aren't proof anything actually landed in storage - is exactly what

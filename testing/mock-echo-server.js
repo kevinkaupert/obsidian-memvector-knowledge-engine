@@ -15,15 +15,35 @@
  * Every request is also logged to stdout (and, if given, to a log file) as
  * timestamp + method + path + body, for scripted verification.
  *
- * Usage: node mock-echo-server.js [port] [logFile]
+ * Usage: node mock-echo-server.js [port] [logFile] [--delay ms]
  *   node testing/mock-echo-server.js 8092
  *   node testing/mock-echo-server.js 8092 /tmp/mock.log
+ *   node testing/mock-echo-server.js 8092 --delay 300
+ *
+ * --delay holds every embedding and chat response for the given number of milliseconds (the models list stays
+ * immediate, so connection tests are not slowed down). This makes a vector calculation slow enough to change
+ * settings while it runs, e.g. to check that switching the embedding model mid-run cancels it.
  */
 const http = require("http");
 const fs = require("fs");
 
-const port = Number(process.argv[2]) || 8092;
-const logFile = process.argv[3];
+const args = process.argv.slice(2);
+const delayIndex = args.indexOf("--delay");
+const delayMs = delayIndex === -1 ? 0 : Number(args[delayIndex + 1]);
+if (delayIndex !== -1 && (!Number.isFinite(delayMs) || delayMs < 0)) {
+  console.error("--delay expects a non-negative number of milliseconds, e.g. --delay 300");
+  process.exit(1);
+}
+const positional = delayIndex === -1 ? args : args.filter((_arg, i) => i !== delayIndex && i !== delayIndex + 1);
+const port = Number(positional[0]) || 8092;
+const logFile = positional[1];
+
+/** Sends a JSON response, after the configured delay unless `immediate`. */
+function respond(res, payload, immediate = false) {
+  const send = () => res.end(JSON.stringify(payload));
+  if (immediate || delayMs === 0) send();
+  else setTimeout(send, delayMs);
+}
 
 function fakeEmbedding(text) {
   let h = 0;
@@ -47,7 +67,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
 
     if (req.url.includes("/models")) {
-      res.end(JSON.stringify({ data: [{ id: "mock-model" }] }));
+      respond(res, { data: [{ id: "mock-model" }] }, true);
       return;
     }
 
@@ -58,7 +78,7 @@ const server = http.createServer((req, res) => {
       } catch {
         /* keep default */
       }
-      res.end(JSON.stringify({ data: [{ embedding: fakeEmbedding(text) }] }));
+      respond(res, { data: [{ embedding: fakeEmbedding(text) }] });
       return;
     }
 
@@ -71,10 +91,14 @@ const server = http.createServer((req, res) => {
     } catch {
       /* keep default */
     }
-    res.end(JSON.stringify({ choices: [{ message: { content: prompt } }] }));
+    respond(res, { choices: [{ message: { content: prompt } }] });
   });
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`mock-echo-server listening on http://localhost:${port}` + (logFile ? `, logging to ${logFile}` : ""));
+  console.log(
+    `mock-echo-server listening on http://localhost:${port}` +
+      (logFile ? `, logging to ${logFile}` : "") +
+      (delayMs > 0 ? `, delaying embedding and chat responses by ${delayMs} ms` : "")
+  );
 });
