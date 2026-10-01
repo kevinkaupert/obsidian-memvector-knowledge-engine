@@ -6,6 +6,7 @@ import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import { EmbeddingTargetChangedError } from "../../sync/embeddingTarget";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
+import { reconcileNodePositionsWithVault } from "../../sync/sqlite/nodePositions";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 import { DEFAULT_SETTINGS } from "../defaults";
 import { relationsFolder } from "../../vaultLayout";
@@ -191,6 +192,12 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             const graphStore = getGraphStore(app, settings);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations, relationsFolder(settings));
+            try {
+              await reconcileNodePositionsWithVault(app, settings.vectorSearchExclusions);
+            } catch (err) {
+              // Only leaves orphaned position rows behind; the index itself succeeded.
+              console.warn("MemVector: Failed to remove stored positions of deleted or excluded notes:", err);
+            }
             // The index just changed - open views must drop vectors they still hold from before.
             host.applySettingsToOpenViews?.({ embeddings: true });
             btn.setButtonText(t.indexVaultSuccess);

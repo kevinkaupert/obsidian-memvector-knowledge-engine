@@ -9,6 +9,7 @@ import { syncVaultVectors } from "../../../sync/vaultVectorSync";
 import type { VectorPoint, VectorStore } from "../../../sync/vectorStore";
 import { TFile } from "obsidian";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
+import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
 
 const DEFAULT_SETTINGS_FOR_TEST = { ...DEFAULT_SETTINGS, language: "en" };
 
@@ -39,6 +40,10 @@ vi.mock("../../../llm/fetchEmbedding", () => ({
 
 vi.mock("../../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(),
+}));
+
+vi.mock("../../../sync/sqlite/nodePositions", () => ({
+  reconcileNodePositionsWithVault: vi.fn(async () => ({ removed: 0 })),
 }));
 
 vi.mock("../../../settings/secrets", () => ({
@@ -834,5 +839,48 @@ describe("buildToolbar rearrange action (#214)", () => {
     rearrange.onclick();
     expect(ctx.rearrangeLayout).toHaveBeenCalledTimes(1);
     expect(ctx.applyLayout).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCalcVectors removes stored positions of notes that left the vault (#196)", () => {
+  const node = (path: string) => ({ id: pathToId(path), path, title: path, content: "", x: 0, y: 0 });
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2], error: null });
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+  });
+
+  const ctx = () =>
+    ({
+      app: { vault: createMockVault({ "A.md": "a body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:archive" },
+      nodes: [node("A.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    }) as unknown as ScatterViewContext;
+
+  it("reconciles positions against the indexing exclusions after a complete run", async () => {
+    const c = ctx();
+    await runCalcVectors(c, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(reconcileNodePositionsWithVault).toHaveBeenCalledWith(c.app, "-path:archive");
+    expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(true);
+  });
+
+  it("only logs a failed position cleanup and still reports the run as successful", async () => {
+    vi.mocked(reconcileNodePositionsWithVault).mockRejectedValueOnce(new Error("locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await runCalcVectors(ctx(), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stored positions"), expect.any(Error));
+    expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(true);
+    warn.mockRestore();
   });
 });

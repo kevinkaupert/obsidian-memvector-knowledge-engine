@@ -159,7 +159,7 @@ ${"c".repeat(400)}
     expect(neighbor.content).not.toContain("[MARKER-3-NACH-500-ZEICHEN");
   });
 
-  it("safely falls back to payload content if cachedRead is empty", async () => {
+  it("uses the fresh, empty note body instead of the stale stored payload (#196)", async () => {
     const files = new Map<string, string>();
     files.set("wiki/fallback-neighbor.md", ""); // empty file on disk
 
@@ -184,7 +184,7 @@ ${"c".repeat(400)}
     const enriched = await enrichContext(app, settings, [selectedNode], 1000);
 
     expect(enriched.length).toBe(1);
-    expect(enriched[0].content).toBe("Stored index payload content");
+    expect(enriched[0].content).toBe("");
   });
 });
 

@@ -8,6 +8,7 @@ import { buildEmbeddingInput } from "../../../sync/embeddingText";
 import { embeddingTargetChanged, resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
 import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
+import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import type { ScatterNode } from "../types";
@@ -526,6 +527,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
       syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
       console.error("MemVector: Failed to reconcile vectors in SQLite:", syncErr);
     }
+    await reconcilePositionsOrWarn(ctx);
   }
 
   if (!syncFailed) {
@@ -561,6 +563,15 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     }
   } else if (lastError) {
     statusText.setText(`${vT.statusErrorCount} (${successCount}/${done})`);
+  }
+}
+
+/** Removes stored positions of notes that left the indexable vault; a failure only leaves orphaned rows, so it is logged. */
+async function reconcilePositionsOrWarn(ctx: ScatterViewContext): Promise<void> {
+  try {
+    await reconcileNodePositionsWithVault(ctx.app, ctx.settings.vectorSearchExclusions);
+  } catch (err) {
+    console.warn("MemVector: Failed to remove stored positions of deleted or excluded notes:", err);
   }
 }
 

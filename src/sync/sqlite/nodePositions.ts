@@ -1,5 +1,7 @@
 import type { App } from "obsidian";
 import { getLocalDb, persistLocalDb } from "./sqliteDb";
+import { listIndexableFiles } from "../../vaultFilter";
+import { pathToId } from "../../noteSlug";
 
 export interface StoredNodePosition {
   id: string;
@@ -96,4 +98,15 @@ export async function reconcileNodePositions(
     await persistLocalDb(app, db);
   }
   return { removed };
+}
+
+/**
+ * Purpose: Deletes stored 2D positions of notes that are no longer part of the indexable vault (deleted or excluded).
+ * Architecture: Compares against every indexable file, never a filtered 2D view, so notes merely hidden by a view
+ * filter or by relation-note visibility keep their position. Called by the full re-index paths, next to the vector
+ * reconciliation. Without it a deleted note's row stays forever and a note recreated at the same path reappears at
+ * its old coordinates.
+ */
+export async function reconcileNodePositionsWithVault(app: App, exclusions: string): Promise<{ removed: number }> {
+  return reconcileNodePositions(app, listIndexableFiles(app, exclusions).map((f) => pathToId(f.path)));
 }
