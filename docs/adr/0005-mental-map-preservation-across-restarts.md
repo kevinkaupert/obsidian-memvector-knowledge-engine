@@ -1,6 +1,6 @@
 # 0005 — Mental Map Preservation Across Restarts
 
-Status: Accepted
+Status: Superseded by ADR-0006
 
 ## Context
 
