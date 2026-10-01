@@ -54,13 +54,23 @@ address #206, block 6 addresses #185 and #190, block 7 is split off as #214.
 ### Block 2 - layout-input signatures and skipping unchanged passes (#209)
 
 - Build the prepared layout inputs per note once per scan: identity, folder,
-  link targets, word and formula features of the excerpt, type, title, and the
-  vector together with its embedding fingerprint.
+  type, title, word features of the 800-character excerpt, link targets and
+  formulas of the whole file (both are read from the full content today), and
+  the vector together with its embedding fingerprint.
 - Derive a per-note signature from these prepared inputs, and a global
   signature from relation edges (endpoints, type weight, attraction or
-  repulsion, direction), vocabulary weights and spacing settings.
+  repulsion, direction), vocabulary weights, spacing settings, the knowledge
+  domain (`knowledgeDomain`, switches word versus formula similarity) and
+  `includeWikiLinksAsRelations` (adds WikiLink topology forces).
 - `applyLayout` compares against the signatures of the last completed pass. If
   nothing changed: no matrix, no cluster assignment, no simulation, no write.
+- Start rule: when the view opens, no previous pass exists in memory. If every
+  node has a stored position, the signature cache is initialized from the
+  current inputs without running the simulation, and the stored positions are
+  shown unchanged. Nodes without a stored position count as a layout change;
+  until Block 6 they are handled by today's pass, afterwards by seeding and
+  bounded adjustment. Test: load positions, initialize the cache, existing
+  nodes are displayed with their stored coordinates and nothing is written.
 - Spacing sliders keep triggering a pass, since they change a global input.
 
 ### Block 3 - event queue and selective reads (#210)
@@ -71,7 +81,13 @@ address #206, block 6 addresses #185 and #190, block 7 is split off as #214.
 - `modify` re-reads only the changed file and updates its node in place;
   `create`, `delete` and `rename` update the node set. A full scan remains for
   the initial open and for recovery (e.g. a failed incremental update).
-- Ignore events for notes excluded from indexing or outside the view filter.
+- Ignore events for notes excluded from indexing or outside the view filter,
+  with these exceptions: relation notes and the active vocabulary file are
+  always processed, because they can change forces between visible nodes even
+  when they are outside the node filter.
+- `rename` checks both the old and the new path: a visible note moved into an
+  excluded or filtered-out folder leaves the view, and a note moved in the
+  other direction enters it.
 - A relation note edit only reaches the layout when its effective-force
   signature changed; a description-only edit updates data and redraws.
 - Every scan carries a generation number; the result of an older scan is
@@ -80,7 +96,10 @@ address #206, block 6 addresses #185 and #190, block 7 is split off as #214.
 
 ### Block 4 - persistence only for moved positions (#211)
 
-- Keep the last successfully persisted coordinates in memory.
+- Keep the last successfully persisted coordinates in memory. They are only
+  updated after a write succeeded, and then to the coordinate snapshot that
+  was actually written, not to the current positions. When a write fails, the
+  changes stay pending and are retried with the next write.
 - Write only nodes that moved beyond a tolerance relative to them, and batch
   the writes so one burst of events results in at most one database write.
 - No database export when nothing was written.
