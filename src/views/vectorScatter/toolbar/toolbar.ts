@@ -553,8 +553,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
     new Notice(`[ERROR] ${vT.noticePersistenceError}: ${syncErrorMsg}`, 8000);
   } else if (successCount === done) {
-    ctx.applyLayout();
-    ctx.redraw();
+    await ctx.onVectorsCalculated();
     if (newCalculatedCount === 0 && skippedCount > 0) {
       setHoverBarText(hoverBar, `[OK] ${done}/${done} ${vT.statusSkippedCached}`, "muted");
       statusText.setText(`${done} | ${vT.statusCacheActive}`);

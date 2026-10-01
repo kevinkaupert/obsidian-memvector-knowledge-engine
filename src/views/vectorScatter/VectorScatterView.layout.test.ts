@@ -736,3 +736,50 @@ describe("VectorScatterView picks up settings changed outside the view (#189)", 
     expect(notify).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView review follow-ups for #191 and #196", () => {
+  it("a successful vector calculation lifts the freeze after a failed read, so layout and rearrange work again", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { getVectorStore } = await import("../../sync/storeFactory");
+    vi.mocked(getVectorStore).mockReturnValueOnce({ getVectors: vi.fn().mockRejectedValue(new Error("db locked")) } as any);
+    await view.scanVaultNotes();
+    await view.rearrangeLayout();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    await view.onVectorsCalculated();
+    await view.rearrangeLayout();
+
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  it("a delayed position write does not bring back the row of a note deleted while the view was hidden", async () => {
+    const fixture = createFixture(sixNotes());
+    let visible = true;
+    (fixture.view as any).containerEl.isShown = () => visible;
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVaultWatchers();
+    fixture.view.registerVisibilityWatchers();
+    await settle(2000);
+
+    // A layout change leaves a write batch pending ...
+    fixture.view.settings.scatterNodeSpacing = 600;
+    fixture.view.applyExternalSettingsChange();
+    // ... the view is hidden, a note is deleted and the position cleanup removes its row.
+    visible = false;
+    const gone = fixture.notes.splice(0, 1)[0];
+    fixture.fire("delete", fixture.toFile(gone));
+    storedPositions.delete(gone.path);
+    storedPositions.delete(fixture.view.nodes.find((n) => n.path === gone.path)!.id);
+    vi.mocked(saveNodePositions).mockClear();
+    await settle(2000);
+
+    expect(saveNodePositions).toHaveBeenCalled();
+    const written = vi.mocked(saveNodePositions).mock.calls.flatMap((c) => c[1].map((r) => r.path));
+    expect(written).not.toContain(gone.path);
+    expect(storedPositions.has(gone.path)).toBe(false);
+  });
+});

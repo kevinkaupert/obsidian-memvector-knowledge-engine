@@ -26,6 +26,7 @@ import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
 import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
+import { shouldIncludeFile } from "../../vaultFilter";
 import { isRelationNote } from "../../relationNotes";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -183,6 +184,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private readonly positionWriter = new PositionPersister({
     write: (records) => saveNodePositions(this.app, records),
     source: () => ({ nodes: this.nodes, enabled: this.positionsHydrated && !this.embeddingHydrationFailed }),
+    isStorable: (record) => {
+      const file = record.path ? this.app.vault.getAbstractFileByPath(record.path) : null;
+      return file instanceof TFile && shouldIncludeFile(file, this.settings.vectorSearchExclusions);
+    },
   });
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
@@ -871,6 +876,19 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.applyLayout("rearrange");
       this.fitToView();
       this.hasFittedView = true;
+      this.redraw();
+    });
+  }
+
+  /**
+   * Purpose: Picks up the vectors a successful "Calculate vectors" run just stored, then updates the layout.
+   * Architecture: A complete read from the store - not the run's in-memory vectors - is what proves the vectors are
+   * readable again, so it also lifts the layout freeze after a failed read and records the fingerprint (#191).
+   */
+  onVectorsCalculated(): Promise<void> {
+    return this.runExclusive(async () => {
+      await this.hydrateStoredEmbeddings(this.nodes, new Map(), true);
+      this.applyLayout();
       this.redraw();
     });
   }

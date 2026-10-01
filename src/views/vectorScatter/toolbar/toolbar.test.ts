@@ -151,6 +151,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
       ],
       scanVaultNotes: vi.fn().mockResolvedValue(undefined),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   });
@@ -199,7 +200,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
 
     // Verify [OK] notice is NOT emitted
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -220,7 +221,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(errorNotice?.duration).toBe(8000);
 
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -238,7 +239,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(errorNotice?.message).toContain("Reconcile error");
 
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -266,8 +267,8 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     // Status text indicates active cache
     expect((mockStatusText as any).text).toContain("Cache aktiv");
     expect((mockHoverBar as any).text).toContain("bereits im Cache");
-    expect(mockCtx.applyLayout).toHaveBeenCalledTimes(1);
-    expect(mockCtx.redraw).toHaveBeenCalledTimes(1);
+    // The view reloads the stored vectors, lays out and redraws (#191)
+    expect(mockCtx.onVectorsCalculated).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -312,6 +313,7 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
       ],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -401,6 +403,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "visible body", x: 0, y: 0 }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -428,6 +431,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "a", x: 0, y: 0 }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -450,6 +454,7 @@ describe("runCalcVectors persists pending changes before reporting success (#166
       nodes: [{ id: pathToId("note-1.md"), path: "note-1.md", title: "Note 1", content: "", x: 0, y: 0, embedding: [0.5, 0.5] }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -514,6 +519,7 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       nodes: [node("A.md"), node("B.md"), node("C.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
     const rescanned = [node("A.md")];
@@ -544,6 +550,7 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       nodes: [node("A.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
     const btn = createMockEl() as any;
@@ -585,6 +592,7 @@ describe("runCalcVectors does not count notes deleted since the scan", () => {
       ],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -617,6 +625,7 @@ describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)",
       nodes: [node],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -654,6 +663,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
       nodes: [node("A.md"), node("B.md"), node("C.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -673,7 +683,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
     expect(store.syncPoints).not.toHaveBeenCalled();
     expect(store.reconcile).not.toHaveBeenCalled();
     expect(store.flush).not.toHaveBeenCalled();
-    expect(ctx.applyLayout).not.toHaveBeenCalled();
+    expect(ctx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(hoverBar.text.startsWith("[WARN]")).toBe(true);
     expect(noticeCalls.some((n) => n.message.startsWith("[WARN]"))).toBe(true);
     expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(false);
@@ -706,7 +716,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
     expect(fetchEmbedding).toHaveBeenCalledTimes(3);
     expect(ctx.nodes.map((n) => n.embedding)).toEqual([[1, 0], [1, 0], [1, 0]]);
     expect(store.syncPoints).toHaveBeenCalledTimes(1);
-    expect(ctx.applyLayout).toHaveBeenCalled();
+    expect(ctx.onVectorsCalculated).toHaveBeenCalled();
   });
 
   it("does not write vectors into the view's nodes before the run is verified", async () => {
@@ -865,6 +875,7 @@ describe("runCalcVectors removes stored positions of notes that left the vault (
       nodes: [node("A.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     }) as unknown as ScatterViewContext;
 
