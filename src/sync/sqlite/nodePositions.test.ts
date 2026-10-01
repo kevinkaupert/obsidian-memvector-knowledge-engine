@@ -3,7 +3,8 @@ import { resolve } from "path";
 import type { App } from "obsidian";
 import { describe, expect, it } from "vitest";
 import { closeLocalDb } from "./sqliteDb";
-import { getStoredNodePositions, reconcileNodePositions, saveNodePositions } from "./nodePositions";
+import { getStoredNodePositions, reconcileNodePositions, reconcileNodePositionsWithVault, saveNodePositions } from "./nodePositions";
+import { pathToId } from "../../noteSlug";
 
 function fakeApp(files: Map<string, ArrayBuffer> = new Map()): App {
   const configDir = ".obsidian";
@@ -114,5 +115,23 @@ describe("nodePositions SQLite persistence", () => {
     expect(positions.has("keep_1")).toBe(true);
     expect(positions.has("keep_2")).toBe(true);
     expect(positions.has("delete_me")).toBe(false);
+  });
+
+  it("removes positions of deleted and excluded notes against the whole vault, keeping notes a view would hide (#196)", async () => {
+    const app = fakeApp();
+    const paths = ["wiki/kept.md", "wiki/relations/a--b.md", "archive/old.md"];
+    (app.vault as unknown as { getMarkdownFiles: () => unknown[] }).getMarkdownFiles = () =>
+      paths.map((path) => ({ path, name: path.slice(path.lastIndexOf("/") + 1), basename: path.slice(path.lastIndexOf("/") + 1, -3) }));
+    await saveNodePositions(app, [
+      ...paths.map((path, i) => ({ id: pathToId(path), path, x: i + 1, y: i + 1 })),
+      { id: pathToId("wiki/deleted.md"), path: "wiki/deleted.md", x: 9, y: 9 },
+    ]);
+
+    const { removed } = await reconcileNodePositionsWithVault(app, "-path:archive");
+
+    expect(removed).toBe(2);
+    const left = await getStoredNodePositions(app, [...paths, "wiki/deleted.md"].map(pathToId));
+    expect([...left.keys()].sort()).toEqual([pathToId("wiki/kept.md"), pathToId("wiki/relations/a--b.md")].sort());
+    await closeLocalDb();
   });
 });

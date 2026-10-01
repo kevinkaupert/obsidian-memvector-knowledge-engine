@@ -8,10 +8,12 @@ import { buildEmbeddingInput } from "../../../sync/embeddingText";
 import { embeddingTargetChanged, resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
 import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
+import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import type { ScatterNode } from "../types";
 import { enrichContext } from "../contextEnrichment";
+import { CLOUD_SPACING_RANGE, NODE_SPACING_RANGE, clampCloudSpacing, clampNodeSpacing } from "../layout/layoutTunables";
 import { buildPreviewEntries } from "../contextPreview";
 import { createActionBtn, createDropdown, createIconButton, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
 
@@ -26,6 +28,8 @@ export interface ToolbarHandles {
   statusText: HTMLElement;
   updateSelectionUI(): void;
   updateEdgeHops?(hops: number): void;
+  /** Shows spacing values that changed outside this toolbar, without re-running the slider handlers. */
+  updateSpacing?(nodeSpacing: number, cloudSpacing: number): void;
 }
 
 function setHoverBarText(hoverBar: HTMLElement, text: string, status?: "warning" | "error" | "muted"): void {
@@ -127,28 +131,27 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
   // ── Ansicht ───────────────────────────────────────────────────────────
   const ansichtBody = createSection(scrollBody, t.secView, true);
 
-  const rawNodeSpacing = ctx.nodeSpacing || ctx.settings.scatterNodeSpacing || 350;
-  ctx.nodeSpacing = Math.max(120, Math.min(1600, rawNodeSpacing));
+  ctx.nodeSpacing = clampNodeSpacing(ctx.nodeSpacing || ctx.settings.scatterNodeSpacing || 350);
+  ctx.cloudSpacing = clampCloudSpacing(ctx.cloudSpacing || ctx.settings.scatterCloudSpacing || 800);
 
-  const rawCloudSpacing = ctx.cloudSpacing || ctx.settings.scatterCloudSpacing || 800;
-  ctx.cloudSpacing = Math.max(300, Math.min(3000, rawCloudSpacing));
-
-  createSlider(ansichtBody, t.lblNodeSpacing, 120, 1600, 20, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
+  const nodeSpacingSlider = createSlider(ansichtBody, t.lblNodeSpacing, NODE_SPACING_RANGE.min, NODE_SPACING_RANGE.max, NODE_SPACING_RANGE.step, ctx.nodeSpacing, (val) => `${Math.round(val / 40)}`, (newVal) => {
     void (async () => {
       ctx.nodeSpacing = newVal;
       ctx.settings.scatterNodeSpacing = newVal;
       await ctx.saveSettings();
       ctx.applyLayout();
       ctx.redraw();
+      ctx.notifyOpenViews?.();
     })();
   });
-  createSlider(ansichtBody, t.lblCloudSpacing, 300, 3000, 50, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
+  const cloudSpacingSlider = createSlider(ansichtBody, t.lblCloudSpacing, CLOUD_SPACING_RANGE.min, CLOUD_SPACING_RANGE.max, CLOUD_SPACING_RANGE.step, ctx.cloudSpacing, (val) => `${Math.round(val / 100)}`, (newVal) => {
     void (async () => {
       ctx.cloudSpacing = newVal;
       ctx.settings.scatterCloudSpacing = newVal;
       await ctx.saveSettings();
       ctx.applyLayout();
       ctx.redraw();
+      ctx.notifyOpenViews?.();
     })();
   });
   // Data updates only adjust the layout locally (ADR-0006); a free global layout is this explicit action.
@@ -369,6 +372,11 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     updateEdgeHops: (hops: number) => {
       edgeHopsSelect.value = String(hops);
     },
+    updateSpacing: (nodeSpacing: number, cloudSpacing: number) => {
+      // Display only: the change came from elsewhere, so the sliders' own handlers must not fire again.
+      nodeSpacingSlider.setDisplayedValue(nodeSpacing);
+      cloudSpacingSlider.setDisplayedValue(cloudSpacing);
+    },
   };
 }
 
@@ -526,6 +534,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
       syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
       console.error("MemVector: Failed to reconcile vectors in SQLite:", syncErr);
     }
+    await reconcilePositionsOrWarn(ctx);
   }
 
   if (!syncFailed) {
@@ -544,8 +553,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
     new Notice(`[ERROR] ${vT.noticePersistenceError}: ${syncErrorMsg}`, 8000);
   } else if (successCount === done) {
-    ctx.applyLayout();
-    ctx.redraw();
+    await ctx.onVectorsCalculated();
     if (newCalculatedCount === 0 && skippedCount > 0) {
       setHoverBarText(hoverBar, `[OK] ${done}/${done} ${vT.statusSkippedCached}`, "muted");
       statusText.setText(`${done} | ${vT.statusCacheActive}`);
@@ -561,6 +569,15 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     }
   } else if (lastError) {
     statusText.setText(`${vT.statusErrorCount} (${successCount}/${done})`);
+  }
+}
+
+/** Removes stored positions of notes that left the indexable vault; a failure only leaves orphaned rows, so it is logged. */
+async function reconcilePositionsOrWarn(ctx: ScatterViewContext): Promise<void> {
+  try {
+    await reconcileNodePositionsWithVault(ctx.app, ctx.settings.vectorSearchExclusions);
+  } catch (err) {
+    console.warn("MemVector: Failed to remove stored positions of deleted or excluded notes:", err);
   }
 }
 

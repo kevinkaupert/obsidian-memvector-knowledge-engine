@@ -32,3 +32,19 @@ export const SIMILAR_NEIGHBORS_MOBILE = 5;
  * pass instead of a bounded adjustment, e.g. after vectors were calculated for most notes.
  */
 export const LARGE_CHANGE_RATIO = 0.5;
+
+/** Range of the node spacing slider (canvas units). */
+export const NODE_SPACING_RANGE = { min: 120, max: 1600, step: 20 };
+
+/** Range of the cluster spacing slider (canvas units). */
+export const CLOUD_SPACING_RANGE = { min: 300, max: 3000, step: 50 };
+
+/** Purpose: Limits a node spacing value to the slider range. */
+export function clampNodeSpacing(value: number): number {
+  return Math.max(NODE_SPACING_RANGE.min, Math.min(NODE_SPACING_RANGE.max, value));
+}
+
+/** Purpose: Limits a cluster spacing value to the slider range. */
+export function clampCloudSpacing(value: number): number {
+  return Math.max(CLOUD_SPACING_RANGE.min, Math.min(CLOUD_SPACING_RANGE.max, value));
+}

@@ -365,17 +365,33 @@ describe("VectorScatterView.scanVaultNotes uses the vector store as source of tr
     expect(view.nodes[0].embedding).toBeUndefined();
   });
 
-  it("keeps in-memory embeddings when the store cannot be read", async () => {
+  it("keeps in-memory embeddings of the current model when the store cannot be read (#191)", async () => {
     const view = makeScanView();
-    view.nodes = [{ ...makeNode("a", "A.md", "concept"), embedding: [1, 0] }];
-    vi.mocked(scanVaultNotesPure).mockResolvedValue([makeNode("a", "A.md", "concept")]);
+    vi.mocked(scanVaultNotesPure).mockImplementation(async () => [makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map([["A.md", [1, 0]]]));
+    await view.scanVaultNotes();
     mockStoredVectors(new Error("db locked"));
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await view.scanVaultNotes();
 
     expect(view.nodes[0].embedding).toEqual([1, 0]);
-    warn.mockRestore();
+    error.mockRestore();
+  });
+
+  it("drops in-memory embeddings of another model when the store cannot be read (#191)", async () => {
+    const view = makeScanView();
+    vi.mocked(scanVaultNotesPure).mockImplementation(async () => [makeNode("a", "A.md", "concept")]);
+    mockStoredVectors(new Map([["A.md", [1, 0]]]));
+    await view.scanVaultNotes();
+    view.settings.embeddingModel = "another-model";
+    mockStoredVectors(new Error("db locked"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await view.scanVaultNotes();
+
+    expect(view.nodes[0].embedding).toBeUndefined();
+    error.mockRestore();
   });
 });
 

@@ -42,6 +42,8 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
       .onChange(async (value) => {
         settings.vectorSearchExclusions = value;
         await host.saveSettings();
+        // Exclusions decide which notes open views show at all.
+        host.applySettingsToOpenViews?.({ rescan: true });
       });
   });
 

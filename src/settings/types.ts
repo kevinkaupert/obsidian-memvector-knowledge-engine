@@ -116,6 +116,16 @@ export interface RelationGraphNode {
   type: string;
 }
 
+/** What an open 2D view has to redo after a settings change, beyond re-reading and redrawing. */
+export interface OpenViewSettingsChange {
+  /** Relation types or folders changed: reload edges and per-type forces. */
+  relayout?: boolean;
+  /** Embedding model, endpoint or index changed: reload vectors. */
+  embeddings?: boolean;
+  /** Indexing exclusions changed: the node set itself has to be rescanned. */
+  rescan?: boolean;
+}
+
 /**
  * Minimal shape settings-tab sections need from the plugin instance.
  */
@@ -129,5 +139,5 @@ export interface SettingsHost {
    * used to redraw directly, while saveSettings() only persists, so without this
    * the change would only appear after closing and reopening the view.
    */
-  applySettingsToOpenViews?(options?: { relayout?: boolean; embeddings?: boolean }): void;
+  applySettingsToOpenViews?(options?: OpenViewSettingsChange): void;
 }

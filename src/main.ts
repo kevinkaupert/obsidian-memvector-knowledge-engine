@@ -2,7 +2,7 @@ import { Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSecretsToSecretStorage, migrateSettings } from "./settings/secrets";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
-import type { MemVectorSettings } from "./settings/types";
+import type { MemVectorSettings, OpenViewSettingsChange } from "./settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants";
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
@@ -152,7 +152,7 @@ export default class MemVectorPlugin extends Plugin {
    * and redrew the canvas themselves. After the move into Settings, saveSettings() alone would leave an
    * open view stale until it is reopened, so the settings tab calls this right after persisting.
    */
-  applySettingsToOpenViews(options?: { relayout?: boolean; embeddings?: boolean }): void {
+  applySettingsToOpenViews(options?: OpenViewSettingsChange): void {
     for (const leaf of this.app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)) {
       const view = leaf.view;
       if (view instanceof VectorScatterView) view.applyExternalSettingsChange(options);

@@ -114,6 +114,12 @@ describe("PositionPersister (#211)", () => {
     expect(write.mock.calls[1][0][0]).toMatchObject({ id: "a", x: 20 });
   });
 
+  it("skips nodes that no longer belong in storage at write time (#196)", async () => {
+    persister = new PositionPersister({ write, source: () => ({ nodes, enabled }), isStorable: (r) => r.id !== "b", timers: globalThis as unknown as Window });
+    await persister.flush();
+    expect(writtenIds()).toEqual(["a", "c"]);
+  });
+
   it("writes nothing while disabled (failed position hydration)", async () => {
     enabled = false;
     await persister.flush();

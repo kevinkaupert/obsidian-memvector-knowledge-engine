@@ -256,6 +256,7 @@ export const en: TranslationKeys = {
   noticePersistenceError: "Vectors calculated, but SQLite persistence failed",
   statusVectorsCancelled: "Cancelled",
   noticeEmbeddingTargetChanged: "Vector calculation cancelled: the embedding model or endpoint changed while it was running. Start it again to use the new model.",
+  noticeEmbeddingHydrationFailed: "Could not load the stored vectors. The 2D map is kept as it is and updates again once the vectors can be read.",
   statusErrorCount: "Error",
   unknownError: "Unknown error",
   toggleToolbar: "Toggle toolbar",

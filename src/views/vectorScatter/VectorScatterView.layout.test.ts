@@ -605,3 +605,181 @@ describe("VectorScatterView review follow-ups", () => {
     expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView keeps the map when stored vectors cannot be read (#191)", () => {
+  const failVectorsOnce = async () => {
+    const { getVectorStore } = await import("../../sync/storeFactory");
+    vi.mocked(getVectorStore).mockReturnValueOnce({ getVectors: vi.fn().mockRejectedValue(new Error("db locked")) } as any);
+  };
+
+  it("full scan: no layout run, no write, positions unchanged; a later successful scan resumes", async () => {
+    const { view, notes } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const before = positionsOf(view);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    vi.mocked(saveNodePositions).mockClear();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    notes[0].content = "a layout-relevant change while the store is locked";
+    await failVectorsOnce();
+    await view.scanVaultNotes();
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(saveNodePositions).not.toHaveBeenCalled();
+    expect(positionsOf(view)).toEqual(before);
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("Failed to load stored vectors"), expect.any(Error));
+
+    await view.scanVaultNotes();
+    await settle(2000);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  it("embedding reload: a failed read keeps the map instead of laying out without vectors", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const before = positionsOf(view);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await failVectorsOnce();
+    view.applyExternalSettingsChange({ embeddings: true });
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(positionsOf(view)).toEqual(before);
+    error.mockRestore();
+  });
+
+  it("incremental update: a failed read for a new note freezes the layout while the store stays unreadable", async () => {
+    const { view, notes, fire, toFile } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    view.registerVaultWatchers();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    notes.push({ path: "geometry/new.md", content: "geometry new" });
+    await failVectorsOnce();
+    fire("create", toFile(notes[6]));
+    await settle(2000);
+    // Still unreadable on the next event.
+    await failVectorsOnce();
+    notes[1].content = "another relevant change";
+    fire("modify", toFile(notes[1]));
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("recovers on the next vault event once the vectors can be read again", async () => {
+    const { view, notes, fire, toFile } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    view.registerVaultWatchers();
+    await settle(2000);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    notes.push({ path: "geometry/new.md", content: "geometry new" });
+    await failVectorsOnce();
+    fire("create", toFile(notes[6]));
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    fire("modify", toFile(notes[2]));
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).toHaveBeenCalled();
+    expect(view.nodes.find((n) => n.path === "geometry/new.md")!.placed).toBe(true);
+    error.mockRestore();
+  });
+});
+
+describe("VectorScatterView picks up settings changed outside the view (#189)", () => {
+  it("rescans the node set when the indexing exclusions changed", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const before = positionsOf(view);
+
+    view.settings.vectorSearchExclusions = "-path:geometry";
+    view.applyExternalSettingsChange({ rescan: true });
+    await settle(2000);
+
+    expect(view.nodes.map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
+    for (const n of view.nodes) expect(before.get(n.path)).toBeDefined();
+  });
+
+  it("re-reads the spacing from settings and lays out with it", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    view.settings.scatterNodeSpacing = 600;
+    view.settings.scatterCloudSpacing = 99999;
+    view.applyExternalSettingsChange();
+
+    expect(view.nodeSpacing).toBe(600);
+    expect(view.cloudSpacing).toBe(3000);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls[0][0].nodeSpacing).toBe(600);
+  });
+
+  it("lets other open views know when its own toolbar changed a setting", () => {
+    const { view } = createFixture(sixNotes());
+    const notify = vi.fn();
+    (view as any).host.applySettingsToOpenViews = notify;
+    view.notifyOpenViews();
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VectorScatterView review follow-ups for #191 and #196", () => {
+  it("a successful vector calculation lifts the freeze after a failed read, so layout and rearrange work again", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { getVectorStore } = await import("../../sync/storeFactory");
+    vi.mocked(getVectorStore).mockReturnValueOnce({ getVectors: vi.fn().mockRejectedValue(new Error("db locked")) } as any);
+    await view.scanVaultNotes();
+    await view.rearrangeLayout();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    await view.onVectorsCalculated();
+    await view.rearrangeLayout();
+
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  it("a delayed position write does not bring back the row of a note deleted while the view was hidden", async () => {
+    const fixture = createFixture(sixNotes());
+    let visible = true;
+    (fixture.view as any).containerEl.isShown = () => visible;
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVaultWatchers();
+    fixture.view.registerVisibilityWatchers();
+    await settle(2000);
+
+    // A layout change leaves a write batch pending ...
+    fixture.view.settings.scatterNodeSpacing = 600;
+    fixture.view.applyExternalSettingsChange();
+    // ... the view is hidden, a note is deleted and the position cleanup removes its row.
+    visible = false;
+    const gone = fixture.notes.splice(0, 1)[0];
+    fixture.fire("delete", fixture.toFile(gone));
+    storedPositions.delete(gone.path);
+    storedPositions.delete(fixture.view.nodes.find((n) => n.path === gone.path)!.id);
+    vi.mocked(saveNodePositions).mockClear();
+    await settle(2000);
+
+    expect(saveNodePositions).toHaveBeenCalled();
+    const written = vi.mocked(saveNodePositions).mock.calls.flatMap((c) => c[1].map((r) => r.path));
+    expect(written).not.toContain(gone.path);
+    expect(storedPositions.has(gone.path)).toBe(false);
+  });
+});

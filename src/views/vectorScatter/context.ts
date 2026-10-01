@@ -16,6 +16,8 @@ export interface ScatterViewContext {
   readonly app: App;
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
+  /** Lets other open 2D views pick up a setting this view changed. */
+  notifyOpenViews?(): void;
   viewFilterQuery: string;
   nodes: ScatterNode[];
   selectedNodeIds: Set<string>;
@@ -42,6 +44,8 @@ export interface ScatterViewContext {
   scanVaultNotes(filterOverride?: string, options?: { preserveView?: boolean }): Promise<void>;
   applyLayout(mode?: LayoutMode): void;
   rearrangeLayout(): Promise<void>;
+  /** Reloads every vector from the store after a successful calculation and updates the layout. */
+  onVectorsCalculated(): Promise<void>;
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;
   focusSidebar(node: ScatterNode): void;

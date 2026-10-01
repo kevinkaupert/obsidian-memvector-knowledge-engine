@@ -12,6 +12,12 @@ export interface PositionPersisterOptions {
   write(records: StoredNodePosition[]): Promise<void>;
   /** The current nodes and whether writing is allowed (false after a failed position hydration). */
   source(): { nodes: ScatterNode[]; enabled: boolean };
+  /**
+   * Whether a note still belongs in storage at write time (exists and is not excluded from indexing). The node list
+   * can be stale - e.g. a hidden view has not applied a delete yet - and writing it would bring back rows the position
+   * cleanup removed.
+   */
+  isStorable?(record: StoredNodePosition): boolean;
   timers?: TimerHost;
 }
 
@@ -87,7 +93,7 @@ export class PositionPersister {
   private async writeMoved(): Promise<void> {
     const { nodes, enabled } = this.options.source();
     if (!enabled) return;
-    const snapshot = this.movedRecords(nodes);
+    const snapshot = this.movedRecords(nodes).filter((r) => this.options.isStorable?.(r) ?? true);
     if (snapshot.length === 0) return;
     try {
       await this.options.write(snapshot);

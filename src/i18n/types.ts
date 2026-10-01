@@ -246,6 +246,7 @@ export interface TranslationKeys {
   noticePersistenceError: string;
   statusVectorsCancelled: string;
   noticeEmbeddingTargetChanged: string;
+  noticeEmbeddingHydrationFailed: string;
   statusErrorCount: string;
   unknownError: string;
   toggleToolbar: string;

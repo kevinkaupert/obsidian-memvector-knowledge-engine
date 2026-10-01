@@ -9,6 +9,7 @@ import { syncVaultVectors } from "../../../sync/vaultVectorSync";
 import type { VectorPoint, VectorStore } from "../../../sync/vectorStore";
 import { TFile } from "obsidian";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
+import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
 
 const DEFAULT_SETTINGS_FOR_TEST = { ...DEFAULT_SETTINGS, language: "en" };
 
@@ -39,6 +40,10 @@ vi.mock("../../../llm/fetchEmbedding", () => ({
 
 vi.mock("../../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(),
+}));
+
+vi.mock("../../../sync/sqlite/nodePositions", () => ({
+  reconcileNodePositionsWithVault: vi.fn(async () => ({ removed: 0 })),
 }));
 
 vi.mock("../../../settings/secrets", () => ({
@@ -146,6 +151,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
       ],
       scanVaultNotes: vi.fn().mockResolvedValue(undefined),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   });
@@ -194,7 +200,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
 
     // Verify [OK] notice is NOT emitted
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -215,7 +221,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(errorNotice?.duration).toBe(8000);
 
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -233,7 +239,7 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(errorNotice?.message).toContain("Reconcile error");
 
     expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
-    expect(mockCtx.applyLayout).not.toHaveBeenCalled();
+    expect(mockCtx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(mockCtx.redraw).not.toHaveBeenCalled();
   });
 
@@ -261,8 +267,8 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     // Status text indicates active cache
     expect((mockStatusText as any).text).toContain("Cache aktiv");
     expect((mockHoverBar as any).text).toContain("bereits im Cache");
-    expect(mockCtx.applyLayout).toHaveBeenCalledTimes(1);
-    expect(mockCtx.redraw).toHaveBeenCalledTimes(1);
+    // The view reloads the stored vectors, lays out and redraws (#191)
+    expect(mockCtx.onVectorsCalculated).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -307,6 +313,7 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
       ],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -396,6 +403,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "visible body", x: 0, y: 0 }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -423,6 +431,7 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "a", x: 0, y: 0 }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -445,6 +454,7 @@ describe("runCalcVectors persists pending changes before reporting success (#166
       nodes: [{ id: pathToId("note-1.md"), path: "note-1.md", title: "Note 1", content: "", x: 0, y: 0, embedding: [0.5, 0.5] }],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -509,6 +519,7 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       nodes: [node("A.md"), node("B.md"), node("C.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
     const rescanned = [node("A.md")];
@@ -539,6 +550,7 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       nodes: [node("A.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
     const btn = createMockEl() as any;
@@ -580,6 +592,7 @@ describe("runCalcVectors does not count notes deleted since the scan", () => {
       ],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -612,6 +625,7 @@ describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)",
       nodes: [node],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
 
@@ -649,6 +663,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
       nodes: [node("A.md"), node("B.md"), node("C.md")],
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
       redraw: vi.fn(),
     } as unknown as ScatterViewContext;
   }
@@ -668,7 +683,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
     expect(store.syncPoints).not.toHaveBeenCalled();
     expect(store.reconcile).not.toHaveBeenCalled();
     expect(store.flush).not.toHaveBeenCalled();
-    expect(ctx.applyLayout).not.toHaveBeenCalled();
+    expect(ctx.onVectorsCalculated).not.toHaveBeenCalled();
     expect(hoverBar.text.startsWith("[WARN]")).toBe(true);
     expect(noticeCalls.some((n) => n.message.startsWith("[WARN]"))).toBe(true);
     expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(false);
@@ -701,7 +716,7 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
     expect(fetchEmbedding).toHaveBeenCalledTimes(3);
     expect(ctx.nodes.map((n) => n.embedding)).toEqual([[1, 0], [1, 0], [1, 0]]);
     expect(store.syncPoints).toHaveBeenCalledTimes(1);
-    expect(ctx.applyLayout).toHaveBeenCalled();
+    expect(ctx.onVectorsCalculated).toHaveBeenCalled();
   });
 
   it("does not write vectors into the view's nodes before the run is verified", async () => {
@@ -834,5 +849,49 @@ describe("buildToolbar rearrange action (#214)", () => {
     rearrange.onclick();
     expect(ctx.rearrangeLayout).toHaveBeenCalledTimes(1);
     expect(ctx.applyLayout).not.toHaveBeenCalled();
+  });
+});
+
+describe("runCalcVectors removes stored positions of notes that left the vault (#196)", () => {
+  const node = (path: string) => ({ id: pathToId(path), path, title: path, content: "", x: 0, y: 0 });
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    vi.mocked(fetchEmbedding).mockResolvedValue({ embedding: [0.1, 0.2], error: null });
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof getVectorStore>);
+  });
+
+  const ctx = () =>
+    ({
+      app: { vault: createMockVault({ "A.md": "a body" }) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:archive" },
+      nodes: [node("A.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      onVectorsCalculated: vi.fn(async () => {}),
+      redraw: vi.fn(),
+    }) as unknown as ScatterViewContext;
+
+  it("reconciles positions against the indexing exclusions after a complete run", async () => {
+    const c = ctx();
+    await runCalcVectors(c, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(reconcileNodePositionsWithVault).toHaveBeenCalledWith(c.app, "-path:archive");
+    expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(true);
+  });
+
+  it("only logs a failed position cleanup and still reports the run as successful", async () => {
+    vi.mocked(reconcileNodePositionsWithVault).mockRejectedValueOnce(new Error("locked"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await runCalcVectors(ctx(), createMockEl() as any, createMockEl() as any, createMockEl() as any);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("stored positions"), expect.any(Error));
+    expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(true);
+    warn.mockRestore();
   });
 });

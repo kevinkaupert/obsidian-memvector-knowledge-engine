@@ -5,12 +5,13 @@ import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVoc
 import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
-import type { MemVectorSettings } from "../../settings/types";
+import type { MemVectorSettings, OpenViewSettingsChange } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
 import type { ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
 import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
+import { clampCloudSpacing, clampNodeSpacing } from "./layout/layoutTunables";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
@@ -18,12 +19,14 @@ import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
 import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
+import { resolveEmbeddingTarget } from "../../sync/embeddingTarget";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { PositionPersister } from "./positionPersistence";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
 import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
+import { shouldIncludeFile } from "../../vaultFilter";
 import { isRelationNote } from "../../relationNotes";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -33,6 +36,8 @@ export interface VectorScatterHost {
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
   focusSidebarNote(file: TFile): void;
+  /** Re-applies settings to every open 2D view (MemVectorPlugin.applySettingsToOpenViews). */
+  applySettingsToOpenViews?(options?: OpenViewSettingsChange): void;
 }
 
 export interface NodePositionProvider {
@@ -61,16 +66,26 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Architecture: Counterpart to MemVectorPlugin.applySettingsToOpenViews(). setShowRelationNotes
    * already persists and refreshes, so it is reused for the relation-note flag; everything else the
    * view reads straight off `this.settings` on each redraw. Settings that feed the layout (knowledge
-   * domain, WikiLinks as relations) take effect through applyLayout, which does nothing when no layout
-   * input changed.
+   * domain, WikiLinks as relations, spacing) take effect through applyLayout, which does nothing when no
+   * layout input changed; changed indexing exclusions (`rescan`) queue a rescan of the node set.
    */
-  applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+  applyExternalSettingsChange(options?: OpenViewSettingsChange): void {
     // A hidden view only remembers that settings changed; it applies them once when it is shown again.
     if (!this.isVisible()) {
       this.deferSettingsChange(options);
       return;
     }
     if (options?.embeddings) this.reloadEmbeddings();
+    // Exclusions decide which notes are nodes at all; the queued scan is debounced because the field saves per keystroke.
+    if (options?.rescan) this.triggerVaultRescan();
+    // Spacing can change in another open view's toolbar; the layout engine notices the new value as a layout input.
+    const nodeSpacing = clampNodeSpacing(this.settings.scatterNodeSpacing ?? this.nodeSpacing);
+    const cloudSpacing = clampCloudSpacing(this.settings.scatterCloudSpacing ?? this.cloudSpacing);
+    if (nodeSpacing !== this.nodeSpacing || cloudSpacing !== this.cloudSpacing) {
+      this.nodeSpacing = nodeSpacing;
+      this.cloudSpacing = cloudSpacing;
+      this.toolbarHandles?.updateSpacing?.(nodeSpacing, cloudSpacing);
+    }
     // A vocabulary edit changes per-label attraction/repulsion, so the force layout
     // has to run again - a redraw alone would only repaint the old positions.
     if (options?.relayout) {
@@ -168,7 +183,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   private readonly positionWriter = new PositionPersister({
     write: (records) => saveNodePositions(this.app, records),
-    source: () => ({ nodes: this.nodes, enabled: this.positionsHydrated }),
+    source: () => ({ nodes: this.nodes, enabled: this.positionsHydrated && !this.embeddingHydrationFailed }),
+    isStorable: (record) => {
+      const file = record.path ? this.app.vault.getAbstractFileByPath(record.path) : null;
+      return file instanceof TFile && shouldIncludeFile(file, this.settings.vectorSearchExclusions);
+    },
   });
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
@@ -202,6 +221,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   saveSettings(): Promise<void> {
     return this.host.saveSettings();
+  }
+
+  /** Lets the other open 2D views pick up a setting this view's toolbar just changed (e.g. spacing). */
+  notifyOpenViews(): void {
+    this.host.applySettingsToOpenViews?.();
   }
 
   getViewType(): string {
@@ -278,8 +302,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     const hoverBar = container.createDiv({ cls: "memvector-hoverbar-container memvector-hoverbar" });
 
-    this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
-    this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
+    this.nodeSpacing = clampNodeSpacing(this.settings.scatterNodeSpacing ?? 350);
+    this.cloudSpacing = clampCloudSpacing(this.settings.scatterCloudSpacing ?? 800);
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
     this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
@@ -335,8 +359,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private scanGeneration = 0;
   /** Vault changes arrived while the view was hidden and are waiting in the queue. */
   private staleWhileHidden = false;
+  /** The last vector read failed: layout and position writes are frozen until a complete read succeeds (#191). */
+  private embeddingHydrationFailed = false;
+  /** Embedding fingerprint the in-memory node vectors were loaded for; null before the first complete read. */
+  private embeddingsFingerprint: string | null = null;
   /** Settings changes that arrived while the view was hidden, merged; null when none are pending. */
-  private deferredSettings: { relayout?: boolean; embeddings?: boolean } | null = null;
+  private deferredSettings: OpenViewSettingsChange | null = null;
 
   /**
    * Purpose: Registers reactive vault event watchers that feed the view's event queue.
@@ -418,10 +446,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /** Remembers a settings change for a hidden view, merging it with earlier ones. */
-  private deferSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+  private deferSettingsChange(options?: OpenViewSettingsChange): void {
     const merged = this.deferredSettings ?? {};
     if (options?.relayout) merged.relayout = true;
     if (options?.embeddings) merged.embeddings = true;
+    if (options?.rescan) merged.rescan = true;
     this.deferredSettings = merged;
     this.staleWhileHidden = true;
   }
@@ -480,7 +509,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     const changes = this.vaultEvents.take();
     void this.runExclusive(async () => {
       try {
-        if (changes.fullScan) {
+        // While vectors cannot be read, every update is a full scan, so the next one that can read them unfreezes the map.
+        if (changes.fullScan || this.embeddingHydrationFailed) {
           await this.fullScan({ preserveView: true }, this.scanGeneration);
         } else if (changes.upserts.size > 0 || changes.removals.size > 0) {
           await this.applyNoteChanges(changes, this.scanGeneration);
@@ -669,7 +699,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
-    await this.hydrateStoredEmbeddings(nodes, previousEmbeddings);
+    await this.hydrateStoredEmbeddings(nodes, previousEmbeddings, true);
     await this.hydrateStoredPositions(nodes, true);
     await this.loadRelationEdges();
     if (generation !== this.scanGeneration) return;
@@ -703,7 +733,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       }
       void this.runExclusive(async () => {
         for (const n of this.nodes) n.embedding = undefined;
-        await this.hydrateStoredEmbeddings(this.nodes, new Map());
+        await this.hydrateStoredEmbeddings(this.nodes, new Map(), true);
         this.applyLayout();
         this.redraw();
       });
@@ -731,23 +761,54 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Loads each scanned node's embedding from the vector store, so a reopened/rescanned graph uses the existing
    * semantic index instead of recomputing it through a provider.
    * Architecture: The store is the source of truth - it holds vectors re-indexed from Settings or another view, and is
-   * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are preserved when
-   * the store does not return a vector for a note, ensuring in-memory layouts do not collapse.
+   * scoped to the active embedding model. When it cannot be read, the in-memory vectors of the previous scan
+   * (`fallback`) are only used if they belong to the current embedding fingerprint, and layout and position writes
+   * stay frozen until a complete read (`full`) succeeds again, so fallback data never rearranges or overwrites the
+   * map. Returns false on a failed read.
    */
-  private async hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>): Promise<void> {
-    if (nodes.length === 0) return;
+  private async hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>, full = false): Promise<boolean> {
+    const fingerprint = resolveEmbeddingTarget(this.settings).fingerprint;
+    if (nodes.length === 0) {
+      if (full) this.markEmbeddingsHydrated(fingerprint);
+      return true;
+    }
     let stored: Map<string, number[]>;
     try {
       const store = getVectorStore(this.app, this.settings);
       stored = await store.getVectors([...nodes.map((n) => n.path), ...nodes.map((n) => n.id)]);
     } catch (err) {
-      console.warn("MemVector: Failed to hydrate stored embeddings before layout, keeping in-memory embeddings:", err);
-      stored = fallback;
+      this.markEmbeddingHydrationFailed(err);
+      // In-memory vectors only stand in when they belong to the current model; otherwise none are better than foreign ones.
+      if (this.embeddingsFingerprint === fingerprint) {
+        for (const n of nodes) {
+          const v = fallback.get(n.path) ?? fallback.get(n.id);
+          if (v) n.embedding = v;
+        }
+      }
+      return false;
     }
     for (const n of nodes) {
       const v = stored.get(n.path) ?? stored.get(n.id);
       if (v) n.embedding = v;
     }
+    if (full) this.markEmbeddingsHydrated(fingerprint);
+    return true;
+  }
+
+  /** Records a failed vector read: the map is frozen and the user is told once per failure period (Issue #191). */
+  private markEmbeddingHydrationFailed(err: unknown): void {
+    console.error("MemVector: Failed to load stored vectors; keeping the 2D map unchanged until they can be read:", err);
+    if (!this.embeddingHydrationFailed) {
+      const t = getTranslation(this.settings.language || "de");
+      new Notice(`[ERROR] ${t.noticeEmbeddingHydrationFailed}`, 8000);
+    }
+    this.embeddingHydrationFailed = true;
+  }
+
+  /** A complete, successful vector read: layout updates resume and the in-memory vectors belong to `fingerprint`. */
+  private markEmbeddingsHydrated(fingerprint: string): void {
+    this.embeddingHydrationFailed = false;
+    this.embeddingsFingerprint = fingerprint;
   }
 
   /**
@@ -789,6 +850,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * last completed pass and leaves every node in place when nothing relevant changed (ADR-0006).
    */
   applyLayout(mode: LayoutMode = "auto"): void {
+    // Vectors could not be read: laying out on fallback data would rearrange and overwrite the existing map (#191).
+    if (this.embeddingHydrationFailed) return;
     const { simulated } = this.layoutEngine.run(
       {
         nodes: this.nodes,
@@ -813,6 +876,19 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.applyLayout("rearrange");
       this.fitToView();
       this.hasFittedView = true;
+      this.redraw();
+    });
+  }
+
+  /**
+   * Purpose: Picks up the vectors a successful "Calculate vectors" run just stored, then updates the layout.
+   * Architecture: A complete read from the store - not the run's in-memory vectors - is what proves the vectors are
+   * readable again, so it also lifts the layout freeze after a failed read and records the fingerprint (#191).
+   */
+  onVectorsCalculated(): Promise<void> {
+    return this.runExclusive(async () => {
+      await this.hydrateStoredEmbeddings(this.nodes, new Map(), true);
+      this.applyLayout();
       this.redraw();
     });
   }

@@ -80,9 +80,9 @@ async function fetchVectorNeighbors(
     // Enforce current exclusions before reading content, even with a stale index.
     if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
     const id = pathToId(path);
-    const rawContent = await app.vault.cachedRead(file);
-    const freshBody = stripFrontmatter(rawContent);
-    const content = freshBody || hit.payload?.content || "";
+    // The note as it is now - also when it was emptied. The stored payload is the excerpt from embedding time and
+    // would put text the note no longer contains into the synthesis prompt.
+    const content = stripFrontmatter(await app.vault.cachedRead(file));
     found.set(id, {
       id,
       title: hit.payload?.title || id,
