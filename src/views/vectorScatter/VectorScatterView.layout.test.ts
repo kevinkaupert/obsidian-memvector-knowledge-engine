@@ -405,3 +405,24 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
   });
 });
 
+
+describe("VectorScatterView position writes (#211)", () => {
+  it("writes moved positions once after a burst of layout changes, and flushes a pending write on close", async () => {
+    const { view, notes, fire, toFile } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    view.registerVaultWatchers();
+    await settle(2000);
+    vi.mocked(saveNodePositions).mockClear();
+
+    notes[0].content = "first change of words";
+    fire("modify", toFile(notes[0]));
+    await vi.advanceTimersByTimeAsync(900);
+    notes[1].content = "second change of words";
+    fire("modify", toFile(notes[1]));
+    await vi.advanceTimersByTimeAsync(900);
+    expect(saveNodePositions).not.toHaveBeenCalled();
+
+    await view.onClose();
+    expect(saveNodePositions).toHaveBeenCalledTimes(1);
+  });
+});

@@ -19,6 +19,7 @@ import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
+import { PositionPersister } from "./positionPersistence";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
 import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
@@ -156,6 +157,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   private positionsHydrated = false;
   private readonly layoutEngine = new LayoutEngine();
+  /**
+   * Writes moved positions in batches. Gated by positionsHydrated so a failed hydration never lets computed positions
+   * overwrite valid stored ones (Issue #184).
+   */
+  private readonly positionWriter = new PositionPersister({
+    write: (records) => saveNodePositions(this.app, records),
+    source: () => ({ nodes: this.nodes, enabled: this.positionsHydrated }),
+  });
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
   private canvasWrap!: HTMLElement;
@@ -300,6 +309,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   onClose(): Promise<void> {
     this.vaultEvents.dispose();
+    void this.positionWriter.flush();
     if (this.embeddingReloadTimer !== null) {
       window.clearTimeout(this.embeddingReloadTimer);
       this.embeddingReloadTimer = null;
@@ -692,6 +702,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     try {
       const queryKeys = [...nodes.map((n) => n.path), ...nodes.map((n) => n.id)];
       const stored = await getStoredNodePositions(this.app, queryKeys);
+      const inStorage: { id: string; x: number; y: number }[] = [];
+      nodes.forEach((n) => {
+        const pos = stored.get(n.id) ?? stored.get(n.path);
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) inStorage.push({ id: n.id, x: pos.x, y: pos.y });
+      });
+      this.positionWriter.markPersisted(inStorage);
       nodes.forEach((n) => {
         if (!isPlaced(n)) {
           const pos = stored.get(n.id) ?? stored.get(n.path);
@@ -705,25 +721,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     } catch (err) {
       this.positionsHydrated = false;
       console.warn("MemVector: Failed to hydrate stored node positions, aborting position persistence to protect mental map:", err);
-    }
-  }
-
-  /**
-   * Purpose: Persists non-zero 2D coordinates of all currently placed nodes to SQLite.
-   * Architecture: Preserves node positions across sessions and restarts (ADR-0005). Gated by
-   * positionsHydrated to prevent overwriting valid storage on hydration failure (Issue #184).
-   */
-  private async persistCurrentPositions(): Promise<void> {
-    if (!this.positionsHydrated || this.nodes.length === 0) return;
-    try {
-      const records = this.nodes
-        .filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.x !== 0 || n.y !== 0))
-        .map((n) => ({ id: n.id, path: n.path, x: n.x, y: n.y }));
-      if (records.length > 0) {
-        await saveNodePositions(this.app, records);
-      }
-    } catch (err) {
-      console.warn("MemVector: Failed to persist node positions:", err);
     }
   }
 
@@ -744,7 +741,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       },
       mode
     );
-    if (simulated) void this.persistCurrentPositions();
+    if (simulated) this.positionWriter.schedule();
   }
 
   async loadRelationEdges(): Promise<void> {
