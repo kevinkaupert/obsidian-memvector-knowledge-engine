@@ -305,6 +305,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
 
     this.registerVaultWatchers();
+    this.registerVisibilityWatchers();
   }
 
   onClose(): Promise<void> {
@@ -327,6 +328,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private workChain: Promise<void> = Promise.resolve();
   /** Incremented per requested full scan; work started under an older value is discarded. */
   private scanGeneration = 0;
+  /** Vault changes arrived while the view was hidden and are waiting in the queue. */
+  private staleWhileHidden = false;
 
   /**
    * Purpose: Registers reactive vault event watchers that feed the view's event queue.
@@ -381,6 +384,35 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
+  /**
+   * Purpose: Tells whether the view is currently on screen.
+   * Architecture: Uses Obsidian's HTMLElement.isShown(), which is false when the view element or an ancestor is
+   * hidden - a background tab - and true for a view in a split pane or a popout window, since it checks the element's
+   * own DOM ancestry rather than the active leaf.
+   */
+  private isVisible(): boolean {
+    const el = this.containerEl as HTMLElement & { isShown?: () => boolean };
+    return typeof el.isShown === "function" ? el.isShown() : true;
+  }
+
+  /**
+   * Purpose: Re-checks visibility whenever the workspace layout or the active leaf changes, so a view that collected
+   * vault changes while hidden applies them once it is shown again.
+   */
+  registerVisibilityWatchers(): void {
+    const workspace = this.app?.workspace;
+    if (!workspace?.on) return;
+    this.registerEvent(workspace.on("layout-change", () => this.resumeIfVisible()));
+    this.registerEvent(workspace.on("active-leaf-change", () => this.resumeIfVisible()));
+  }
+
+  /** Applies the vault changes collected while the view was hidden, once it is visible again. */
+  private resumeIfVisible(): void {
+    if (!this.staleWhileHidden || !this.isVisible()) return;
+    this.staleWhileHidden = false;
+    if (this.vaultEvents.hasPending()) this.processVaultChanges();
+  }
+
   /** Queues a reload of relation edges and vocabulary forces. */
   triggerRelationsReload(): void {
     this.vaultEvents.relationsChanged();
@@ -417,6 +449,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * fails, a full scan restores a consistent node list.
    */
   private processVaultChanges(): void {
+    // A hidden view keeps collecting; nothing is read or laid out until it is shown again.
+    if (!this.isVisible()) {
+      this.staleWhileHidden = true;
+      return;
+    }
     const changes = this.vaultEvents.take();
     void this.runExclusive(async () => {
       try {
@@ -478,6 +515,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private hasFittedView = false;
 
   private handleResize(): void {
+    this.resumeIfVisible();
     const w = this.canvasWrap.clientWidth || 800;
     const h = this.canvasWrap.clientHeight || 600;
     const dpr = window.devicePixelRatio || 1;

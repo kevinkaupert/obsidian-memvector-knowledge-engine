@@ -113,6 +113,7 @@ function createFixture(notes: FakeNote[]) {
       on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(event, cb), { event, cb })),
     },
     metadataCache: { getFileCache: () => undefined },
+    workspace: { on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(`workspace:${event}`, cb), { event, cb })) },
   };
   const host: VectorScatterHost = {
     app: app as any,
@@ -424,5 +425,60 @@ describe("VectorScatterView position writes (#211)", () => {
 
     await view.onClose();
     expect(saveNodePositions).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VectorScatterView defers work while hidden (#212)", () => {
+  async function openHideable() {
+    const fixture = createFixture(sixNotes());
+    let visible = true;
+    (fixture.view as any).containerEl.isShown = () => visible;
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVaultWatchers();
+    fixture.view.registerVisibilityWatchers();
+    await settle();
+    vi.mocked(fixture.vault.cachedRead).mockClear();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    return { ...fixture, setVisible: (v: boolean) => (visible = v) };
+  }
+
+  it("reads and lays out nothing while hidden, then applies the collected changes exactly once when shown", async () => {
+    const f = await openHideable();
+    f.setVisible(false);
+    f.notes[0].content = "changed words while hidden";
+    f.fire("modify", f.toFile(f.notes[0]));
+    await settle();
+    f.fire("modify", f.toFile(f.notes[1]));
+    await settle();
+
+    expect(f.vault.cachedRead).not.toHaveBeenCalled();
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+
+    f.setVisible(true);
+    f.fire("workspace:active-leaf-change");
+    f.fire("workspace:layout-change");
+    await settle();
+
+    expect(f.vault.cachedRead).toHaveBeenCalledTimes(2);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(f.view.nodes.find((n) => n.path === f.notes[0].path)!.content).toContain("changed words while hidden");
+  });
+
+  it("does nothing on layout changes while still hidden", async () => {
+    const f = await openHideable();
+    f.setVisible(false);
+    f.fire("modify", f.toFile(f.notes[0]));
+    await settle();
+    f.fire("workspace:layout-change");
+    await settle();
+
+    expect(f.vault.cachedRead).not.toHaveBeenCalled();
+  });
+
+  it("processes events normally while visible (split pane or popout)", async () => {
+    const f = await openHideable();
+    f.fire("modify", f.toFile(f.notes[0]));
+    await settle();
+    expect(f.vault.cachedRead).toHaveBeenCalledTimes(1);
   });
 });
