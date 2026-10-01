@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import { pathToId } from "../../noteSlug";
-import { loadRelationEdges, parseRelationMetadata } from "./relationEdges";
+import { loadRelationEdges, loadRelationFilesResult, parseRelationMetadata } from "./relationEdges";
 
 interface FakeFile {
   path: string;
@@ -203,3 +203,48 @@ describe("configured relations folder (#173)", () => {
   });
 });
 
+
+describe("incomplete relation notes mark the load as partial (#203)", () => {
+  it.each([
+    ["missing target_note", { source_note: "[[Alpha]]", relation_type: "REQUIRES" }],
+    ["missing source_note", { target_note: "[[Beta]]", relation_type: "REQUIRES" }],
+    ["empty target link", { source_note: "[[Alpha]]", target_note: "[[]]", relation_type: "REQUIRES" }],
+  ])("flags hasErrors and logs the path for %s", async (_label, frontmatter) => {
+    const app = fakeApp([
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      { path: "wiki/relations/rel.md", basename: "rel", frontmatter },
+    ]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const result = await loadRelationFilesResult(app);
+      expect(result.edges).toEqual([]);
+      expect(result.hasErrors).toBe(true);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("wiki/relations/rel.md"));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("does not flag a relation whose endpoint is excluded on purpose", async () => {
+    const app = fakeApp([
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      { path: "wiki/relations/rel.md", basename: "rel", frontmatter: { source_note: "[[Alpha]]", target_note: "[[Beta]]", relation_type: "REQUIRES" } },
+    ]);
+    const result = await loadRelationFilesResult(app, "-file:Beta");
+    expect(result.edges).toEqual([]);
+    expect(result.hasErrors).toBe(false);
+  });
+
+  it("does not flag complete relation notes", async () => {
+    const app = fakeApp([
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      { path: "wiki/relations/rel.md", basename: "rel", frontmatter: { source_note: "[[Alpha]]", target_note: "[[Beta]]", relation_type: "REQUIRES" } },
+    ]);
+    const result = await loadRelationFilesResult(app);
+    expect(result.edges).toHaveLength(1);
+    expect(result.hasErrors).toBe(false);
+  });
+});
