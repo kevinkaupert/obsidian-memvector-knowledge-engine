@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS } from "../settings/defaults";
 import * as fetchEmbeddingModule from "../llm/fetchEmbedding";
 import { pathToId } from "../noteSlug";
 import { getVectorStore } from "./storeFactory";
+import { EmbeddingTargetChangedError } from "./embeddingTarget";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
@@ -168,5 +169,50 @@ describe("vaultVectorSync", () => {
     expect((await run("nomic-embed-text")).skippedCount).toBe(2);
 
     expect((await run("nomic-embed-text", "http://gpu-box:11434/v1")).syncedCount).toBe(2);
+  });
+
+  it("adversarial (#202): a run whose model was switched mid-run neither overwrites the new model's vectors nor reports success", async () => {
+    const files: TFile[] = [
+      { path: "A.md", basename: "A", name: "A.md" } as unknown as TFile,
+      { path: "B.md", basename: "B", name: "B.md" } as unknown as TFile,
+    ];
+    const wasm = readFileSync(resolve(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
+    const disk = new Map<string, ArrayBuffer>([
+      [".obsidian/plugins/memvector-knowledge-engine/sql-wasm.wasm", wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength)],
+    ]);
+    const app = {
+      vault: {
+        configDir: ".obsidian",
+        getMarkdownFiles: () => files,
+        cachedRead: async (f: TFile) => `Content of ${f.basename}`,
+        adapter: {
+          exists: async (path: string) => disk.has(path),
+          readBinary: async (path: string) => disk.get(path)!,
+          writeBinary: async (path: string, data: ArrayBuffer) => void disk.set(path, data),
+        },
+      },
+      secretStorage: { getSecret: () => "" },
+    } as unknown as App;
+
+    // One live settings object, as the Settings tab shares it with the plugin.
+    const settings = { ...DEFAULT_SETTINGS, embeddingModel: "model-a" };
+    let switched = false;
+    vi.spyOn(fetchEmbeddingModule, "fetchEmbedding").mockImplementation(async (_text, _base, _key, model) => {
+      if (model === "model-a" && !switched) {
+        // While run A awaits its first request, the user switches to B and indexes with it.
+        switched = true;
+        settings.embeddingModel = "model-b";
+        await syncVaultVectors(app, settings, getVectorStore(app, settings));
+      }
+      return { embedding: model === "model-a" ? [1, 0, 0] : [0, 1, 0], error: null };
+    });
+
+    await expect(syncVaultVectors(app, settings, getVectorStore(app, settings))).rejects.toBeInstanceOf(EmbeddingTargetChangedError);
+
+    const storeB = getVectorStore(app, settings);
+    const vectorsB = await storeB.getVectors(["A.md", "B.md"]);
+    expect(vectorsB.get("A.md")).toEqual([0, 1, 0]);
+    expect(vectorsB.get("B.md")).toEqual([0, 1, 0]);
+    expect((await syncVaultVectors(app, settings, storeB)).skippedCount).toBe(2);
   });
 });

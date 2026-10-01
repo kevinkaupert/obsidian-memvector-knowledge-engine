@@ -27,6 +27,25 @@ export function resolveEmbeddingTarget(settings: Pick<MemVectorSettings, "embedd
 }
 
 /**
+ * Purpose: Tells whether the configured embedding target no longer matches the fingerprint an indexing run started with.
+ * Architecture: Indexing runs await one request per note while Settings stay editable, so a run re-checks this before
+ * handing out or storing vectors - results computed under the old fingerprint belong to the previous vector space.
+ */
+export function embeddingTargetChanged(settings: Pick<MemVectorSettings, "embeddingModel" | "embeddingApiBaseUrl">, fingerprint: string): boolean {
+  return resolveEmbeddingTarget(settings).fingerprint !== fingerprint;
+}
+
+/**
+ * Purpose: Signals that an indexing run was cancelled because the embedding model or endpoint changed while it ran.
+ */
+export class EmbeddingTargetChangedError extends Error {
+  constructor(readonly previousFingerprint: string) {
+    super(`Embedding model or endpoint changed during indexing (was ${previousFingerprint}); the run's vectors were discarded`);
+    this.name = "EmbeddingTargetChangedError";
+  }
+}
+
+/**
  * Purpose: Normalizes an API base URL for fingerprint comparison.
  * Architecture: Only scheme and host are case-insensitive (URL parsing lowercases them); the path keeps its case,
  * since a server may route `/ModelA/v1` and `/modela/v1` differently. Trailing slashes and an explicit `/embeddings`

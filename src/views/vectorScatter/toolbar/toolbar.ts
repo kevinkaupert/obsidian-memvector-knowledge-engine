@@ -5,7 +5,7 @@ import { getShortModelName } from "../../../llm/getShortModelName";
 import { resolveEmbeddingApiKey } from "../../../settings/secrets";
 import { pathToId } from "../../../noteSlug";
 import { buildEmbeddingInput } from "../../../sync/embeddingText";
-import { resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
+import { embeddingTargetChanged, resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
 import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
 import type { VectorPoint } from "../../../sync/vectorStore";
@@ -412,7 +412,7 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: ScatterNode[], statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
   const { model: embedModel, apiBase, fingerprint } = resolveEmbeddingTarget(ctx.settings);
-  const targetChanged = () => resolveEmbeddingTarget(ctx.settings).fingerprint !== fingerprint;
+  const targetChanged = () => embeddingTargetChanged(ctx.settings, fingerprint);
   const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
   const total = workNodes.length;
   statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
