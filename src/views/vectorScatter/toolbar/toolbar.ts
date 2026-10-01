@@ -405,10 +405,14 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 /**
  * Purpose: Embeds every node of the stable work list (text built by the shared buildEmbeddingInput, so cache hashes
  * match the Settings vault sync), persists the results and reports the outcome.
+ * Architecture: Vectors are collected per path and only handed to the view and the store once the embedding target
+ * is verified unchanged. A model or endpoint switch mid-run makes every result belong to the previous vector space,
+ * so the run is cancelled instead: the view keeps what the switch rehydrated, and the store keeps the new model's rows.
  */
 async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: ScatterNode[], statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
-  const { model: embedModel, apiBase } = resolveEmbeddingTarget(ctx.settings);
+  const { model: embedModel, apiBase, fingerprint } = resolveEmbeddingTarget(ctx.settings);
+  const targetChanged = () => resolveEmbeddingTarget(ctx.settings).fingerprint !== fingerprint;
   const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
   const total = workNodes.length;
   statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
@@ -419,6 +423,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   let vanishedCount = 0;
   let lastError: string | null = null;
   const points: VectorPoint[] = [];
+  const embeddings = new Map<string, number[]>();
 
   const vectorStore = getVectorStore(ctx.app, ctx.settings);
   let storedHashes = new Map<string, { hash: string; mtime?: number }>();
@@ -435,6 +440,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   }
 
   for (let i = 0; i < total; i++) {
+    if (targetChanged()) break;
     const node = workNodes[i];
     // Embed from the note file itself, not from node.content: that is a short display/layout
     // excerpt, and the text and hash must match the Settings vault sync exactly.
@@ -452,7 +458,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
       // in-memory vector may still come from the previous one (e.g. after a model switch and a Settings re-index).
       const stored = storedVectors.get(node.path);
       if (stored && stored.length > 0) {
-        node.embedding = stored;
+        embeddings.set(node.path, stored);
         skippedCount++;
         successCount++;
         continue;
@@ -469,7 +475,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
       new Notice(`[ERROR] ${vT.noticeEmbeddingError}: ${res.error}`, 8000);
       break;
     } else if (res.embedding) {
-      node.embedding = res.embedding;
+      embeddings.set(node.path, res.embedding);
       points.push({
         id: pathToId(node.path),
         vector: res.embedding,
@@ -481,7 +487,15 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     }
   }
 
-  adoptEmbeddings(ctx, workNodes);
+  if (targetChanged()) {
+    console.warn(`MemVector: Embedding target changed during vector calculation (was ${fingerprint}), discarding the run's vectors`);
+    statusText.setText(vT.statusVectorsCancelled);
+    setHoverBarText(hoverBar, `[WARN] ${vT.noticeEmbeddingTargetChanged}`, "warning");
+    new Notice(`[WARN] ${vT.noticeEmbeddingTargetChanged}`, 8000);
+    return;
+  }
+
+  adoptEmbeddings(ctx, embeddings);
   // Notes that still exist - the base for completion and for every count reported below.
   const done = total - vanishedCount;
 
@@ -546,10 +560,8 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
   }
 }
 
-/** Carries embeddings from the work list over to node objects a rescan created in the meantime (matched by path). */
-function adoptEmbeddings(ctx: ScatterViewContext, workNodes: ScatterNode[]): void {
-  const byPath = new Map<string, number[]>();
-  for (const n of workNodes) if (n.embedding && n.embedding.length > 0) byPath.set(n.path, n.embedding);
+/** Hands the run's vectors to the view's current nodes, matched by path so node objects a rescan created also get them. */
+function adoptEmbeddings(ctx: ScatterViewContext, byPath: Map<string, number[]>): void {
   for (const n of ctx.nodes) {
     const embedding = byPath.get(n.path);
     if (embedding) n.embedding = embedding;

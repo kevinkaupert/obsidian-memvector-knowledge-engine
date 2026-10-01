@@ -622,6 +622,102 @@ describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)",
   });
 });
 
+describe("runCalcVectors discards its vectors when the embedding target changes mid-run (#202)", () => {
+  const vaultFiles = { "A.md": "a body", "B.md": "b body", "C.md": "c body" };
+  const node = (path: string) => ({ id: pathToId(path), path, title: path, content: "", x: 0, y: 0, embedding: [7, 7] });
+  let store: { syncPoints: ReturnType<typeof vi.fn>; reconcile: ReturnType<typeof vi.fn>; flush: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    noticeCalls.length = 0;
+    vi.clearAllMocks();
+    store = {
+      syncPoints: vi.fn().mockResolvedValue(undefined),
+      reconcile: vi.fn().mockResolvedValue({ removed: 0 }),
+      flush: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(getVectorStore).mockReturnValue({
+      getStoredHashes: vi.fn().mockResolvedValue(new Map()),
+      getVectors: vi.fn().mockResolvedValue(new Map()),
+      ...store,
+    } as unknown as ReturnType<typeof getVectorStore>);
+  });
+
+  function createCtx(): ScatterViewContext {
+    return {
+      app: { vault: createMockVault(vaultFiles) },
+      settings: { ...DEFAULT_SETTINGS_FOR_TEST, embeddingModel: "model-a" },
+      nodes: [node("A.md"), node("B.md"), node("C.md")],
+      scanVaultNotes: vi.fn(),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+    } as unknown as ScatterViewContext;
+  }
+
+  it("stops requesting, keeps the view's vectors and writes nothing when the model switches during a request", async () => {
+    const ctx = createCtx();
+    vi.mocked(fetchEmbedding).mockImplementation(async () => {
+      ctx.settings.embeddingModel = "model-b";
+      return { embedding: [1, 0], error: null };
+    });
+    const hoverBar = createMockEl() as any;
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, hoverBar);
+
+    expect(fetchEmbedding).toHaveBeenCalledTimes(1);
+    expect(ctx.nodes.map((n) => n.embedding)).toEqual([[7, 7], [7, 7], [7, 7]]);
+    expect(store.syncPoints).not.toHaveBeenCalled();
+    expect(store.reconcile).not.toHaveBeenCalled();
+    expect(store.flush).not.toHaveBeenCalled();
+    expect(ctx.applyLayout).not.toHaveBeenCalled();
+    expect(hoverBar.text.startsWith("[WARN]")).toBe(true);
+    expect(noticeCalls.some((n) => n.message.startsWith("[WARN]"))).toBe(true);
+    expect(noticeCalls.some((n) => n.message.startsWith("[OK]"))).toBe(false);
+  });
+
+  it("discards the results when the endpoint switches during the last request", async () => {
+    const ctx = createCtx();
+    let calls = 0;
+    vi.mocked(fetchEmbedding).mockImplementation(async () => {
+      if (++calls === 3) ctx.settings.embeddingApiBaseUrl = "http://other-host:1234/v1";
+      return { embedding: [1, 0], error: null };
+    });
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).toHaveBeenCalledTimes(3);
+    expect(ctx.nodes.map((n) => n.embedding)).toEqual([[7, 7], [7, 7], [7, 7]]);
+    expect(store.syncPoints).not.toHaveBeenCalled();
+  });
+
+  it("finishes normally when a setting unrelated to the embedding target changes mid-run", async () => {
+    const ctx = createCtx();
+    vi.mocked(fetchEmbedding).mockImplementation(async () => {
+      ctx.settings.language = "de";
+      return { embedding: [1, 0], error: null };
+    });
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(fetchEmbedding).toHaveBeenCalledTimes(3);
+    expect(ctx.nodes.map((n) => n.embedding)).toEqual([[1, 0], [1, 0], [1, 0]]);
+    expect(store.syncPoints).toHaveBeenCalledTimes(1);
+    expect(ctx.applyLayout).toHaveBeenCalled();
+  });
+
+  it("does not write vectors into the view's nodes before the run is verified", async () => {
+    const ctx = createCtx();
+    const seen: (number[] | undefined)[] = [];
+    vi.mocked(fetchEmbedding).mockImplementation(async () => {
+      seen.push(ctx.nodes[0].embedding);
+      return { embedding: [1, 0], error: null };
+    });
+
+    await runCalcVectors(ctx, createMockEl() as any, createMockEl() as any, createMockEl() as any);
+
+    expect(seen).toEqual([[7, 7], [7, 7], [7, 7]]);
+  });
+});
+
 describe("buildToolbar edgeHops persistence", () => {
   it("persists scatterEdgeHops to settings on dropdown change and exposes updateEdgeHops handle", async () => {
     const { getTranslation } = await import("../../../i18n");
