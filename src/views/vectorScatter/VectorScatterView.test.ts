@@ -64,10 +64,6 @@ vi.mock("./toolbar/toolbar", () => ({
   })),
 }));
 
-vi.mock("./vaultScan", () => ({
-  scanVaultNotes: vi.fn(async () => []),
-  shouldIncludeFile: vi.fn(() => true),
-}));
 
 vi.mock("./canvasInteraction", () => ({
   wireCanvasInteraction: vi.fn(() => vi.fn()),
@@ -86,7 +82,8 @@ vi.mock("./relationEdges", () => ({
   loadRelationEdges: vi.fn(async () => []),
 }));
 
-vi.mock("./vaultScan", () => ({
+vi.mock("./vaultScan", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./vaultScan")>()),
   scanVaultNotes: vi.fn(async () => []),
 }));
 
@@ -279,16 +276,16 @@ describe("VectorScatterView Live Vault Watcher (Issue #63)", () => {
     modifyCb!({ path: "wiki/concepts/math.md" });
     expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
 
-    // Renaming a relation file changes the node set too, so it triggers a full rescan (#168)
+    // Renaming a hidden relation note only changes edges; it is not a node while relation notes are hidden (#210)
     const renameCb = registeredCallbacks.get("rename");
     expect(renameCb).toBeDefined();
     renameCb!({ path: "wiki/relations/new-rel.md" }, "wiki/relations/old-rel.md");
-    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
-    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(1);
 
-    // Renaming a regular note triggers triggerVaultRescan
+    // Renaming a regular note queues that one rename
     renameCb!({ path: "wiki/concepts/new-note.md" }, "wiki/concepts/old-note.md");
-    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(3);
+    expect(view.triggerVaultRescan).toHaveBeenLastCalledWith({ kind: "rename", path: "wiki/concepts/new-note.md", oldPath: "wiki/concepts/old-note.md" });
   });
 
   it("clears debounce timers and cleans up on onClose", async () => {
@@ -450,19 +447,32 @@ describe("VectorScatterView watcher and camera (#162)", () => {
 });
 
 describe("VectorScatterView watcher keeps relation note nodes current (#168)", () => {
-  it("rescans nodes when a relation note is created or deleted", () => {
-    const { view, callbacks } = makeWatchedView();
-    callbacks.get("create")!({ path: "wiki/relations/a--supports--b.md" });
-    callbacks.get("delete")!({ path: "wiki/relations/c--supports--d.md" });
-    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
-    expect(view.triggerRelationsReload).not.toHaveBeenCalled();
+  it("reloads edges for a created or deleted relation note, and updates nodes only when relation notes are shown", () => {
+    const hidden = makeWatchedView();
+    hidden.callbacks.get("create")!({ path: "wiki/relations/a--supports--b.md" });
+    hidden.callbacks.get("delete")!({ path: "wiki/relations/c--supports--d.md" });
+    expect(hidden.view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+    expect(hidden.view.triggerVaultRescan).not.toHaveBeenCalled();
+
+    const shown = makeWatchedView({ showRelationNotes: true });
+    shown.view.showRelationNotes = true;
+    shown.view.nodes = [makeNode("rel", "wiki/relations/c--supports--d.md", "relation")];
+    shown.callbacks.get("create")!({ path: "wiki/relations/a--supports--b.md" });
+    shown.callbacks.get("delete")!({ path: "wiki/relations/c--supports--d.md" });
+    expect(shown.view.triggerVaultRescan).toHaveBeenCalledWith({ kind: "upsert", path: "wiki/relations/a--supports--b.md" });
+    expect(shown.view.triggerVaultRescan).toHaveBeenCalledWith({ kind: "delete", path: "wiki/relations/c--supports--d.md" });
   });
 
-  it("rescans nodes when a relation note is renamed into or out of the relations folder", () => {
+  it("checks both paths when a note is renamed into or out of the relations folder", () => {
     const { view, callbacks } = makeWatchedView();
+    // Out of the relations folder: becomes a regular, shown note.
     callbacks.get("rename")!({ path: "wiki/concepts/moved.md" }, "wiki/relations/moved.md");
+    expect(view.triggerVaultRescan).toHaveBeenLastCalledWith({ kind: "rename", path: "wiki/concepts/moved.md", oldPath: "wiki/relations/moved.md" });
+    // Into the relations folder: a shown note disappears from the view.
+    view.nodes = [makeNode("moved", "wiki/concepts/moved.md", "concept")];
     callbacks.get("rename")!({ path: "wiki/relations/moved.md" }, "wiki/concepts/moved.md");
-    expect(view.triggerVaultRescan).toHaveBeenCalledTimes(2);
+    expect(view.triggerVaultRescan).toHaveBeenLastCalledWith({ kind: "rename", path: "wiki/relations/moved.md", oldPath: "wiki/concepts/moved.md" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
   });
 
   it("keeps a plain relation note edit on the lighter edge reload", () => {

@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkspaceLeaf } from "obsidian";
+import { TFile, type WorkspaceLeaf } from "obsidian";
 import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
 import { applyGraphVectorProjection } from "./layout/projections";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
 import type { RelationEdge } from "./types";
+import { loadRelationEdges } from "./relationEdges";
 
 /**
  * Harness for the view's scan -> layout -> persist path with the real layout code. Only Obsidian, rendering,
@@ -93,16 +94,17 @@ interface FakeNote {
 /** Fake vault over a mutable note list; vault.on callbacks are captured so tests can fire events. */
 function createFixture(notes: FakeNote[]) {
   const callbacks = new Map<string, (...args: any[]) => void>();
-  const toFile = (n: FakeNote) => ({
-    path: n.path,
-    basename: n.path.replace(/^.*\//, "").replace(/\.md$/, ""),
-    name: n.path.replace(/^.*\//, ""),
-    extension: "md",
-  });
+  const toFile = (n: FakeNote) =>
+    Object.assign(new TFile(), {
+      path: n.path,
+      basename: n.path.replace(/^.*\//, "").replace(/\.md$/, ""),
+      name: n.path.replace(/^.*\//, ""),
+      extension: "md",
+    });
   const app = {
     vault: {
       getMarkdownFiles: () => notes.map(toFile),
-      cachedRead: async (f: { path: string }) => notes.find((n) => n.path === f.path)?.content ?? "",
+      cachedRead: vi.fn(async (f: { path: string }) => notes.find((n) => n.path === f.path)?.content ?? ""),
       read: async (f: { path: string }) => notes.find((n) => n.path === f.path)?.content ?? "",
       getAbstractFileByPath: (p: string) => {
         const n = notes.find((x) => x.path === p);
@@ -120,7 +122,7 @@ function createFixture(notes: FakeNote[]) {
   };
   const view = new VectorScatterView({} as WorkspaceLeaf, host);
   const fire = (event: string, ...args: unknown[]) => callbacks.get(event)!(...args);
-  return { view, notes, fire, toFile };
+  return { view, notes, fire, toFile, vault: app.vault };
 }
 
 /** Six notes in two topic folders, each with a deterministic vector. */
@@ -151,6 +153,7 @@ beforeEach(() => {
   vi.mocked(applyGraphVectorProjection).mockClear();
   vi.mocked(saveNodePositions).mockClear();
   vi.mocked(getStoredNodePositions).mockClear();
+  vi.mocked(loadRelationEdges).mockClear();
 });
 
 afterEach(() => {
@@ -230,3 +233,175 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView event queue and selective reads (#210)", () => {
+  async function openWithWatchers(notes = sixNotes()) {
+    const fixture = createFixture(notes);
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVaultWatchers();
+    await settle();
+    vi.mocked(fixture.vault.cachedRead).mockClear();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    vi.mocked(loadRelationEdges).mockClear();
+    return fixture;
+  }
+
+  it("re-reads only the modified note, once for a burst of saves", async () => {
+    const { view, notes, fire, toFile, vault } = await openWithWatchers();
+    for (let i = 0; i < 4; i++) {
+      fire("modify", toFile(notes[1]));
+      await vi.advanceTimersByTimeAsync(300);
+    }
+    await settle();
+
+    expect(vault.cachedRead).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(vault.cachedRead).mock.calls[0][0].path).toBe(notes[1].path);
+    expect(view.nodes).toHaveLength(6);
+  });
+
+  it("ignores events for notes excluded from indexing or outside the view filter", async () => {
+    const notes = [...sixNotes(), { path: "archive/old.md", content: "archived" }];
+    const fixture = createFixture(notes);
+    fixture.view.settings.vectorSearchExclusions = "-path:archive";
+    await fixture.view.scanVaultNotes("algebra");
+    fixture.view.registerVaultWatchers();
+    await settle();
+    vi.mocked(fixture.vault.cachedRead).mockClear();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    fixture.fire("modify", fixture.toFile(notes[6]));
+    fixture.fire("modify", fixture.toFile(notes[4]));
+    await settle();
+
+    expect(fixture.vault.cachedRead).not.toHaveBeenCalled();
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
+  });
+
+  it("still reloads edges for relation notes and the vocabulary file outside the view filter", async () => {
+    const notes = [...sixNotes(), { path: "wiki/relations/a--b.md", content: "---\ntype: relation\n---" }];
+    const fixture = createFixture(notes);
+    await fixture.view.scanVaultNotes("algebra");
+    fixture.view.registerVaultWatchers();
+    await settle();
+    vi.mocked(loadRelationEdges).mockClear();
+
+    fixture.fire("modify", fixture.toFile(notes[6]));
+    await settle();
+    expect(loadRelationEdges).toHaveBeenCalledTimes(1);
+
+    fixture.fire("modify", { path: "wiki/relation-types.json" });
+    await settle();
+    expect(loadRelationEdges).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not run the layout for a relation edit that only changes the description", async () => {
+    relationEdges = [{ srcId: "algebra/note0", tgtId: "geometry/note3", relType: "REQUIRES", desc: "old", title: "", path: "wiki/relations/r.md", bidirectional: false }];
+    const fixture = await openWithWatchers([...sixNotes(), { path: "wiki/relations/r.md", content: "---\ntype: relation\n---" }]);
+    relationEdges = [{ ...relationEdges[0], desc: "a better reason" }];
+
+    fixture.fire("modify", fixture.toFile(fixture.notes[6]));
+    await settle();
+
+    expect(loadRelationEdges).toHaveBeenCalledTimes(1);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(fixture.view.relationEdges[0].desc).toBe("a better reason");
+  });
+
+  it("runs the layout when a relation edit changes the force", async () => {
+    relationEdges = [{ srcId: "algebra/note0", tgtId: "geometry/note3", relType: "REQUIRES", desc: "", title: "", path: "wiki/relations/r.md", bidirectional: false }];
+    const fixture = await openWithWatchers([...sixNotes(), { path: "wiki/relations/r.md", content: "---\ntype: relation\n---" }]);
+    relationEdges = [{ ...relationEdges[0], relType: "CONFLICTS_WITH" }];
+
+    fixture.fire("modify", fixture.toFile(fixture.notes[6]));
+    await settle();
+
+    expect(applyGraphVectorProjection).toHaveBeenCalled();
+  });
+
+  it("removes a shown note renamed into an excluded folder, and adds one renamed out of it", async () => {
+    const fixture = await openWithWatchers();
+    fixture.view.settings.vectorSearchExclusions = "-path:archive";
+    const note = fixture.notes[2];
+    const position = { x: fixture.view.nodes[2].x, y: fixture.view.nodes[2].y };
+
+    const oldPath = note.path;
+    note.path = "archive/note2.md";
+    fixture.fire("rename", fixture.toFile(note), oldPath);
+    await settle();
+    expect(fixture.view.nodes.map((n) => n.path)).not.toContain(oldPath);
+    expect(fixture.view.nodes).toHaveLength(5);
+
+    note.path = "algebra/note2-renamed.md";
+    fixture.fire("rename", fixture.toFile(note), "archive/note2.md");
+    await settle();
+    expect(fixture.view.nodes.map((n) => n.path)).toContain("algebra/note2-renamed.md");
+    expect(fixture.view.nodes).toHaveLength(6);
+    expect(position.x !== 0 || position.y !== 0).toBe(true);
+  });
+
+  it("carries the vector and position of a note renamed within the view instead of looking them up again", async () => {
+    const fixture = await openWithWatchers();
+    const before = fixture.view.nodes[1];
+    const oldPath = fixture.notes[1].path;
+    fixture.notes[1].path = "algebra/renamed.md";
+    vi.mocked(getStoredNodePositions).mockClear();
+
+    fixture.fire("rename", fixture.toFile(fixture.notes[1]), oldPath);
+    await settle();
+
+    const after = fixture.view.nodes.find((n) => n.path === "algebra/renamed.md")!;
+    expect(after.embedding).toEqual(before.embedding);
+    expect(after.x !== 0 || after.y !== 0).toBe(true);
+    expect(getStoredNodePositions).not.toHaveBeenCalled();
+  });
+
+  it("adds a created note and drops a deleted one", async () => {
+    const fixture = await openWithWatchers();
+    fixture.notes.push({ path: "geometry/new.md", content: "geometry words new" });
+    fixture.fire("create", fixture.toFile(fixture.notes[6]));
+    const gone = fixture.notes[0];
+    fixture.notes.splice(0, 1);
+    fixture.fire("delete", fixture.toFile(gone));
+    await settle();
+
+    const paths = fixture.view.nodes.map((n) => n.path);
+    expect(paths).toContain("geometry/new.md");
+    expect(paths).not.toContain(gone.path);
+    expect(fixture.view.nodes.find((n) => n.path === "geometry/new.md")!.x !== 0).toBe(true);
+  });
+
+  it("never lets an older full scan overwrite a newer one", async () => {
+    const fixture = createFixture(sixNotes());
+    const older = fixture.view.scanVaultNotes("algebra");
+    const newer = fixture.view.scanVaultNotes("geometry");
+    await Promise.all([older, newer]);
+
+    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
+  });
+
+  it("drops a queued incremental update that a newer full scan supersedes", async () => {
+    const fixture = await openWithWatchers();
+    fixture.fire("modify", fixture.toFile(fixture.notes[0]));
+    await fixture.view.scanVaultNotes("geometry");
+    await settle();
+
+    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
+  });
+
+  it("falls back to a full rescan when an incremental update fails", async () => {
+    const fixture = await openWithWatchers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(fixture.vault.cachedRead).mockRejectedValueOnce(new Error("locked"));
+
+    fixture.fire("modify", fixture.toFile(fixture.notes[0]));
+    await settle();
+    await settle();
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("falling back to a full rescan"), expect.any(Error));
+    expect(fixture.vault.cachedRead).toHaveBeenCalledTimes(7);
+    expect(fixture.view.nodes).toHaveLength(6);
+    warn.mockRestore();
+  });
+});
+

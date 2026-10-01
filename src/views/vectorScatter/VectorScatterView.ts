@@ -20,8 +20,9 @@ import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
-import { filterVisibleNodes, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
-import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+import { filterVisibleNodes, isPlaced, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
+import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { isRelationNote } from "../../relationNotes";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -298,14 +299,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   onClose(): Promise<void> {
-    if (this.relationsDebounceTimer !== null) {
-      window.clearTimeout(this.relationsDebounceTimer);
-      this.relationsDebounceTimer = null;
-    }
-    if (this.vaultDebounceTimer !== null) {
-      window.clearTimeout(this.vaultDebounceTimer);
-      this.vaultDebounceTimer = null;
-    }
+    this.vaultEvents.dispose();
     if (this.embeddingReloadTimer !== null) {
       window.clearTimeout(this.embeddingReloadTimer);
       this.embeddingReloadTimer = null;
@@ -318,38 +312,56 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return Promise.resolve();
   }
 
-  private relationsDebounceTimer: number | null = null;
-  private vaultDebounceTimer: number | null = null;
+  private readonly vaultEvents = new VaultEventQueue(() => this.processVaultChanges());
+  /** Serializes every update of the node list, so an older scan can never finish after - and overwrite - a newer one. */
+  private workChain: Promise<void> = Promise.resolve();
+  /** Incremented per requested full scan; work started under an older value is discarded. */
+  private scanGeneration = 0;
 
   /**
-   * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
-   * Architecture: Relation notes are edges *and* scatter nodes (shown with "show relation notes"). Editing one only
-   * changes its edge, so a modify reloads edges; creating, deleting or renaming one changes the node set too and
-   * needs a full rescan (which reloads the edges as well). The vocabulary file carries the per-label layout weights,
-   * so any change to it reloads relations like an edge edit.
+   * Purpose: Registers reactive vault event watchers that feed the view's event queue.
+   * Architecture: Only events that can change the view are queued: notes that are shown, or that the scan scope
+   * (indexing exclusions, view filter, relation-note visibility) would show - a rename counts if either its old or
+   * its new path qualifies. Relation notes and the vocabulary file always reload the edges, even outside the view
+   * filter, because they change forces between shown notes; a relation note is additionally a node when relation
+   * notes are shown.
    */
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    const isRel = (file: { path: string }) =>
-      isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined, relationsFolder(this.settings));
+    const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
+    const isRel = (path: string, type?: string) => isRelationNote(path, type, relationsFolder(this.settings));
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
+    const isShown = (path: string) => this.nodes.some((n) => n.path === path);
+    const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
 
     const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
-      if (isVocabulary(file.path) || (kind === "modify" && isRel(file))) {
+      if (isVocabulary(file.path)) {
         this.triggerRelationsReload();
-      } else if (isMd(file.path)) {
-        this.triggerVaultRescan();
+        return;
+      }
+      if (!isMd(file.path)) return;
+      const type = kind === "delete" ? undefined : fmType(file);
+      if (isRel(file.path, type)) this.triggerRelationsReload();
+      if (kind === "delete") {
+        if (isShown(file.path)) this.triggerVaultRescan({ kind: "delete", path: file.path });
+      } else if (isShown(file.path) || inScope(file.path, type)) {
+        this.triggerVaultRescan({ kind: "upsert", path: file.path });
       }
     };
 
     const handleRenameEvent = (file: { path: string }, oldPath: string) => {
       if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
         this.triggerRelationsReload();
-      } else if (isMd(file?.path) || isMd(oldPath)) {
-        this.triggerVaultRescan();
+        return;
+      }
+      if (!isMd(file?.path) && !isMd(oldPath)) return;
+      const type = fmType(file);
+      if (isRel(file.path, type) || isRel(oldPath)) this.triggerRelationsReload();
+      if (isShown(oldPath) || inScope(file.path, type)) {
+        this.triggerVaultRescan({ kind: "rename", path: file.path, oldPath });
       }
     };
 
@@ -359,25 +371,98 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
+  /** Queues a reload of relation edges and vocabulary forces. */
   triggerRelationsReload(): void {
-    if (this.relationsDebounceTimer !== null) window.clearTimeout(this.relationsDebounceTimer);
-    this.relationsDebounceTimer = window.setTimeout(() => {
-      void (async () => {
-        await this.loadRelationEdges();
-        this.applyLayout();
-        this.redraw();
-      })();
-    }, 400);
+    this.vaultEvents.relationsChanged();
   }
 
-  triggerVaultRescan(): void {
-    if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
-    this.vaultDebounceTimer = window.setTimeout(() => {
-      void (async () => {
-        await this.scanVaultNotes(undefined, { preserveView: true });
+  /** Queues one note change, or a background full rescan when no change is given. */
+  triggerVaultRescan(change?: VaultNoteChange): void {
+    if (!change) this.vaultEvents.fullScanRequested();
+    else if (change.kind === "rename") this.vaultEvents.noteRenamed(change.oldPath, change.path);
+    else if (change.kind === "delete") this.vaultEvents.noteDeleted(change.path);
+    else this.vaultEvents.noteChanged(change.path);
+  }
+
+  /** The scope the scan and incremental updates use to decide which notes are nodes. */
+  private scanScope(): ScanScope {
+    return {
+      filterQuery: this.viewFilterQuery,
+      exclusions: this.settings.vectorSearchExclusions,
+      relationsDir: relationsFolder(this.settings),
+      showRelationNotes: this.showRelationNotes,
+    };
+  }
+
+  /** Runs `task` after every update queued before it. A failure is logged and does not block later updates. */
+  private runExclusive(task: () => Promise<void>): Promise<void> {
+    const run = this.workChain.then(task);
+    this.workChain = run.catch(() => undefined);
+    return run;
+  }
+
+  /**
+   * Purpose: Applies the batch of queued vault changes.
+   * Architecture: A queued full scan supersedes per-note changes. Otherwise only the changed notes are read; if that
+   * fails, a full scan restores a consistent node list.
+   */
+  private processVaultChanges(): void {
+    const changes = this.vaultEvents.take();
+    void this.runExclusive(async () => {
+      try {
+        if (changes.fullScan) {
+          await this.fullScan({ preserveView: true }, this.scanGeneration);
+        } else if (changes.upserts.size > 0 || changes.removals.size > 0) {
+          await this.applyNoteChanges(changes, this.scanGeneration);
+        } else if (changes.relations) {
+          await this.loadRelationEdges();
+          this.applyLayout();
+          this.redraw();
+        }
         this.toolbarHandles?.updateSelectionUI();
-      })();
-    }, 800);
+      } catch (err) {
+        console.warn("MemVector: Incremental 2D view update failed, falling back to a full rescan:", err);
+        this.vaultEvents.fullScanRequested();
+      }
+    });
+  }
+
+  /**
+   * Purpose: Re-reads only the changed notes and updates the node list in place.
+   * Architecture: A modified or renamed note keeps its position and in-memory vector; a new note gets its stored
+   * vector and stored position, if any, and is otherwise placed by the layout. The layout engine then decides from
+   * the layout inputs whether anything has to move.
+   */
+  private async applyNoteChanges(changes: PendingVaultChanges, generation: number): Promise<void> {
+    const scope = this.scanScope();
+    const previousByPath = new Map(this.nodes.map((n) => [n.path, n]));
+    const kept = this.nodes.filter((n) => !changes.removals.has(n.path) && !changes.upserts.has(n.path));
+    const fresh: ScatterNode[] = [];
+
+    for (const path of changes.upserts) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) continue;
+      if (!isInScanScope(file, cachedFrontmatterType(this.app, file), scope)) continue;
+      const node = await buildScatterNode(this.app, file);
+      const previous = previousByPath.get(path) ?? previousByPath.get(changes.renamedFrom.get(path) ?? "");
+      if (previous) {
+        node.embedding = previous.embedding;
+        node.x = previous.x;
+        node.y = previous.y;
+      }
+      fresh.push(node);
+    }
+
+    const added = fresh.filter((n) => !previousByPath.has(n.path));
+    await this.hydrateStoredEmbeddings(added.filter((n) => !n.embedding), new Map());
+    await this.hydrateStoredPositions(added.filter((n) => !isPlaced(n)));
+    if (changes.relations) await this.loadRelationEdges();
+    if (generation !== this.scanGeneration) return;
+
+    this.nodes = [...kept, ...fresh].sort((a, b) => a.path.localeCompare(b.path));
+    this.reconcileTransientState();
+    this.applyLayout();
+    this.redraw();
   }
 
   private hasFittedView = false;
@@ -466,13 +551,23 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   /**
    * Purpose: Scans vault notes using transient view filter and persistent indexing exclusions, then updates embeddings and layout.
    * Architecture: Explicit scans (opening the view, changing the filter) fit the camera to the new node set;
-   * `preserveView` keeps the user's pan and zoom for background rescans triggered by the vault watcher, which fire
-   * while the user is editing notes.
+   * `preserveView` keeps the user's pan and zoom for background rescans. Every scan runs after the updates queued
+   * before it; a scan superseded by a newer request is skipped, and pending per-note changes are dropped because the
+   * full scan reads every note anyway.
    */
-  async scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
+  scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
+    const generation = ++this.scanGeneration;
+    this.vaultEvents.supersededByFullScan();
+    return this.runExclusive(async () => {
+      if (generation !== this.scanGeneration) return;
+      await this.fullScan(options, generation);
+    });
+  }
+
+  private async fullScan(options: { preserveView?: boolean }, generation: number): Promise<void> {
     const previousEmbeddings = new Map<string, number[]>();
     const previousPositions = new Map<string, { x: number; y: number }>();
     for (const node of this.nodes) {
@@ -486,23 +581,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // shadow the database and cause a deferred clobber on subsequent scans (Issue #184).
     if (this.positionsHydrated) {
       for (const node of this.nodes) {
-        if (node.x !== 0 || node.y !== 0) {
+        if (isPlaced(node)) {
           previousPositions.set(node.path, { x: node.x, y: node.y });
           previousPositions.set(node.id, { x: node.x, y: node.y });
         }
       }
     }
 
-    this.nodes = await scanVaultNotesPure(
-      this.app,
-      this.viewFilterQuery,
-      this.settings.vectorSearchExclusions,
-      relationsFolder(this.settings),
-      this.showRelationNotes
-    );
-    this.reconcileTransientState();
+    const scope = this.scanScope();
+    const nodes = await scanVaultNotesPure(this.app, scope.filterQuery, scope.exclusions, scope.relationsDir, scope.showRelationNotes);
 
-    for (const node of this.nodes) {
+    for (const node of nodes) {
       const existingPos = previousPositions.get(node.path) ?? previousPositions.get(node.id);
       if (existingPos) {
         node.x = existingPos.x;
@@ -513,9 +602,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
-    await this.hydrateStoredEmbeddings(previousEmbeddings);
-    await this.hydrateStoredPositions();
+    await this.hydrateStoredEmbeddings(nodes, previousEmbeddings);
+    await this.hydrateStoredPositions(nodes, true);
     await this.loadRelationEdges();
+    if (generation !== this.scanGeneration) return;
+
+    this.nodes = nodes;
+    this.reconcileTransientState();
     this.applyLayout();
     if (!this.hasFittedView && !options.preserveView) {
       this.fitToView();
@@ -536,12 +629,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.embeddingReloadTimer !== null) window.clearTimeout(this.embeddingReloadTimer);
     this.embeddingReloadTimer = window.setTimeout(() => {
       this.embeddingReloadTimer = null;
-      void (async () => {
+      void this.runExclusive(async () => {
         for (const n of this.nodes) n.embedding = undefined;
-        await this.hydrateStoredEmbeddings(new Map());
+        await this.hydrateStoredEmbeddings(this.nodes, new Map());
         this.applyLayout();
         this.redraw();
-      })();
+      });
     }, 300);
   }
 
@@ -569,37 +662,38 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are preserved when
    * the store does not return a vector for a note, ensuring in-memory layouts do not collapse.
    */
-  private async hydrateStoredEmbeddings(fallback: Map<string, number[]>): Promise<void> {
-    if (this.nodes.length === 0) return;
+  private async hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>): Promise<void> {
+    if (nodes.length === 0) return;
     let stored: Map<string, number[]>;
     try {
       const store = getVectorStore(this.app, this.settings);
-      stored = await store.getVectors([...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)]);
+      stored = await store.getVectors([...nodes.map((n) => n.path), ...nodes.map((n) => n.id)]);
     } catch (err) {
       console.warn("MemVector: Failed to hydrate stored embeddings before layout, keeping in-memory embeddings:", err);
       stored = fallback;
     }
-    for (const n of this.nodes) {
+    for (const n of nodes) {
       const v = stored.get(n.path) ?? stored.get(n.id);
       if (v) n.embedding = v;
     }
   }
 
   /**
-   * Purpose: Loads each scanned node's persisted 2D coordinates from SQLite if unplaced.
-   * Architecture: Preserves the user's mental map across restarts (ADR-0005). Fails safe
-   * by gating position persistence so transient read errors never overwrite stored coordinates (Issue #184).
+   * Purpose: Loads the persisted 2D coordinates of unplaced nodes from SQLite.
+   * Architecture: Preserves the user's mental map across restarts (ADR-0006). Fails safe by gating position
+   * persistence so transient read errors never overwrite stored coordinates (Issue #184). A full scan (`full`)
+   * re-opens the gate on success; an incremental update for a few new notes can only close it.
    */
-  private async hydrateStoredPositions(): Promise<void> {
-    if (this.nodes.length === 0) {
-      this.positionsHydrated = true;
+  private async hydrateStoredPositions(nodes: ScatterNode[], full = false): Promise<void> {
+    if (nodes.length === 0) {
+      if (full) this.positionsHydrated = true;
       return;
     }
     try {
-      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
+      const queryKeys = [...nodes.map((n) => n.path), ...nodes.map((n) => n.id)];
       const stored = await getStoredNodePositions(this.app, queryKeys);
-      this.nodes.forEach((n) => {
-        if (n.x === 0 && n.y === 0) {
+      nodes.forEach((n) => {
+        if (!isPlaced(n)) {
           const pos = stored.get(n.id) ?? stored.get(n.path);
           if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
             n.x = pos.x;
@@ -607,7 +701,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
           }
         }
       });
-      this.positionsHydrated = true;
+      if (full) this.positionsHydrated = true;
     } catch (err) {
       this.positionsHydrated = false;
       console.warn("MemVector: Failed to hydrate stored node positions, aborting position persistence to protect mental map:", err);
@@ -681,7 +775,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Also re-run layout, not just re-render edges - a saved/edited/deleted
     // relation must feed the force layout's topology weights too, not only
     // the drawn edge lines.
-    void this.loadRelationEdges().then(() => {
+    void this.runExclusive(async () => {
+      await this.loadRelationEdges();
       this.applyLayout();
       this.redraw();
     });
