@@ -84,7 +84,9 @@ Depending on the difference:
 
 - **Nothing changed:** no matrix, clustering, simulation or position write; the kept cluster assignment is re-applied to freshly scanned node objects. On opening the view with stored positions for every note, the signatures and clusters are initialized without a simulation.
 - **Local change** (changed, added or re-linked notes, at most half of all notes): a bounded adjustment moves only those notes, their relation (and, when enabled, WikiLink) neighbors and their five most similar notes. All other nodes are fixed. It starts with low energy, anchors existing mobile nodes softly to their previous position instead of pulling toward the origin, and stops once nothing moves. The similarity rescale bounds and clusters of the last free pass are kept; new notes join the nearest existing cluster.
-- **Free pass:** settings changes, larger changes, a removed cluster centroid, and the spacing sliders run the simulation over all nodes from their current positions and recompute the rescale bounds and clusters. The explicit "Rearrange layout" action does the same from scratch.
+- **Free pass:** settings changes, changes to more than half of the notes, and the spacing sliders run the simulation over all nodes from their current positions and recompute the rescale bounds and clusters. The explicit "Rearrange layout" action does the same from scratch.
+
+If a cluster centroid leaves the node set (e.g. filtered out), only the cluster assignment is recomputed; positions are unaffected. On opening the view with some notes lacking a stored position, the stored ones initialize the state and only the new ones are placed by a bounded adjustment.
 
 Vault events reach the view through one queue (`vaultEventQueue.ts`): events per file are coalesced, a modify re-reads only that note, events for notes outside the view's scope are ignored (relation notes and the vocabulary file excepted), and all node-list updates run serialized so an older scan never overwrites a newer one. A view that is not shown collects events and applies them once it is visible. Positions are written by `positionPersistence.ts` only when they moved, batched.
 

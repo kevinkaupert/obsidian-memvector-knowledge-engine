@@ -35,11 +35,14 @@ export interface LayoutRunResult {
  * signatures of the last completed pass, its similarity rescale bounds and its cluster assignment.
  * Architecture: Positions are the reference (ADR-0006).
  * - Unchanged layout inputs: nothing moves; the kept clusters are re-applied to the (possibly new) node objects.
- * - First request after opening with every node placed: signatures and clusters are initialized without moving.
+ * - First request after opening with every node placed: signatures and clusters are initialized without moving. If
+ *   only some notes lack a stored position, the others initialize the state and the new ones are placed by a bounded
+ *   adjustment.
  * - Local changes (changed, added or re-linked notes): a bounded adjustment moves only those notes, their relation
- *   neighbors and their most similar notes, with the rescale bounds and clusters of the last free pass kept fixed.
- * - Settings changes, a change touching more than LARGE_CHANGE_RATIO of the nodes, a removed cluster centroid, or an
- *   explicit "global"/"rearrange" request: a free pass that also recomputes bounds and clusters.
+ *   neighbors and their most similar notes, with the rescale bounds and clusters of the last free pass kept fixed. If
+ *   a cluster centroid disappeared (e.g. filtered out), only the cluster assignment is recomputed - a display change.
+ * - Settings changes, a change touching more than LARGE_CHANGE_RATIO of the nodes, or an explicit "global" /
+ *   "rearrange" request: a free pass that also recomputes bounds and clusters.
  */
 export class LayoutEngine {
   private snapshot: LayoutSnapshot | null = null;
@@ -57,9 +60,20 @@ export class LayoutEngine {
 
     if (mode === "auto") {
       if (this.snapshot === null) {
-        if (nodes.every(isPlaced)) {
+        const unplaced = nodes.filter((n) => !isPlaced(n)).map((n) => n.id);
+        if (unplaced.length === 0) {
           this.remember(nodes, prepareLayoutModel(nodes, input.settings), next);
           return { simulated: false, kind: "none" };
+        }
+        if (unplaced.length < nodes.length) {
+          this.model = prepareLayoutModel(nodes, input.settings);
+          this.rememberClusters(nodes);
+          const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set() };
+          if (this.runBounded(input, added)) {
+            this.snapshot = next;
+            this.rememberClusters(nodes);
+            return { simulated: true, kind: "bounded" };
+          }
         }
       } else {
         const diff = diffLayoutSnapshots(this.snapshot, next);
@@ -94,33 +108,37 @@ export class LayoutEngine {
     const { nodes } = input;
     const model = this.model;
     if (diff.settingsChanged || !model || !model.bounds) return false;
-    const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
-    const centroidIdx = model.centroidIds.map((id) => indexOf.get(id));
-    if (centroidIdx.some((i) => i === undefined)) return false;
-
     const seeds = new Set<string>([...diff.addedIds, ...diff.changedIds, ...diff.edgeEndpointIds]);
     if (seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
 
-    const prepared = prepareLayoutModel(nodes, input.settings, { fixedBounds: model.bounds, assignClusters: false });
+    const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
+    const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
+    const prepared = prepareLayoutModel(nodes, input.settings, { fixedBounds: model.bounds, assignClusters: centroidMissing });
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
     const mobileIds = this.mobileSet(nodes, seeds, prepared.matrix, input);
 
-    // Keep every existing cluster; only new or changed notes join the nearest kept centroid.
-    this.applyClusters(nodes);
-    nodes.forEach((n, i) => {
-      if (n.cloudId !== undefined && !seeds.has(n.id)) return;
-      let best = 0;
-      let bestSim = -Infinity;
-      centroidIdx.forEach((c, cloudId) => {
-        const sim = prepared.matrix[i][c as number];
-        if (sim > bestSim) {
-          bestSim = sim;
-          best = cloudId;
-        }
+    if (centroidMissing) {
+      // A centroid left the node set: re-cluster for display, positions are unaffected.
+      this.model = { bounds: model.bounds, centroidIds: prepared.centroidIds };
+    } else {
+      // Keep every existing cluster; only new or changed notes join the nearest kept centroid.
+      const centroidIdx = model.centroidIds.map((id) => indexOf.get(id) as number);
+      this.applyClusters(nodes);
+      nodes.forEach((n, i) => {
+        if (n.cloudId !== undefined && !seeds.has(n.id)) return;
+        let best = 0;
+        let bestSim = -Infinity;
+        centroidIdx.forEach((c, cloudId) => {
+          const sim = prepared.matrix[i][c];
+          if (sim > bestSim) {
+            bestSim = sim;
+            best = cloudId;
+          }
+        });
+        n.cloudId = best;
+        n.cloudLabel = nodes[centroidIdx[best]]?.title || `Cluster ${best + 1}`;
       });
-      n.cloudId = best;
-      n.cloudLabel = nodes[centroidIdx[best] as number]?.title || `Cluster ${best + 1}`;
-    });
+    }
 
     applyGraphVectorProjection({
       nodes,

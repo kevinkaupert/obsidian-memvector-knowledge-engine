@@ -149,11 +149,33 @@ describe("LayoutEngine bounded adjustment (#185)", () => {
     expect(engine.run(input(nodes)).kind).toBe("free");
   });
 
-  it("falls back to a free pass when a cluster centroid was removed", () => {
+  it("re-clusters for display without moving nodes when a cluster centroid was removed (e.g. filtered out)", () => {
     const { engine, nodes } = settledVault();
     const centroid = nodes.findIndex((n) => n.title === nodes[0].cloudLabel);
     nodes.splice(centroid, 1);
-    expect(engine.run(input(nodes)).kind).toBe("free");
+    const before = positions(nodes);
+
+    expect(engine.run(input(nodes)).kind).toBe("bounded");
+
+    expect(nodes.every((n) => displacement(before, n) === 0)).toBe(true);
+    const titles = new Set(nodes.map((n) => n.title));
+    expect(nodes.every((n) => n.cloudId !== undefined && titles.has(n.cloudLabel!))).toBe(true);
+  });
+
+  it("opening with a few notes lacking a stored position places only those, keeping stored positions elsewhere", () => {
+    const { nodes } = settledVault();
+    const before = positions(nodes);
+    const fresh = nodes[2];
+    fresh.x = 0;
+    fresh.y = 0;
+    fresh.placed = false;
+    const reopened = new LayoutEngine();
+
+    expect(reopened.run(input(nodes)).kind).toBe("bounded");
+
+    expect(isPlaced(fresh)).toBe(true);
+    expect(nodes.filter((n) => n.id.startsWith("t3/")).every((n) => displacement(before, n) === 0)).toBe(true);
+    expect(nodes.filter((n) => n !== fresh && displacement(before, n) > 0).length).toBeLessThanOrEqual(5);
   });
 
   it("repeated unchanged runs after a bounded adjustment move nothing", () => {
