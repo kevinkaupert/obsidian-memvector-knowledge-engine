@@ -80,10 +80,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
-   * Purpose: Updates relation notes visibility toggle and sanitizes selection and search caches.
-   * Architecture: Clears hidden relation notes from selectedNodeIds and resets search/hover state (Issue #110).
+   * Purpose: Updates relation notes visibility toggle, sanitizes selection and search caches, and rescans on a change.
+   * Architecture: Clears hidden relation notes from selectedNodeIds and resets search/hover state (Issue #110). The scan
+   * already drops hidden relation notes so they do not take part in the layout, which makes the node list itself depend
+   * on this flag: a redraw alone cannot bring them back, so a change triggers a view-preserving rescan (Issue #204).
    */
   setShowRelationNotes(show: boolean): void {
+    const changed = show !== this.showRelationNotes;
     this.showRelationNotes = show;
     this.settings.showRelationNotes = show;
     void this.saveSettings();
@@ -114,6 +117,16 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.toolbarHandles?.updateSelectionUI();
     }
     this.redraw();
+    if (changed) this.rescanForRelationNoteVisibility();
+  }
+
+  /**
+   * Purpose: Rescans the vault after the relation-note visibility changed, keeping camera and known positions.
+   */
+  private rescanForRelationNoteVisibility(): void {
+    void this.scanVaultNotes(undefined, { preserveView: true })
+      .then(() => this.toolbarHandles?.updateSelectionUI())
+      .catch((err) => console.error("MemVector: Failed to rescan after changing relation note visibility:", err));
   }
 
   viewFilterQuery = "";
