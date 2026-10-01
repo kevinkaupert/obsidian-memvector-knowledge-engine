@@ -93,8 +93,7 @@ export class PositionPersister {
   private async writeMoved(): Promise<void> {
     const { nodes, enabled } = this.options.source();
     if (!enabled) return;
-    const isStorable = this.options.isStorable;
-    const snapshot = this.movedRecords(nodes).filter((r) => !isStorable || isStorable(r));
+    const snapshot = this.movedRecords(nodes).filter((r) => this.options.isStorable?.(r) ?? true);
     if (snapshot.length === 0) return;
     try {
       await this.options.write(snapshot);
