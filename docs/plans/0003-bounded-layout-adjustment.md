@@ -39,7 +39,7 @@ units on average (300 clustered notes, node spacing 350), see #185.
 ## Steps
 
 Each block is committed on its own and leaves the plugin working. Blocks 1 to 5
-address #206, blocks 6 and 7 address #185 and #190.
+address #206, block 6 addresses #185 and #190, block 7 is split off as #214.
 
 ### Block 1 - acceptance test and instrumentation (#208)
 
@@ -110,7 +110,7 @@ address #206, blocks 6 and 7 address #185 and #190.
   nodes outside the mobile set below a bound; unchanged inputs keep all
   positions within a tolerance.
 
-### Block 7 - explicit rearrangement and documentation
+### Block 7 - explicit rearrangement and documentation (#214)
 
 - Add a "Rearrange" action that runs a free global layout and recomputes the
   normalization bounds and clusters. Its placement in the view is shown as an
