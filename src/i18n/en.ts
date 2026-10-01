@@ -254,6 +254,8 @@ export const en: TranslationKeys = {
   statusPersistenceError: "Storage error",
   hoverPersistenceError: "SQLite persistence error",
   noticePersistenceError: "Vectors calculated, but SQLite persistence failed",
+  statusVectorsCancelled: "Cancelled",
+  noticeEmbeddingTargetChanged: "Vector calculation cancelled: the embedding model or endpoint changed while it was running. Start it again to use the new model.",
   statusErrorCount: "Error",
   unknownError: "Unknown error",
   toggleToolbar: "Toggle toolbar",

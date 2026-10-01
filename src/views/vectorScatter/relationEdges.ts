@@ -11,10 +11,12 @@ import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
  * sync, SQLite) - via Obsidian's own link-resolution API, not string
  * guessing, so same-basename notes in different folders resolve to the
  * correct one. Falls back to a slug of the raw text for a dangling link.
+ * Returns null when the target note is excluded, so callers can tell an
+ * intentional omission apart from a link that yields no usable id.
  */
-function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string {
+function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string | null {
   const destFile = app.metadataCache.getFirstLinkpathDest(linkText, sourcePath);
-  if (destFile && !shouldIncludeFile(destFile, exclusions)) return "";
+  if (destFile && !shouldIncludeFile(destFile, exclusions)) return null;
   return destFile ? pathToId(destFile.path) : toSlug(linkText);
 }
 
@@ -86,12 +88,14 @@ export function parseRelationMetadata(
 
 export interface RelationFilesResult {
   edges: RelationEdge[];
+  /** True when any relation note could not be read or is incomplete, i.e. the edge list is partial. */
   hasErrors: boolean;
 }
 
 /**
- * Purpose: Loads every explicit relation file, retaining duplicate identities and tracking read errors.
- * Architecture: Returns hasErrors flag so callers like syncVaultGraph know if the scan was partial (Issue #183).
+ * Purpose: Loads every explicit relation file, retaining duplicate identities and tracking read errors and incomplete notes.
+ * Architecture: Returns hasErrors flag so callers like syncVaultGraph know if the scan was partial (Issues #183, #203).
+ * A note without a usable source_note/target_note counts as partial, unlike one whose endpoint is excluded on purpose.
  */
 export async function loadRelationFilesResult(
   app: App,
@@ -119,17 +123,24 @@ export async function loadRelationFilesResult(
       const cleanSrc = srcLinkText ? resolveLinkTextToId(app, srcLinkText, f.path, exclusions) : "";
       const cleanTgt = tgtLinkText ? resolveLinkTextToId(app, tgtLinkText, f.path, exclusions) : "";
 
-      if (cleanSrc && cleanTgt) {
-        edges.push({
-          srcId: cleanSrc,
-          tgtId: cleanTgt,
-          relType: meta.relType,
-          desc: meta.desc,
-          title: `${cleanSrc} -> ${cleanTgt}`,
-          path: f.path,
-          bidirectional: meta.bidirectional,
-        });
+      // An endpoint in an excluded note is an intentional omission, so its stored edge may be reconciled away.
+      if (cleanSrc === null || cleanTgt === null) continue;
+      if (!cleanSrc || !cleanTgt) {
+        // Missing or unusable link (e.g. frontmatter still being written): the relation is unknown rather than gone,
+        // so the read is flagged as partial and graph sync keeps the stored edges instead of deleting them.
+        hasErrors = true;
+        console.warn(`MemVector: skipping incomplete relation note ${f.path} (missing or unresolvable source_note/target_note)`);
+        continue;
       }
+      edges.push({
+        srcId: cleanSrc,
+        tgtId: cleanTgt,
+        relType: meta.relType,
+        desc: meta.desc,
+        title: `${cleanSrc} -> ${cleanTgt}`,
+        path: f.path,
+        bidirectional: meta.bidirectional,
+      });
     } catch (err) {
       hasErrors = true;
       console.warn(`MemVector: skipping unparseable relation note ${f.path}`, err);

@@ -297,5 +297,52 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
       warnSpy.mockRestore();
     }
   });
+
+  it("adversarial (Issue #203): preserves stored edges when a relation note lacks target_note without throwing", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a" },
+      { path: "b.md", basename: "b" },
+      { path: "wiki/relations/a--specializes--b.md", basename: "a--specializes--b" },
+    ];
+    const app = fakeAppWithStore(files);
+    app.vault.read = vi.fn(async () => '---\ntype: relation\nsource_note: "[[a]]"\nrelation_type: SPECIALIZES\n---\n');
+
+    const store = new SqliteGraphStore(app);
+    await store.upsertTypedEdges([
+      { src: { id: "a", title: "a", path: "a.md" }, tgt: { id: "b", title: "b", path: "b.md" }, relType: "SPECIALIZES", description: "" },
+    ]);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await syncVaultGraph(app, store);
+
+      expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toEqual(["b"]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("skipping incomplete relation note wiki/relations/a--specializes--b.md"));
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it("still deletes the stored edge of a removed relation when every relation note is complete (Issue #203)", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a" },
+      { path: "b.md", basename: "b" },
+      { path: "c.md", basename: "c" },
+      { path: "wiki/relations/a--requires--b.md", basename: "a--requires--b" },
+    ];
+    const app = fakeAppWithStore(files);
+    app.vault.read = vi.fn(async () => '---\ntype: relation\nsource_note: "[[a]]"\ntarget_note: "[[b]]"\nrelation_type: REQUIRES\n---\n');
+
+    const store = new SqliteGraphStore(app);
+    await store.upsertTypedEdges([
+      { src: { id: "c", title: "c", path: "c.md" }, tgt: { id: "a", title: "a", path: "a.md" }, relType: "SPECIALIZES", description: "relation file already deleted" },
+    ]);
+    expect((await store.fetchNeighbors(["c"], 1, 10)).map((n) => n.id)).toEqual(["a"]);
+
+    await syncVaultGraph(app, store);
+
+    expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toContain("b");
+    expect(await store.fetchNeighbors(["c"], 1, 10)).toEqual([]);
+  });
 });
 

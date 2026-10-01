@@ -4,6 +4,7 @@ import type { TranslationKeys } from "../../i18n";
 import { getSelectedEmbeddingSecretName, resolveEmbeddingApiKey, setSelectedEmbeddingSecretName } from "../secrets";
 import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import { syncVaultVectors } from "../../sync/vaultVectorSync";
+import { EmbeddingTargetChangedError } from "../../sync/embeddingTarget";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 import { DEFAULT_SETTINGS } from "../defaults";
@@ -195,8 +196,14 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             btn.setButtonText(t.indexVaultSuccess);
             new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
           } catch (err) {
-            btn.setButtonText(t.testConnFail);
-            new Notice(`[ERROR] ${t.syncErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
+            if (err instanceof EmbeddingTargetChangedError) {
+              console.warn("MemVector:", err.message);
+              btn.setButtonText(t.statusVectorsCancelled);
+              new Notice(`[WARN] ${t.noticeEmbeddingTargetChanged}`, 8000);
+            } else {
+              btn.setButtonText(t.testConnFail);
+              new Notice(`[ERROR] ${t.syncErrorPrefix} ${err instanceof Error ? err.message : String(err)}`);
+            }
           } finally {
             window.setTimeout(() => {
               btn.setButtonText(t.indexVaultBtn);

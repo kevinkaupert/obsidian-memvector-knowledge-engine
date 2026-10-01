@@ -5,7 +5,7 @@ import type { MemVectorSettings } from "../settings/types";
 import { listIndexableFiles } from "../vaultFilter";
 import { pathToId } from "../noteSlug";
 import { buildEmbeddingInput } from "./embeddingText";
-import { resolveEmbeddingTarget } from "./embeddingTarget";
+import { EmbeddingTargetChangedError, embeddingTargetChanged, resolveEmbeddingTarget } from "./embeddingTarget";
 import type { VectorPoint, VectorStore } from "./vectorStore";
 
 export interface VectorSyncResult {
@@ -18,6 +18,8 @@ export interface VectorSyncResult {
  * Purpose: Synchronizes vault markdown embeddings to the VectorStore incrementally and reconciles removed files.
  * The store must be scoped to the same embedding target (getVectorStore(app, settings)); its stored hashes then only
  * cover vectors of the configured model and endpoint, so a model switch re-embeds unchanged notes.
+ * Architecture: The run is bound to the target it started with. If the model or endpoint changes while it runs, it
+ * throws EmbeddingTargetChangedError before writing anything, so it cannot overwrite vectors of the new model.
  */
 export async function syncVaultVectors(app: App, settings: MemVectorSettings, store: VectorStore): Promise<VectorSyncResult> {
   const totalFiles = app.vault.getMarkdownFiles().length;
@@ -36,7 +38,12 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
   const storedHashes = await store.getStoredHashes();
 
+  const assertTargetUnchanged = () => {
+    if (embeddingTargetChanged(settings, target.fingerprint)) throw new EmbeddingTargetChangedError(target.fingerprint);
+  };
+
   for (const file of indexableFiles) {
+    assertTargetUnchanged();
     includedPaths.push(file.path);
     const rawContent = await app.vault.cachedRead(file);
     if (!rawContent.trim()) continue;
@@ -72,6 +79,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
     }
   }
 
+  assertTargetUnchanged();
   if (points.length > 0) {
     await store.syncPoints(points);
   }

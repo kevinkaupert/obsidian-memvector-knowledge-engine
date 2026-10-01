@@ -748,3 +748,63 @@ describe("VectorScatterView position preservation across rescans", () => {
 });
 
 
+
+describe("VectorScatterView rescans when relation-note visibility changes (#204)", () => {
+  it("shows relation notes right after enabling the toggle, without any other rescan", async () => {
+    const view = makeScanView();
+    const concept = makeNode("a", "A.md", "concept");
+    const relation = makeNode("rel", "wiki/relations/rel.md", "relation");
+    view.nodes = [concept];
+    vi.mocked(scanVaultNotesPure).mockImplementation(async (_app, _filter, _excl, _dir, show) => (show ? [concept, relation] : [concept]));
+    mockStoredVectors(new Map());
+
+    view.setShowRelationNotes(true);
+
+    await vi.waitFor(() => expect(view.getVisibleNodes().map((n) => n.path)).toEqual(["A.md", "wiki/relations/rel.md"]));
+    expect(vi.mocked(scanVaultNotesPure).mock.lastCall?.[4]).toBe(true);
+  });
+
+  it("rescans with preserveView when the toggle changes from Settings", () => {
+    const view = makeScanView();
+    const scan = vi.spyOn(view, "scanVaultNotes").mockResolvedValue();
+
+    view.settings.showRelationNotes = true;
+    view.applyExternalSettingsChange();
+
+    expect(scan).toHaveBeenCalledWith(undefined, { preserveView: true });
+  });
+
+  it("drops relation nodes from the node list, not only from rendering, when the toggle is disabled", async () => {
+    const view = makeScanView();
+    const concept = makeNode("a", "A.md", "concept");
+    view.showRelationNotes = true;
+    view.nodes = [concept, makeNode("rel", "wiki/relations/rel.md", "relation")];
+    vi.mocked(scanVaultNotesPure).mockImplementation(async (_app, _filter, _excl, _dir, show) => (show ? view.nodes : [concept]));
+    mockStoredVectors(new Map());
+
+    view.setShowRelationNotes(false);
+
+    await vi.waitFor(() => expect(view.nodes.map((n) => n.path)).toEqual(["A.md"]));
+  });
+
+  it("does not rescan when the value is unchanged", () => {
+    const view = makeScanView();
+    const scan = vi.spyOn(view, "scanVaultNotes").mockResolvedValue();
+
+    view.setShowRelationNotes(false);
+
+    expect(scan).not.toHaveBeenCalled();
+  });
+
+  it("logs instead of swallowing a failed rescan", async () => {
+    const view = makeScanView();
+    const err = new Error("scan failed");
+    vi.spyOn(view, "scanVaultNotes").mockRejectedValue(err);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    view.setShowRelationNotes(true);
+
+    await vi.waitFor(() => expect(log).toHaveBeenCalledWith(expect.stringContaining("relation note visibility"), err));
+    log.mockRestore();
+  });
+});

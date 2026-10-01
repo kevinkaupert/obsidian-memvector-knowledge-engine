@@ -244,6 +244,8 @@ export interface TranslationKeys {
   statusPersistenceError: string;
   hoverPersistenceError: string;
   noticePersistenceError: string;
+  statusVectorsCancelled: string;
+  noticeEmbeddingTargetChanged: string;
   statusErrorCount: string;
   unknownError: string;
   toggleToolbar: string;

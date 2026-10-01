@@ -254,6 +254,8 @@ export const de: TranslationKeys = {
   statusPersistenceError: "Speicherfehler",
   hoverPersistenceError: "SQLite-Persistierungsfehler",
   noticePersistenceError: "Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen",
+  statusVectorsCancelled: "Abgebrochen",
+  noticeEmbeddingTargetChanged: "Vektorberechnung abgebrochen: Embedding-Modell oder Endpoint wurde während der Berechnung geändert. Erneut starten, um das neue Modell zu verwenden.",
   statusErrorCount: "Fehler",
   unknownError: "Unbekannter Fehler",
   toggleToolbar: "Werkzeugleiste ein/ausblenden",
