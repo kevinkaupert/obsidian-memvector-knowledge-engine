@@ -4,6 +4,7 @@ Status: Planned
 Date: 2026-10-01
 Issues: #206 (unnecessary recomputation), #185 (layout drift), #190 (origin used as "unplaced")
 Decision: ADR-0006
+Tracking: #207
 
 ## Goal
 
