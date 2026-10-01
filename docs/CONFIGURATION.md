@@ -21,7 +21,7 @@ The settings menu is organized into 3 focused sections:
   - **Synthesis notes folder (`synthesisFolder`, default `wiki/synthesis`):** Saved synthesis notes go here.
   - **Vocabulary presets folder (`presetsFolder`, default `wiki/presets`):** User presets are listed from and created in this folder.
   Values are trimmed and stripped of leading/trailing slashes; an empty value falls back to the default. The field is applied on blur or Enter, not on every keystroke.
-- **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View.
+- **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View. An open 2D view rescans its notes shortly after the field changes; changing the knowledge domain or "WikiLinks as relations" updates its layout right away.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).
 - **Show Relation Notes (`showRelationNotes`):** Render relation notes (frontmatter `type: relation`, or notes in the relations folder) as nodes in the 2D canvas (default off). Relations stay visible as typed edges either way - this only toggles the relation files as dots. Takes effect immediately in an open 2D view.

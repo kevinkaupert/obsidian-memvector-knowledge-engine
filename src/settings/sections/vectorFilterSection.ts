@@ -40,6 +40,8 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
         .onChange(async (value) => {
           settings.knowledgeDomain = value as KnowledgeDomain;
           await host.saveSettings();
+          // Switches word versus formula similarity, a layout input of open views.
+          host.applySettingsToOpenViews?.();
         })
     );
 
@@ -172,6 +174,8 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
       toggle.setValue(settings.includeWikiLinksAsRelations).onChange(async (value) => {
         settings.includeWikiLinksAsRelations = value;
         await host.saveSettings();
+        // WikiLink forces are a layout input of open views.
+        host.applySettingsToOpenViews?.();
       })
     );
 

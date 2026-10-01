@@ -16,6 +16,8 @@ export interface ScatterViewContext {
   readonly app: App;
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
+  /** Lets other open 2D views pick up a setting this view changed. */
+  notifyOpenViews?(): void;
   viewFilterQuery: string;
   nodes: ScatterNode[];
   selectedNodeIds: Set<string>;

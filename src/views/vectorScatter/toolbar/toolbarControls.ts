@@ -84,7 +84,7 @@ export function createSlider(
   initialValue: number,
   displayFormatter: (val: number) => string,
   onChange: (val: number) => void
-): HTMLInputElement {
+): HTMLInputElement & { setDisplayedValue(val: number): void } {
   const row = parent.createDiv({ cls: "memvector-slider-row" });
   row.createSpan({ text: label, cls: "memvector-slider-label" });
   const valText = row.createSpan({ text: displayFormatter(initialValue), cls: "memvector-slider-value" });
@@ -100,7 +100,13 @@ export function createSlider(
     valText.setText(displayFormatter(val));
     onChange(val);
   };
-  return input;
+  // Updates position and label without calling onChange, for values that changed elsewhere.
+  return Object.assign(input, {
+    setDisplayedValue(val: number): void {
+      input.value = String(val);
+      valText.setText(displayFormatter(val));
+    },
+  });
 }
 
 export function createActionBtn(parent: HTMLElement, label: string, onClick: (() => void) | null, isPrimary = false): HTMLButtonElement {

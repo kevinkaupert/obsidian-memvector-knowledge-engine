@@ -696,3 +696,43 @@ describe("VectorScatterView keeps the map when stored vectors cannot be read (#1
     error.mockRestore();
   });
 });
+
+describe("VectorScatterView picks up settings changed outside the view (#189)", () => {
+  it("rescans the node set when the indexing exclusions changed", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    const before = positionsOf(view);
+
+    view.settings.vectorSearchExclusions = "-path:geometry";
+    view.applyExternalSettingsChange({ rescan: true });
+    await settle(2000);
+
+    expect(view.nodes.map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
+    for (const n of view.nodes) expect(before.get(n.path)).toBeDefined();
+  });
+
+  it("re-reads the spacing from settings and lays out with it", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    view.settings.scatterNodeSpacing = 600;
+    view.settings.scatterCloudSpacing = 99999;
+    view.applyExternalSettingsChange();
+
+    expect(view.nodeSpacing).toBe(600);
+    expect(view.cloudSpacing).toBe(3000);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls[0][0].nodeSpacing).toBe(600);
+  });
+
+  it("lets other open views know when its own toolbar changed a setting", () => {
+    const { view } = createFixture(sixNotes());
+    const notify = vi.fn();
+    (view as any).host.applySettingsToOpenViews = notify;
+    view.notifyOpenViews();
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+});

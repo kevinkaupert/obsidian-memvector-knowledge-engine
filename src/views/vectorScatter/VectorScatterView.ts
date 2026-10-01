@@ -5,12 +5,13 @@ import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVoc
 import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
-import type { MemVectorSettings } from "../../settings/types";
+import type { MemVectorSettings, OpenViewSettingsChange } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
 import type { ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
 import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
+import { clampCloudSpacing, clampNodeSpacing } from "./layout/layoutTunables";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
@@ -34,6 +35,8 @@ export interface VectorScatterHost {
   settings: MemVectorSettings;
   saveSettings(): Promise<void>;
   focusSidebarNote(file: TFile): void;
+  /** Re-applies settings to every open 2D view (MemVectorPlugin.applySettingsToOpenViews). */
+  applySettingsToOpenViews?(options?: OpenViewSettingsChange): void;
 }
 
 export interface NodePositionProvider {
@@ -62,16 +65,26 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Architecture: Counterpart to MemVectorPlugin.applySettingsToOpenViews(). setShowRelationNotes
    * already persists and refreshes, so it is reused for the relation-note flag; everything else the
    * view reads straight off `this.settings` on each redraw. Settings that feed the layout (knowledge
-   * domain, WikiLinks as relations) take effect through applyLayout, which does nothing when no layout
-   * input changed.
+   * domain, WikiLinks as relations, spacing) take effect through applyLayout, which does nothing when no
+   * layout input changed; changed indexing exclusions (`rescan`) queue a rescan of the node set.
    */
-  applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+  applyExternalSettingsChange(options?: OpenViewSettingsChange): void {
     // A hidden view only remembers that settings changed; it applies them once when it is shown again.
     if (!this.isVisible()) {
       this.deferSettingsChange(options);
       return;
     }
     if (options?.embeddings) this.reloadEmbeddings();
+    // Exclusions decide which notes are nodes at all; the queued scan is debounced because the field saves per keystroke.
+    if (options?.rescan) this.triggerVaultRescan();
+    // Spacing can change in another open view's toolbar; the layout engine notices the new value as a layout input.
+    const nodeSpacing = clampNodeSpacing(this.settings.scatterNodeSpacing ?? this.nodeSpacing);
+    const cloudSpacing = clampCloudSpacing(this.settings.scatterCloudSpacing ?? this.cloudSpacing);
+    if (nodeSpacing !== this.nodeSpacing || cloudSpacing !== this.cloudSpacing) {
+      this.nodeSpacing = nodeSpacing;
+      this.cloudSpacing = cloudSpacing;
+      this.toolbarHandles?.updateSpacing?.(nodeSpacing, cloudSpacing);
+    }
     // A vocabulary edit changes per-label attraction/repulsion, so the force layout
     // has to run again - a redraw alone would only repaint the old positions.
     if (options?.relayout) {
@@ -205,6 +218,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return this.host.saveSettings();
   }
 
+  /** Lets the other open 2D views pick up a setting this view's toolbar just changed (e.g. spacing). */
+  notifyOpenViews(): void {
+    this.host.applySettingsToOpenViews?.();
+  }
+
   getViewType(): string {
     return MATH_VECTOR_SCATTER_VIEW_TYPE;
   }
@@ -279,8 +297,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     const hoverBar = container.createDiv({ cls: "memvector-hoverbar-container memvector-hoverbar" });
 
-    this.nodeSpacing = this.settings.scatterNodeSpacing ?? 350;
-    this.cloudSpacing = this.settings.scatterCloudSpacing ?? 800;
+    this.nodeSpacing = clampNodeSpacing(this.settings.scatterNodeSpacing ?? 350);
+    this.cloudSpacing = clampCloudSpacing(this.settings.scatterCloudSpacing ?? 800);
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
     this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
@@ -341,7 +359,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   /** Embedding fingerprint the in-memory node vectors were loaded for; null before the first complete read. */
   private embeddingsFingerprint: string | null = null;
   /** Settings changes that arrived while the view was hidden, merged; null when none are pending. */
-  private deferredSettings: { relayout?: boolean; embeddings?: boolean } | null = null;
+  private deferredSettings: OpenViewSettingsChange | null = null;
 
   /**
    * Purpose: Registers reactive vault event watchers that feed the view's event queue.
@@ -423,10 +441,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /** Remembers a settings change for a hidden view, merging it with earlier ones. */
-  private deferSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+  private deferSettingsChange(options?: OpenViewSettingsChange): void {
     const merged = this.deferredSettings ?? {};
     if (options?.relayout) merged.relayout = true;
     if (options?.embeddings) merged.embeddings = true;
+    if (options?.rescan) merged.rescan = true;
     this.deferredSettings = merged;
     this.staleWhileHidden = true;
   }
