@@ -116,12 +116,19 @@ export function buildSimilarityMatrix(nodes: ScatterNode[], weights: SimilarityW
   return matrix;
 }
 
+/** Lower and upper similarity mapped to 0 and 1 by rescaleSimilarityMatrix. */
+export interface RescaleBounds {
+  low: number;
+  high: number;
+}
+
 /**
- * Purpose: Linearly stretches off-diagonal similarities to [0, 1] relative to the vault's distribution to overcome embedding cosine anisotropy.
+ * Purpose: Derives the rescale bounds from the vault's off-diagonal similarity distribution, or null when there is
+ * nothing to stretch (fewer than two nodes).
  */
-export function rescaleSimilarityMatrix(matrix: number[][]): number[][] {
+export function computeRescaleBounds(matrix: number[][]): RescaleBounds | null {
   const n = matrix.length;
-  if (n <= 1) return matrix;
+  if (n <= 1) return null;
 
   const vals: number[] = [];
   for (let i = 0; i < n; i++) {
@@ -130,14 +137,28 @@ export function rescaleSimilarityMatrix(matrix: number[][]): number[][] {
     }
   }
 
-  if (vals.length === 0) return matrix;
+  if (vals.length === 0) return null;
 
   vals.sort((a, b) => a - b);
   // For larger vaults (>50 pairs), use 1st/99th percentiles to guard against single isolated outliers collapsing the spread.
-  const pLow = vals.length > 50 ? vals[Math.floor(vals.length * 0.01)] : vals[0];
-  const pHigh = vals.length > 50 ? vals[Math.floor(vals.length * 0.99)] : vals[vals.length - 1];
+  const low = vals.length > 50 ? vals[Math.floor(vals.length * 0.01)] : vals[0];
+  const high = vals.length > 50 ? vals[Math.floor(vals.length * 0.99)] : vals[vals.length - 1];
+  return { low, high };
+}
 
-  const spread = pHigh - pLow;
+/**
+ * Purpose: Linearly stretches off-diagonal similarities to [0, 1] relative to the vault's distribution to overcome embedding cosine anisotropy.
+ * Architecture: The bounds are vault-wide, so one added note can shift every value. Callers that adjust the layout
+ * locally pass the bounds of the last full pass to keep the scale fixed.
+ */
+export function rescaleSimilarityMatrix(matrix: number[][], fixedBounds?: RescaleBounds | null): number[][] {
+  const n = matrix.length;
+  if (n <= 1) return matrix;
+
+  const bounds = fixedBounds ?? computeRescaleBounds(matrix);
+  if (!bounds) return matrix;
+  const pLow = bounds.low;
+  const spread = bounds.high - bounds.low;
   if (spread < 1e-6) return matrix;
 
   const rescaled: number[][] = [];

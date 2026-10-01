@@ -74,7 +74,8 @@ vi.mock("./canvasInteraction", () => ({
 }));
 
 vi.mock("./layout/applyVectorLayout", () => ({
-  applyVectorLayout: vi.fn(),
+  applyVectorLayout: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
+  prepareLayoutModel: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
 }));
 
 vi.mock("./rendering/drawOrchestrator", () => ({
@@ -736,11 +737,9 @@ describe("VectorScatterView position preservation across rescans", () => {
       expect(node!.x).toBe(999);
       expect(node!.y).toBe(888);
 
-      // Now that hydration succeeded, persist saves the authoritative position
-      expect(saveNodePositions).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.arrayContaining([expect.objectContaining({ id: "target_note", x: 999, y: 888 })])
-      );
+      // The restored position already is the stored one: nothing is written back, and scan 1's coordinates
+      // never reach the store (ADR-0006: no write without a layout change).
+      expect(saveNodePositions).not.toHaveBeenCalled();
     } finally {
       warnSpy.mockRestore();
     }

@@ -38,6 +38,13 @@ export interface RelationEdge {
 }
 
 /**
+ * Purpose: Tells whether a node already has a position on the canvas.
+ */
+export function isPlaced(node: ScatterNode): boolean {
+  return node.x !== 0 || node.y !== 0;
+}
+
+/**
  * Purpose: Indexes scatter nodes by lowercase ID for O(1) graph lookups.
  */
 export function buildNodeMap(nodes: ScatterNode[]): Map<string, ScatterNode> {

@@ -158,8 +158,7 @@ afterEach(() => {
 });
 
 describe("VectorScatterView layout with the real simulation (#208)", () => {
-  // Expected to fail until layout-input signatures skip unchanged passes (#209).
-  it.fails("acceptance: repeated modify events without a layout-relevant change cause no simulation, no write and no movement", async () => {
+  it("acceptance: repeated modify events without a layout-relevant change cause no simulation, no write and no movement", async () => {
     const { view, notes, fire, toFile } = createFixture(sixNotes());
     await view.scanVaultNotes();
     view.registerVaultWatchers();
@@ -178,8 +177,7 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     expect(positionsOf(view)).toEqual(before);
   });
 
-  // Expected to fail until the signature cache is initialized from stored positions (#209).
-  it.fails("start: stored positions for every node are shown unchanged, without simulation and without a write", async () => {
+  it("start: stored positions for every node are shown unchanged, without simulation and without a write", async () => {
     const { view, notes } = createFixture(sixNotes());
     notes.forEach((n, i) => storedPositions.set(n.path, { x: 100 * i + 999, y: -50 * i + 888 }));
     const stored = new Map(notes.map((n) => [n.path, { ...storedPositions.get(n.path)! }]));
@@ -215,5 +213,20 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
     expect(view.nodes.every((n) => n.x !== 0 || n.y !== 0)).toBe(true);
     expect(saveNodePositions).toHaveBeenCalled();
+  });
+
+  it("a layout setting changed in Settings re-runs the layout right away; an unrelated one does not", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    view.settings.language = "en";
+    view.applyExternalSettingsChange();
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+
+    view.settings.includeWikiLinksAsRelations = !view.settings.includeWikiLinksAsRelations;
+    view.applyExternalSettingsChange();
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
   });
 });

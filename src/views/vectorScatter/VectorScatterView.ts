@@ -10,7 +10,7 @@ import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
 import type { ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
-import { applyVectorLayout } from "./layout/applyVectorLayout";
+import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
@@ -58,7 +58,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * changed from outside the view (the plugin settings tab).
    * Architecture: Counterpart to MemVectorPlugin.applySettingsToOpenViews(). setShowRelationNotes
    * already persists and refreshes, so it is reused for the relation-note flag; everything else the
-   * view reads straight off `this.settings` on each redraw and only needs the redraw itself.
+   * view reads straight off `this.settings` on each redraw. Settings that feed the layout (knowledge
+   * domain, WikiLinks as relations) take effect through applyLayout, which does nothing when no layout
+   * input changed.
    */
   applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
     if (options?.embeddings) this.reloadEmbeddings();
@@ -76,6 +78,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.edgeHops = this.settings.scatterEdgeHops;
       this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
     }
+    this.applyLayout();
     this.redraw();
   }
 
@@ -151,6 +154,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   projectionMode: ProjectionMode = "graphvector";
 
   private positionsHydrated = false;
+  private readonly layoutEngine = new LayoutEngine();
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
   private canvasWrap!: HTMLElement;
@@ -629,9 +633,24 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
-  applyLayout(): void {
-    applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges, this.vocabulary);
-    void this.persistCurrentPositions();
+  /**
+   * Purpose: Lays out the nodes when a layout input changed, and persists positions only when the simulation ran.
+   * Architecture: Data updates call this with "auto"; the layout engine compares the layout-input signatures with the
+   * last completed pass and leaves every node in place when nothing relevant changed (ADR-0006).
+   */
+  applyLayout(mode: LayoutMode = "auto"): void {
+    const { simulated } = this.layoutEngine.run(
+      {
+        nodes: this.nodes,
+        relationEdges: this.relationEdges,
+        vocabulary: this.vocabulary,
+        settings: this.settings,
+        nodeSpacing: this.nodeSpacing,
+        cloudSpacing: this.cloudSpacing,
+      },
+      mode
+    );
+    if (simulated) void this.persistCurrentPositions();
   }
 
   async loadRelationEdges(): Promise<void> {
