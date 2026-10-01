@@ -21,7 +21,7 @@ import { getVectorStore } from "../../sync/storeFactory";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { PositionPersister } from "./positionPersistence";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
-import { filterVisibleNodes, isPlaced, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
+import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
 import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { isRelationNote } from "../../relationNotes";
@@ -494,8 +494,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       const previous = previousByPath.get(path) ?? previousByPath.get(changes.renamedFrom.get(path) ?? "");
       if (previous) {
         node.embedding = previous.embedding;
-        node.x = previous.x;
-        node.y = previous.y;
+        if (isPlaced(previous)) placeNode(node, previous.x, previous.y);
       }
       fresh.push(node);
     }
@@ -641,10 +640,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
     for (const node of nodes) {
       const existingPos = previousPositions.get(node.path) ?? previousPositions.get(node.id);
-      if (existingPos) {
-        node.x = existingPos.x;
-        node.y = existingPos.y;
-      }
+      if (existingPos) placeNode(node, existingPos.x, existingPos.y);
     }
 
     // Both must be in place *before* the layout pass below, or it falls back to
@@ -749,10 +745,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       nodes.forEach((n) => {
         if (!isPlaced(n)) {
           const pos = stored.get(n.id) ?? stored.get(n.path);
-          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-            n.x = pos.x;
-            n.y = pos.y;
-          }
+          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) placeNode(n, pos.x, pos.y);
         }
       });
       if (full) this.positionsHydrated = true;

@@ -86,6 +86,7 @@ export async function buildScatterNode(app: App, file: TFile): Promise<ScatterNo
     path: file.path,
     x: 0,
     y: 0,
+    placed: false,
     latexFormulas: latexMatches,
     links: linkMatches,
     content: body.slice(0, 800),

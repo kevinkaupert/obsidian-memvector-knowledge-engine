@@ -482,3 +482,19 @@ describe("VectorScatterView defers work while hidden (#212)", () => {
     expect(f.vault.cachedRead).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("VectorScatterView restores a node stored at the origin (#190)", () => {
+  it("shows it at (0, 0) as placed, without re-seeding or writing", async () => {
+    const { view, notes } = createFixture(sixNotes());
+    notes.forEach((n, i) => storedPositions.set(n.path, { x: i === 2 ? 0 : 100 * i + 50, y: i === 2 ? 0 : 40 * i + 10 }));
+
+    await view.scanVaultNotes();
+    await settle(2000);
+
+    const origin = view.nodes.find((n) => n.path === notes[2].path)!;
+    expect([origin.x, origin.y]).toEqual([0, 0]);
+    expect(origin.placed).toBe(true);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(saveNodePositions).not.toHaveBeenCalled();
+  });
+});

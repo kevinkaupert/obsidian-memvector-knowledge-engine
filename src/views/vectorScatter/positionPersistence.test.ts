@@ -45,6 +45,12 @@ describe("PositionPersister (#211)", () => {
     expect(writtenIds()).toEqual(["a", "b", "c"]);
   });
 
+  it("writes a node placed at exactly the origin (#190)", async () => {
+    nodes = [{ ...node("origin", 0, 0), placed: true }];
+    await persister.flush();
+    expect(writtenIds()).toEqual(["origin"]);
+  });
+
   it("merges a burst of requests into one write", async () => {
     for (let i = 0; i < 5; i++) {
       nodes[0].x += 10;

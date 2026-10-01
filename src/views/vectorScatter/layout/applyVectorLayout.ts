@@ -22,16 +22,22 @@ export interface LayoutModel {
 }
 
 /**
- * Purpose: Computes the rescaled similarity matrix and assigns clusters, without moving any node.
- * Architecture: `fixedBounds` keeps the rescale of the last full pass, so a local adjustment does not change the scale
- * of every pair; without it the bounds are derived from the current vault.
+ * Purpose: Computes the rescaled similarity matrix and, unless told to keep them, assigns clusters - without moving
+ * any node.
+ * Architecture: `fixedBounds` keeps the rescale of the last full pass and `assignClusters: false` keeps the cluster
+ * assignment, so a local adjustment changes neither the scale of every pair nor every cluster (ADR-0006). Without
+ * them the bounds and clusters are derived from the current vault.
  */
-export function prepareLayoutModel(nodes: ScatterNode[], settings: MemVectorSettings, fixedBounds?: RescaleBounds | null): LayoutModel {
+export function prepareLayoutModel(
+  nodes: ScatterNode[],
+  settings: MemVectorSettings,
+  options: { fixedBounds?: RescaleBounds | null; assignClusters?: boolean } = {}
+): LayoutModel {
   const isMath = settings.knowledgeDomain === "math";
   const rawMatrix = buildSimilarityMatrix(nodes, SIMILARITY_WEIGHTS, isMath);
-  const bounds = fixedBounds ?? computeRescaleBounds(rawMatrix);
+  const bounds = options.fixedBounds ?? computeRescaleBounds(rawMatrix);
   const matrix = rescaleSimilarityMatrix(rawMatrix, bounds);
-  const centroidIds = assignClouds(nodes, matrix);
+  const centroidIds = options.assignClusters === false ? [] : assignClouds(nodes, matrix);
   return { matrix, bounds, centroidIds };
 }
 
