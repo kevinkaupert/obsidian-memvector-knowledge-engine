@@ -10,7 +10,7 @@ import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
 import type { ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
-import { applyVectorLayout } from "./layout/applyVectorLayout";
+import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
 import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
@@ -19,9 +19,11 @@ import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
 import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
+import { PositionPersister } from "./positionPersistence";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
-import { filterVisibleNodes, isRelationNode, type RelationEdge, type ScatterNode } from "./types";
-import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
+import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
+import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { isRelationNote } from "../../relationNotes";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -58,9 +60,16 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * changed from outside the view (the plugin settings tab).
    * Architecture: Counterpart to MemVectorPlugin.applySettingsToOpenViews(). setShowRelationNotes
    * already persists and refreshes, so it is reused for the relation-note flag; everything else the
-   * view reads straight off `this.settings` on each redraw and only needs the redraw itself.
+   * view reads straight off `this.settings` on each redraw. Settings that feed the layout (knowledge
+   * domain, WikiLinks as relations) take effect through applyLayout, which does nothing when no layout
+   * input changed.
    */
   applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+    // A hidden view only remembers that settings changed; it applies them once when it is shown again.
+    if (!this.isVisible()) {
+      this.deferSettingsChange(options);
+      return;
+    }
     if (options?.embeddings) this.reloadEmbeddings();
     // A vocabulary edit changes per-label attraction/repulsion, so the force layout
     // has to run again - a redraw alone would only repaint the old positions.
@@ -76,6 +85,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.edgeHops = this.settings.scatterEdgeHops;
       this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
     }
+    this.applyLayout();
     this.redraw();
   }
 
@@ -151,6 +161,15 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   projectionMode: ProjectionMode = "graphvector";
 
   private positionsHydrated = false;
+  private readonly layoutEngine = new LayoutEngine();
+  /**
+   * Writes moved positions in batches. Gated by positionsHydrated so a failed hydration never lets computed positions
+   * overwrite valid stored ones (Issue #184).
+   */
+  private readonly positionWriter = new PositionPersister({
+    write: (records) => saveNodePositions(this.app, records),
+    source: () => ({ nodes: this.nodes, enabled: this.positionsHydrated }),
+  });
   private canvas!: HTMLCanvasElement;
   private canvasCtx!: CanvasRenderingContext2D;
   private canvasWrap!: HTMLElement;
@@ -291,17 +310,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
 
     this.registerVaultWatchers();
+    this.registerVisibilityWatchers();
   }
 
   onClose(): Promise<void> {
-    if (this.relationsDebounceTimer !== null) {
-      window.clearTimeout(this.relationsDebounceTimer);
-      this.relationsDebounceTimer = null;
-    }
-    if (this.vaultDebounceTimer !== null) {
-      window.clearTimeout(this.vaultDebounceTimer);
-      this.vaultDebounceTimer = null;
-    }
+    this.vaultEvents.dispose();
+    void this.positionWriter.flush();
     if (this.embeddingReloadTimer !== null) {
       window.clearTimeout(this.embeddingReloadTimer);
       this.embeddingReloadTimer = null;
@@ -314,38 +328,64 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return Promise.resolve();
   }
 
-  private relationsDebounceTimer: number | null = null;
-  private vaultDebounceTimer: number | null = null;
+  private readonly vaultEvents = new VaultEventQueue(() => this.processVaultChanges());
+  /** Serializes every update of the node list, so an older scan can never finish after - and overwrite - a newer one. */
+  private workChain: Promise<void> = Promise.resolve();
+  /** Incremented per requested full scan; work started under an older value is discarded. */
+  private scanGeneration = 0;
+  /** Vault changes arrived while the view was hidden and are waiting in the queue. */
+  private staleWhileHidden = false;
+  /** Settings changes that arrived while the view was hidden, merged; null when none are pending. */
+  private deferredSettings: { relayout?: boolean; embeddings?: boolean } | null = null;
 
   /**
-   * Purpose: Registers reactive vault event watchers to automatically update relation edges and notes when files change.
-   * Architecture: Relation notes are edges *and* scatter nodes (shown with "show relation notes"). Editing one only
-   * changes its edge, so a modify reloads edges; creating, deleting or renaming one changes the node set too and
-   * needs a full rescan (which reloads the edges as well). The vocabulary file carries the per-label layout weights,
-   * so any change to it reloads relations like an edge edit.
+   * Purpose: Registers reactive vault event watchers that feed the view's event queue.
+   * Architecture: Only events that can change the view are queued: notes that are shown, or that the scan scope
+   * (indexing exclusions, view filter, relation-note visibility) would show - a rename counts if either its old or
+   * its new path qualifies. Relation notes and the vocabulary file always reload the edges, even outside the view
+   * filter, because they change forces between shown notes; a relation note is additionally a node when relation
+   * notes are shown. Relation notes are recognized by frontmatter, the relations folder, or - for deletes and the
+   * old path of a rename, where no frontmatter is left - by the paths of the loaded relation edges.
    */
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    const isRel = (file: { path: string }) =>
-      isRelationNote(file.path, file instanceof TFile ? this.app.metadataCache?.getFileCache(file)?.frontmatter?.type : undefined, relationsFolder(this.settings));
+    const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
+    // A deleted file has no frontmatter left, so a relation note outside the relations folder is only recognizable
+    // by the paths of the relation edges loaded from it.
+    const isRel = (path: string, type?: string) =>
+      isRelationNote(path, type, relationsFolder(this.settings)) || this.relationEdges.some((e) => e.path === path);
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
+    const isShown = (path: string) => this.nodes.some((n) => n.path === path);
+    const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
 
     const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
-      if (isVocabulary(file.path) || (kind === "modify" && isRel(file))) {
+      if (isVocabulary(file.path)) {
         this.triggerRelationsReload();
-      } else if (isMd(file.path)) {
-        this.triggerVaultRescan();
+        return;
+      }
+      if (!isMd(file.path)) return;
+      const type = kind === "delete" ? undefined : fmType(file);
+      if (isRel(file.path, type)) this.triggerRelationsReload();
+      if (kind === "delete") {
+        if (isShown(file.path)) this.triggerVaultRescan({ kind: "delete", path: file.path });
+      } else if (isShown(file.path) || inScope(file.path, type)) {
+        this.triggerVaultRescan({ kind: "upsert", path: file.path });
       }
     };
 
     const handleRenameEvent = (file: { path: string }, oldPath: string) => {
       if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
         this.triggerRelationsReload();
-      } else if (isMd(file?.path) || isMd(oldPath)) {
-        this.triggerVaultRescan();
+        return;
+      }
+      if (!isMd(file?.path) && !isMd(oldPath)) return;
+      const type = fmType(file);
+      if (isRel(file.path, type) || isRel(oldPath)) this.triggerRelationsReload();
+      if (isShown(oldPath) || inScope(file.path, type)) {
+        this.triggerVaultRescan({ kind: "rename", path: file.path, oldPath });
       }
     };
 
@@ -355,30 +395,149 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
   }
 
-  triggerRelationsReload(): void {
-    if (this.relationsDebounceTimer !== null) window.clearTimeout(this.relationsDebounceTimer);
-    this.relationsDebounceTimer = window.setTimeout(() => {
-      void (async () => {
-        await this.loadRelationEdges();
-        this.applyLayout();
-        this.redraw();
-      })();
-    }, 400);
+  /**
+   * Purpose: Tells whether the view is currently on screen.
+   * Architecture: Uses Obsidian's HTMLElement.isShown(), which is false when the view element or an ancestor is
+   * hidden - a background tab - and true for a view in a split pane or a popout window, since it checks the element's
+   * own DOM ancestry rather than the active leaf.
+   */
+  private isVisible(): boolean {
+    const el = this.containerEl as HTMLElement & { isShown?: () => boolean };
+    return typeof el.isShown === "function" ? el.isShown() : true;
   }
 
-  triggerVaultRescan(): void {
-    if (this.vaultDebounceTimer !== null) window.clearTimeout(this.vaultDebounceTimer);
-    this.vaultDebounceTimer = window.setTimeout(() => {
-      void (async () => {
-        await this.scanVaultNotes(undefined, { preserveView: true });
+  /**
+   * Purpose: Re-checks visibility whenever the workspace layout or the active leaf changes, so a view that collected
+   * vault changes while hidden applies them once it is shown again.
+   */
+  registerVisibilityWatchers(): void {
+    const workspace = this.app?.workspace;
+    if (!workspace?.on) return;
+    this.registerEvent(workspace.on("layout-change", () => this.resumeIfVisible()));
+    this.registerEvent(workspace.on("active-leaf-change", () => this.resumeIfVisible()));
+  }
+
+  /** Remembers a settings change for a hidden view, merging it with earlier ones. */
+  private deferSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+    const merged = this.deferredSettings ?? {};
+    if (options?.relayout) merged.relayout = true;
+    if (options?.embeddings) merged.embeddings = true;
+    this.deferredSettings = merged;
+    this.staleWhileHidden = true;
+  }
+
+  /** Applies the settings and vault changes collected while the view was hidden, once it is visible again. */
+  private resumeIfVisible(): void {
+    if (!this.staleWhileHidden || !this.isVisible()) return;
+    this.staleWhileHidden = false;
+    const settings = this.deferredSettings;
+    this.deferredSettings = null;
+    if (settings) this.applyExternalSettingsChange(settings);
+    if (this.vaultEvents.hasPending()) this.processVaultChanges();
+  }
+
+  /** Queues a reload of relation edges and vocabulary forces. */
+  triggerRelationsReload(): void {
+    this.vaultEvents.relationsChanged();
+  }
+
+  /** Queues one note change, or a background full rescan when no change is given. */
+  triggerVaultRescan(change?: VaultNoteChange): void {
+    if (!change) this.vaultEvents.fullScanRequested();
+    else if (change.kind === "rename") this.vaultEvents.noteRenamed(change.oldPath, change.path);
+    else if (change.kind === "delete") this.vaultEvents.noteDeleted(change.path);
+    else this.vaultEvents.noteChanged(change.path);
+  }
+
+  /** The scope the scan and incremental updates use to decide which notes are nodes. */
+  private scanScope(): ScanScope {
+    return {
+      filterQuery: this.viewFilterQuery,
+      exclusions: this.settings.vectorSearchExclusions,
+      relationsDir: relationsFolder(this.settings),
+      showRelationNotes: this.showRelationNotes,
+    };
+  }
+
+  /** Runs `task` after every update queued before it. A failure is logged and does not block later updates. */
+  private runExclusive(task: () => Promise<void>): Promise<void> {
+    const run = this.workChain.then(task);
+    this.workChain = run.catch(() => undefined);
+    return run;
+  }
+
+  /**
+   * Purpose: Applies the batch of queued vault changes.
+   * Architecture: A queued full scan supersedes per-note changes. Otherwise only the changed notes are read; if that
+   * fails, a full scan restores a consistent node list.
+   */
+  private processVaultChanges(): void {
+    // A hidden view keeps collecting; nothing is read or laid out until it is shown again.
+    if (!this.isVisible()) {
+      this.staleWhileHidden = true;
+      return;
+    }
+    const changes = this.vaultEvents.take();
+    void this.runExclusive(async () => {
+      try {
+        if (changes.fullScan) {
+          await this.fullScan({ preserveView: true }, this.scanGeneration);
+        } else if (changes.upserts.size > 0 || changes.removals.size > 0) {
+          await this.applyNoteChanges(changes, this.scanGeneration);
+        } else if (changes.relations) {
+          await this.loadRelationEdges();
+          this.applyLayout();
+          this.redraw();
+        }
         this.toolbarHandles?.updateSelectionUI();
-      })();
-    }, 800);
+      } catch (err) {
+        console.warn("MemVector: Incremental 2D view update failed, falling back to a full rescan:", err);
+        this.vaultEvents.fullScanRequested();
+      }
+    });
+  }
+
+  /**
+   * Purpose: Re-reads only the changed notes and updates the node list in place.
+   * Architecture: A modified or renamed note keeps its position and in-memory vector; a new note gets its stored
+   * vector and stored position, if any, and is otherwise placed by the layout. The layout engine then decides from
+   * the layout inputs whether anything has to move.
+   */
+  private async applyNoteChanges(changes: PendingVaultChanges, generation: number): Promise<void> {
+    const scope = this.scanScope();
+    const previousByPath = new Map(this.nodes.map((n) => [n.path, n]));
+    const kept = this.nodes.filter((n) => !changes.removals.has(n.path) && !changes.upserts.has(n.path));
+    const fresh: ScatterNode[] = [];
+
+    for (const path of changes.upserts) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) continue;
+      if (!isInScanScope(file, cachedFrontmatterType(this.app, file), scope)) continue;
+      const node = await buildScatterNode(this.app, file);
+      const previous = previousByPath.get(path) ?? previousByPath.get(changes.renamedFrom.get(path) ?? "");
+      if (previous) {
+        node.embedding = previous.embedding;
+        if (isPlaced(previous)) placeNode(node, previous.x, previous.y);
+      }
+      fresh.push(node);
+    }
+
+    const added = fresh.filter((n) => !previousByPath.has(n.path));
+    await this.hydrateStoredEmbeddings(added.filter((n) => !n.embedding), new Map());
+    await this.hydrateStoredPositions(added.filter((n) => !isPlaced(n)));
+    if (changes.relations) await this.loadRelationEdges();
+    if (generation !== this.scanGeneration) return;
+
+    this.nodes = [...kept, ...fresh].sort((a, b) => a.path.localeCompare(b.path));
+    this.reconcileTransientState();
+    this.applyLayout();
+    this.redraw();
   }
 
   private hasFittedView = false;
 
   private handleResize(): void {
+    this.resumeIfVisible();
     const w = this.canvasWrap.clientWidth || 800;
     const h = this.canvasWrap.clientHeight || 600;
     const dpr = window.devicePixelRatio || 1;
@@ -462,13 +621,23 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   /**
    * Purpose: Scans vault notes using transient view filter and persistent indexing exclusions, then updates embeddings and layout.
    * Architecture: Explicit scans (opening the view, changing the filter) fit the camera to the new node set;
-   * `preserveView` keeps the user's pan and zoom for background rescans triggered by the vault watcher, which fire
-   * while the user is editing notes.
+   * `preserveView` keeps the user's pan and zoom for background rescans. Every scan runs after the updates queued
+   * before it; a scan superseded by a newer request is skipped, and pending per-note changes are dropped because the
+   * full scan reads every note anyway.
    */
-  async scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
+  scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
     }
+    const generation = ++this.scanGeneration;
+    this.vaultEvents.supersededByFullScan();
+    return this.runExclusive(async () => {
+      if (generation !== this.scanGeneration) return;
+      await this.fullScan(options, generation);
+    });
+  }
+
+  private async fullScan(options: { preserveView?: boolean }, generation: number): Promise<void> {
     const previousEmbeddings = new Map<string, number[]>();
     const previousPositions = new Map<string, { x: number; y: number }>();
     for (const node of this.nodes) {
@@ -482,36 +651,31 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // shadow the database and cause a deferred clobber on subsequent scans (Issue #184).
     if (this.positionsHydrated) {
       for (const node of this.nodes) {
-        if (node.x !== 0 || node.y !== 0) {
+        if (isPlaced(node)) {
           previousPositions.set(node.path, { x: node.x, y: node.y });
           previousPositions.set(node.id, { x: node.x, y: node.y });
         }
       }
     }
 
-    this.nodes = await scanVaultNotesPure(
-      this.app,
-      this.viewFilterQuery,
-      this.settings.vectorSearchExclusions,
-      relationsFolder(this.settings),
-      this.showRelationNotes
-    );
-    this.reconcileTransientState();
+    const scope = this.scanScope();
+    const nodes = await scanVaultNotesPure(this.app, scope.filterQuery, scope.exclusions, scope.relationsDir, scope.showRelationNotes);
 
-    for (const node of this.nodes) {
+    for (const node of nodes) {
       const existingPos = previousPositions.get(node.path) ?? previousPositions.get(node.id);
-      if (existingPos) {
-        node.x = existingPos.x;
-        node.y = existingPos.y;
-      }
+      if (existingPos) placeNode(node, existingPos.x, existingPos.y);
     }
 
     // Both must be in place *before* the layout pass below, or it falls back to
     // text/link/folder heuristics for a session that already has a semantic
     // index and typed relations on disk.
-    await this.hydrateStoredEmbeddings(previousEmbeddings);
-    await this.hydrateStoredPositions();
+    await this.hydrateStoredEmbeddings(nodes, previousEmbeddings);
+    await this.hydrateStoredPositions(nodes, true);
     await this.loadRelationEdges();
+    if (generation !== this.scanGeneration) return;
+
+    this.nodes = nodes;
+    this.reconcileTransientState();
     this.applyLayout();
     if (!this.hasFittedView && !options.preserveView) {
       this.fitToView();
@@ -532,12 +696,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.embeddingReloadTimer !== null) window.clearTimeout(this.embeddingReloadTimer);
     this.embeddingReloadTimer = window.setTimeout(() => {
       this.embeddingReloadTimer = null;
-      void (async () => {
+      // Hidden since the request: reload once the view is shown again.
+      if (!this.isVisible()) {
+        this.deferSettingsChange({ embeddings: true });
+        return;
+      }
+      void this.runExclusive(async () => {
         for (const n of this.nodes) n.embedding = undefined;
-        await this.hydrateStoredEmbeddings(new Map());
+        await this.hydrateStoredEmbeddings(this.nodes, new Map());
         this.applyLayout();
         this.redraw();
-      })();
+      });
     }, 300);
   }
 
@@ -565,45 +734,49 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * scoped to the active embedding model. In-memory embeddings of the previous scan (`fallback`) are preserved when
    * the store does not return a vector for a note, ensuring in-memory layouts do not collapse.
    */
-  private async hydrateStoredEmbeddings(fallback: Map<string, number[]>): Promise<void> {
-    if (this.nodes.length === 0) return;
+  private async hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>): Promise<void> {
+    if (nodes.length === 0) return;
     let stored: Map<string, number[]>;
     try {
       const store = getVectorStore(this.app, this.settings);
-      stored = await store.getVectors([...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)]);
+      stored = await store.getVectors([...nodes.map((n) => n.path), ...nodes.map((n) => n.id)]);
     } catch (err) {
       console.warn("MemVector: Failed to hydrate stored embeddings before layout, keeping in-memory embeddings:", err);
       stored = fallback;
     }
-    for (const n of this.nodes) {
+    for (const n of nodes) {
       const v = stored.get(n.path) ?? stored.get(n.id);
       if (v) n.embedding = v;
     }
   }
 
   /**
-   * Purpose: Loads each scanned node's persisted 2D coordinates from SQLite if unplaced.
-   * Architecture: Preserves the user's mental map across restarts (ADR-0005). Fails safe
-   * by gating position persistence so transient read errors never overwrite stored coordinates (Issue #184).
+   * Purpose: Loads the persisted 2D coordinates of unplaced nodes from SQLite.
+   * Architecture: Preserves the user's mental map across restarts (ADR-0006). Fails safe by gating position
+   * persistence so transient read errors never overwrite stored coordinates (Issue #184). A full scan (`full`)
+   * re-opens the gate on success; an incremental update for a few new notes can only close it.
    */
-  private async hydrateStoredPositions(): Promise<void> {
-    if (this.nodes.length === 0) {
-      this.positionsHydrated = true;
+  private async hydrateStoredPositions(nodes: ScatterNode[], full = false): Promise<void> {
+    if (nodes.length === 0) {
+      if (full) this.positionsHydrated = true;
       return;
     }
     try {
-      const queryKeys = [...this.nodes.map((n) => n.path), ...this.nodes.map((n) => n.id)];
+      const queryKeys = [...nodes.map((n) => n.path), ...nodes.map((n) => n.id)];
       const stored = await getStoredNodePositions(this.app, queryKeys);
-      this.nodes.forEach((n) => {
-        if (n.x === 0 && n.y === 0) {
+      const inStorage: { id: string; x: number; y: number }[] = [];
+      nodes.forEach((n) => {
+        const pos = stored.get(n.id) ?? stored.get(n.path);
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) inStorage.push({ id: n.id, x: pos.x, y: pos.y });
+      });
+      this.positionWriter.markPersisted(inStorage);
+      nodes.forEach((n) => {
+        if (!isPlaced(n)) {
           const pos = stored.get(n.id) ?? stored.get(n.path);
-          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-            n.x = pos.x;
-            n.y = pos.y;
-          }
+          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) placeNode(n, pos.x, pos.y);
         }
       });
-      this.positionsHydrated = true;
+      if (full) this.positionsHydrated = true;
     } catch (err) {
       this.positionsHydrated = false;
       console.warn("MemVector: Failed to hydrate stored node positions, aborting position persistence to protect mental map:", err);
@@ -611,27 +784,37 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
-   * Purpose: Persists non-zero 2D coordinates of all currently placed nodes to SQLite.
-   * Architecture: Preserves node positions across sessions and restarts (ADR-0005). Gated by
-   * positionsHydrated to prevent overwriting valid storage on hydration failure (Issue #184).
+   * Purpose: Lays out the nodes when a layout input changed, and persists positions only when the simulation ran.
+   * Architecture: Data updates call this with "auto"; the layout engine compares the layout-input signatures with the
+   * last completed pass and leaves every node in place when nothing relevant changed (ADR-0006).
    */
-  private async persistCurrentPositions(): Promise<void> {
-    if (!this.positionsHydrated || this.nodes.length === 0) return;
-    try {
-      const records = this.nodes
-        .filter((n) => Number.isFinite(n.x) && Number.isFinite(n.y) && (n.x !== 0 || n.y !== 0))
-        .map((n) => ({ id: n.id, path: n.path, x: n.x, y: n.y }));
-      if (records.length > 0) {
-        await saveNodePositions(this.app, records);
-      }
-    } catch (err) {
-      console.warn("MemVector: Failed to persist node positions:", err);
-    }
+  applyLayout(mode: LayoutMode = "auto"): void {
+    const { simulated } = this.layoutEngine.run(
+      {
+        nodes: this.nodes,
+        relationEdges: this.relationEdges,
+        vocabulary: this.vocabulary,
+        settings: this.settings,
+        nodeSpacing: this.nodeSpacing,
+        cloudSpacing: this.cloudSpacing,
+      },
+      mode
+    );
+    if (simulated) this.positionWriter.schedule();
   }
 
-  applyLayout(): void {
-    applyVectorLayout(this.nodes, this.settings, this.nodeSpacing, this.cloudSpacing, this.relationEdges, this.vocabulary);
-    void this.persistCurrentPositions();
+  /**
+   * Purpose: Runs a free layout from scratch - the explicit rearrangement (ADR-0006) - and fits the camera to it.
+   * Architecture: Data updates only adjust the layout locally, so this is the one way to get a fresh global
+   * arrangement; it also recomputes the similarity scale and the clusters. Queued after any running update.
+   */
+  rearrangeLayout(): Promise<void> {
+    return this.runExclusive(async () => {
+      this.applyLayout("rearrange");
+      this.fitToView();
+      this.hasFittedView = true;
+      this.redraw();
+    });
   }
 
   async loadRelationEdges(): Promise<void> {
@@ -662,7 +845,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Also re-run layout, not just re-render edges - a saved/edited/deleted
     // relation must feed the force layout's topology weights too, not only
     // the drawn edge lines.
-    void this.loadRelationEdges().then(() => {
+    void this.runExclusive(async () => {
+      await this.loadRelationEdges();
       this.applyLayout();
       this.redraw();
     });

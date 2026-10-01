@@ -64,6 +64,19 @@ export default class MemVectorPlugin extends Plugin {
       name: t.cmdOpenScatter,
       callback: () => this.activateVectorScatterView(),
     });
+    this.addCommand({
+      id: "rearrange-vector-scatter-layout",
+      name: t.cmdRearrangeScatter,
+      checkCallback: (checking) => {
+        const views = this.app.workspace
+          .getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)
+          .map((leaf) => leaf.view)
+          .filter((view): view is VectorScatterView => view instanceof VectorScatterView);
+        if (views.length === 0) return false;
+        if (!checking) for (const view of views) void view.rearrangeLayout();
+        return true;
+      },
+    });
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", () => {

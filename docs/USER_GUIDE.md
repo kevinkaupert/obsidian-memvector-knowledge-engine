@@ -26,6 +26,21 @@ Open the main 2D Vector Graph by clicking the **dot-network icon** in the left r
 > breaks for a non-math vault, it just doesn't get the extra color coding
 > unless you adopt similar folder names for your own domain's types.
 
+### When the layout changes
+
+Note positions are kept across edits and restarts; the map only changes where something that affects the layout changed:
+
+| What happened | Effect on the map |
+|---|---|
+| Reopening the view or restarting Obsidian | Stored positions are shown unchanged. |
+| Editing a note without changing its first 800 characters of words, its links, its formulas (math domain), its folder or its vector | Nothing moves. |
+| Editing a title, a type or a relation's description | Labels update, nothing moves. |
+| A new note, a changed note or a new/changed relation | Only that note, its relation neighbors and its most similar notes move, and only slightly; the rest of the map stays where it is. |
+| Vectors recalculated for most notes, the knowledge domain or "WikiLinks as relations" changed, or a spacing slider moved | The whole layout is recalculated from the current positions. |
+| **Layout neu anordnen** | A fresh layout from scratch. |
+
+Note and settings changes are collected while the view is in a background tab and applied once when it is shown again. Positions are saved only when they actually moved; a failed save is retried with the next one.
+
 ### Canvas Interaction Controls
 
 | Action | Control / Gesture |
@@ -50,7 +65,8 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and note count.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
 3. **Darstellung (Visual & Layout Controls):**
-   - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for dynamic node spacing and semantic cluster spacing that adjust the organic force-directed 2D manifold simulation (blending dense BGE-M3 vector similarity and graph topology; see `docs/ARCHITECTURE.md` §2.1).
+   - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for dynamic node spacing and semantic cluster spacing that adjust the organic force-directed 2D manifold simulation (blending dense BGE-M3 vector similarity and graph topology; see `docs/ARCHITECTURE.md` §2.1). Moving a slider re-runs the layout for all notes.
+   - **Layout neu anordnen (Rearrange layout):** Computes a fresh layout for all notes from scratch and fits the camera to it. Also available as the command `MemVector: 2D-Layout neu anordnen`. See "When the layout changes" below.
    - **Kanten-Radius:** Relationship edges are always rendered; this dropdown sets the hop radius (1/2/3 hops, "Alle", or "∞" for the whole path).
    - Visual style, relation-note visibility, and agent guidelines moved to the plugin **Settings** (see `docs/CONFIGURATION.md`).
 4. **Synthese (AI Co-Pilot & GraphRAG):**

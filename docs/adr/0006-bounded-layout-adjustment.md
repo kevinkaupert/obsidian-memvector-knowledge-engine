@@ -1,6 +1,6 @@
 # 0006 — Bounded Layout Adjustment Instead of Continuous Re-Simulation
 
-Status: Accepted (supersedes ADR-0005; implementation tracked in #206 and #185)
+Status: Accepted (supersedes ADR-0005; implemented for #206 and #185)
 
 ## Context
 
@@ -9,7 +9,7 @@ ADR-0005 introduced persisted node positions so the 2D view reopens with a famil
 In the code as of 0.2.1 this has the following effects:
 
 1. **Every vault event runs the full pipeline.** Any Markdown `create`, `modify`, `delete` or `rename` triggers `triggerVaultRescan` (800 ms debounce). It re-reads every Markdown file, reloads every stored vector, all positions, all relation notes and the vocabulary, rebuilds the n x n similarity matrix, runs 60 simulation iterations over all n x n pairs and writes all positions. Obsidian autosaves about every 2 s while typing, so this happens on almost every typing pause. A relation note edit triggers a layout pass after 400 ms, even when only its description changed.
-2. **Most of these passes have no layout-relevant input change.** The layout uses the word features of the first 800 characters of a note, the links and formulas of the whole note, its type, title and folder, its vector, the relation edges with their vocabulary weights, the spacing settings, the knowledge domain and whether WikiLinks act as relations. Text edits beyond the excerpt that touch no link or formula, edits of excluded or filtered-out notes, and description-only relation edits change none of them. Views in background tabs compute as well.
+2. **Most of these passes have no layout-relevant input change.** The layout uses the word features of the first 800 characters of a note, the links and formulas of the whole note, its folder, its vector, the relation edges with their vocabulary weights, the spacing settings, the knowledge domain and whether WikiLinks act as relations. Text edits beyond the excerpt that touch no link or formula, edits of excluded or filtered-out notes, and description-only relation edits change none of them. Views in background tabs compute as well.
 3. **Each pass is expensive.** Measured for the layout step alone (similarity matrix plus simulation, synthetic data, 1024-dimensional vectors, main thread): about 0.13 s for 200 notes, 0.8 s for 500, 3.4 s for 1000 and 12.7 s for 2000. File reads, vector hydration and the database write come on top.
 4. **Unchanged inputs still move every node.** Each pass restarts the annealing at `alpha = 0.5`, which re-heats a warm-started layout, and a center gravity pulls every node toward the origin (an unopposed node moves about 4.5 % per pass). In a measurement with 300 clustered notes and no input change, the layout contracted by about 17 % over the first passes and then kept moving each node by about 83 units per pass (node spacing 350) without converging.
 5. **Every pass is persisted.** Positions are written after every pass, with no movement threshold, and each write exports and stores the entire SQLite database including all vectors.
@@ -28,7 +28,7 @@ The previous rule "nodes are not locked or pinned" is replaced by the distinctio
 
 ### 1. Layout inputs decide whether anything is computed
 
-- A cache holds the prepared layout inputs per note: identity, folder, type, title, word features of the excerpt, links and formulas of the whole note, and the vector used together with its embedding fingerprint.
+- A cache holds the prepared layout inputs per note: identity, folder, word features of the excerpt, links and formulas of the whole note, and the vector used together with its embedding fingerprint. Title and type only label a node; changing them is a display change.
 - Relation edges count with their endpoints and effective forces (type weight, attraction or repulsion, direction). A description change alone is not a layout input.
 - Signatures are derived from these prepared inputs, not from a hash of the whole Markdown content, which would be too coarse.
 - Global inputs are the vocabulary weights, the spacing settings, the embedding fingerprint, the knowledge domain and whether WikiLinks act as relations.

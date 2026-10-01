@@ -73,6 +73,23 @@ There is currently one layout algorithm, `graphvector`, applied directly via `ap
 
 An earlier version of this plugin exposed several independently selectable projection algorithms (clustered force, plain force, a flow-rank layout, a UMAP-inspired layout, a connectivity-only layout, a formula-clustering layout, and a static LLM-topic-map layout); those were consolidated into the single blended algorithm above. Reintroducing separate selectable modes is possible future work, not a currently planned one.
 
+#### Update behavior (`layout/layoutEngine.ts`, ADR-0006)
+
+The simulation does not run on every data update. `LayoutEngine` compares signatures of the layout inputs (`layout/layoutInputs.ts`) with the last completed pass:
+
+- **Per note:** id, the basename WikiLinks match on, folder, link targets, the active semantic features (words of the 800-character excerpt, or formulas of the whole note in the math domain) and a hash of the vector. Title and type are labels only.
+- **Global:** the effective force per related note pair (resolved from the vocabulary exactly as the simulation does; description and direction do not count), node and cluster spacing, `knowledgeDomain` and `includeWikiLinksAsRelations`.
+
+Depending on the difference:
+
+- **Nothing changed:** no matrix, clustering, simulation or position write; the kept cluster assignment is re-applied to freshly scanned node objects. On opening the view with stored positions for every note, the signatures and clusters are initialized without a simulation.
+- **Local change** (changed, added or re-linked notes, at most half of all notes): a bounded adjustment moves only those notes, their relation (and, when enabled, WikiLink) neighbors and their five most similar notes. All other nodes are fixed. It starts with low energy, anchors existing mobile nodes softly to their previous position instead of pulling toward the origin, and stops once nothing moves. The similarity rescale bounds and clusters of the last free pass are kept; new notes join the nearest existing cluster.
+- **Free pass:** settings changes, changes to more than half of the notes, and the spacing sliders run the simulation over all nodes from their current positions and recompute the rescale bounds and clusters. The explicit "Rearrange layout" action does the same from scratch.
+
+If a cluster centroid leaves the node set (e.g. filtered out), only the cluster assignment is recomputed; positions are unaffected. On opening the view with some notes lacking a stored position, the stored ones initialize the state and only the new ones are placed by a bounded adjustment.
+
+Vault events reach the view through one queue (`vaultEventQueue.ts`): events per file are coalesced, a modify re-reads only that note, events for notes outside the view's scope are ignored (relation notes and the vocabulary file excepted), and all node-list updates run serialized so an older scan never overwrites a newer one. A view that is not shown collects vault events and settings changes and applies them once it is visible. Positions are written by `positionPersistence.ts` only when they moved, batched; nodes whose write failed stay pending until a write succeeds, even if a rescan reads the unsaved coordinates back from the in-memory database.
+
 **Graph-topology weighting in detail** (`graphTopologyWeights.ts`): this part of the blend ignores vector similarity and weighs notes by how they're *connected*.
 
 1. Builds an undirected graph from typed relation edges (relation notes: frontmatter `type: relation` or the configured relations folder, default `wiki/relations/`; see `docs/adr/0004-relation-note-identification.md`) and - only when the `includeWikiLinksAsRelations` setting is enabled (default off, see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`) - WikiLinks (`[[...]]`).

@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import type { MemVectorSettings } from "../../settings/types";
 import type { ProjectionMode } from "./layout/projections";
+import type { LayoutMode } from "./layout/layoutEngine";
 import type { RelationEdge, ScatterNode } from "./types";
 import type { PanState } from "./hitTesting";
 
@@ -39,7 +40,8 @@ export interface ScatterViewContext {
   setShowRelationNotes(show: boolean): void;
   redraw(): void;
   scanVaultNotes(filterOverride?: string, options?: { preserveView?: boolean }): Promise<void>;
-  applyLayout(): void;
+  applyLayout(mode?: LayoutMode): void;
+  rearrangeLayout(): Promise<void>;
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;
   focusSidebar(node: ScatterNode): void;

@@ -17,6 +17,33 @@ export interface GraphTopologyWeights {
   repel: Set<string>;
 }
 
+export type RelationForce = { repels: true } | { repels: false; weight: number };
+
+/**
+ * Purpose: Indexes a relation vocabulary by upper-cased label; the first definition per label wins.
+ * Architecture: Matches the Settings type table, which also collapses synonym entries to one row per canonical label.
+ */
+export function buildLabelIndex(vocabulary: RelationTermDef[] = DEFAULT_RELATION_VOCABULARY): Map<string, RelationTermDef> {
+  const labelIndex = new Map<string, RelationTermDef>();
+  for (const def of vocabulary) {
+    const labelKey = def.label.toUpperCase();
+    if (!labelIndex.has(labelKey)) labelIndex.set(labelKey, def);
+  }
+  return labelIndex;
+}
+
+/**
+ * Purpose: Resolves the layout force a relation type exerts: repulsion, or attraction with a weight.
+ * Architecture: A label the active vocabulary does not define at all (e.g. an older CONFLICTS_WITH edge after switching
+ * to the Law preset) keeps its bundled layout semantics rather than silently degrading to generic attraction. Shared by
+ * the simulation and the layout-input signatures, so both see the same force.
+ */
+export function resolveRelationForce(relType: string, labelIndex: Map<string, RelationTermDef>): RelationForce {
+  const def = labelIndex.get(relType.toUpperCase()) ?? bundledLayoutForLabel(relType);
+  if (def?.repels) return { repels: true };
+  return { repels: false, weight: def?.weight ?? DEFAULT_RELATION_WEIGHT };
+}
+
 /**
  * Purpose: Builds an undirected graph from typed relation edges and, when opted in, WikiLinks, then computes BFS hop-distance attraction and repulsion weights.
  * Architecture: Feeds dynamic topology forces into organic 2D force simulation (Issue #41). WikiLink attraction is opt-in via includeWikiLinksAsRelations (default false) so topology follows explicit typed relations only unless enabled (Issue #100, ADR-0001). Per-label attraction/repulsion comes from the loaded relation vocabulary (weight/repels, ADR-0002) - no hardcoded type maps remain. Labels the active vocabulary does not define fall back to the bundled layout semantics for that canonical label (layoutDefaults.ts) instead of the generic default weight.
@@ -32,13 +59,7 @@ export function computeGraphTopologyWeights(
   const adjacency: Map<number, number>[] = nodes.map(() => new Map<number, number>());
   const repel = new Set<string>();
 
-  const labelIndex = new Map<string, RelationTermDef>();
-  // First definition per label wins - matches the Settings type table, which
-  // also collapses synonym entries to one row per canonical label.
-  for (const def of vocabulary) {
-    const labelKey = def.label.toUpperCase();
-    if (!labelIndex.has(labelKey)) labelIndex.set(labelKey, def);
-  }
+  const labelIndex = buildLabelIndex(vocabulary);
 
   const addEdge = (i: number, j: number, weight: number): void => {
     adjacency[i].set(j, Math.max(adjacency[i].get(j) ?? 0, weight));
@@ -61,14 +82,11 @@ export function computeGraphTopologyWeights(
     const i = idToIndex.get(e.srcId.toLowerCase());
     const j = idToIndex.get(e.tgtId.toLowerCase());
     if (i === undefined || j === undefined || i === j) return;
-    // A label the active vocabulary does not define at all (e.g. an older
-    // CONFLICTS_WITH edge after switching to the Law preset) keeps its bundled
-    // layout semantics rather than silently degrading to generic attraction.
-    const def = labelIndex.get(e.relType.toUpperCase()) ?? bundledLayoutForLabel(e.relType);
-    if (def?.repels) {
+    const force = resolveRelationForce(e.relType, labelIndex);
+    if (force.repels) {
       repel.add(`${Math.min(i, j)}-${Math.max(i, j)}`);
     } else {
-      addEdge(i, j, def?.weight ?? DEFAULT_RELATION_WEIGHT);
+      addEdge(i, j, force.weight);
     }
   });
 

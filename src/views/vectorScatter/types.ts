@@ -19,6 +19,12 @@ export interface ScatterNode {
   path: string;
   x: number;
   y: number;
+  /**
+   * Whether x/y are a real position (restored from storage or computed by the layout). A node can legitimately sit at
+   * the origin, so (0, 0) alone does not mean "unplaced". Absent on nodes built outside the scan, where the origin
+   * check is the fallback.
+   */
+  placed?: boolean;
   latexFormulas: string[];
   links: string[];
   content: string;
@@ -35,6 +41,22 @@ export interface RelationEdge {
   title: string;
   path: string;
   bidirectional: boolean;
+}
+
+/**
+ * Purpose: Tells whether a node already has a position on the canvas.
+ * Architecture: The explicit flag wins, so a node placed at exactly (0, 0) is persisted, restored and never re-seeded
+ * (Issue #190). Nodes without the flag fall back to the origin check.
+ */
+export function isPlaced(node: ScatterNode): boolean {
+  return node.placed ?? (node.x !== 0 || node.y !== 0);
+}
+
+/** Purpose: Sets a node's position and marks it as placed. */
+export function placeNode(node: ScatterNode, x: number, y: number): void {
+  node.x = x;
+  node.y = y;
+  node.placed = true;
 }
 
 /**

@@ -2,10 +2,11 @@ import type { ScatterNode } from "../types";
 
 /**
  * Purpose: Assigns each node to a semantic cluster centroid without over-partitioning coherent vaults.
+ * Returns the ids of the centroid nodes, in cloud id order, so the assignment can be kept and re-applied.
  */
-export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
+export function assignClouds(nodes: ScatterNode[], matrix: number[][]): string[] {
   const n = nodes.length;
-  if (n === 0) return;
+  if (n === 0) return [];
 
   const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
   if (n <= numClouds) {
@@ -13,7 +14,7 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
       node.cloudId = 0;
       node.cloudLabel = nodes[0].title;
     });
-    return;
+    return [nodes[0].id];
   }
 
   // Pick diverse centroids (k-means++ style by least similarity to already picked centroids)
@@ -47,5 +48,6 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): void {
     node.cloudId = bestCloud;
     node.cloudLabel = nodes[centroidIndices[bestCloud]]?.title || `Cluster ${bestCloud + 1}`;
   });
+  return centroidIndices.map((i) => nodes[i].id);
 }
 

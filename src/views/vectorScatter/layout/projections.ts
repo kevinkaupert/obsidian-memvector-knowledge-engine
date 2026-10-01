@@ -1,7 +1,8 @@
 import type { RelationTermDef } from "../../../relationVocabulary/types";
-import type { RelationEdge, ScatterNode } from "../types";
+import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
+import { ANCHOR_STIFFNESS, BOUNDED_START_ALPHA, BOUNDED_STOP_MOVEMENT } from "./layoutTunables";
 
 export type ProjectionMode = "graphvector";
 
@@ -23,6 +24,18 @@ export interface ProjectionParams {
   includeWikiLinksAsRelations?: boolean;
   /** Loaded relation vocabulary driving per-label attraction/repulsion (ADR-0002) - defaults to the bundled STEM vocabulary. */
   vocabulary?: RelationTermDef[];
+  /**
+   * Bounded adjustment (ADR-0006): only nodes whose id is in `mobileIds` move; all others stay fixed and only exert
+   * forces. Mobile nodes that were placed before are softly pulled back toward that position. Omitted for a free
+   * global pass.
+   */
+  bounded?: { mobileIds: ReadonlySet<string> };
+}
+
+/** Outcome of a projection run. */
+export interface ProjectionResult {
+  /** Simulation iterations actually run. */
+  iterations: number;
 }
 
 /**
@@ -216,7 +229,10 @@ export function compute2DProjectionFromMatrix(nodes: ScatterNode[], matrix: numb
 
 /**
  * Purpose: Simulates physical 2D organic force-directed layout balancing embeddings, graph topology, and many-body repulsion using caller-provided similarity matrix.
- * Architecture: Organic manifold force-directed model (Issue #41, #75).
+ * Architecture: Organic manifold force-directed model (Issue #41, #75). A free pass moves every node, starting with
+ * full annealing energy and a gentle pull toward the origin. A bounded pass (ADR-0006) moves only the mobile nodes:
+ * it starts with low energy so a settled layout is not re-heated, replaces the origin pull by a soft anchor to each
+ * mobile node's previous position, and stops once the largest step falls below BOUNDED_STOP_MOVEMENT.
  */
 export function applyGraphVectorProjection({
   nodes,
@@ -226,9 +242,10 @@ export function applyGraphVectorProjection({
   relationEdges,
   includeWikiLinksAsRelations,
   vocabulary,
-}: ProjectionParams): void {
+  bounded,
+}: ProjectionParams): ProjectionResult {
   const n = nodes.length;
-  if (n === 0) return;
+  if (n === 0) return { iterations: 0 };
 
   if (nodes.some((n) => n.cloudId === undefined)) {
     assignClouds(nodes, matrix);
@@ -252,8 +269,12 @@ export function applyGraphVectorProjection({
     }
   }
 
+  // Positions before this pass: anchors for mobile nodes in a bounded pass.
+  const wasPlaced = nodes.map((node) => isPlaced(node));
+  const anchors = nodes.map((node) => ({ x: node.x, y: node.y }));
+
   // 1. Initial placement: use 2D PCA or spectral matrix projection, or center spiral fallback
-  const needsPlacement = nodes.every((node) => node.x === 0 && node.y === 0);
+  const needsPlacement = wasPlaced.every((placed) => !placed);
   if (needsPlacement) {
     const hasPca = compute2DPcaProjection(nodes, clusterRadius);
     const hasMatrixProj = !hasPca && compute2DProjectionFromMatrix(nodes, matrix, clusterRadius);
@@ -274,45 +295,59 @@ export function applyGraphVectorProjection({
       });
     }
   } else {
-    // Incremental placement for newly-added unplaced notes when existing graph is already placed
+    // Incremental placement for newly-added unplaced notes next to their most similar placed note
     nodes.forEach((node, i) => {
-      if (node.x === 0 && node.y === 0) {
-        let bestSim = -1;
-        let bestNeighbor: ScatterNode | null = null;
-        for (let j = 0; j < n; j++) {
-          if (i === j) continue;
-          if (nodes[j].x !== 0 || nodes[j].y !== 0) {
-            if (matrix[i][j] > bestSim) {
-              bestSim = matrix[i][j];
-              bestNeighbor = nodes[j];
-            }
-          }
+      if (wasPlaced[i]) return;
+      let bestSim = -1;
+      let bestNeighbor: ScatterNode | null = null;
+      for (let j = 0; j < n; j++) {
+        if (i === j || !wasPlaced[j]) continue;
+        if (matrix[i][j] > bestSim) {
+          bestSim = matrix[i][j];
+          bestNeighbor = nodes[j];
         }
-        const phi = i * 2.399963;
-        if (bestNeighbor && bestSim > 0.15) {
-          node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
-          node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
-        } else {
-          node.x = Math.cos(phi) * targetSpacing * 0.5;
-          node.y = Math.sin(phi) * targetSpacing * 0.5;
-        }
+      }
+      const phi = i * 2.399963;
+      if (bestNeighbor && bestSim > 0.15) {
+        node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
+        node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
+      } else {
+        node.x = Math.cos(phi) * targetSpacing * 0.5;
+        node.y = Math.sin(phi) * targetSpacing * 0.5;
       }
     });
   }
 
+  const mobile = bounded ? nodes.map((node) => bounded.mobileIds.has(node.id)) : null;
+
   // 2. Iterative Organic Force Simulation
   const collisionDist = Math.max(60, targetSpacing * 0.45);
   const iterations = 60;
+  const startAlpha = bounded ? BOUNDED_START_ALPHA : 0.5;
+  let ran = 0;
 
   for (let iter = 0; iter < iterations; iter++) {
-    const alpha = 0.5 * (1 - iter / iterations);
+    const alpha = startAlpha * (1 - iter / iterations);
+    let largestStep = 0;
+    ran++;
 
     for (let i = 0; i < n; i++) {
+      if (mobile && !mobile[i]) continue;
       const nodeA = nodes[i];
-      // Gentle centering gravity towards (0, 0) keeping the graph centered
-      let fx = -nodeA.x * 0.003;
-      let fy = -nodeA.y * 0.003;
-
+      let fx: number;
+      let fy: number;
+      if (!bounded) {
+        // Gentle centering gravity towards (0, 0) keeping the graph centered
+        fx = -nodeA.x * 0.003;
+        fy = -nodeA.y * 0.003;
+      } else if (wasPlaced[i]) {
+        // Soft anchor to the position before this pass, limiting how far an existing node drifts
+        fx = (anchors[i].x - nodeA.x) * ANCHOR_STIFFNESS;
+        fy = (anchors[i].y - nodeA.y) * ANCHOR_STIFFNESS;
+      } else {
+        fx = 0;
+        fy = 0;
+      }
       for (let j = 0; j < n; j++) {
         if (i === j) continue;
         const nodeB = nodes[j];
@@ -388,8 +423,14 @@ export function applyGraphVectorProjection({
         const step = Math.min(totalF * alpha, maxStep);
         nodeA.x += (fx / totalF) * step;
         nodeA.y += (fy / totalF) * step;
+        if (step > largestStep) largestStep = step;
       }
     }
+
+    if (bounded && largestStep < BOUNDED_STOP_MOVEMENT) break;
   }
+
+  for (const node of nodes) node.placed = true;
+  return { iterations: ran };
 }
 

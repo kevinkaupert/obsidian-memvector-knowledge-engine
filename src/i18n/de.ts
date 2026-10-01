@@ -268,6 +268,7 @@ export const de: TranslationKeys = {
   ribbonScatter: "MemVector 2D Vektorraum",
   cmdOpenSidebar: "MemVector: Seitenleiste öffnen",
   cmdOpenScatter: "MemVector: 2D Vektor-Scatterplot öffnen",
+  cmdRearrangeScatter: "MemVector: 2D-Layout neu anordnen",
 
   // Provider options
   provOllama: "Ollama (Lokal - http://localhost:11434/v1)",
@@ -285,6 +286,7 @@ export const de: TranslationKeys = {
 
   lblNodeSpacing: "Punkt-Abstand",
   lblCloudSpacing: "Wolken-Abstand",
+  btnRearrangeLayout: "Layout neu anordnen",
   btnFitView: "Ganzansicht zentrieren",
   statusScanningVault: "Scanne Vault-Notizen...",
   statusNotesScanned: "Notizen erfolgreich im Vault gescannt.",

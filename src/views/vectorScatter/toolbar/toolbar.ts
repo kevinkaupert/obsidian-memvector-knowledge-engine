@@ -151,6 +151,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       ctx.redraw();
     })();
   });
+  // Data updates only adjust the layout locally (ADR-0006); a free global layout is this explicit action.
+  createActionBtn(ansichtBody, t.btnRearrangeLayout, () => {
+    void ctx.rearrangeLayout();
+  });
   const edgeHopsSelect = createDropdown(ansichtBody, t.lblEdgeHops, EDGE_HOP_OPTIONS(t), String(ctx.edgeHops), (val) => {
     // 0 ("Alle") is a valid, meaningful value here - `parseInt(val, 10) || 1`
     // would silently coerce it back to 1 since 0 is falsy in JS.

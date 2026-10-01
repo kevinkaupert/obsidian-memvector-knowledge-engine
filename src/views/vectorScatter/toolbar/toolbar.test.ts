@@ -793,3 +793,46 @@ describe("buildToolbar edgeHops persistence", () => {
     expect(edgeHopsSelect.value).toBe("3");
   });
 });
+
+describe("buildToolbar rearrange action (#214)", () => {
+  it("places a rearrange button in the view section that triggers a free relayout", async () => {
+    const { getTranslation } = await import("../../../i18n");
+    const t = getTranslation("de");
+    const buttons: any[] = [];
+    function createMockDiv(): any {
+      return {
+        addClass: vi.fn(),
+        removeClass: vi.fn(),
+        toggleClass: vi.fn(),
+        setText: vi.fn(),
+        setAttribute: vi.fn(),
+        createDiv: vi.fn(() => createMockDiv()),
+        createSpan: vi.fn(() => createMockDiv()),
+        createEl: vi.fn((tag: string, opts?: { text?: string }) => {
+          const el = { ...createMockDiv(), value: "1", text: opts?.text, onclick: null as null | (() => void) };
+          if (tag === "button") buttons.push(el);
+          return el;
+        }),
+      };
+    }
+    const ctx = {
+      edgeHops: 1,
+      settings: { scatterEdgeHops: 1 },
+      saveSettings: vi.fn(),
+      applyLayout: vi.fn(),
+      rearrangeLayout: vi.fn().mockResolvedValue(undefined),
+      redraw: vi.fn(),
+      nodes: [],
+      selectedNodeIds: new Set(),
+      fitToView: vi.fn(),
+    } as any;
+
+    buildToolbar(ctx, { canvasWrap: createMockDiv(), canvas: createMockDiv(), toolbarEl: createMockDiv(), hoverBar: createMockDiv() }, t);
+
+    const rearrange = buttons.find((b) => b.text === t.btnRearrangeLayout);
+    expect(rearrange).toBeDefined();
+    rearrange.onclick();
+    expect(ctx.rearrangeLayout).toHaveBeenCalledTimes(1);
+    expect(ctx.applyLayout).not.toHaveBeenCalled();
+  });
+});
