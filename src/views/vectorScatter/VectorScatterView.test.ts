@@ -576,6 +576,27 @@ describe("VectorScatterView reloads embeddings when the embedding target or inde
   });
 });
 
+describe("VectorScatterView watcher recognizes deleted relation notes outside the relations folder", () => {
+  it("reloads edges when a known relation note is deleted or renamed away, although no frontmatter is left", () => {
+    const { view, callbacks } = makeWatchedView();
+    view.relationEdges = [
+      { srcId: "a", tgtId: "b", relType: "REQUIRES", desc: "", title: "", path: "Beziehungen/a--b.md", bidirectional: false },
+      { srcId: "c", tgtId: "d", relType: "REQUIRES", desc: "", title: "", path: "Beziehungen/c--d.md", bidirectional: false },
+    ];
+    callbacks.get("delete")!({ path: "Beziehungen/a--b.md" });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+    callbacks.get("rename")!({ path: "Archiv/c--d.md" }, "Beziehungen/c--d.md");
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reload edges for deleting an unrelated note", () => {
+    const { view, callbacks } = makeWatchedView();
+    view.relationEdges = [{ srcId: "a", tgtId: "b", relType: "REQUIRES", desc: "", title: "", path: "Beziehungen/a--b.md", bidirectional: false }];
+    callbacks.get("delete")!({ path: "Notes/other.md" });
+    expect(view.triggerRelationsReload).not.toHaveBeenCalled();
+  });
+});
+
 describe("VectorScatterView watcher recognizes moved relation notes (#173)", () => {
   it("keeps a modify of a relation note outside wiki/relations on the edge-only reload", () => {
     const { view, callbacks } = makeWatchedView();

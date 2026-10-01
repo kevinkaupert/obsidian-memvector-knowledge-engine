@@ -79,6 +79,25 @@ describe("PositionPersister (#211)", () => {
     expect(write).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a failed write pending even when storage later returns the unsaved coordinates", async () => {
+    persister.markPersisted(nodes);
+    nodes[0].x += 5;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    write.mockRejectedValueOnce(new Error("disk full"));
+    await persister.flush();
+    warn.mockRestore();
+
+    // sql.js already holds the new coordinates in memory, so a rescan reads them back.
+    persister.markPersisted([{ id: "a", x: nodes[0].x, y: nodes[0].y }]);
+    await persister.flush();
+
+    expect(write).toHaveBeenCalledTimes(2);
+    expect(writtenIds(1)).toEqual(["a"]);
+    persister.markPersisted([{ id: "a", x: nodes[0].x, y: nodes[0].y }]);
+    await persister.flush();
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
   it("uses the written snapshot as reference, not positions that changed while writing", async () => {
     persister.markPersisted(nodes);
     nodes[0].x += 5;

@@ -39,7 +39,7 @@ Note positions are kept across edits and restarts; the map only changes where so
 | Vectors recalculated for most notes, the knowledge domain or "WikiLinks as relations" changed, or a spacing slider moved | The whole layout is recalculated from the current positions. |
 | **Layout neu anordnen** | A fresh layout from scratch. |
 
-Changes are collected while the view is in a background tab and applied once when it is shown again. Positions are saved only when they actually moved.
+Note and settings changes are collected while the view is in a background tab and applied once when it is shown again. Positions are saved only when they actually moved; a failed save is retried with the next one.
 
 ### Canvas Interaction Controls
 

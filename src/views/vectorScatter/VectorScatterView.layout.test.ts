@@ -537,3 +537,71 @@ describe("VectorScatterView explicit rearrangement (#214)", () => {
     expect(vi.mocked(applyGraphVectorProjection).mock.calls[0][0].bounded).toBeUndefined();
   });
 });
+
+describe("VectorScatterView review follow-ups", () => {
+  it("retries a failed position write although a rescan reads the unsaved coordinates back from storage", async () => {
+    const { view } = createFixture(sixNotes());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // Like sql.js: the rows are updated in memory, then the file write fails.
+    vi.mocked(saveNodePositions).mockImplementationOnce(async (_app, records) => {
+      for (const r of records) storedPositions.set(r.id, { x: r.x, y: r.y });
+      throw new Error("file write failed");
+    });
+    await view.scanVaultNotes();
+    await settle(2000);
+    expect(saveNodePositions).toHaveBeenCalledTimes(1);
+
+    await view.scanVaultNotes();
+    await view.onClose();
+
+    expect(saveNodePositions).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
+
+  it("a hidden view defers settings changes and applies them once when shown", async () => {
+    const fixture = createFixture(sixNotes());
+    let visible = true;
+    (fixture.view as any).containerEl.isShown = () => visible;
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVisibilityWatchers();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    const before = positionsOf(fixture.view);
+
+    visible = false;
+    fixture.view.settings.knowledgeDomain = fixture.view.settings.knowledgeDomain === "math" ? "general" : "math";
+    fixture.view.applyExternalSettingsChange();
+    fixture.view.applyExternalSettingsChange({ embeddings: true });
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(positionsOf(fixture.view)).toEqual(before);
+
+    visible = true;
+    fixture.fire("workspace:layout-change");
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).toHaveBeenCalled();
+  });
+
+  it("an embedding reload requested while visible waits if the view is hidden before it runs", async () => {
+    const fixture = createFixture(sixNotes());
+    let visible = true;
+    (fixture.view as any).containerEl.isShown = () => visible;
+    await fixture.view.scanVaultNotes();
+    fixture.view.registerVisibilityWatchers();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    for (const [path, v] of vectors) vectors.set(path, v.map((x) => -x + 0.3));
+
+    fixture.view.applyExternalSettingsChange({ embeddings: true });
+    visible = false;
+    await settle(2000);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+
+    visible = true;
+    fixture.fire("workspace:active-leaf-change");
+    await settle(2000);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+  });
+});

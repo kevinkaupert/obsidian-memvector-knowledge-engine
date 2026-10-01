@@ -65,6 +65,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * input changed.
    */
   applyExternalSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+    // A hidden view only remembers that settings changed; it applies them once when it is shown again.
+    if (!this.isVisible()) {
+      this.deferSettingsChange(options);
+      return;
+    }
     if (options?.embeddings) this.reloadEmbeddings();
     // A vocabulary edit changes per-label attraction/repulsion, so the force layout
     // has to run again - a redraw alone would only repaint the old positions.
@@ -330,6 +335,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private scanGeneration = 0;
   /** Vault changes arrived while the view was hidden and are waiting in the queue. */
   private staleWhileHidden = false;
+  /** Settings changes that arrived while the view was hidden, merged; null when none are pending. */
+  private deferredSettings: { relayout?: boolean; embeddings?: boolean } | null = null;
 
   /**
    * Purpose: Registers reactive vault event watchers that feed the view's event queue.
@@ -337,14 +344,18 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * (indexing exclusions, view filter, relation-note visibility) would show - a rename counts if either its old or
    * its new path qualifies. Relation notes and the vocabulary file always reload the edges, even outside the view
    * filter, because they change forces between shown notes; a relation note is additionally a node when relation
-   * notes are shown.
+   * notes are shown. Relation notes are recognized by frontmatter, the relations folder, or - for deletes and the
+   * old path of a rename, where no frontmatter is left - by the paths of the loaded relation edges.
    */
   registerVaultWatchers(): void {
     if (!this.app?.vault?.on) return;
 
     const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
     const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
-    const isRel = (path: string, type?: string) => isRelationNote(path, type, relationsFolder(this.settings));
+    // A deleted file has no frontmatter left, so a relation note outside the relations folder is only recognizable
+    // by the paths of the relation edges loaded from it.
+    const isRel = (path: string, type?: string) =>
+      isRelationNote(path, type, relationsFolder(this.settings)) || this.relationEdges.some((e) => e.path === path);
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
     const isShown = (path: string) => this.nodes.some((n) => n.path === path);
     const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
@@ -406,10 +417,22 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.registerEvent(workspace.on("active-leaf-change", () => this.resumeIfVisible()));
   }
 
-  /** Applies the vault changes collected while the view was hidden, once it is visible again. */
+  /** Remembers a settings change for a hidden view, merging it with earlier ones. */
+  private deferSettingsChange(options?: { relayout?: boolean; embeddings?: boolean }): void {
+    const merged = this.deferredSettings ?? {};
+    if (options?.relayout) merged.relayout = true;
+    if (options?.embeddings) merged.embeddings = true;
+    this.deferredSettings = merged;
+    this.staleWhileHidden = true;
+  }
+
+  /** Applies the settings and vault changes collected while the view was hidden, once it is visible again. */
   private resumeIfVisible(): void {
     if (!this.staleWhileHidden || !this.isVisible()) return;
     this.staleWhileHidden = false;
+    const settings = this.deferredSettings;
+    this.deferredSettings = null;
+    if (settings) this.applyExternalSettingsChange(settings);
     if (this.vaultEvents.hasPending()) this.processVaultChanges();
   }
 
@@ -673,6 +696,11 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (this.embeddingReloadTimer !== null) window.clearTimeout(this.embeddingReloadTimer);
     this.embeddingReloadTimer = window.setTimeout(() => {
       this.embeddingReloadTimer = null;
+      // Hidden since the request: reload once the view is shown again.
+      if (!this.isVisible()) {
+        this.deferSettingsChange({ embeddings: true });
+        return;
+      }
       void this.runExclusive(async () => {
         for (const n of this.nodes) n.embedding = undefined;
         await this.hydrateStoredEmbeddings(this.nodes, new Map());

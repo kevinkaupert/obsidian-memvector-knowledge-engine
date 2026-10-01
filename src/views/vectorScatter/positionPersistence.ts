@@ -20,11 +20,14 @@ export interface PositionPersisterOptions {
  * Architecture: Keeps the coordinates of the last successful write per node. A write sends only nodes that moved
  * beyond POSITION_WRITE_TOLERANCE relative to them, and that reference is updated afterwards to exactly the snapshot
  * that was written - never to positions that changed while the write was in flight. A failed write leaves the
- * reference untouched, so the same nodes still count as moved on the next write. Requests within
- * POSITION_WRITE_DELAY_MS are merged into one write; writes never overlap.
+ * reference untouched, so the same nodes still count as moved on the next write. Positions read back from storage
+ * cannot clear that: sql.js applies the update in memory before the file write fails, so a later read returns the
+ * unsaved coordinates. Requests within POSITION_WRITE_DELAY_MS are merged into one write; writes never overlap.
  */
 export class PositionPersister {
   private persisted = new Map<string, { x: number; y: number }>();
+  /** Nodes whose last write failed; only a successful write clears them. */
+  private failed = new Set<string>();
   private timer: number | null = null;
   private chain: Promise<void> = Promise.resolve();
   private readonly timers: TimerHost;
@@ -33,9 +36,14 @@ export class PositionPersister {
     this.timers = options.timers ?? window;
   }
 
-  /** Records positions known to be in storage already (loaded from it), so they are not written back. */
+  /**
+   * Records positions read from storage, so they are not written back. Nodes with a failed write are skipped: what
+   * storage returns for them may never have reached the disk.
+   */
   markPersisted(positions: Iterable<{ id: string; x: number; y: number }>): void {
-    for (const p of positions) this.persisted.set(p.id, { x: p.x, y: p.y });
+    for (const p of positions) {
+      if (!this.failed.has(p.id)) this.persisted.set(p.id, { x: p.x, y: p.y });
+    }
   }
 
   /** Requests a write after the quiet period. */
@@ -69,7 +77,7 @@ export class PositionPersister {
     const records: StoredNodePosition[] = [];
     for (const n of nodes) {
       if (!isPlaced(n) || !Number.isFinite(n.x) || !Number.isFinite(n.y)) continue;
-      const last = this.persisted.get(n.id);
+      const last = this.failed.has(n.id) ? undefined : this.persisted.get(n.id);
       if (last && Math.hypot(n.x - last.x, n.y - last.y) <= POSITION_WRITE_TOLERANCE) continue;
       records.push({ id: n.id, path: n.path, x: n.x, y: n.y });
     }
@@ -83,8 +91,12 @@ export class PositionPersister {
     if (snapshot.length === 0) return;
     try {
       await this.options.write(snapshot);
-      this.markPersisted(snapshot);
+      for (const r of snapshot) {
+        this.failed.delete(r.id);
+        this.persisted.set(r.id, { x: r.x, y: r.y });
+      }
     } catch (err) {
+      for (const r of snapshot) this.failed.add(r.id);
       console.warn("MemVector: Failed to persist node positions, keeping them pending for the next write:", err);
     }
   }

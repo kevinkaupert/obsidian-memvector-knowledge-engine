@@ -88,7 +88,7 @@ Depending on the difference:
 
 If a cluster centroid leaves the node set (e.g. filtered out), only the cluster assignment is recomputed; positions are unaffected. On opening the view with some notes lacking a stored position, the stored ones initialize the state and only the new ones are placed by a bounded adjustment.
 
-Vault events reach the view through one queue (`vaultEventQueue.ts`): events per file are coalesced, a modify re-reads only that note, events for notes outside the view's scope are ignored (relation notes and the vocabulary file excepted), and all node-list updates run serialized so an older scan never overwrites a newer one. A view that is not shown collects events and applies them once it is visible. Positions are written by `positionPersistence.ts` only when they moved, batched.
+Vault events reach the view through one queue (`vaultEventQueue.ts`): events per file are coalesced, a modify re-reads only that note, events for notes outside the view's scope are ignored (relation notes and the vocabulary file excepted), and all node-list updates run serialized so an older scan never overwrites a newer one. A view that is not shown collects vault events and settings changes and applies them once it is visible. Positions are written by `positionPersistence.ts` only when they moved, batched; nodes whose write failed stay pending until a write succeeds, even if a rescan reads the unsaved coordinates back from the in-memory database.
 
 **Graph-topology weighting in detail** (`graphTopologyWeights.ts`): this part of the blend ignores vector similarity and weighs notes by how they're *connected*.
 
