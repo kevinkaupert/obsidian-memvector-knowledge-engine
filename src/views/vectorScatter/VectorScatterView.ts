@@ -775,6 +775,20 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (simulated) this.positionWriter.schedule();
   }
 
+  /**
+   * Purpose: Runs a free layout from scratch - the explicit rearrangement (ADR-0006) - and fits the camera to it.
+   * Architecture: Data updates only adjust the layout locally, so this is the one way to get a fresh global
+   * arrangement; it also recomputes the similarity scale and the clusters. Queued after any running update.
+   */
+  rearrangeLayout(): Promise<void> {
+    return this.runExclusive(async () => {
+      this.applyLayout("rearrange");
+      this.fitToView();
+      this.hasFittedView = true;
+      this.redraw();
+    });
+  }
+
   async loadRelationEdges(): Promise<void> {
     this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions, relationsFolder(this.settings));
     // Per-label attraction/repulsion comes from the vault's own vocabulary

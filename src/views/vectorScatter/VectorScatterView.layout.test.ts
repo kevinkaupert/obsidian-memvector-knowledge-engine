@@ -498,3 +498,42 @@ describe("VectorScatterView restores a node stored at the origin (#190)", () => 
     expect(saveNodePositions).not.toHaveBeenCalled();
   });
 });
+
+describe("VectorScatterView explicit rearrangement (#214)", () => {
+  it("runs a free layout from scratch, writes it, and later data updates do not move anything", async () => {
+    const { view, notes, fire, toFile } = createFixture(sixNotes());
+    notes.forEach((n, i) => storedPositions.set(n.path, { x: 5000 + 10 * i, y: -5000 - 10 * i }));
+    await view.scanVaultNotes();
+    view.registerVaultWatchers();
+    await settle(2000);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+
+    await view.rearrangeLayout();
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(view.nodes.every((n) => Math.abs(n.x) < 5000)).toBe(true);
+    expect(saveNodePositions).toHaveBeenCalledTimes(1);
+
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    const after = positionsOf(view);
+    fire("modify", toFile(notes[0]));
+    await settle(2000);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(positionsOf(view)).toEqual(after);
+  });
+
+  it("a new vector set for most notes allows a larger layout run", async () => {
+    const { view } = createFixture(sixNotes());
+    await view.scanVaultNotes();
+    await settle(2000);
+    vi.mocked(applyGraphVectorProjection).mockClear();
+
+    for (const [path, v] of vectors) vectors.set(path, v.map((x) => -x + 0.3));
+    view.applyExternalSettingsChange({ embeddings: true });
+    await settle(2000);
+
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls[0][0].bounded).toBeUndefined();
+  });
+});

@@ -268,6 +268,7 @@ export const en: TranslationKeys = {
   ribbonScatter: "MemVector 2D vector space",
   cmdOpenSidebar: "MemVector: Open sidebar",
   cmdOpenScatter: "MemVector: Open 2D vector scatter plot",
+  cmdRearrangeScatter: "MemVector: Rearrange 2D layout",
 
   // Provider options
   provOllama: "Ollama (Local - http://localhost:11434/v1)",
@@ -285,6 +286,7 @@ export const en: TranslationKeys = {
 
   lblNodeSpacing: "Node spacing",
   lblCloudSpacing: "Cluster spacing",
+  btnRearrangeLayout: "Rearrange layout",
   btnFitView: "Center full view",
   statusScanningVault: "Scanning vault notes...",
   statusNotesScanned: "notes successfully scanned in vault.",

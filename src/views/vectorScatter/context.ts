@@ -41,6 +41,7 @@ export interface ScatterViewContext {
   redraw(): void;
   scanVaultNotes(filterOverride?: string, options?: { preserveView?: boolean }): Promise<void>;
   applyLayout(mode?: LayoutMode): void;
+  rearrangeLayout(): Promise<void>;
   loadRelationEdges(): Promise<void>;
   hitTest(x: number, y: number): ScatterNode | null;
   focusSidebar(node: ScatterNode): void;

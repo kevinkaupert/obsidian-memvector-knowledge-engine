@@ -258,6 +258,7 @@ export interface TranslationKeys {
   ribbonScatter: string;
   cmdOpenSidebar: string;
   cmdOpenScatter: string;
+  cmdRearrangeScatter: string;
 
   // Provider options
   provOllama: string;
@@ -275,6 +276,7 @@ export interface TranslationKeys {
 
   lblNodeSpacing: string;
   lblCloudSpacing: string;
+  btnRearrangeLayout: string;
   btnFitView: string;
   statusScanningVault: string;
   statusNotesScanned: string;
