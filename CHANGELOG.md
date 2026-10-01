@@ -7,6 +7,44 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-10-01
+
+### Added
+- **Rearrange Layout Action**: A "Layout neu anordnen" / "Rearrange layout" button in the view section of
+  the toolbar and the command "MemVector: Rearrange 2D layout" compute a fresh global layout. Data
+  updates no longer rearrange the map on their own (#214).
+- **Mock Server Delay**: `testing/mock-echo-server.js --delay <ms>` holds embedding and chat responses,
+  so cancelling indexing on a model switch can be tested manually.
+
+### Fixed
+- **Layout Only on Relevant Changes (ADR-0006)**: The 2D view compares signatures of its layout inputs
+  and skips simulation and position writes when nothing relevant changed; reopening the view shows
+  stored positions unchanged (#206, #209).
+- **Map Drift**: A relevant change runs a bounded adjustment that moves only the changed notes, their
+  relation neighbors and their most similar notes, instead of re-heating the whole simulation (#185).
+- **Event Handling**: Vault events are coalesced per file, a change re-reads only that note, events for
+  excluded or filtered notes are ignored, and scans no longer overlap (#210).
+- **Position Writes**: Only moved positions are written, batched, and flushed on close; failed writes
+  are retried (#211).
+- **Hidden Views**: Views in background tabs collect changes and apply them once when shown (#212).
+- **Origin Nodes**: An explicit placement flag replaces the `(0, 0)` "unplaced" sentinel (#190).
+- **Relation Notes Toggle**: Turning relation notes on shows them immediately (#204).
+- **Incomplete Relation Notes**: A relation note without a usable source or target no longer causes its
+  stored edge to be deleted during graph sync (#203).
+- **Model Switch During Indexing**: "Calculate vectors" and "Index vault locally now" are cancelled when
+  the embedding model or endpoint changes mid-run (#202).
+- **Failed Vector Read**: The map is kept, no positions are written and a notice is shown until the
+  vectors can be read again; fallback vectors must belong to the current model (#191).
+- **Stale Context and Orphaned Positions**: Vector-search context uses the current note body; positions
+  of deleted or excluded notes are removed by full re-index runs (#196).
+- **Settings Propagation**: Exclusions, knowledge domain, WikiLinks as relations and spacing reach open
+  views immediately (#189).
+
+### Changed
+- **ADR-0006 supersedes ADR-0005**: Positions are kept for unchanged layout inputs, relevant changes lead
+  to a bounded adjustment, and a full rearrangement is an explicit action. The 0.2.1 release notes
+  overstated "full spatial mental map continuity"; 0.2.2 delivers it.
+
 ## [0.2.1] - 2026-09-30
 
 ### Added
