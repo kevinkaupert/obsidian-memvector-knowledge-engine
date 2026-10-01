@@ -256,6 +256,7 @@ export const de: TranslationKeys = {
   noticePersistenceError: "Vektoren berechnet, aber Persistierung in SQLite fehlgeschlagen",
   statusVectorsCancelled: "Abgebrochen",
   noticeEmbeddingTargetChanged: "Vektorberechnung abgebrochen: Embedding-Modell oder Endpoint wurde während der Berechnung geändert. Erneut starten, um das neue Modell zu verwenden.",
+  noticeEmbeddingHydrationFailed: "Gespeicherte Vektoren konnten nicht geladen werden. Die 2D-Karte bleibt unverändert und aktualisiert sich wieder, sobald die Vektoren lesbar sind.",
   statusErrorCount: "Fehler",
   unknownError: "Unbekannter Fehler",
   toggleToolbar: "Werkzeugleiste ein/ausblenden",
