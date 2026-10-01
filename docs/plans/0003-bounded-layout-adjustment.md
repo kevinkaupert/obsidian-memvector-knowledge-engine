@@ -41,7 +41,7 @@ units on average (300 clustered notes, node spacing 350), see #185.
 Each block is committed on its own and leaves the plugin working. Blocks 1 to 5
 address #206, blocks 6 and 7 address #185 and #190.
 
-### Block 1 - acceptance test and instrumentation
+### Block 1 - acceptance test and instrumentation (#208)
 
 - Add a test harness that runs the view's scan and layout path with the real
   `applyVectorLayout` (not mocked) on a small fixture vault.
@@ -51,7 +51,7 @@ address #206, blocks 6 and 7 address #185 and #190.
   events on a note without a layout-relevant change cause zero simulation runs,
   zero position writes and zero coordinate changes. It turns green in Block 2.
 
-### Block 2 - layout-input signatures and skipping unchanged passes
+### Block 2 - layout-input signatures and skipping unchanged passes (#209)
 
 - Build the prepared layout inputs per note once per scan: identity, folder,
   link targets, word and formula features of the excerpt, type, title, and the
@@ -63,7 +63,7 @@ address #206, blocks 6 and 7 address #185 and #190.
   nothing changed: no matrix, no cluster assignment, no simulation, no write.
 - Spacing sliders keep triggering a pass, since they change a global input.
 
-### Block 3 - event queue and selective reads
+### Block 3 - event queue and selective reads (#210)
 
 - Replace the separate debounced paths with one queue per view. Events for the
   same file are coalesced; the debounce intervals stay (800 ms for notes,
@@ -78,14 +78,14 @@ address #206, blocks 6 and 7 address #185 and #190.
   discarded when a newer one has started. The relation-notes toggle enqueues
   its scan instead of starting one directly.
 
-### Block 4 - persistence only for moved positions
+### Block 4 - persistence only for moved positions (#211)
 
 - Keep the last successfully persisted coordinates in memory.
 - Write only nodes that moved beyond a tolerance relative to them, and batch
   the writes so one burst of events results in at most one database write.
 - No database export when nothing was written.
 
-### Block 5 - no computation for hidden views
+### Block 5 - no computation for hidden views (#212)
 
 - Verify against the Obsidian API how a view detects that it is shown, including
   split panes and popout windows (expected: the view element's visibility,
