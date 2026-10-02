@@ -1,6 +1,6 @@
 import { Notice, ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
-import { RelationBuilderModal } from "../../modals/relationBuilder/RelationBuilderModal";
+import { RelationBuilderModal, type RelationChange } from "../../modals/relationBuilder/RelationBuilderModal";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
 import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
@@ -42,6 +42,15 @@ export interface VectorScatterHost {
 
 export interface NodePositionProvider {
   getNodePosition(path: string): { x: number; y: number } | null;
+}
+
+/**
+ * Purpose: Layout mode after a relation change in the relation builder.
+ * Architecture: Deleting a relation is an explicit user action, so it may rearrange freely (ADR-0006). The free layout
+ * is deterministic, so the arrangement from before the relation existed returns when nothing else changed since.
+ */
+export function relationChangeLayoutMode(change: RelationChange): LayoutMode {
+  return change === "deleted" ? "rearrange" : "auto";
 }
 
 export class VectorScatterView extends ItemView implements ScatterViewContext, NodePositionProvider {
@@ -931,19 +940,19 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return hitTestEdgePure(this.getVisibleNodes(), this.relationEdges, activeNodeIds, this.edgeHops, mouseX, mouseY, this.zoom, this.pan);
   }
 
-  refreshRelationEdges(): void {
+  refreshRelationEdges(mode: LayoutMode = "auto"): void {
     // Also re-run layout, not just re-render edges - a saved/edited/deleted
     // relation must feed the force layout's topology weights too, not only
     // the drawn edge lines.
     void this.runExclusive(async () => {
       await this.loadRelationEdges();
-      this.applyLayout();
+      this.applyLayout(mode);
       this.redraw();
     });
   }
 
   openRelationBuilder(selected: ScatterNode[]): void {
-    new RelationBuilderModal(this.app, this, selected, undefined, () => this.refreshRelationEdges()).open();
+    new RelationBuilderModal(this.app, this, selected, undefined, (change) => this.refreshRelationEdges(relationChangeLayoutMode(change))).open();
   }
 
   /**
@@ -958,7 +967,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this,
       [srcNode, tgtNode],
       { relType: edge.relType, description: edge.desc, path: edge.path, srcId: edge.srcId, tgtId: edge.tgtId },
-      () => this.refreshRelationEdges()
+      (change) => this.refreshRelationEdges(relationChangeLayoutMode(change))
     ).open();
   }
 

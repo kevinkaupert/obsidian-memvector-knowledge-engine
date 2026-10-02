@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { TFile, type WorkspaceLeaf } from "obsidian";
-import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
+import { VectorScatterView, relationChangeLayoutMode, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
@@ -217,6 +217,21 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     view.refreshRelationEdges = vi.fn();
     view.applyExternalSettingsChange({ relayout: true });
     expect(view.refreshRelationEdges).toHaveBeenCalled();
+  });
+
+  it("rearranges after a deleted relation and adjusts locally after a saved one", () => {
+    expect(relationChangeLayoutMode("deleted")).toBe("rearrange");
+    expect(relationChangeLayoutMode("saved")).toBe("auto");
+  });
+
+  it.each(["auto", "rearrange"] as const)("lays out with mode %s after reloading the relation edges", async (mode) => {
+    const view = makeView();
+    view.loadRelationEdges = vi.fn().mockResolvedValue(undefined);
+    view.applyLayout = vi.fn();
+    view.redraw = vi.fn();
+    view.refreshRelationEdges(mode);
+    await vi.waitFor(() => expect(view.applyLayout).toHaveBeenCalledWith(mode));
+    expect(view.loadRelationEdges).toHaveBeenCalled();
   });
 
   it("does not re-run the layout for a plain redraw", () => {

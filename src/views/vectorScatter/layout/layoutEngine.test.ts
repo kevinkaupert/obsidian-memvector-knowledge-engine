@@ -55,25 +55,6 @@ describe("LayoutEngine (#209)", () => {
     nodes.forEach((node, i) => expect(node).toBe(originalOrder[i]));
     expect(nodes.map((node) => node.path)).toEqual(originalOrder.map((node) => node.path));
   });
-  it("re-places only the endpoints of a deleted edge, independent of where the edge had pulled them", () => {
-    const rel = { srcId: "n0", tgtId: "n4", relType: "REQUIRES", desc: "", title: "", path: "r.md", bidirectional: false };
-    const deleteAfterPull = (pull: { x: number; y: number }) => {
-      const nodes = makeNodes(true);
-      const engine = new LayoutEngine();
-      engine.run(input(nodes, { relationEdges: [rel] }));
-      nodes[0].x = pull.x;
-      nodes[0].y = pull.y;
-      const before = nodes.map((n) => ({ x: n.x, y: n.y }));
-      expect(engine.run(input(nodes, { relationEdges: [] })).kind).toBe("bounded");
-      const { bounded } = vi.mocked(applyGraphVectorProjection).mock.calls.at(-1)![0];
-      expect([...bounded!.mobileIds].sort()).toEqual(["n0", "n4"]);
-      [1, 2, 3, 5].forEach((i) => expect({ x: nodes[i].x, y: nodes[i].y }).toEqual(before[i]));
-      expect(nodes.every((n) => n.placed)).toBe(true);
-      return nodes.map((n) => ({ x: n.x, y: n.y }));
-    };
-    // Wherever the deleted edge had dragged n0, its recomputed position is the same.
-    expect(deleteAfterPull({ x: 460, y: -120 })).toEqual(deleteAfterPull({ x: -900, y: 700 }));
-  });
   it("initializes from placed nodes without simulating and assigns clusters", () => {
     const engine = new LayoutEngine();
     const nodes = makeNodes(true);
