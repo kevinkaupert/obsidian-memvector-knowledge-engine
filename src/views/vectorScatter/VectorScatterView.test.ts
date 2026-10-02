@@ -124,7 +124,7 @@ function createMockHost(settingsOverrides: Partial<typeof DEFAULT_SETTINGS> = {}
   return {
     app: {
       vault: {
-        getAbstractFileByPath: vi.fn(() => null),
+        getAbstractFileByPath: vi.fn((path: string) => Object.assign(new TFile(), { path })),
         read: vi.fn(async () => ""),
         getMarkdownFiles: vi.fn(() => []),
         on: vi.fn(),
@@ -250,6 +250,40 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     await vi.waitFor(() => expect(view.applyLayout).toHaveBeenCalledWith("rearrange"));
     expect(laidOut).toEqual(["wiki/a.md"]);
     expect(view.selectedNodeIds.has("rel")).toBe(false);
+  });
+
+  it("refits the camera to view when refreshing relation edges with rearrange mode", async () => {
+    const view = makeView();
+    view.loadRelationEdges = vi.fn().mockResolvedValue(undefined);
+    view.applyLayout = vi.fn();
+    view.fitToView = vi.fn();
+    view.redraw = vi.fn();
+    (view as any).hasFittedView = false;
+
+    view.refreshRelationEdges("rearrange");
+    await vi.waitFor(() => expect(view.fitToView).toHaveBeenCalled());
+    expect((view as any).hasFittedView).toBe(true);
+  });
+
+  it("prunes deleted nodes before rearrangeLayout and onVectorsCalculated", async () => {
+    const view = makeView();
+    const kept = makeNode("a", "wiki/a.md", "concept");
+    const deleted = makeNode("b", "wiki/b.md", "concept");
+    view.nodes = [kept, deleted];
+    vi.mocked(view.app.vault.getAbstractFileByPath).mockImplementation((path: string) =>
+      path === kept.path ? Object.assign(new TFile(), { path }) : null
+    );
+    view.applyLayout = vi.fn();
+    view.fitToView = vi.fn();
+    view.redraw = vi.fn();
+
+    await view.rearrangeLayout();
+    expect(view.nodes.map((n) => n.path)).toEqual(["wiki/a.md"]);
+
+    view.nodes = [kept, deleted];
+    (view as any).hydrateStoredEmbeddings = vi.fn().mockResolvedValue(undefined);
+    await view.onVectorsCalculated();
+    expect(view.nodes.map((n) => n.path)).toEqual(["wiki/a.md"]);
   });
 
   it("does not re-run the layout for a plain redraw", () => {

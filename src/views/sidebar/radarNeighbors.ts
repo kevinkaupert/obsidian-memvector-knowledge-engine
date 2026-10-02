@@ -27,6 +27,14 @@ export async function findVectorNeighbors(app: App, settings: MemVectorSettings,
         content: hit.payload.content || "",
       });
     }
+    if (neighbors.length === 0) {
+      const otherFilesExist = app.vault.getMarkdownFiles().some(
+        (file) => file.path !== activeFile.path && !shouldExcludeFromRadar(file, settings.vectorSearchExclusions)
+      );
+      if (otherFilesExist) {
+        return { status: "unindexed", data: [] };
+      }
+    }
     return { status: "ready", data: neighbors };
   } catch (err) {
     console.warn("Vector-based radar neighbors unavailable, falling back to local scoring:", err);
@@ -41,7 +49,7 @@ export async function loadRadarNeighbors(app: App, settings: MemVectorSettings |
     : { status: "unindexed" as const, data: [] };
   if (result.status === "ready") return result;
 
-  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path))
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"))
     .filter((file) => file.path !== activeFile.path && !shouldExcludeFromRadar(file, settings?.vectorSearchExclusions));
   const candidates: { file: TFile; content: string }[] = [];
   for (const file of files) candidates.push({ file, content: await app.vault.cachedRead(file) });

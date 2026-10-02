@@ -260,6 +260,7 @@ export interface TranslationKeys {
   retrievalVectorFailed: string;
   retrievalVectorUnindexed: string;
   retrievalGraphFailed: string;
+  retrievalGraphUnindexed: string;
   retrievalContextFailed: string;
 
   // Ribbon & Commands

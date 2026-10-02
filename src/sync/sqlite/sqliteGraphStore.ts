@@ -133,4 +133,11 @@ export class SqliteGraphStore implements GraphStore {
       hops: Number(r.hops) || 1,
     }));
   }
+
+  async isIndexed(): Promise<boolean> {
+    const db = await getLocalDb(this.app);
+    const rows = execToRows(db.exec("SELECT COUNT(*) as cnt FROM notes"));
+    const count = Number(rows[0]?.cnt) || 0;
+    return count > 0;
+  }
 }

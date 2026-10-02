@@ -216,5 +216,30 @@ describe("rescaleSimilarityMatrix", () => {
     expect(boundsEmbedded?.low).toBeGreaterThanOrEqual(0.35); // Protected from distortion
     expect(boundsEmbedded?.high).toBeCloseTo(boundsAll?.high ?? 0, 2);
   });
+
+  it("protects lower bound when exactly one note is embedded and the rest are vector-less", () => {
+    const n = 10;
+    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+      matrix[i][i] = 1.0;
+      for (let j = i + 1; j < n; j++) {
+        if (i === 0 || j === 0) {
+          matrix[i][j] = 0.0;
+          matrix[j][i] = 0.0;
+        } else {
+          const val = 0.25 + 0.15 * ((i * n + j) / (n * n));
+          matrix[i][j] = val;
+          matrix[j][i] = val;
+        }
+      }
+    }
+
+    const embeddedIndices = [0];
+    const boundsAll = similarityModule.computeRescaleBounds(matrix);
+    const boundsProtected = similarityModule.computeRescaleBounds(matrix, embeddedIndices);
+
+    expect(boundsAll?.low).toBe(0.0);
+    expect(boundsProtected?.low).toBeGreaterThanOrEqual(0.25);
+  });
 });
 

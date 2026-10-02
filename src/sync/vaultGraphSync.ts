@@ -17,7 +17,7 @@ export function extractVaultGraph(
   const nodeMap = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
-  const markdownFiles = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
+  const markdownFiles = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"));
   for (const file of markdownFiles) {
     if (exclusions && !shouldIncludeFile(file, exclusions)) continue;
 

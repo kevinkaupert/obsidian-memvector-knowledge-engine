@@ -53,7 +53,7 @@ Only lowering the starting `alpha` is not a sufficient implementation of this de
 
 ### 3. Free rearrangement
 
-A free global layout run is only performed on an explicit user action, and when a new vector set makes the existing arrangement obsolete. The spacing sliders are an explicit action and may run a global pass. Deleting a relation in the relation builder is an explicit action as well and runs a free rearrangement: a bounded adjustment would leave both endpoints where the deleted edge had pulled them. Because the free layout is deterministic, the arrangement from before the relation existed returns when nothing else changed since.
+A free global layout run is only performed on an explicit user action, and when a new vector set makes the existing arrangement obsolete. The spacing sliders are an explicit action and may run a global pass. Deleting a relation in the relation builder is an explicit action as well and runs a free rearrangement: a bounded adjustment would leave both endpoints where the deleted edge had pulled them. Because the free layout is deterministic, a canonical global arrangement without the deleted relation's force influence is computed from scratch (rather than preserving evolved local adjustments), and the camera refits to the resulting layout. In the hybrid similarity model, un-embedded notes derive similarity from WikiLinks, folders, and shared semantics; they participate in many-body repulsion and spring forces to integrate into the map, but their lack of vectors is shielded from distorting global rescale bounds or hijacking cluster centroids.
 
 ### 4. Event handling, computation and persistence
 

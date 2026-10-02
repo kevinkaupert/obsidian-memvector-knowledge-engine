@@ -104,7 +104,7 @@ export async function loadRelationFilesResult(
 ): Promise<RelationFilesResult> {
   const edges: RelationEdge[] = [];
   let hasErrors = false;
-  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"));
 
   for (const f of files) {
     const fileCache = app.metadataCache.getFileCache(f);

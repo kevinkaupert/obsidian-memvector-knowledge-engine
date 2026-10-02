@@ -103,7 +103,7 @@ export async function scanVaultNotes(
   relationsDir?: string,
   showRelationNotes = false
 ): Promise<ScatterNode[]> {
-  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path));
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"));
   const scope: ScanScope = { filterQuery, exclusions: defaultExclusions, relationsDir, showRelationNotes };
   const nodes: ScatterNode[] = [];
 

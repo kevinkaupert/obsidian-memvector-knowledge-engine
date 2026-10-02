@@ -100,6 +100,6 @@ export function rankCandidates(
     return { file, type: classifyNoteType(file.path, file.name, frontmatterTypeOf(content)), score, formulas, content: body };
   });
 
-  scored.sort((a, b) => (b.score - a.score) || a.file.path.localeCompare(b.file.path));
+  scored.sort((a, b) => (b.score - a.score) || a.file.path.localeCompare(b.file.path, "en"));
   return scored;
 }

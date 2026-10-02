@@ -50,5 +50,7 @@ export interface GraphStore {
   deleteEdge(srcId: string, tgtId: string, relType: string): Promise<void>;
   /** GraphRAG enrichment - notes within `hops` graph-steps of the given IDs, with optional per-hop quota (Issue #103). */
   fetchNeighbors(nodeIds: string[], hops: number, limit: number, perHopLimit?: number): Promise<GraphNeighbor[]>;
+  /** Checks whether the graph index has been synchronized with vault notes/edges. */
+  isIndexed?(): Promise<boolean>;
 }
 

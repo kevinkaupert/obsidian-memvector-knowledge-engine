@@ -143,6 +143,17 @@ export function computeRescaleBounds(matrix: number[][], embeddedIndices?: reado
         }
       }
     }
+  } else if (embeddedIndices && embeddedIndices.length === 1) {
+    // Exactly one note is embedded: no embedded-embedded pairs exist.
+    // Exclude the single embedded note's artificial zero-similarity pairs so they don't collapse the lower bound.
+    const singleIdx = embeddedIndices[0];
+    for (let i = 0; i < n; i++) {
+      if (i === singleIdx) continue;
+      for (let j = i + 1; j < n; j++) {
+        if (j === singleIdx) continue;
+        vals.push(matrix[i][j]);
+      }
+    }
   } else {
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
@@ -165,11 +176,15 @@ export function computeRescaleBounds(matrix: number[][], embeddedIndices?: reado
  * Architecture: The bounds are vault-wide, so one added note can shift every value. Callers that adjust the layout
  * locally pass the bounds of the last full pass to keep the scale fixed.
  */
-export function rescaleSimilarityMatrix(matrix: number[][], fixedBounds?: RescaleBounds | null): number[][] {
+export function rescaleSimilarityMatrix(
+  matrix: number[][],
+  fixedBounds?: RescaleBounds | null,
+  embeddedIndices?: readonly number[]
+): number[][] {
   const n = matrix.length;
   if (n <= 1) return matrix;
 
-  const bounds = fixedBounds ?? computeRescaleBounds(matrix);
+  const bounds = fixedBounds ?? computeRescaleBounds(matrix, embeddedIndices);
   if (!bounds) return matrix;
   const pLow = bounds.low;
   const spread = bounds.high - bounds.low;

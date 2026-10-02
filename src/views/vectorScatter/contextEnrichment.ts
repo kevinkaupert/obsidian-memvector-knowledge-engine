@@ -18,6 +18,7 @@ export function contextWarnings(context: EnrichedContext, t: TranslationKeys): s
   if (context.channels.vector === "error") warnings.push(t.retrievalVectorFailed);
   if (context.channels.vector === "unindexed") warnings.push(t.retrievalVectorUnindexed);
   if (context.channels.graph === "error") warnings.push(t.retrievalGraphFailed);
+  if (context.channels.graph === "unindexed") warnings.push(t.retrievalGraphUnindexed);
   return warnings;
 }
 
@@ -117,15 +118,20 @@ async function fetchGraphNeighbors(
   selected: ScatterNode[],
   excerptLength: number,
   hopDepth = settings.synthesisHopDepth ?? 2
-): Promise<Map<string, EnrichedNote>> {
+): Promise<RetrievalResult<Map<string, EnrichedNote>>> {
   const found = new Map<string, EnrichedNote>();
   const ids = selected.map((n) => n.id);
   const perHop = settings.hopLevelNeighborLimit ?? 2;
   const hops = Math.max(1, Math.trunc(hopDepth));
+  const store = getGraphStore(app, settings);
+  if (typeof store.isIndexed === "function") {
+    const indexed = await store.isIndexed();
+    if (!indexed) return { data: found, status: "unindexed" };
+  }
   // 0 = unconstrained: every reachable candidate comes back and the per-hop
   // quota below decides admission - no arbitrary 3x slack or global LIMIT can
   // silently cut off deeper hops (Issue #115).
-  const neighbors = await getGraphStore(app, settings).fetchNeighbors(ids, hops, 0, 0);
+  const neighbors = await store.fetchNeighbors(ids, hops, 0, 0);
 
   const perHopCount = new Map<number, number>();
   const seen = new Set<string>();
@@ -154,7 +160,7 @@ async function fetchGraphNeighbors(
       hops: hop,
     });
   }
-  return found;
+  return { data: found, status: "ready" };
 }
 
 /**
@@ -212,7 +218,7 @@ export async function enrichContext(
   }
 
   const graphNotes = graphResult.status === "fulfilled"
-    ? orderGraphNotesHopBalanced(Array.from(graphResult.value.values()))
+    ? orderGraphNotesHopBalanced(Array.from(graphResult.value.data.values()))
     : [];
   if (graphResult.status === "rejected") {
     console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
@@ -226,7 +232,7 @@ export async function enrichContext(
     notes,
     channels: {
       vector: vectorResult.status === "fulfilled" ? vectorResult.value.status : "error",
-      graph: graphResult.status === "fulfilled" ? "ready" : "error",
+      graph: graphResult.status === "fulfilled" ? graphResult.value.status : "error",
     },
   };
 }
