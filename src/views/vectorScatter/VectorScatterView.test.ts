@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { TFile, type WorkspaceLeaf } from "obsidian";
-import { VectorScatterView, type VectorScatterHost } from "./VectorScatterView";
+import { VectorScatterView, relationChangeLayoutMode, type VectorScatterHost } from "./VectorScatterView";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
 import { scanVaultNotes as scanVaultNotesPure } from "./vaultScan";
@@ -217,6 +217,39 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     view.refreshRelationEdges = vi.fn();
     view.applyExternalSettingsChange({ relayout: true });
     expect(view.refreshRelationEdges).toHaveBeenCalled();
+  });
+
+  it("rearranges after a deleted relation and adjusts locally after a saved one", () => {
+    expect(relationChangeLayoutMode("deleted")).toBe("rearrange");
+    expect(relationChangeLayoutMode("saved")).toBe("auto");
+  });
+
+  it.each(["auto", "rearrange"] as const)("lays out with mode %s after reloading the relation edges", async (mode) => {
+    const view = makeView();
+    view.loadRelationEdges = vi.fn().mockResolvedValue(undefined);
+    view.applyLayout = vi.fn();
+    view.redraw = vi.fn();
+    view.refreshRelationEdges(mode);
+    await vi.waitFor(() => expect(view.applyLayout).toHaveBeenCalledWith(mode));
+    expect(view.loadRelationEdges).toHaveBeenCalled();
+  });
+
+  it("drops nodes of already deleted notes before laying out, so a deleted relation note is not placed", async () => {
+    const view = makeView();
+    const kept = makeNode("a", "wiki/a.md", "concept");
+    const deleted = makeNode("rel", "wiki/relations/rel.md", "relation");
+    view.nodes = [kept, deleted];
+    view.selectedNodeIds = new Set(["a", "rel"]);
+    vi.mocked(view.app.vault.getAbstractFileByPath).mockImplementation((path: string) =>
+      path === kept.path ? Object.assign(new TFile(), { path }) : null
+    );
+    view.loadRelationEdges = vi.fn().mockResolvedValue(undefined);
+    let laidOut: string[] = [];
+    view.applyLayout = vi.fn(() => { laidOut = view.nodes.map((n) => n.path); });
+    view.refreshRelationEdges("rearrange");
+    await vi.waitFor(() => expect(view.applyLayout).toHaveBeenCalledWith("rearrange"));
+    expect(laidOut).toEqual(["wiki/a.md"]);
+    expect(view.selectedNodeIds.has("rel")).toBe(false);
   });
 
   it("does not re-run the layout for a plain redraw", () => {

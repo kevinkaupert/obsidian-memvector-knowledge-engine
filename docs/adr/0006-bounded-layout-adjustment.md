@@ -53,7 +53,7 @@ Only lowering the starting `alpha` is not a sufficient implementation of this de
 
 ### 3. Free rearrangement
 
-A free global layout run is only performed on an explicit user action, and when a new vector set makes the existing arrangement obsolete. The spacing sliders are an explicit action and may run a global pass.
+A free global layout run is only performed on an explicit user action, and when a new vector set makes the existing arrangement obsolete. The spacing sliders are an explicit action and may run a global pass. Deleting a relation in the relation builder is an explicit action as well and runs a free rearrangement: a bounded adjustment would leave both endpoints where the deleted edge had pulled them. Because the free layout is deterministic, the arrangement from before the relation existed returns when nothing else changed since.
 
 ### 4. Event handling, computation and persistence
 

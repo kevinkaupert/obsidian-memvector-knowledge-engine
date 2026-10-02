@@ -22,6 +22,9 @@ export interface InitialRelationEdge {
   tgtId?: string;
 }
 
+/** A deletion asks the view for a fresh arrangement; a save keeps the bounded adjustment. */
+export type RelationChange = "saved" | "deleted";
+
 export class RelationBuilderModal extends Modal {
   private focalIndex = 0;
   private topology: EdgeTopology = "FOCAL_TO_REST";
@@ -35,7 +38,7 @@ export class RelationBuilderModal extends Modal {
     private readonly host: SettingsHost,
     selectedNodes: RelationNode[],
     private readonly initialEdge?: InitialRelationEdge,
-    private readonly onSaved?: () => void
+    private readonly onSaved?: (change: RelationChange) => void
   ) {
     super(app);
     this.selectedNodes = [...selectedNodes];
@@ -350,7 +353,7 @@ export class RelationBuilderModal extends Modal {
       if (failedCount > 0) new Notice(`${t.relSaveError}: ${failedCount}`, 8000);
       if (createdCount > 0) new Notice(`${createdCount} ${withFolder(t.relSaveSuccess, relationsFolder(this.host.settings))}`);
 
-      this.onSaved?.();
+      this.onSaved?.("saved");
       this.close();
     };
   }
@@ -396,7 +399,7 @@ export class RelationBuilderModal extends Modal {
       }
       new Notice(`[OK] ${t.relDeleteSuccess}`);
 
-      this.onSaved?.();
+      this.onSaved?.("deleted");
       this.close();
     };
   }
