@@ -39,7 +39,9 @@ export interface LayoutRunResult {
  *   only some notes lack a stored position, the others initialize the state and the new ones are placed by a bounded
  *   adjustment.
  * - Local changes (changed, added or re-linked notes): a bounded adjustment moves only those notes, their relation
- *   neighbors and their most similar notes, with the rescale bounds and clusters of the last free pass kept fixed. If
+ *   neighbors and their most similar notes, with the rescale bounds and clusters of the last free pass kept fixed.
+ *   Both endpoints of a deleted relation are re-placed from scratch like new notes and are the only notes that move
+ *   for it, so the deleted edge's pull does not survive in their positions. If
  *   a cluster centroid disappeared (e.g. filtered out), only the cluster assignment is recomputed - a display change.
  * - Settings changes, a change touching more than LARGE_CHANGE_RATIO of the nodes, or an explicit "global" /
  *   "rearrange" request: a free pass that also recomputes bounds and clusters.
@@ -69,7 +71,7 @@ export class LayoutEngine {
         if (unplaced.length < nodes.length) {
           this.model = prepareLayoutModel(nodes, input.settings);
           this.rememberClusters(nodes);
-          const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set() };
+          const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set(), removedEdgeEndpointIds: new Set() };
           if (this.runBounded(input, added)) {
             this.snapshot = next;
             this.rememberClusters(nodes);
@@ -110,13 +112,21 @@ export class LayoutEngine {
     const model = this.model;
     if (diff.settingsChanged || !model || !model.bounds) return false;
     const seeds = new Set<string>([...diff.addedIds, ...diff.changedIds, ...diff.edgeEndpointIds]);
-    if (seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
+    // Endpoints of a deleted edge are recomputed from the current inputs like new notes: the deleted edge's pull must
+    // not survive in their position, and nothing else moves on their account.
+    const resetIds = new Set([...diff.removedEdgeEndpointIds].filter((id) => !seeds.has(id)));
+    if (seeds.size + resetIds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
     const prepared = prepareLayoutModel(nodes, input.settings, { fixedBounds: model.bounds, assignClusters: centroidMissing });
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
     const mobileIds = this.mobileSet(nodes, seeds, prepared.matrix, input);
+    for (const n of nodes) {
+      if (!resetIds.has(n.id)) continue;
+      n.placed = false;
+      mobileIds.add(n.id);
+    }
 
     if (centroidMissing) {
       // A centroid left the node set: re-cluster for display, positions are unaffected.
@@ -126,7 +136,7 @@ export class LayoutEngine {
       const centroidIdx = model.centroidIds.map((id) => indexOf.get(id) as number);
       this.applyClusters(nodes);
       nodes.forEach((n, i) => {
-        if (n.cloudId !== undefined && !seeds.has(n.id)) return;
+        if (n.cloudId !== undefined && !seeds.has(n.id) && !resetIds.has(n.id)) return;
         let best = 0;
         let bestSim = -Infinity;
         centroidIdx.forEach((c, cloudId) => {

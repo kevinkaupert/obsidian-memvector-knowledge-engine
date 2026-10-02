@@ -92,7 +92,25 @@ describe("layout-input signatures (#209)", () => {
     ["a type with another force", () => [edge("CONFLICTS_WITH")]],
   ])("marks the endpoints of %s", (_label, change) => {
     const diff = diffAfter((nodes, edges) => ({ nodes: [...nodes, node("C")], edges: change(edges) }));
-    expect(diff.edgeEndpointIds.has("A") || diff.edgeEndpointIds.has("B")).toBe(true);
+    const endpoints = new Set([...diff.edgeEndpointIds, ...diff.removedEdgeEndpointIds]);
+    expect(endpoints.has("A") || endpoints.has("B")).toBe(true);
+  });
+
+  it("reports the endpoints of a deleted edge separately from added or changed edges", () => {
+    const diff = diffAfter(() => ({ edges: [] }));
+    expect([...diff.removedEdgeEndpointIds].sort()).toEqual(["A", "B"]);
+    expect(diff.edgeEndpointIds.size).toBe(0);
+    expect(isLayoutUnchanged(diff)).toBe(false);
+  });
+
+  it("does not report a deleted edge while another edge still connects the pair", () => {
+    const diff = diffAfter((_nodes, edges) => ({ edges: [...edges, edge("REQUIRES", "B", "A")] }));
+    expect(diff.removedEdgeEndpointIds.size).toBe(0);
+  });
+
+  it("does not report endpoints of edges that vanished with a removed note", () => {
+    const diff = diffAfter((nodes) => ({ nodes: nodes.filter((n) => n.id !== "B"), edges: [] }));
+    expect(diff.removedEdgeEndpointIds.has("B")).toBe(false);
   });
 
   it("ignores description and direction of a relation edge", () => {

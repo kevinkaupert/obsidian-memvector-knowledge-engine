@@ -44,6 +44,7 @@ The previous rule "nodes are not locked or pinned" is replaced by the distinctio
 ### 2. Bounded adjustment
 
 - New nodes are placed next to matching existing neighbors.
+- When the last relation edge between two notes is deleted, both endpoints are re-placed from the current inputs like new nodes, without an anchor to their previous position. Only these two notes move. Their position then no longer depends on how far the deleted edge had pulled them, or on what changed in the meantime.
 - Affected nodes and their surroundings may move.
 - Existing positions act as soft anchors that limit global displacement.
 - A bounded adjustment does not re-heat the whole layout.

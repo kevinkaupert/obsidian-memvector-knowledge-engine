@@ -30,8 +30,10 @@ export interface LayoutDiff {
   removedIds: Set<string>;
   /** Nodes present in both snapshots whose own inputs changed. */
   changedIds: Set<string>;
-  /** Endpoints of relation edges that were added, removed or changed their force. */
+  /** Endpoints of relation edges that were added or changed their force. */
   edgeEndpointIds: Set<string>;
+  /** Endpoints of endpoint pairs that no longer have any relation edge; their positions are recomputed. */
+  removedEdgeEndpointIds: Set<string>;
 }
 
 /** FNV-1a over the vector, rounded to 1e-6, so equal vectors give equal signatures without storing them. */
@@ -127,23 +129,25 @@ export function diffLayoutSnapshots(prev: LayoutSnapshot, next: LayoutSnapshot):
   for (const id of prev.nodes.keys()) byLower.set(id.toLowerCase(), id);
   for (const id of next.nodes.keys()) byLower.set(id.toLowerCase(), id);
   const edgeEndpointIds = new Set<string>();
-  const addEndpoints = (key: string) => {
+  const removedEdgeEndpointIds = new Set<string>();
+  const addEndpoints = (key: string, target: Set<string>) => {
     for (const part of key.split("\u0003")) {
       const id = byLower.get(part);
-      if (id !== undefined) edgeEndpointIds.add(id);
+      // Only endpoints still laid out can be moved; a removed node takes its edges with it.
+      if (id !== undefined && next.nodes.has(id)) target.add(id);
     }
   };
   next.edges.forEach((sig, key) => {
-    if (prev.edges.get(key) !== sig) addEndpoints(key);
+    if (prev.edges.get(key) !== sig) addEndpoints(key, edgeEndpointIds);
   });
   prev.edges.forEach((_sig, key) => {
-    if (!next.edges.has(key)) addEndpoints(key);
+    if (!next.edges.has(key)) addEndpoints(key, removedEdgeEndpointIds);
   });
 
-  return { settingsChanged: prev.settings !== next.settings, addedIds, removedIds, changedIds, edgeEndpointIds };
+  return { settingsChanged: prev.settings !== next.settings, addedIds, removedIds, changedIds, edgeEndpointIds, removedEdgeEndpointIds };
 }
 
 /** True when nothing the layout reads changed. */
 export function isLayoutUnchanged(diff: LayoutDiff): boolean {
-  return !diff.settingsChanged && diff.addedIds.size === 0 && diff.removedIds.size === 0 && diff.changedIds.size === 0 && diff.edgeEndpointIds.size === 0;
+  return !diff.settingsChanged && diff.addedIds.size === 0 && diff.removedIds.size === 0 && diff.changedIds.size === 0 && diff.edgeEndpointIds.size === 0 && diff.removedEdgeEndpointIds.size === 0;
 }
