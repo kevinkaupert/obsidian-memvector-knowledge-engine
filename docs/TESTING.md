@@ -79,6 +79,47 @@ surfaced several real bugs during the 2026-09-14 functional review (tracked
 in issue #7 and its linked findings); it's worth re-running after any change
 to indexing, relation storage, or synthesis prompt construction.
 
+## Stability: retrieval status, reasoning and workspace restoration
+
+The expected empty-result behavior for issues #192 and #193 is deliberate:
+
+- A successful semantic radar search with no eligible neighbors stays empty.
+  It does not switch to word/formula scoring; the canvas identifies the score
+  mode as semantic vector similarity. Missing embeddings and store errors do
+  trigger the heuristic fallback, with an explicit warning and approximate scores.
+- A successful graph lookup returning no neighbors is `ready`, including an
+  empty graph. The graph store currently has no indexing-completion marker,
+  so it cannot distinguish an unindexed graph from an indexed empty graph.
+  Only a rejected graph lookup becomes `error`. The vector channel can report
+  `unindexed` because it checks for embeddings of the selected notes.
+
+In a disposable vault, verify these boundaries:
+
+1. Index only the active note and open its radar. Expect an empty semantic
+   radar. Open an unindexed note instead: expect the calculate-vectors prompt
+   and explicitly labeled heuristic scores.
+2. For a failed retrieval channel, check the context-preview warning, the
+   synthesis result warning, and the warning in a saved synthesis note.
+   Available notes from the other channel must still be included.
+3. Use a reasoning response from the local mock provider. Closed `<think>`
+   blocks and separate provider reasoning appear in the collapsed callout.
+   An unclosed `<think>` block consumes the remaining text as reasoning;
+   a response without any answer must produce an error.
+4. Restore a saved scatter filter during startup. The pending layout-ready
+   scan must use that filter without an extra restoration scan. If the initial
+   scan already started with a different filter, a new scan is necessary to
+   replace its results; generation checks still discard stale work.
+
+Layout regression tests freeze the caller's node array and exercise initialization,
+bounded adjustment, global layout and rearrangement. Positions and cluster fields
+may change on the shared nodes, but array order and object identities must not.
+`LayoutModel.nodePaths` identifies matrix rows and columns independently of the
+caller's array order. Sorted inputs are copied without sorting them again.
+
+`main.js` remains committed with the source changes: CI rebuilds it and verifies
+that the committed bundle matches the source. Review the TypeScript files first
+and treat the bundle diff as a generated artifact.
+
 ## Relation save regressions: direction, defaults, duplicate files
 
 Use a disposable vault with the current branch's `main.js`, `manifest.json`,

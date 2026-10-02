@@ -144,7 +144,7 @@ export class SqliteVectorStore implements VectorStore {
   async search(vector: number[], limit: number): Promise<VectorSearchHit[]> {
     const db = await this.openDb();
     const { where, params } = this.scope();
-    const result = db.exec(`SELECT path, title, content, vector FROM vectors WHERE ${where}`, params);
+    const result = db.exec(`SELECT path, title, content, vector FROM vectors WHERE ${where} ORDER BY path ASC`, params);
     if (result.length === 0) return [];
 
     const { columns, values } = result[0];
@@ -160,7 +160,7 @@ export class SqliteVectorStore implements VectorStore {
       payload: { path: String(row[idx.path]), title: String(row[idx.title]), content: String(row[idx.content]) },
     }));
 
-    const sorted = scored.sort((a, b) => b.score - a.score);
+    const sorted = scored.sort((a, b) => (b.score - a.score) || a.payload.path.localeCompare(b.payload.path));
     return limit > 0 ? sorted.slice(0, Math.trunc(limit)) : sorted;
   }
 }

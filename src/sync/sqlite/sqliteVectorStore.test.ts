@@ -37,6 +37,17 @@ function point(id: string, vector: number[]): VectorPoint {
 }
 
 describe("SqliteVectorStore", () => {
+  it("breaks tied scores by path before applying the limit, regardless of insertion order (#194)", async () => {
+    for (const ids of [["c", "b", "a"], ["b", "a", "c"]]) {
+      const store = new SqliteVectorStore(fakeApp());
+      await store.syncPoints(ids.map((id) => point(id, [1, 0])));
+      expect((await store.search([1, 0], 2)).map((hit) => hit.payload.path)).toEqual(["a.md", "b.md"]);
+      expect((await store.search([1, 0], 0)).map((hit) => hit.payload.path)).toEqual(["a.md", "b.md", "c.md"]);
+      await store.reconcile(["a.md", "c.md"]);
+      await store.syncPoints([point("b", [1, 0])]);
+      expect((await store.search([1, 0], 2)).map((hit) => hit.payload.path)).toEqual(["a.md", "b.md"]);
+    }
+  });
   it("finds the closest vector by cosine similarity", async () => {
     const store = new SqliteVectorStore(fakeApp());
     await store.syncPoints([point("close", [1, 0, 0]), point("far", [0, 1, 0]), point("opposite", [-1, 0, 0])]);

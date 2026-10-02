@@ -2,10 +2,16 @@ import type { App } from "obsidian";
 import { describe, expect, it, vi } from "vitest";
 import type { MemVectorSettings } from "../../settings/types";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
-import { assembleContextNotes, enrichContext, type EnrichedNote } from "./contextEnrichment";
+import { assembleContextNotes, enrichContext as enrichContextResult, contextWarnings, type EnrichedNote } from "./contextEnrichment";
 import type { ScatterNode } from "./types";
 import type { VectorSearchHit, VectorStore } from "../../sync/vectorStore";
 import type { GraphStore } from "../../sync/graphStore";
+import { getTranslation } from "../../i18n";
+
+// Existing note-selection regressions exercise the data portion of the structured result.
+async function enrichContext(...args: Parameters<typeof enrichContextResult>): Promise<EnrichedNote[]> {
+  return (await enrichContextResult(...args)).notes;
+}
 
 function makeScatterNode(id: string, path: string, embedding?: number[]): ScatterNode {
   return {
@@ -666,5 +672,63 @@ describe("contextEnrichment query vector comes from the store (#175)", () => {
 
     expect(mockVectorStore.search).not.toHaveBeenCalled();
     mockVectorStore.getVectors = original;
+  });
+});
+
+describe("explicit retrieval channel status (#192)", () => {
+  const selected = [makeScatterNode("selected", "selected.md")];
+  const settings = { ...DEFAULT_SETTINGS };
+  const t = getTranslation("en");
+
+  it("distinguishes a successful empty lookup from a failed channel", async () => {
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    const context = await enrichContextResult(makeMockApp(new Map()), settings, selected);
+    expect(context).toEqual({ notes: [], channels: { vector: "ready", graph: "ready" } });
+    expect(contextWarnings(context, t)).toEqual([]);
+  });
+
+  it("keeps graph context and reports failed vector search", async () => {
+    vi.mocked(mockVectorStore.search!).mockRejectedValueOnce(new Error("vector store unavailable"));
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([{ id: "graph", path: "graph.md", title: "Graph", hops: 1 }]);
+    const context = await enrichContextResult(makeMockApp(new Map([["graph.md", "Current graph note"]])), settings, selected);
+    expect(context.notes.map((note) => note.id)).toEqual(["graph"]);
+    expect(context.channels).toEqual({ vector: "error", graph: "ready" });
+    expect(contextWarnings(context, t)).toEqual([t.retrievalVectorFailed]);
+  });
+
+  it("keeps vector context and reports failed graph lookup", async () => {
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([{ score: 0.9, payload: { path: "vector.md", title: "Vector", content: "old" } }]);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockRejectedValueOnce(new Error("graph store unavailable"));
+    const context = await enrichContextResult(makeMockApp(new Map([["vector.md", "Current vector note"]])), settings, selected);
+    expect(context.notes.map((note) => note.path)).toEqual(["vector.md"]);
+    expect(context.channels).toEqual({ vector: "ready", graph: "error" });
+    expect(contextWarnings(context, t)).toEqual([t.retrievalGraphFailed]);
+  });
+
+  it("reports vector hydration failures rather than swallowing them as empty results", async () => {
+    const original = mockVectorStore.getVectors;
+    try {
+      mockVectorStore.getVectors = async () => { throw new Error("database unavailable"); };
+      vi.mocked(mockGraphStore.fetchNeighbors!).mockRejectedValueOnce(new Error("database unavailable"));
+      const context = await enrichContextResult(makeMockApp(new Map()), settings, selected);
+      expect(context).toEqual({ notes: [], channels: { vector: "error", graph: "error" } });
+      expect(contextWarnings(context, t)).toEqual([t.retrievalVectorFailed, t.retrievalGraphFailed]);
+    } finally {
+      mockVectorStore.getVectors = original;
+    }
+  });
+
+  it("distinguishes missing embeddings from a store error", async () => {
+    const original = mockVectorStore.getVectors;
+    try {
+      mockVectorStore.getVectors = async () => new Map();
+      vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+      const context = await enrichContextResult(makeMockApp(new Map()), settings, selected);
+      expect(context.channels).toEqual({ vector: "unindexed", graph: "ready" });
+      expect(contextWarnings(context, t)).toEqual([t.retrievalVectorUnindexed]);
+    } finally {
+      mockVectorStore.getVectors = original;
+    }
   });
 });

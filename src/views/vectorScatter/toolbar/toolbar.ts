@@ -12,7 +12,8 @@ import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositi
 import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import type { ScatterNode } from "../types";
-import { enrichContext } from "../contextEnrichment";
+import { contextWarnings, enrichContext } from "../contextEnrichment";
+import { renderRetrievalWarning } from "../../../retrievalStatus";
 import { CLOUD_SPACING_RANGE, NODE_SPACING_RANGE, clampCloudSpacing, clampNodeSpacing } from "../layout/layoutTunables";
 import { buildPreviewEntries } from "../contextPreview";
 import { createActionBtn, createDropdown, createIconButton, createSection, createSlider, createToggle, setActionBtnEnabled } from "./toolbarControls";
@@ -28,6 +29,7 @@ export interface ToolbarHandles {
   statusText: HTMLElement;
   updateSelectionUI(): void;
   updateEdgeHops?(hops: number): void;
+  updateFilterQuery?(query: string): void;
   /** Shows spacing values that changed outside this toolbar, without re-running the slider handlers. */
   updateSpacing?(nodeSpacing: number, cloudSpacing: number): void;
 }
@@ -287,11 +289,14 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
       previewList.empty();
       previewList.createEl("li", { cls: "memvector-context-preview-empty", text: "..." });
       try {
-        const enriched = await enrichContext(ctx.app, ctx.settings, selected, 100, undefined, dismissedContextIds);
+        const context = await enrichContext(ctx.app, ctx.settings, selected, 100, undefined, dismissedContextIds);
         previewList.empty();
+        for (const message of contextWarnings(context, t)) {
+          renderRetrievalWarning(previewList.createEl("li"), message);
+        }
         // enrichContext already dropped the dismissed ids above, so what is shaped here
         // is exactly the note list the synthesis call will send.
-        const { seeds, traversed, total } = buildPreviewEntries(enriched, selected, { single: t.lblHopSingle, plural: t.lblHopPlural });
+        const { seeds, traversed, total } = buildPreviewEntries(context.notes, selected, { single: t.lblHopSingle, plural: t.lblHopPlural });
         previewTitleEl.setText(`${t.contextPreviewTitle} (${total})`);
         if (total === 0) {
           previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
@@ -301,7 +306,7 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
         if (traversed.length > 0) renderPreviewGroup(t.contextPreviewTraversed, traversed);
       } catch {
         previewList.empty();
-        previewList.createEl("li", { cls: "memvector-context-preview-empty", text: t.previewEmpty });
+        renderRetrievalWarning(previewList.createEl("li"), t.retrievalContextFailed);
       }
     })();
   };
@@ -371,6 +376,10 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     updateSelectionUI,
     updateEdgeHops: (hops: number) => {
       edgeHopsSelect.value = String(hops);
+    },
+    updateFilterQuery: (query: string) => {
+      if (filterDebounce !== null) window.clearTimeout(filterDebounce);
+      filterInput.value = query;
     },
     updateSpacing: (nodeSpacing: number, cloudSpacing: number) => {
       // Display only: the change came from elsewhere, so the sliders' own handlers must not fire again.

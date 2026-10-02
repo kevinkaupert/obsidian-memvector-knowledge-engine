@@ -1,6 +1,7 @@
 import { requestUrl } from "../obsidianCompat";
 import { ANTHROPIC_DEFAULT_MODEL, PROVIDER_DEFAULT_MODELS } from "./modelDefaults";
 import { buildChatCompletionsUrl, detectProvider } from "./providerRouting";
+import { normalizeLlmResponse, type LlmResponse } from "./llmResponse";
 
 const DEFAULT_SYSTEM_PROMPT =
   "You are a knowledge synthesis assistant for Obsidian. Respond concisely, structured, and precisely.";
@@ -8,12 +9,14 @@ const DEFAULT_SYSTEM_PROMPT =
 interface AnthropicContentBlock {
   type: string;
   text?: string;
+  thinking?: string;
 }
 
 interface LlmChoice {
   message?: {
     content?: string;
     reasoning?: string;
+    reasoning_content?: string;
   };
 }
 
@@ -22,6 +25,7 @@ interface LlmResponseData {
   choices?: LlmChoice[];
   message?: {
     content?: string;
+    thinking?: string;
   };
   response?: string;
 }
@@ -29,6 +33,21 @@ interface LlmResponseData {
 interface LlmErrorResponse {
   error?: string | { message?: string };
   message?: string;
+}
+
+function readResponse(data: LlmResponseData | null | undefined, provider: string): LlmResponse {
+  if (provider === "anthropic") {
+    const blocks = Array.isArray(data?.content) ? data.content : [];
+    return normalizeLlmResponse(
+      blocks.filter((block) => block.type === "text").map((block) => block.text || "").join("\n\n"),
+      blocks.filter((block) => block.type === "thinking").map((block) => block.thinking || block.text || "")
+    );
+  }
+  const message = data?.choices?.[0]?.message;
+  return normalizeLlmResponse(
+    message?.content || data?.message?.content || data?.response || "",
+    [message?.reasoning || "", message?.reasoning_content || "", data?.message?.thinking || ""]
+  );
 }
 
 export async function callDirectLLM(
@@ -39,7 +58,7 @@ export async function callDirectLLM(
   temperature = 0.1,
   systemPrompt = DEFAULT_SYSTEM_PROMPT,
   llmProvider = ""
-): Promise<string> {
+): Promise<LlmResponse> {
   try {
     const cleanKey = (apiKey || "").trim();
     const provider = detectProvider(apiBase, modelName, llmProvider);
@@ -93,32 +112,15 @@ export async function callDirectLLM(
 
     if (response.status === 200) {
       const data = response.json as LlmResponseData | null | undefined;
-      if (provider === "anthropic") {
-        const blocks: AnthropicContentBlock[] | undefined = data?.content;
-        if (Array.isArray(blocks)) {
-          const textBlocks = blocks
-            .filter((b) => b.type === "text" || (b.text && b.type !== "thinking"))
-            .map((b) => b.text)
-            .filter(Boolean);
-          if (textBlocks.length > 0) {
-            return textBlocks.join("\n\n");
-          }
-        }
-        return blocks?.[0]?.text || "No response received from Claude.";
-      }
-      const ans =
-        data?.choices?.[0]?.message?.content ||
-        data?.choices?.[0]?.message?.reasoning ||
-        data?.message?.content ||
-        data?.response;
-      if (ans && typeof ans === "string") return ans;
-      return "No response received from LLM.";
+      return readResponse(data, provider);
     }
 
     // Native Ollama /api/chat fallback if /v1/chat/completions failed
     if (url.includes("11434") || url.includes("localhost") || url.includes("127.0.0.1")) {
       const nativeUrl = url.replace(/\/v1\/chat\/completions$/, "/api/chat");
       if (nativeUrl !== url) {
+        let nativeData: LlmResponseData | null | undefined;
+        let nativeSucceeded = false;
         try {
           const nativeRes = await requestUrl({
             url: nativeUrl,
@@ -132,13 +134,13 @@ export async function callDirectLLM(
             throwOnError: false,
           });
           if (nativeRes.status === 200) {
-            const nData = nativeRes.json as LlmResponseData | null | undefined;
-            const nAns = nData?.message?.content || nData?.response;
-            if (nAns && typeof nAns === "string") return nAns;
+            nativeData = nativeRes.json as LlmResponseData | null | undefined;
+            nativeSucceeded = true;
           }
         } catch {
           // fallback failed, continue to standard error reporting
         }
+        if (nativeSucceeded) return readResponse(nativeData, "ollama");
       }
     }
 

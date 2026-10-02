@@ -2,11 +2,12 @@ import { Notice, TFile, type App } from "obsidian";
 import { resolveApiKeyFor } from "../../settings/secrets";
 import type { MemVectorSettings } from "../../settings/types";
 import { callDirectLLM } from "../../llm/callDirectLLM";
+import { formatLlmResponse } from "../../llm/llmResponse";
 import { getTranslation } from "../../i18n";
 import { capText, stripFrontmatter } from "../../noteContent";
 import { toSlug } from "../../noteSlug";
 import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
-import { enrichContext, type EnrichedNote } from "./contextEnrichment";
+import { contextWarnings, enrichContext, type EnrichedNote } from "./contextEnrichment";
 import { loadAgentsGuidelines } from "./agentsGuidelines";
 import { loadRelationEdges } from "./relationEdges";
 import type { RelationEdge, ScatterNode } from "./types";
@@ -221,7 +222,7 @@ Guidelines:
 
 function buildVaultTitleMap(app: App): Map<string, string> {
   const map = new Map<string, string>();
-  for (const file of app.vault.getMarkdownFiles()) {
+  for (const file of app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path))) {
     const basename = file.basename;
     map.set(toSlug(basename), basename);
     map.set(basename.toLowerCase(), basename);
@@ -234,15 +235,6 @@ function buildVaultTitleMap(app: App): Map<string, string> {
     }
   }
   return map;
-}
-
-function formatThinkingBlocks(raw: string, thinkingTitle: string): string {
-  if (!raw.includes("<think>")) return raw;
-  return raw.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking: string) => {
-    const cleanThinking = thinking.trim();
-    if (!cleanThinking) return "";
-    return `\n> [!note]- ${thinkingTitle}\n> ${cleanThinking.replace(/\n/g, "\n> ")}\n\n`;
-  });
 }
 
 const STRUCTURAL_KEYWORDS = new Set([
@@ -263,10 +255,8 @@ function isStructuralMarker(term: string): boolean {
 }
 
 function linkifySynthesis(raw: string, vaultTitleMap: Map<string, string>, lang = "de"): string {
-  const t = getTranslation(lang);
-  const cleaned = formatThinkingBlocks(raw, t.synthThinkingBlockTitle);
   const prospectiveTerms = new Set<string>();
-  let text = cleaned.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
+  let text = raw.replace(/\*\*([^*]+)\*\*/g, (match, term: string) => {
     const cleanTerm = term.trim();
     if (cleanTerm.length <= 2 || cleanTerm.includes("\n") || isStructuralMarker(cleanTerm)) {
       return match;
@@ -331,12 +321,16 @@ export async function runSynthesis(
   );
 
   let enriched: EnrichedNote[] = [];
+  let warnings: string[] = [];
   if (settings.enrichSynthesisContext) {
     const hopDepth = settings.synthesisHopDepth ?? 2;
     setHoverText(`[INFO] ${t.synthSearchingContext} (${tier}, ${hopDepth} ${hopDepth === 1 ? t.lblHopSingle : t.lblHopPlural})...`);
     // Manually dismissed notes from the context preview stay excluded from the
     // final synthesis payload (Issue #116).
-    enriched = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);
+    const context = await enrichContext(app, settings, selected, contentCapChars, hopDepth, excludedContextIds);
+    enriched = context.notes;
+    warnings = contextWarnings(context, t);
+    if (warnings.length > 0) new Notice(warnings.join("\n"), 10000);
   }
 
   const allEdges = await loadRelationEdges(app, settings.vectorSearchExclusions, relationsFolder(settings));
@@ -371,9 +365,10 @@ export async function runSynthesis(
     }
   }
 
-  let rawSynthesisText: string;
+  let synthesisText: string;
   try {
-    rawSynthesisText = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt, settings.llmProvider);
+    const response = await callDirectLLM(prompt, apiBase, apiKey, modelName, temperature, t.llmSystemPrompt, settings.llmProvider);
+    synthesisText = formatLlmResponse({ ...response, content: linkifySynthesis(response.content, buildVaultTitleMap(app), lang) }, t.synthThinkingBlockTitle);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     setHoverText(`[ERROR] ${msg.slice(0, 70)}`);
@@ -381,9 +376,6 @@ export async function runSynthesis(
     return;
   }
 
-  const vaultTitleMap = buildVaultTitleMap(app);
-  const synthesisText = linkifySynthesis(rawSynthesisText, vaultTitleMap, lang);
-
-  new SynthesisResultModal(app, selected, synthesisText, modelName, settings).open();
+  new SynthesisResultModal(app, selected, synthesisText, modelName, settings, warnings).open();
   setHoverText(`${modelName} ${t.synthCompletePrefix} ${selected.length} ${t.synthCompleteSuffix}`);
 }

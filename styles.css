@@ -1105,3 +1105,17 @@
   gap: 4px;
   font-size: 0.85em;
 }
+
+/* Retrieval failures and unindexed notes remain visible beside partial results. */
+.memvector-retrieval-warning {
+  color: var(--text-warning);
+  background: var(--background-secondary);
+  border-left: 3px solid var(--text-warning);
+  padding: 8px;
+  margin: 6px 0;
+  font-size: var(--font-ui-small);
+}
+.memvector-radar-heuristic .memvector-radar-score {
+  color: var(--text-warning);
+  font-style: italic;
+}

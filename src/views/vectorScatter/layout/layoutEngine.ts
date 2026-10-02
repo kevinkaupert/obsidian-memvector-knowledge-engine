@@ -1,7 +1,7 @@
 import type { MemVectorSettings } from "../../../settings/types";
 import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
-import { applyVectorLayout, prepareLayoutModel, type LayoutModel } from "./applyVectorLayout";
+import { applyVectorLayout, copyNodesInPathOrder, prepareLayoutModel, type LayoutModel } from "./applyVectorLayout";
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutDiff, type LayoutSnapshot } from "./layoutInputs";
 import { LARGE_CHANGE_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
 import { applyGraphVectorProjection } from "./projections";
@@ -50,6 +50,7 @@ export class LayoutEngine {
   private clusterOf = new Map<string, number>();
 
   run(input: LayoutRunInput, mode: LayoutMode = "auto"): LayoutRunResult {
+    input = { ...input, nodes: copyNodesInPathOrder(input.nodes) };
     const { nodes } = input;
     const next = captureLayoutSnapshot(nodes, input.relationEdges, input.vocabulary, {
       nodeSpacing: input.nodeSpacing,

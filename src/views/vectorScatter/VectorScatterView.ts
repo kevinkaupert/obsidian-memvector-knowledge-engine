@@ -247,7 +247,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return {
       pan: this.pan,
       zoom: this.zoom,
-      edgeHops: this.edgeHops,
+      viewFilterQuery: this.viewFilterQuery,
     };
   }
 
@@ -256,16 +256,23 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   async setState(state: unknown, result: ViewStateResult): Promise<void> {
     if (state && typeof state === "object") {
-      const s = state as { pan?: PanState; zoom?: number; edgeHops?: number };
+      const s = state as { pan?: PanState; zoom?: number; viewFilterQuery?: string };
       if (s.pan && typeof s.pan.x === "number" && typeof s.pan.y === "number") {
         this.pan = { x: s.pan.x, y: s.pan.y };
       }
       if (typeof s.zoom === "number" && !Number.isNaN(s.zoom)) {
         this.zoom = s.zoom;
       }
-      if (typeof s.edgeHops === "number" && !Number.isNaN(s.edgeHops)) {
-        this.edgeHops = s.edgeHops;
-        this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
+      // Legacy workspace edgeHops snapshots must never override plugin settings.
+      this.edgeHops = this.settings.scatterEdgeHops ?? 1;
+      this.toolbarHandles?.updateEdgeHops?.(this.edgeHops);
+      if (typeof s.viewFilterQuery === "string" && s.viewFilterQuery !== this.viewFilterQuery) {
+        this.viewFilterQuery = s.viewFilterQuery;
+        this.toolbarHandles?.updateFilterQuery?.(this.viewFilterQuery);
+        if (this.toolbarHandles && !this.initialScanPending) {
+          await this.scanVaultNotes(undefined, { preserveView: true });
+          this.toolbarHandles.updateSelectionUI();
+        }
       }
       this.hasFittedView = true;
     }
@@ -307,6 +314,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
     this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
+    this.initialScanPending = true;
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -321,6 +329,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     });
 
     const initScan = async () => {
+      if (!this.initialScanPending) return;
+      this.initialScanPending = false;
       await this.scanVaultNotes();
       this.toolbarHandles?.updateSelectionUI();
     };
@@ -338,6 +348,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   onClose(): Promise<void> {
+    this.initialScanPending = false;
     this.vaultEvents.dispose();
     void this.positionWriter.flush();
     if (this.embeddingReloadTimer !== null) {
@@ -357,6 +368,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private workChain: Promise<void> = Promise.resolve();
   /** Incremented per requested full scan; work started under an older value is discarded. */
   private scanGeneration = 0;
+  /** Workspace restoration can change the filter before the layout-ready scan starts. */
+  private initialScanPending = false;
   /** Vault changes arrived while the view was hidden and are waiting in the queue. */
   private staleWhileHidden = false;
   /** The last vector read failed: layout and position writes are frozen until a complete read succeeds (#191). */
@@ -658,6 +671,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   scanVaultNotes(filterOverride?: string, options: { preserveView?: boolean } = {}): Promise<void> {
     if (filterOverride !== undefined) {
       this.viewFilterQuery = filterOverride;
+      void this.app.workspace?.requestSaveLayout?.();
     }
     const generation = ++this.scanGeneration;
     this.vaultEvents.supersededByFullScan();
