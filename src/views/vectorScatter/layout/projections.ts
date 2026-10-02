@@ -287,10 +287,25 @@ export function applyGraphVectorProjection({
       });
     } else if (hasPca) {
       nodes.forEach((node, i) => {
-        if (!node.embedding || node.embedding.length === 0) {
+        if ((node.embedding?.length ?? 0) === 0) {
+          let bestSim = -1;
+          let bestNeighbor: ScatterNode | null = null;
+          for (let j = 0; j < n; j++) {
+            if (i === j || (nodes[j].embedding?.length ?? 0) === 0) continue;
+            if (matrix[i][j] > bestSim) {
+              bestSim = matrix[i][j];
+              bestNeighbor = nodes[j];
+            }
+          }
           const phi = i * 2.399963;
-          node.x = Math.cos(phi) * targetSpacing * 0.5;
-          node.y = Math.sin(phi) * targetSpacing * 0.5;
+          if (bestNeighbor && bestSim > 0.15) {
+            node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
+            node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
+          } else {
+            const r = clusterRadius * 0.75;
+            node.x = Math.cos(phi) * r;
+            node.y = Math.sin(phi) * r;
+          }
         }
       });
     }

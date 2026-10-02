@@ -17,17 +17,32 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): string[]
     return [nodes[0].id];
   }
 
-  // Pick diverse centroids (k-means++ style by least similarity to already picked centroids)
-  const centroidIndices: number[] = [0];
+  // Pick diverse centroids (k-means++ style by least similarity to already picked centroids).
+  // Prefer nodes with embeddings as centroids so cluster anchors represent real topic vectors (Issue #224).
+  const hasEmbedded = nodes.some((node) => (node.embedding?.length ?? 0) > 0);
+  const firstCentroid = hasEmbedded ? nodes.findIndex((node) => (node.embedding?.length ?? 0) > 0) : 0;
+  const centroidIndices: number[] = [firstCentroid >= 0 ? firstCentroid : 0];
+
   while (centroidIndices.length < numClouds) {
     let minMaxSim = Infinity;
     let bestIdx = -1;
     for (let i = 0; i < n; i++) {
       if (centroidIndices.includes(i)) continue;
+      if (hasEmbedded && (nodes[i].embedding?.length ?? 0) === 0) continue;
       const maxSimToCentroids = Math.max(...centroidIndices.map((cIdx) => matrix[i][cIdx]));
       if (maxSimToCentroids < minMaxSim) {
         minMaxSim = maxSimToCentroids;
         bestIdx = i;
+      }
+    }
+    if (bestIdx === -1 && centroidIndices.length < numClouds) {
+      for (let i = 0; i < n; i++) {
+        if (centroidIndices.includes(i)) continue;
+        const maxSimToCentroids = Math.max(...centroidIndices.map((cIdx) => matrix[i][cIdx]));
+        if (maxSimToCentroids < minMaxSim) {
+          minMaxSim = maxSimToCentroids;
+          bestIdx = i;
+        }
       }
     }
     // If every remaining node is already strongly similar to an existing centroid, stop adding artificial clusters

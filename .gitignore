@@ -13,6 +13,9 @@ main.new.js
 main.js.old-backup
 memvector-review-2026-09-14.md
 memvector-code-review-2026-09-19.md
+/test/
+/tests/
+dev_learning/
 /test-vault*/
 /testing/fixtures/smoke-test-vault/.obsidian/plugins/
 # Runtime state the smoke-test vault produces when Obsidian opens it: per-session UI
@@ -22,3 +25,5 @@ memvector-code-review-2026-09-19.md
 /testing/fixtures/smoke-test-vault/.obsidian/core-plugins.json
 /testing/fixtures/smoke-test-vault/.obsidian/workspace.json
 /testing/fixtures/smoke-test-vault/wiki/
+LOCAL_NOTES.md
+*.local.md

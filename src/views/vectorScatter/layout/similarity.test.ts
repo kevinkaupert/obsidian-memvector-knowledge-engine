@@ -186,5 +186,35 @@ describe("rescaleSimilarityMatrix", () => {
     const empty: number[][] = [];
     expect(rescaleSimilarityMatrix(empty)).toEqual(empty);
   });
+
+  it("computes bounds only from embedded pairs to prevent vector-less notes from distorting the spread (#224)", () => {
+    // 60 embedded pairs with similarities between 0.35 and 0.70
+    // plus 1 vector-less note with similarity 0.0 to all other notes
+    const n = 12;
+    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    for (let i = 0; i < n; i++) {
+      matrix[i][i] = 1.0;
+      for (let j = i + 1; j < n; j++) {
+        // Node n - 1 has no vector and no links -> similarity 0.0
+        if (i === n - 1 || j === n - 1) {
+          matrix[i][j] = 0.0;
+          matrix[j][i] = 0.0;
+        } else {
+          // Embedded pairs have similarity between 0.35 and 0.70
+          const val = 0.35 + 0.35 * ((i * n + j) / (n * n));
+          matrix[i][j] = val;
+          matrix[j][i] = val;
+        }
+      }
+    }
+
+    const embeddedIndices = Array.from({ length: n - 1 }, (_, i) => i);
+    const boundsAll = similarityModule.computeRescaleBounds(matrix);
+    const boundsEmbedded = similarityModule.computeRescaleBounds(matrix, embeddedIndices);
+
+    expect(boundsAll?.low).toBe(0.0); // Polluted by vector-less note
+    expect(boundsEmbedded?.low).toBeGreaterThanOrEqual(0.35); // Protected from distortion
+    expect(boundsEmbedded?.high).toBeCloseTo(boundsAll?.high ?? 0, 2);
+  });
 });
 
