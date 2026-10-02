@@ -125,15 +125,29 @@ export interface RescaleBounds {
 /**
  * Purpose: Derives the rescale bounds from the vault's off-diagonal similarity distribution, or null when there is
  * nothing to stretch (fewer than two nodes).
+ * Architecture: If `embeddedIndices` is provided with at least two embedded nodes, bounds are computed from
+ * pairwise similarities between embedded nodes to prevent vector-less notes from collapsing the lower bound to 0 (Issue #224).
  */
-export function computeRescaleBounds(matrix: number[][]): RescaleBounds | null {
+export function computeRescaleBounds(matrix: number[][], embeddedIndices?: readonly number[]): RescaleBounds | null {
   const n = matrix.length;
   if (n <= 1) return null;
 
   const vals: number[] = [];
-  for (let i = 0; i < n; i++) {
-    for (let j = i + 1; j < n; j++) {
-      vals.push(matrix[i][j]);
+  if (embeddedIndices && embeddedIndices.length >= 2) {
+    for (let i = 0; i < embeddedIndices.length; i++) {
+      const idxI = embeddedIndices[i];
+      for (let j = i + 1; j < embeddedIndices.length; j++) {
+        const idxJ = embeddedIndices[j];
+        if (idxI < n && idxJ < n) {
+          vals.push(matrix[idxI][idxJ]);
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        vals.push(matrix[i][j]);
+      }
     }
   }
 

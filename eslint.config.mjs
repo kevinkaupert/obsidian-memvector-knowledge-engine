@@ -28,6 +28,7 @@ export default defineConfig([
       "**/*.test.ts",
       "vitest.config.mts",
       "testing/**",
+      "tests/**",
     ],
   },
 ]);

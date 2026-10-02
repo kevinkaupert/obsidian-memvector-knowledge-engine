@@ -124,4 +124,38 @@ describe("applyVectorLayout and single-rescale guarantee (#75)", () => {
       expect(Number.isFinite(node.y)).toBe(true);
     }
   });
+
+  it("prevents notes without vectors from collapsing rescale bounds or stacking nodes at the origin (#224)", () => {
+    // Vault with 60 embedded notes
+    const dim = 16;
+    const baseVec = Array.from({ length: dim }, () => 1 / Math.sqrt(dim));
+    const embeddedNodes: ScatterNode[] = Array.from({ length: 60 }, (_, i) => {
+      const v = baseVec.map((x, d) => x + 0.3 * Math.sin(i * 1.7 + d));
+      const norm = Math.hypot(...v);
+      const embedding = v.map((x) => x / norm);
+      return makeNode(`node_${i}`, embedding);
+    });
+
+    const withoutVectorless = embeddedNodes.map((n) => ({ ...n }));
+    const modelWithout = applyVectorLayout(withoutVectorless, DEFAULT_SETTINGS, 350, 800, []);
+
+    // Add 1 vector-less note (e.g. freshly created or deleted relation note)
+    const vectorless = makeNode("unembedded_note", undefined);
+    vectorless.embedding = undefined;
+    vectorless.content = "";
+    const withVectorless = [...embeddedNodes.map((n) => ({ ...n })), vectorless];
+    const modelWith = applyVectorLayout(withVectorless, DEFAULT_SETTINGS, 350, 800, []);
+
+    // Rescale bounds for embedded notes must remain identical despite the vector-less note
+    expect(modelWith.bounds?.low).toBeCloseTo(modelWithout.bounds?.low ?? 0, 5);
+    expect(modelWith.bounds?.high).toBeCloseTo(modelWithout.bounds?.high ?? 0, 5);
+
+    // No embedded nodes should be collapsed/stacked near the origin
+    const nearZeroWithout = withoutVectorless.filter((n) => Math.hypot(n.x, n.y) < 50).length;
+    const nearZeroWith = withVectorless.filter((n) => n.embedding && Math.hypot(n.x, n.y) < 50).length;
+    expect(nearZeroWith).toBe(nearZeroWithout);
+
+    // Centroids must all be chosen from embedded notes
+    expect(modelWith.centroidIds).not.toContain("unembedded_note");
+  });
 });

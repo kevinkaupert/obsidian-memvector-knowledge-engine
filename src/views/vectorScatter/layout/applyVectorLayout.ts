@@ -46,7 +46,10 @@ export function prepareLayoutModel(
 ): LayoutModel {
   const isMath = settings.knowledgeDomain === "math";
   const rawMatrix = buildSimilarityMatrix(nodes, SIMILARITY_WEIGHTS, isMath);
-  const bounds = options.fixedBounds ?? computeRescaleBounds(rawMatrix);
+  const embeddedIndices = nodes
+    .map((node, i) => (node.embedding && node.embedding.length > 0 ? i : -1))
+    .filter((i) => i >= 0);
+  const bounds = options.fixedBounds ?? computeRescaleBounds(rawMatrix, embeddedIndices);
   const matrix = rescaleSimilarityMatrix(rawMatrix, bounds);
   const centroidIds = options.assignClusters === false ? [] : assignClouds(nodes, matrix);
   return { matrix, nodePaths: nodes.map((node) => node.path), bounds, centroidIds };
