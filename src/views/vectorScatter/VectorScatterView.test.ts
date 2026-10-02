@@ -234,6 +234,24 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     expect(view.loadRelationEdges).toHaveBeenCalled();
   });
 
+  it("drops nodes of already deleted notes before laying out, so a deleted relation note is not placed", async () => {
+    const view = makeView();
+    const kept = makeNode("a", "wiki/a.md", "concept");
+    const deleted = makeNode("rel", "wiki/relations/rel.md", "relation");
+    view.nodes = [kept, deleted];
+    view.selectedNodeIds = new Set(["a", "rel"]);
+    vi.mocked(view.app.vault.getAbstractFileByPath).mockImplementation((path: string) =>
+      path === kept.path ? Object.assign(new TFile(), { path }) : null
+    );
+    view.loadRelationEdges = vi.fn().mockResolvedValue(undefined);
+    let laidOut: string[] = [];
+    view.applyLayout = vi.fn(() => { laidOut = view.nodes.map((n) => n.path); });
+    view.refreshRelationEdges("rearrange");
+    await vi.waitFor(() => expect(view.applyLayout).toHaveBeenCalledWith("rearrange"));
+    expect(laidOut).toEqual(["wiki/a.md"]);
+    expect(view.selectedNodeIds.has("rel")).toBe(false);
+  });
+
   it("does not re-run the layout for a plain redraw", () => {
     const view = makeView();
     view.refreshRelationEdges = vi.fn();

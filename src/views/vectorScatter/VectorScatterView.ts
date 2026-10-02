@@ -946,6 +946,13 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // the drawn edge lines.
     void this.runExclusive(async () => {
       await this.loadRelationEdges();
+      // A deleted relation note can still be a node: its delete event is queued behind this update. Laying out with it
+      // would place a note that no longer exists and, without a vector, distort a free rearrangement.
+      const existing = this.nodes.filter((n) => this.app.vault.getAbstractFileByPath(n.path) instanceof TFile);
+      if (existing.length !== this.nodes.length) {
+        this.nodes = existing;
+        this.reconcileTransientState();
+      }
       this.applyLayout(mode);
       this.redraw();
     });
