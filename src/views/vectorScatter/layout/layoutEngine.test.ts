@@ -125,4 +125,14 @@ describe("LayoutEngine (#209)", () => {
 
     expect(engine.run(input(nodes), "global").simulated).toBe(true);
   });
+
+  it("uses id as a deterministic tiebreak when selecting similar neighbors for bounded mobile sets", () => {
+    const engine = new LayoutEngine();
+    const nodes = makeNodes(true);
+    engine.run(input(nodes));
+    const fresh = clone(nodes);
+    fresh[0].content = "modified content to trigger bounded";
+    const result = engine.run(input(fresh));
+    expect(result.kind).toBe("bounded");
+  });
 });

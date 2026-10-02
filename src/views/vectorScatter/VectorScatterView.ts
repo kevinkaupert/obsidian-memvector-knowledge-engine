@@ -755,6 +755,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         return;
       }
       void this.runExclusive(async () => {
+        this.pruneDeletedNodes();
         for (const n of this.nodes) n.embedding = undefined;
         await this.hydrateStoredEmbeddings(this.nodes, new Map(), true);
         this.applyLayout();
@@ -868,6 +869,22 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   /**
+   * Purpose: Drops nodes whose backing files no longer exist before layout or embedding updates.
+   * Architecture: Prevents stale ghost notes from participating in force simulations or distorting free layouts
+   * when vault deletion events are still queued behind the current view action.
+   */
+  pruneDeletedNodes(): boolean {
+    if (!this.app?.vault?.getAbstractFileByPath) return false;
+    const existing = this.nodes.filter((n) => this.app.vault.getAbstractFileByPath(n.path) instanceof TFile);
+    if (existing.length !== this.nodes.length) {
+      this.nodes = existing;
+      this.reconcileTransientState();
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Purpose: Lays out the nodes when a layout input changed, and persists positions only when the simulation ran.
    * Architecture: Data updates call this with "auto"; the layout engine compares the layout-input signatures with the
    * last completed pass and leaves every node in place when nothing relevant changed (ADR-0006).
@@ -875,6 +892,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   applyLayout(mode: LayoutMode = "auto"): void {
     // Vectors could not be read: laying out on fallback data would rearrange and overwrite the existing map (#191).
     if (this.embeddingHydrationFailed) return;
+    this.pruneDeletedNodes();
     const { simulated } = this.layoutEngine.run(
       {
         nodes: this.nodes,
@@ -896,6 +914,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   rearrangeLayout(): Promise<void> {
     return this.runExclusive(async () => {
+      this.pruneDeletedNodes();
       this.applyLayout("rearrange");
       this.fitToView();
       this.hasFittedView = true;
@@ -910,6 +929,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    */
   onVectorsCalculated(): Promise<void> {
     return this.runExclusive(async () => {
+      this.pruneDeletedNodes();
       await this.hydrateStoredEmbeddings(this.nodes, new Map(), true);
       this.applyLayout();
       this.redraw();
@@ -946,14 +966,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // the drawn edge lines.
     void this.runExclusive(async () => {
       await this.loadRelationEdges();
-      // A deleted relation note can still be a node: its delete event is queued behind this update. Laying out with it
-      // would place a note that no longer exists and, without a vector, distort a free rearrangement.
-      const existing = this.nodes.filter((n) => this.app.vault.getAbstractFileByPath(n.path) instanceof TFile);
-      if (existing.length !== this.nodes.length) {
-        this.nodes = existing;
-        this.reconcileTransientState();
-      }
+      this.pruneDeletedNodes();
       this.applyLayout(mode);
+      if (mode === "rearrange") {
+        this.fitToView();
+        this.hasFittedView = true;
+      }
       this.redraw();
     });
   }

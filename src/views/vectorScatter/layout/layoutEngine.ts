@@ -178,7 +178,7 @@ export class LayoutEngine {
       const row = matrix[i];
       nodes
         .map((n, j) => ({ id: n.id, sim: j === i ? -Infinity : row[j] }))
-        .sort((a, b) => b.sim - a.sim)
+        .sort((a, b) => (b.sim - a.sim) || a.id.localeCompare(b.id, "en"))
         .slice(0, SIMILAR_NEIGHBORS_MOBILE)
         .forEach((m) => mobile.add(m.id));
     });
