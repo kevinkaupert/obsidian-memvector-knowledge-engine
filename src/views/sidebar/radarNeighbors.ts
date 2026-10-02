@@ -27,6 +27,14 @@ export async function findVectorNeighbors(app: App, settings: MemVectorSettings,
         content: hit.payload.content || "",
       });
     }
+    if (neighbors.length === 0) {
+      const otherFilesExist = app.vault.getMarkdownFiles().some(
+        (file) => file.path !== activeFile.path && !shouldExcludeFromRadar(file, settings.vectorSearchExclusions)
+      );
+      if (otherFilesExist) {
+        return { status: "unindexed", data: [] };
+      }
+    }
     return { status: "ready", data: neighbors };
   } catch (err) {
     console.warn("Vector-based radar neighbors unavailable, falling back to local scoring:", err);

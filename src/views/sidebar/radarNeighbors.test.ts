@@ -29,10 +29,21 @@ beforeEach(() => {
 });
 
 describe("radar retrieval status (#193)", () => {
-  it("keeps successful empty semantic results and does not run heuristic scoring", async () => {
-    expect(await loadRadarNeighbors(app, DEFAULT_SETTINGS, active, "shared words", 10))
+  it("keeps successful empty semantic results when no other candidates exist in vault", async () => {
+    const singleFileApp = {
+      ...app,
+      vault: { ...app.vault, getMarkdownFiles: () => [active] },
+    } as unknown as App;
+    expect(await loadRadarNeighbors(singleFileApp, DEFAULT_SETTINGS, active, "shared words", 10))
       .toEqual({ status: "ready", data: [] });
     expect(app.vault.cachedRead).not.toHaveBeenCalled();
+  });
+
+  it("reports unindexed and falls back to heuristic scoring when other candidates exist but have no vectors", async () => {
+    const result = await loadRadarNeighbors(app, DEFAULT_SETTINGS, active, "shared words", 10);
+    expect(result.status).toBe("unindexed");
+    expect(result.data).toHaveLength(3);
+    expect(app.vault.cachedRead).toHaveBeenCalled();
   });
 
   it("labels missing embeddings as unindexed and ranks fallback ties by path", async () => {

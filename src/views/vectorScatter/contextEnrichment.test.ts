@@ -57,6 +57,7 @@ const mockVectorStore: Partial<VectorStore> = {
 
 const mockGraphStore: Partial<GraphStore> = {
   fetchNeighbors: vi.fn(),
+  isIndexed: vi.fn().mockResolvedValue(true),
 };
 
 vi.mock("../../sync/storeFactory", () => ({
@@ -730,5 +731,14 @@ describe("explicit retrieval channel status (#192)", () => {
     } finally {
       mockVectorStore.getVectors = original;
     }
+  });
+
+  it("reports unindexed graph channel when graph store has not been indexed", async () => {
+    vi.mocked(mockVectorStore.search!).mockResolvedValue([]);
+    vi.mocked(mockGraphStore.isIndexed!).mockResolvedValueOnce(false);
+    vi.mocked(mockGraphStore.fetchNeighbors!).mockResolvedValue([]);
+    const context = await enrichContextResult(makeMockApp(new Map()), settings, selected);
+    expect(context.channels).toEqual({ vector: "ready", graph: "unindexed" });
+    expect(contextWarnings(context, t)).toEqual([t.retrievalGraphUnindexed]);
   });
 });

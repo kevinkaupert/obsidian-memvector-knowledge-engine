@@ -8,6 +8,7 @@ export const de: TranslationKeys = {
   retrievalVectorFailed: "Eingeschränkter Kontext: Vektorsuche fehlgeschlagen.",
   retrievalVectorUnindexed: "Eingeschränkter Kontext: Für ausgewählte Notizen fehlen Vektoren. Vektoren in der 2D-Ansicht berechnen.",
   retrievalGraphFailed: "Eingeschränkter Kontext: Graph-Abfrage fehlgeschlagen.",
+  retrievalGraphUnindexed: "Eingeschränkter Kontext: Graph-Index ist noch nicht synchronisiert.",
   retrievalContextFailed: "Kontext konnte nicht geladen werden. Bitte erneut versuchen.",
   sidebarTitle: "MemVector Co-Pilot",
   settingsTitle: "MemVector Knowledge Engine Einstellungen",

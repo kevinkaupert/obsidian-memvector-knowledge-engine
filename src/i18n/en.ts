@@ -8,6 +8,7 @@ export const en: TranslationKeys = {
   retrievalVectorFailed: "Limited context: vector search failed.",
   retrievalVectorUnindexed: "Limited context: selected notes are missing vectors. Calculate vectors in the 2D view.",
   retrievalGraphFailed: "Limited context: graph lookup failed.",
+  retrievalGraphUnindexed: "Limited context: graph index is not yet synchronized.",
   retrievalContextFailed: "Context could not be loaded. Please try again.",
   sidebarTitle: "MemVector Co-Pilot",
   settingsTitle: "MemVector Knowledge Engine Settings",
