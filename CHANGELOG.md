@@ -7,6 +7,35 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-10-02
+
+### Fixed
+- **Vectorless Note Layout Hardening**: Rescale similarity bounds are now computed strictly from pairs of
+  notes with valid embeddings when >= 2 exist, preventing un-embedded notes from distorting global matrix
+  scaling or collapsing to the origin. Bounds default safely for 0-1 embedded notes (#224).
+- **Centroid Selection for Small Sets**: Cluster centroid selection (`assignClusters`) prioritizes embedded
+  notes even when note count n <= numClouds, preventing un-embedded notes from anchoring clusters.
+- **Camera Refit on Relation Removal**: Deleting a relation triggers a deterministic global rearrangement
+  and automatically refits the camera (`fitToView`), ensuring the graph remains centered in view (#218).
+- **Centralized Deletion Pruning**: Centralized `pruneDeletedNodes()` before all layout passes, eliminating
+  ghost nodes and origin stacks from deleted notes across view operations.
+- **Deterministic Sort Tiebreaks**: In `layoutEngine.mobileSet`, note ID comparison provides an explicit
+  tiebreak when similarity scores match.
+- **Graph Retrieval Unindexed State**: The SQLite graph store checks `isIndexed()`, accurately reporting
+  unindexed graph states and rendering localized warnings instead of falsely reporting `ready` (#192).
+- **Radar Heuristic Fallback**: Radar signals `unindexed` and activates word/formula heuristic ranking
+  when candidate vault notes lack vector embeddings (#193).
+- **Cross-Machine Determinism**: Standardized all string comparisons and search tiebreaks to explicit `"en"`
+  locale, preventing platform- and host-locale-dependent sorting divergence (#195).
+- **Reasoning Token Preservation**: Incomplete reasoning blocks lacking `</think>` tags are retained in the
+  callout rather than crashing parsing (#198).
+- **Workspace State Restoration**: Saved scatter filters are restored smoothly without redundant rescans (#194).
+
+### Changed
+- Standardized all `localeCompare` calls to explicit `"en"` locale.
+- ADR-0006 updated to clarify scratch global rearrangement upon relation deletion and hybrid force modeling.
+- Added localized `retrievalGraphUnindexed` warning for unindexed graph database in English and German.
+
 ## [0.2.2] - 2026-10-01
 
 ### Added

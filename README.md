@@ -1,11 +1,11 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-0.2.2-blue)
+![Version](https://img.shields.io/badge/version-0.2.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-720%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-775%20passing-brightgreen)
 
 **A 2D thinking workspace for Obsidian.**
 
