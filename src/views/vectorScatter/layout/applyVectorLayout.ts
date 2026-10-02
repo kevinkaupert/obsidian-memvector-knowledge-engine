@@ -26,8 +26,8 @@ export interface LayoutModel {
 /** Keep node identities but never reorder the caller's array. Sorted inputs need no second sort. */
 export function copyNodesInPathOrder(nodes: ScatterNode[]): ScatterNode[] {
   const ordered = nodes.slice();
-  if (ordered.some((node, i) => i > 0 && ordered[i - 1].path.localeCompare(node.path) > 0)) {
-    ordered.sort((a, b) => a.path.localeCompare(b.path));
+  if (ordered.some((node, i) => i > 0 && ordered[i - 1].path.localeCompare(node.path, "en") > 0)) {
+    ordered.sort((a, b) => a.path.localeCompare(b.path, "en"));
   }
   return ordered;
 }

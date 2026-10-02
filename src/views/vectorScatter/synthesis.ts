@@ -220,9 +220,12 @@ Guidelines:
 - Link key concepts with Obsidian WikiLinks [[Concept Name]].`;
 }
 
+/**
+ * Purpose: Builds deterministic lookup map from note slugs and aliases to canonical basenames.
+ */
 function buildVaultTitleMap(app: App): Map<string, string> {
   const map = new Map<string, string>();
-  for (const file of app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path))) {
+  for (const file of app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"))) {
     const basename = file.basename;
     map.set(toSlug(basename), basename);
     map.set(basename.toLowerCase(), basename);

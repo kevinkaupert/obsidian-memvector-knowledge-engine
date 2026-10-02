@@ -580,7 +580,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     if (changes.relations) await this.loadRelationEdges();
     if (generation !== this.scanGeneration) return;
 
-    this.nodes = [...kept, ...fresh].sort((a, b) => a.path.localeCompare(b.path));
+    this.nodes = [...kept, ...fresh].sort((a, b) => a.path.localeCompare(b.path, "en"));
     this.reconcileTransientState();
     this.applyLayout();
     this.redraw();

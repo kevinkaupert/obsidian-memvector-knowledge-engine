@@ -33,7 +33,7 @@ describe("applyVectorLayout and single-rescale guarantee (#75)", () => {
     expect(second).toEqual(first);
     expect(shuffled.map((node) => node.path)).toEqual(["c.md", "a.md", "d.md", "b.md"]);
     shuffled.forEach((node, i) => expect(node).toBe(originalOrder[i]));
-    expect([...shuffled].sort((a, b) => a.path.localeCompare(b.path))).toEqual(ordered);
+    expect([...shuffled].sort((a, b) => a.path.localeCompare(b.path, "en"))).toEqual(ordered);
     expect(second.nodePaths).toEqual(["a.md", "b.md", "c.md", "d.md"]);
     const expected = similarityModule.rescaleSimilarityMatrix(similarityModule.buildSimilarityMatrix(ordered, { vector: 0.5, wikiLinks: 0.3, folder: 0.1, semantics: 0.1 }, DEFAULT_SETTINGS.knowledgeDomain === "math"));
     expect(second.matrix).toEqual(expected);

@@ -160,7 +160,7 @@ export class SqliteVectorStore implements VectorStore {
       payload: { path: String(row[idx.path]), title: String(row[idx.title]), content: String(row[idx.content]) },
     }));
 
-    const sorted = scored.sort((a, b) => (b.score - a.score) || a.payload.path.localeCompare(b.payload.path));
+    const sorted = scored.sort((a, b) => (b.score - a.score) || a.payload.path.localeCompare(b.payload.path, "en"));
     return limit > 0 ? sorted.slice(0, Math.trunc(limit)) : sorted;
   }
 }

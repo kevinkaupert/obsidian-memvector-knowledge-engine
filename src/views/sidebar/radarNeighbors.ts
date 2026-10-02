@@ -49,7 +49,7 @@ export async function loadRadarNeighbors(app: App, settings: MemVectorSettings |
     : { status: "unindexed" as const, data: [] };
   if (result.status === "ready") return result;
 
-  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path))
+  const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"))
     .filter((file) => file.path !== activeFile.path && !shouldExcludeFromRadar(file, settings?.vectorSearchExclusions));
   const candidates: { file: TFile; content: string }[] = [];
   for (const file of files) candidates.push({ file, content: await app.vault.cachedRead(file) });
