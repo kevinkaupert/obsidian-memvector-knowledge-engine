@@ -269,7 +269,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       if (typeof s.viewFilterQuery === "string" && s.viewFilterQuery !== this.viewFilterQuery) {
         this.viewFilterQuery = s.viewFilterQuery;
         this.toolbarHandles?.updateFilterQuery?.(this.viewFilterQuery);
-        if (this.toolbarHandles) {
+        if (this.toolbarHandles && !this.initialScanPending) {
           await this.scanVaultNotes(undefined, { preserveView: true });
           this.toolbarHandles.updateSelectionUI();
         }
@@ -314,6 +314,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.showRelationNotes = this.settings.showRelationNotes ?? false;
     this.edgeHops = this.settings.scatterEdgeHops ?? this.edgeHops ?? 1;
 
+    this.initialScanPending = true;
     this.toolbarHandles = buildToolbar(this, { canvasWrap, canvas, toolbarEl, hoverBar }, t);
 
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
@@ -328,6 +329,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     });
 
     const initScan = async () => {
+      if (!this.initialScanPending) return;
+      this.initialScanPending = false;
       await this.scanVaultNotes();
       this.toolbarHandles?.updateSelectionUI();
     };
@@ -345,6 +348,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   onClose(): Promise<void> {
+    this.initialScanPending = false;
     this.vaultEvents.dispose();
     void this.positionWriter.flush();
     if (this.embeddingReloadTimer !== null) {
@@ -364,6 +368,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private workChain: Promise<void> = Promise.resolve();
   /** Incremented per requested full scan; work started under an older value is discarded. */
   private scanGeneration = 0;
+  /** Workspace restoration can change the filter before the layout-ready scan starts. */
+  private initialScanPending = false;
   /** Vault changes arrived while the view was hidden and are waiting in the queue. */
   private staleWhileHidden = false;
   /** The last vector read failed: layout and position writes are frozen until a complete read succeeds (#191). */

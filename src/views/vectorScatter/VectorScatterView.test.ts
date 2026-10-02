@@ -70,7 +70,8 @@ vi.mock("./canvasInteraction", () => ({
   wireCanvasInteraction: vi.fn(() => vi.fn()),
 }));
 
-vi.mock("./layout/applyVectorLayout", () => ({
+vi.mock("./layout/applyVectorLayout", async (importOriginal) => ({
+  ...await importOriginal<typeof import("./layout/applyVectorLayout")>(),
   applyVectorLayout: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
   prepareLayoutModel: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
 }));
@@ -631,6 +632,22 @@ describe("VectorScatterView watcher recognizes moved relation notes (#173)", () 
 });
 
 describe("VectorScatterView camera viewport persistence (getState/setState)", () => {
+  it("uses the pending layout-ready scan for a restored filter rather than scanning twice", async () => {
+    const host = createMockHost();
+    let layoutReady!: () => void;
+    host.app.workspace = { layoutReady: false, onLayoutReady: (callback: () => void) => { layoutReady = callback; } } as any;
+    const view = new VectorScatterView({} as WorkspaceLeaf, host);
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+    await view.onOpen();
+    await view.setState({ viewFilterQuery: "tag:#active" }, {} as any);
+    expect(view.scanVaultNotes).not.toHaveBeenCalled();
+    expect(view.viewFilterQuery).toBe("tag:#active");
+    layoutReady();
+    expect(view.scanVaultNotes).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    layoutReady();
+    expect(view.scanVaultNotes).toHaveBeenCalledTimes(1);
+  });
   it("restores a filter after opening and updates toolbar and node set without refitting the camera (#186)", async () => {
     const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost({ scatterEdgeHops: 3 }));
     view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);

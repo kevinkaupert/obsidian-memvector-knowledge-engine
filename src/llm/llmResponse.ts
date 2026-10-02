@@ -6,7 +6,8 @@ export interface LlmResponse {
 /** Extract inline thinking without ever substituting it for the answer. */
 export function normalizeLlmResponse(content: string, reasoning: string[] = []): LlmResponse {
   const parts = [...reasoning];
-  const stripped = content.replace(/<think>([\s\S]*?)<\/think>/g, (_, thinking: string) => {
+  // A truncated thinking block runs to EOF; none of its body may become answer text.
+  const stripped = content.replace(/<think>([\s\S]*?)(?:<\/think>|$)/g, (_, thinking: string) => {
     parts.push(thinking);
     return "";
   });

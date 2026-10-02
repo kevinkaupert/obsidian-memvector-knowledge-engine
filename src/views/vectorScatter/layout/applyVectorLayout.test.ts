@@ -26,10 +26,17 @@ describe("applyVectorLayout and single-rescale guarantee (#75)", () => {
   it("produces identical positions and clusters for permuted input (#195)", () => {
     const ordered = [makeNode("a", [1, 0, 0]), makeNode("b", [0, 1, 0]), makeNode("c", [1, 1, 0]), makeNode("d", [0, 0, 1])];
     const shuffled = [ordered[2], ordered[0], ordered[3], ordered[1]].map((node) => ({ ...node }));
+    const originalOrder = [...shuffled];
+    Object.freeze(shuffled);
     const first = applyVectorLayout(ordered, DEFAULT_SETTINGS, 200, 500, []);
     const second = applyVectorLayout(shuffled, DEFAULT_SETTINGS, 200, 500, []);
     expect(second).toEqual(first);
-    expect(shuffled).toEqual(ordered);
+    expect(shuffled.map((node) => node.path)).toEqual(["c.md", "a.md", "d.md", "b.md"]);
+    shuffled.forEach((node, i) => expect(node).toBe(originalOrder[i]));
+    expect([...shuffled].sort((a, b) => a.path.localeCompare(b.path))).toEqual(ordered);
+    expect(second.nodePaths).toEqual(["a.md", "b.md", "c.md", "d.md"]);
+    const expected = similarityModule.rescaleSimilarityMatrix(similarityModule.buildSimilarityMatrix(ordered, { vector: 0.5, wikiLinks: 0.3, folder: 0.1, semantics: 0.1 }, DEFAULT_SETTINGS.knowledgeDomain === "math"));
+    expect(second.matrix).toEqual(expected);
   });
   it("calls rescaleSimilarityMatrix exactly once during applyVectorLayout", () => {
     const rescaleSpy = vi.spyOn(similarityModule, "rescaleSimilarityMatrix");

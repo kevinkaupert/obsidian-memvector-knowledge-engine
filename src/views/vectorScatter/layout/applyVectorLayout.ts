@@ -16,9 +16,20 @@ const SIMILARITY_WEIGHTS = {
 /** Rescaled similarity matrix plus the state needed to keep its scale and the cluster assignment. */
 export interface LayoutModel {
   matrix: number[][];
+  /** Matrix row/column paths, independent of the caller's node-array order. */
+  nodePaths: string[];
   bounds: RescaleBounds | null;
   /** Ids of the cluster centroid nodes, in cloud id order. */
   centroidIds: string[];
+}
+
+/** Keep node identities but never reorder the caller's array. Sorted inputs need no second sort. */
+export function copyNodesInPathOrder(nodes: ScatterNode[]): ScatterNode[] {
+  const ordered = nodes.slice();
+  if (ordered.some((node, i) => i > 0 && ordered[i - 1].path.localeCompare(node.path) > 0)) {
+    ordered.sort((a, b) => a.path.localeCompare(b.path));
+  }
+  return ordered;
 }
 
 /**
@@ -38,7 +49,7 @@ export function prepareLayoutModel(
   const bounds = options.fixedBounds ?? computeRescaleBounds(rawMatrix);
   const matrix = rescaleSimilarityMatrix(rawMatrix, bounds);
   const centroidIds = options.assignClusters === false ? [] : assignClouds(nodes, matrix);
-  return { matrix, bounds, centroidIds };
+  return { matrix, nodePaths: nodes.map((node) => node.path), bounds, centroidIds };
 }
 
 /**
@@ -52,10 +63,10 @@ export function applyVectorLayout(
   relationEdges: RelationEdge[],
   vocabulary?: RelationTermDef[]
 ): LayoutModel {
-  if (!nodes || nodes.length === 0) return { matrix: [], bounds: null, centroidIds: [] };
+  if (!nodes || nodes.length === 0) return { matrix: [], nodePaths: [], bounds: null, centroidIds: [] };
 
   // Keep the matrix, centroid selection and force iteration in the same canonical order.
-  nodes.sort((a, b) => a.path.localeCompare(b.path));
+  nodes = copyNodesInPathOrder(nodes);
   const model = prepareLayoutModel(nodes, settings);
 
   applyGraphVectorProjection({

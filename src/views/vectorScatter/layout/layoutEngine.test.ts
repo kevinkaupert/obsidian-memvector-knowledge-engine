@@ -42,6 +42,19 @@ beforeEach(() => {
 });
 
 describe("LayoutEngine (#209)", () => {
+  it("preserves caller order and references through initialization, bounded and free passes", () => {
+    const nodes = makeNodes(true).reverse();
+    const originalOrder = [...nodes];
+    Object.freeze(nodes);
+    const engine = new LayoutEngine();
+    expect(engine.run(input(nodes)).kind).toBe("none");
+    nodes[2].content = "changed geometry words";
+    expect(engine.run(input(nodes)).kind).toBe("bounded");
+    expect(engine.run(input(nodes), "global").kind).toBe("free");
+    expect(engine.run(input(nodes), "rearrange").kind).toBe("free");
+    nodes.forEach((node, i) => expect(node).toBe(originalOrder[i]));
+    expect(nodes.map((node) => node.path)).toEqual(originalOrder.map((node) => node.path));
+  });
   it("initializes from placed nodes without simulating and assigns clusters", () => {
     const engine = new LayoutEngine();
     const nodes = makeNodes(true);

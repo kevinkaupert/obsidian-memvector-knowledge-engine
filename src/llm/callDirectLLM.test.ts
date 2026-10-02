@@ -56,4 +56,16 @@ describe("provider reasoning (#181)", () => {
     expect(await callDirectLLM("prompt", "https://example.com/v1", "", "model"))
       .toEqual({ content: "Answer", reasoning: "Separate\n\nInline" });
   });
+
+  it("rejects a truncated thinking-only response instead of displaying reasoning as the answer", async () => {
+    respond({ choices: [{ message: { content: "<think>Incomplete reasoning" } }] });
+    await expect(callDirectLLM("prompt", "https://example.com/v1", "", "model"))
+      .rejects.toThrow("reasoning without an answer");
+  });
+
+  it("keeps answer text before a truncated thinking block and moves the remainder to reasoning", async () => {
+    respond({ choices: [{ message: { content: "Answer\n<think>Incomplete reasoning" } }] });
+    expect(await callDirectLLM("prompt", "https://example.com/v1", "", "model"))
+      .toEqual({ content: "Answer", reasoning: "Incomplete reasoning" });
+  });
 });
