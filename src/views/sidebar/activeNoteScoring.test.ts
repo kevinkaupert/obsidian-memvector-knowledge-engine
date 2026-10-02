@@ -9,6 +9,13 @@ import {
   shouldExcludeFromRadar,
 } from "./activeNoteScoring";
 
+it("breaks equal heuristic scores by path regardless of traversal order (#195)", () => {
+  const candidates = ["c", "a", "b"].map((id) => ({ file: { path: `${id}.md`, name: `${id}.md`, basename: id }, content: "shared words" }));
+  const paths = (items: typeof candidates) => rankCandidates("shared words", items).map((note) => note.file.path);
+  expect(paths(candidates)).toEqual(["a.md", "b.md", "c.md"]);
+  expect(paths([...candidates].reverse())).toEqual(paths(candidates));
+});
+
 describe("shouldExcludeFromRadar", () => {
   it("excludes files whose path contains 'schema'", () => {
     expect(shouldExcludeFromRadar({ path: "schema/foo.md", name: "foo.md", basename: "foo" })).toBe(true);
@@ -98,4 +105,3 @@ describe("classifyNoteType uses the shared relation-note rule (#173)", () => {
     expect(classifyNoteType("Customers/relations/a.md", "a.md", "concept")).toBe("concept");
   });
 });
-

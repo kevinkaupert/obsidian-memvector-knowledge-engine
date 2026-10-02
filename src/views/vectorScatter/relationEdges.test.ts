@@ -39,6 +39,18 @@ function fakeApp(files: FakeFile[]): App {
 }
 
 describe("loadRelationEdges", () => {
+  it("resolves duplicate relation files identically for reversed vault order (#195)", async () => {
+    const files: FakeFile[] = [
+      { path: "Alpha.md", basename: "Alpha" },
+      { path: "Beta.md", basename: "Beta" },
+      ...["z", "a"].map((id) => ({ path: `wiki/relations/${id}.md`, basename: id,
+        frontmatter: { source_note: "[[Alpha]]", target_note: "[[Beta]]", relation_type: "REQUIRES", description: id } })),
+    ];
+    const first = await loadRelationEdges(fakeApp(files));
+    expect(first).toHaveLength(1);
+    expect(first[0].path).toBe("wiki/relations/a.md");
+    expect(await loadRelationEdges(fakeApp([...files].reverse()))).toEqual(first);
+  });
   it("resolves source_note/target_note WikiLinks to the same canonical id scheme as the rest of the graph (F04a)", async () => {
     const app = fakeApp([
       { path: "Alpha.md", basename: "Alpha" },

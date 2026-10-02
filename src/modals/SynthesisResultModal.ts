@@ -4,6 +4,7 @@ import { getTranslation, withFolder } from "../i18n";
 import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
 import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
+import { renderRetrievalWarning } from "../retrievalStatus";
 
 interface SynthesisNode {
   id: string;
@@ -17,7 +18,8 @@ export class SynthesisResultModal extends Modal {
     private readonly selectedNodes: SynthesisNode[],
     private readonly synthesisText: string,
     private readonly modelName: string,
-    private readonly settings: MemVectorSettings | undefined
+    private readonly settings: MemVectorSettings | undefined,
+    private readonly warnings: string[] = []
   ) {
     super(app);
   }
@@ -31,6 +33,7 @@ export class SynthesisResultModal extends Modal {
     const t = getTranslation(lang);
 
     contentEl.createEl("h2", { text: `${t.synthModalTitle} (${this.modelName})` });
+    for (const warning of this.warnings) renderRetrievalWarning(contentEl, warning);
     contentEl.createEl("p", {
       text: `${t.synthLinkedNotes} ${this.selectedNodes.map((n) => n.title).join(", ")}`,
       cls: "memvector-muted-text",
@@ -76,7 +79,7 @@ generated:
 
 # ${synthTitlePrefix} ${this.selectedNodes.map((n) => `[[${wikiLinkTarget(n.path)}|${n.title}]]`).join(" & ")}
 
-${this.synthesisText}
+${this.warnings.map((warning) => `> [!warning] ${warning}\n\n`).join("")}${this.synthesisText}
 `;
       try {
         await ensureParentFolder(this.app, finalPath);

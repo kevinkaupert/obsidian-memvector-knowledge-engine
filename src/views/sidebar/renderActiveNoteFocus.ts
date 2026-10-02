@@ -1,54 +1,14 @@
-import { TFile, type App } from "obsidian";
-import { getVectorStore } from "../../sync/storeFactory";
+import { type TFile, type App } from "obsidian";
 import type { MemVectorSettings } from "../../settings/types";
 import {
-  classifyNoteType,
-  extractFormulas,
   limitToConfiguredCount,
-  rankCandidates,
   resolveRadarFetchCount,
-  shouldExcludeFromRadar,
   type ScoredNote,
 } from "./activeNoteScoring";
-import { getNode2DPosition } from "./nodePosition";
+import { getNode2DPositions } from "./nodePosition";
+import { loadRadarNeighbors } from "./radarNeighbors";
+import { renderRetrievalWarning } from "../../retrievalStatus";
 import { getTranslation } from "../../i18n";
-import { relationsFolder } from "../../vaultLayout";
-
-/**
- * Tries the real vector index first (semantic nearest-neighbors via whichever
- * backend is configured), falling back to null if the active note hasn't been
- * synced yet or the backend is unreachable - callers fall back to the local
- * word/formula-overlap heuristic (rankCandidates) in that case, so the radar
- * never just breaks for an unsynced vault.
- */
-async function findVectorNeighbors(app: App, settings: MemVectorSettings, activeFile: TFile, limit: number): Promise<ScoredNote[] | null> {
-  try {
-    const store = getVectorStore(app, settings);
-    const activeVector = await store.getVector(activeFile.path);
-    if (!activeVector) return null;
-
-    const hits = await store.search(activeVector, limit + 1);
-    const seen = new Set<string>([activeFile.path]);
-    const neighbors: ScoredNote[] = [];
-    for (const hit of hits) {
-      if (seen.has(hit.payload.path)) continue;
-      const file = app.vault.getAbstractFileByPath(hit.payload.path);
-      if (!(file instanceof TFile)) continue;
-      seen.add(hit.payload.path);
-      neighbors.push({
-        file,
-        type: classifyNoteType(file.path, file.name, app.metadataCache.getFileCache(file)?.frontmatter?.type, relationsFolder(settings)),
-        score: hit.score,
-        formulas: extractFormulas(hit.payload.content || ""),
-        content: hit.payload.content || "",
-      });
-    }
-    return neighbors.length > 0 ? neighbors : null;
-  } catch (err) {
-    console.warn("Vector-based radar neighbors unavailable, falling back to local scoring:", err);
-    return null;
-  }
-}
 
 const TYPE_COLORS: Record<string, string> = {
   definition: "#3b82f6",
@@ -114,19 +74,15 @@ export async function renderActiveNoteFocus(
     const countX = pluginSettings?.radarNoteCount || 10;
     const wantCount = resolveRadarFetchCount(countX);
 
-    let topNeighbors = pluginSettings ? await findVectorNeighbors(app, pluginSettings, activeFile, wantCount) : null;
+    const result = await loadRadarNeighbors(app, pluginSettings, activeFile, activeContent, wantCount);
     if (isCurrent && !isCurrent()) return;
-
-    if (!topNeighbors) {
-      const exclusions = pluginSettings?.vectorSearchExclusions;
-      const candidateFiles = app.vault.getMarkdownFiles().filter((f) => f.path !== activeFile.path && !shouldExcludeFromRadar(f, exclusions));
-      const candidates: { file: TFile; content: string }[] = [];
-      for (const f of candidateFiles) {
-        candidates.push({ file: f, content: await app.vault.cachedRead(f) });
-      }
-      if (isCurrent && !isCurrent()) return;
-      topNeighbors = rankCandidates(activeContent, candidates).slice(0, wantCount);
+    const semantic = result.status === "ready";
+    const scoreLabel = semantic ? t.radarSemantic : t.radarHeuristic;
+    if (!semantic) {
+      renderRetrievalWarning(focusBox, result.status === "error" ? t.radarStoreFailed : t.radarUnindexed);
+      focusBox.addClass("memvector-radar-heuristic");
     }
+    let topNeighbors = result.data;
 
     // wantCount over-fetched for ranking quality; only the configured count is actually shown.
     topNeighbors = limitToConfiguredCount(topNeighbors, countX);
@@ -140,11 +96,13 @@ export async function renderActiveNoteFocus(
 
     const centerX = width / 2;
     const centerY = height / 2;
-    const activePos = getNode2DPosition(app, activeFile, activeContent);
+    const positions = await getNode2DPositions(app, [{ file: activeFile, content: activeContent }, ...topNeighbors]);
+    if (isCurrent && !isCurrent()) return;
+    const activePos = positions.get(activeFile.path)!;
     const maxRadius = Math.min(width, height) * 0.42;
 
     const neighborNodes: RadarNode[] = topNeighbors.map((item, idx) => {
-      const nPos = getNode2DPosition(app, item.file, item.content);
+      const nPos = positions.get(item.file.path)!;
       const rawDx = nPos.x - activePos.x;
       const rawDy = nPos.y - activePos.y;
       const angle = Math.hypot(rawDx, rawDy) > 1e-3 ? Math.atan2(rawDy, rawDx) : (idx / (topNeighbors.length || 1)) * Math.PI * 2;
@@ -235,7 +193,7 @@ export async function renderActiveNoteFocus(
       ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
       ctx.font = "9px monospace";
       ctx.textAlign = "left";
-      ctx.fillText("POLAR: VEKTOR DISTANZ", 8, 14);
+      ctx.fillText(scoreLabel, 8, 14);
       ctx.textAlign = "right";
       ctx.fillText(`N=${neighborNodes.length}`, width - 8, 14);
     };
@@ -339,7 +297,7 @@ export async function renderActiveNoteFocus(
     topNeighbors.slice(0, 5).forEach((item, idx) => {
       const row = listContainer.createDiv({ cls: "memvector-radar-row" });
       row.createSpan({ text: `${idx + 1}. ${item.file.basename}`, cls: "memvector-radar-name" });
-      row.createSpan({ text: item.score.toFixed(3), cls: "memvector-radar-score" });
+      row.createSpan({ text: semantic ? item.score.toFixed(3) : `≈ ${item.score.toFixed(2)}`, cls: "memvector-radar-score", attr: { title: scoreLabel } });
 
       row.onclick = () => {
         void app.workspace.openLinkText(item.file.basename, item.file.path, true);

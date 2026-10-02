@@ -69,6 +69,10 @@ function fakeAppWithStore(files: FakeFile[], diskFiles: Map<string, ArrayBuffer>
 }
 
 describe("extractVaultGraph", () => {
+  it("extracts the same ordered graph for reversed vault order (#195)", () => {
+    const files = [{ path: "Beta.md", basename: "Beta", links: ["Alpha"] }, { path: "Alpha.md", basename: "Alpha", links: ["Beta"] }];
+    expect(extractVaultGraph(fakeApp(files), undefined, true)).toEqual(extractVaultGraph(fakeApp([...files].reverse()), undefined, true));
+  });
   it("gives same-basename notes in different folders distinct node ids (F04b)", () => {
     const app = fakeApp([
       { path: "Work/Overview.md", basename: "Overview" },
@@ -345,4 +349,3 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
     expect(await store.fetchNeighbors(["c"], 1, 10)).toEqual([]);
   });
 });
-

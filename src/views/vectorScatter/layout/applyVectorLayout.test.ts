@@ -23,6 +23,14 @@ function makeNode(id: string, embedding?: number[]): ScatterNode {
 }
 
 describe("applyVectorLayout and single-rescale guarantee (#75)", () => {
+  it("produces identical positions and clusters for permuted input (#195)", () => {
+    const ordered = [makeNode("a", [1, 0, 0]), makeNode("b", [0, 1, 0]), makeNode("c", [1, 1, 0]), makeNode("d", [0, 0, 1])];
+    const shuffled = [ordered[2], ordered[0], ordered[3], ordered[1]].map((node) => ({ ...node }));
+    const first = applyVectorLayout(ordered, DEFAULT_SETTINGS, 200, 500, []);
+    const second = applyVectorLayout(shuffled, DEFAULT_SETTINGS, 200, 500, []);
+    expect(second).toEqual(first);
+    expect(shuffled).toEqual(ordered);
+  });
   it("calls rescaleSimilarityMatrix exactly once during applyVectorLayout", () => {
     const rescaleSpy = vi.spyOn(similarityModule, "rescaleSimilarityMatrix");
 

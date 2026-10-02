@@ -5,6 +5,7 @@ import { hashString } from "../../hash";
 import type { NoteFileLike, RadarNoteType } from "./activeNoteScoring";
 
 import type { NodePositionProvider } from "../vectorScatter/VectorScatterView";
+import { getStoredNodePositions } from "../../sync/sqlite/nodePositions";
 
 export interface Position2D {
   x: number;
@@ -24,19 +25,43 @@ const TYPE_OFFSETS: Partial<Record<RadarNoteType, Position2D>> = {
 
 /**
  * Looks up a note's position in the live 2D vector-scatter view if it's
- * open (exact positions win); otherwise falls back to a deterministic
- * pseudo-position derived from a content hash, offset by a rough type
- * cluster so notes of the same kind land near each other even before any
- * real embedding-based layout has run.
+ * open, then reads persisted SQLite coordinates. Only notes without either
+ * position use the deterministic content/type approximation.
  */
-export function getNode2DPosition(app: App, file: NoteFileLike, content: string): Position2D {
-  const scatterLeaf = app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE)[0];
-  const view = scatterLeaf?.view;
-  if (view && typeof (view as unknown as NodePositionProvider).getNodePosition === "function") {
-    const pos = (view as unknown as NodePositionProvider).getNodePosition(file.path);
-    if (pos) return pos;
-  }
+export async function getNode2DPosition(app: App, file: NoteFileLike, content: string): Promise<Position2D> {
+  return (await getNode2DPositions(app, [{ file, content }])).get(file.path)!;
+}
 
+/** Read missing positions once per radar render, using live coordinates before SQLite. */
+export async function getNode2DPositions(app: App, notes: { file: NoteFileLike; content: string }[]): Promise<Map<string, Position2D>> {
+  const positions = new Map<string, Position2D>();
+  const leaves = app.workspace.getLeavesOfType(MATH_VECTOR_SCATTER_VIEW_TYPE);
+  for (const { file } of notes) {
+    for (const leaf of leaves) {
+      const view = leaf.view as unknown as Partial<NodePositionProvider>;
+      const pos = view?.getNodePosition?.(file.path);
+      if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+        positions.set(file.path, pos);
+        break;
+      }
+    }
+  }
+  const missing = notes.filter(({ file }) => !positions.has(file.path));
+  if (missing.length > 0) {
+    try {
+      const stored = await getStoredNodePositions(app, missing.map(({ file }) => file.path));
+      for (const [path, pos] of stored) positions.set(path, pos);
+    } catch (err) {
+      console.warn("MemVector: radar positions unavailable from SQLite", err);
+    }
+  }
+  for (const { file, content } of missing) {
+    if (!positions.has(file.path)) positions.set(file.path, pseudoPosition(file, content));
+  }
+  return positions;
+}
+
+function pseudoPosition(file: NoteFileLike, content: string): Position2D {
   const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
   // Matches the original: always defaults to "concept" regardless of the
   // note's already-classified radar type, only frontmatter can override it.

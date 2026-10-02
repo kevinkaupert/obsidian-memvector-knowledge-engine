@@ -61,6 +61,7 @@ vi.mock("./toolbar/toolbar", () => ({
     statusText: {} as any,
     updateSelectionUI: vi.fn(),
     updateEdgeHops: vi.fn(),
+    updateFilterQuery: vi.fn(),
   })),
 }));
 
@@ -630,31 +631,55 @@ describe("VectorScatterView watcher recognizes moved relation notes (#173)", () 
 });
 
 describe("VectorScatterView camera viewport persistence (getState/setState)", () => {
-  it("serializes current pan, zoom, and edgeHops into workspace state", () => {
+  it("restores a filter after opening and updates toolbar and node set without refitting the camera (#186)", async () => {
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost({ scatterEdgeHops: 3 }));
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+    await view.onOpen();
+    vi.mocked(view.scanVaultNotes).mockClear();
+    await view.setState({ pan: { x: 8, y: 9 }, zoom: 1.2, edgeHops: 1, viewFilterQuery: "tag:#active" }, {} as any);
+    const { buildToolbar } = await import("./toolbar/toolbar");
+    const handles = vi.mocked(buildToolbar).mock.results.at(-1)!.value;
+    expect(handles.updateFilterQuery).toHaveBeenCalledWith("tag:#active");
+    expect(view.scanVaultNotes).toHaveBeenCalledExactlyOnceWith(undefined, { preserveView: true });
+    expect(view.edgeHops).toBe(3);
+    expect(view.pan).toEqual({ x: 8, y: 9 });
+    expect(view.zoom).toBe(1.2);
+  });
+
+  it("ignores malformed filter snapshots", async () => {
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    view.viewFilterQuery = "tag:#active";
+    await view.setState({ viewFilterQuery: 42 }, {} as any);
+    expect(view.viewFilterQuery).toBe("tag:#active");
+  });
+  it("serializes camera and filter but leaves edge hops to plugin settings", () => {
     const leaf = {} as WorkspaceLeaf;
     const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
     view.pan = { x: 123.4, y: -56.7 };
     view.zoom = 1.45;
     view.edgeHops = 3;
+    view.viewFilterQuery = "-path:archive tag:#active";
 
     const state = view.getState();
     expect(state).toEqual(expect.objectContaining({
       pan: { x: 123.4, y: -56.7 },
       zoom: 1.45,
-      edgeHops: 3,
+      viewFilterQuery: "-path:archive tag:#active",
     }));
+    expect(state).not.toHaveProperty("edgeHops");
   });
 
-  it("restores pan, zoom, and edgeHops from workspace state and marks hasFittedView", async () => {
+  it("restores camera and filter while ignoring stale workspace edge hops", async () => {
     const leaf = {} as WorkspaceLeaf;
     const host = createMockHost();
     const view = new VectorScatterView(leaf, host);
-    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8, edgeHops: 2 }, {} as any);
+    await view.setState({ pan: { x: 300, y: 400 }, zoom: 0.8, edgeHops: 2, viewFilterQuery: "tag:#active" }, {} as any);
 
     expect(view.pan).toEqual({ x: 300, y: 400 });
     expect(view.zoom).toBe(0.8);
-    expect(view.edgeHops).toBe(2);
+    expect(view.edgeHops).toBe(host.settings.scatterEdgeHops);
+    expect(view.viewFilterQuery).toBe("tag:#active");
   });
 
   it("initializes edgeHops from settings.scatterEdgeHops on onOpen", async () => {

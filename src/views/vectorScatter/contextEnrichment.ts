@@ -5,6 +5,21 @@ import { pathToId } from "../../noteSlug";
 import { capText, stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
+import type { RetrievalResult, RetrievalStatus } from "../../retrievalStatus";
+import type { TranslationKeys } from "../../i18n";
+
+export interface EnrichedContext {
+  notes: EnrichedNote[];
+  channels: { vector: RetrievalStatus; graph: RetrievalStatus };
+}
+
+export function contextWarnings(context: EnrichedContext, t: TranslationKeys): string[] {
+  const warnings: string[] = [];
+  if (context.channels.vector === "error") warnings.push(t.retrievalVectorFailed);
+  if (context.channels.vector === "unindexed") warnings.push(t.retrievalVectorUnindexed);
+  if (context.channels.graph === "error") warnings.push(t.retrievalGraphFailed);
+  return warnings;
+}
 
 export interface EnrichedNote {
   id: string;
@@ -40,25 +55,21 @@ async function fetchVectorNeighbors(
   settings: MemVectorSettings,
   selected: ScatterNode[],
   excerptLength: number
-): Promise<Map<string, EnrichedNote>> {
+): Promise<RetrievalResult<Map<string, EnrichedNote>>> {
   const found = new Map<string, EnrichedNote>();
   const store = getVectorStore(app, settings);
 
   // Query vectors come from the store only. It is scoped to the active embedding model; a node's in-memory vector may
   // still belong to the previous model, and searching the new index with it silently returns unrelated notes.
   const rawEmbeddings: number[][] = [];
-  try {
-    const stored = await store.getVectors(selected.map((n) => n.path));
-    for (const n of selected) {
-      const v = stored.get(n.path);
-      if (v && v.length > 0) rawEmbeddings.push(v);
-    }
-  } catch (err) {
-    console.warn("MemVector: Failed to load stored vectors for context enrichment:", err);
+  const stored = await store.getVectors(selected.map((n) => n.path));
+  for (const n of selected) {
+    const v = stored.get(n.path);
+    if (v && v.length > 0) rawEmbeddings.push(v);
   }
 
   const queryVector = averageEmbedding(rawEmbeddings);
-  if (!queryVector) return found;
+  if (!queryVector) return { data: found, status: "unindexed" };
 
   const limit = settings.vectorNeighborLimit ?? 2;
   // 0 = unlimited count: search unconstrained without an arbitrary 100-note cap.
@@ -93,7 +104,7 @@ async function fetchVectorNeighbors(
     });
     if (limit > 0 && found.size >= limit) break;
   }
-  return found;
+  return { data: found, status: rawEmbeddings.length === selected.length ? "ready" : "unindexed" };
 }
 
 /**
@@ -184,7 +195,7 @@ export async function enrichContext(
   excerptLength = 200,
   hopDepth = settings.synthesisHopDepth ?? 2,
   excludeIds?: ReadonlySet<string>
-): Promise<EnrichedNote[]> {
+): Promise<EnrichedContext> {
   // 0 = unlimited total context; no silent trimming unless the user sets a cap.
   const maxTotal = settings.totalContextLimit ?? 0;
 
@@ -194,7 +205,7 @@ export async function enrichContext(
   ]);
 
   const vectorNotes = vectorResult.status === "fulfilled"
-    ? Array.from(vectorResult.value.values())
+    ? Array.from(vectorResult.value.data.values())
     : [];
   if (vectorResult.status === "rejected") {
     console.warn("MemVector: vector context enrichment skipped", vectorResult.reason);
@@ -208,9 +219,16 @@ export async function enrichContext(
   }
 
   const assembled = assembleContextNotes(vectorNotes, graphNotes, maxTotal);
-  return excludeIds && excludeIds.size > 0
+  const notes = excludeIds && excludeIds.size > 0
     ? assembled.filter((note) => !excludeIds.has(note.id))
     : assembled;
+  return {
+    notes,
+    channels: {
+      vector: vectorResult.status === "fulfilled" ? vectorResult.value.status : "error",
+      graph: graphResult.status === "fulfilled" ? "ready" : "error",
+    },
+  };
 }
 
 /**

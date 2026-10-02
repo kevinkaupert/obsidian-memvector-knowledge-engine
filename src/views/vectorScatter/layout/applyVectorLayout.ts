@@ -54,6 +54,8 @@ export function applyVectorLayout(
 ): LayoutModel {
   if (!nodes || nodes.length === 0) return { matrix: [], bounds: null, centroidIds: [] };
 
+  // Keep the matrix, centroid selection and force iteration in the same canonical order.
+  nodes.sort((a, b) => a.path.localeCompare(b.path));
   const model = prepareLayoutModel(nodes, settings);
 
   applyGraphVectorProjection({

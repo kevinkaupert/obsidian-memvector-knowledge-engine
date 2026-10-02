@@ -253,6 +253,14 @@ export interface TranslationKeys {
 
   // Sidebar
   sidebarNearbyNotes: string;
+  radarSemantic: string;
+  radarHeuristic: string;
+  radarStoreFailed: string;
+  radarUnindexed: string;
+  retrievalVectorFailed: string;
+  retrievalVectorUnindexed: string;
+  retrievalGraphFailed: string;
+  retrievalContextFailed: string;
 
   // Ribbon & Commands
   ribbonSidebar: string;

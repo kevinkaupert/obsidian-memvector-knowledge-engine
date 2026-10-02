@@ -51,6 +51,7 @@ export class LayoutEngine {
 
   run(input: LayoutRunInput, mode: LayoutMode = "auto"): LayoutRunResult {
     const { nodes } = input;
+    nodes.sort((a, b) => a.path.localeCompare(b.path));
     const next = captureLayoutSnapshot(nodes, input.relationEdges, input.vocabulary, {
       nodeSpacing: input.nodeSpacing,
       cloudSpacing: input.cloudSpacing,

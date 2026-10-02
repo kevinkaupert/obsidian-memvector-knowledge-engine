@@ -1,6 +1,14 @@
 import type { TranslationKeys } from "./types";
 
 export const de: TranslationKeys = {
+  radarSemantic: "Semantische Vektor-Ähnlichkeit",
+  radarHeuristic: "Wort-/Formel-Ähnlichkeit (Heuristik)",
+  radarStoreFailed: "Vektorsuche fehlgeschlagen. Das Radar verwendet eine Wort-/Formel-Heuristik.",
+  radarUnindexed: "Noch nicht indexiert – Vektoren in der 2D-Ansicht berechnen. Das Radar verwendet eine Wort-/Formel-Heuristik.",
+  retrievalVectorFailed: "Eingeschränkter Kontext: Vektorsuche fehlgeschlagen.",
+  retrievalVectorUnindexed: "Eingeschränkter Kontext: Für ausgewählte Notizen fehlen Vektoren. Vektoren in der 2D-Ansicht berechnen.",
+  retrievalGraphFailed: "Eingeschränkter Kontext: Graph-Abfrage fehlgeschlagen.",
+  retrievalContextFailed: "Kontext konnte nicht geladen werden. Bitte erneut versuchen.",
   sidebarTitle: "MemVector Co-Pilot",
   settingsTitle: "MemVector Knowledge Engine Einstellungen",
   settingsDesc: "Konfigurieren Sie Ihr LLM, lokale SQLite-Vektor- und Graph-Engine und die Benutzeroberfläche.",
