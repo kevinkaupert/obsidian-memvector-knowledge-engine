@@ -10,11 +10,13 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): string[]
 
   const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
   if (n <= numClouds) {
+    const firstEmbedded = nodes.findIndex((node) => (node.embedding?.length ?? 0) > 0);
+    const centroidIdx = firstEmbedded >= 0 ? firstEmbedded : 0;
     nodes.forEach((node) => {
       node.cloudId = 0;
-      node.cloudLabel = nodes[0].title;
+      node.cloudLabel = nodes[centroidIdx].title;
     });
-    return [nodes[0].id];
+    return [nodes[centroidIdx].id];
   }
 
   // Pick diverse centroids (k-means++ style by least similarity to already picked centroids).

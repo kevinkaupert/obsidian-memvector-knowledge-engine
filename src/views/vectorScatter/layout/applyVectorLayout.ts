@@ -50,7 +50,7 @@ export function prepareLayoutModel(
     .map((node, i) => (node.embedding && node.embedding.length > 0 ? i : -1))
     .filter((i) => i >= 0);
   const bounds = options.fixedBounds ?? computeRescaleBounds(rawMatrix, embeddedIndices);
-  const matrix = rescaleSimilarityMatrix(rawMatrix, bounds);
+  const matrix = rescaleSimilarityMatrix(rawMatrix, bounds, embeddedIndices);
   const centroidIds = options.assignClusters === false ? [] : assignClouds(nodes, matrix);
   return { matrix, nodePaths: nodes.map((node) => node.path), bounds, centroidIds };
 }
