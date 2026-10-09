@@ -2,7 +2,7 @@ import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
 import { computeGraphTopologyWeights } from "./graphTopologyWeights";
-import { ANCHOR_STIFFNESS, BOUNDED_START_ALPHA, BOUNDED_STOP_MOVEMENT } from "./layoutTunables";
+import { ANCHOR_STIFFNESS, BOUNDED_START_ALPHA, BOUNDED_STOP_MOVEMENT, MAX_RELATION_WEIGHT_FACTOR } from "./layoutTunables";
 
 export type ProjectionMode = "graphvector";
 
@@ -11,8 +11,6 @@ export type ProjectionMode = "graphvector";
  * configured node spacing. Without it a large weight would collapse nodes onto each other.
  */
 const MIN_PAIR_CLEARANCE_RATIO = 0.12;
-/** Upper bound on how far a weight may shorten a pair's target distance and stiffen its spring. */
-const MAX_WEIGHT_FACTOR = 6;
 
 export interface ProjectionParams {
   nodes: ScatterNode[];
@@ -393,7 +391,7 @@ export function applyGraphVectorProjection({
         // generic target and holds them there against competing forces. That range was
         // previously clamped away, which made every weight >= 1 behave identically.
         // Weights at or below 1.0 keep weightFactor 1 and are therefore unaffected.
-        const weightFactor = Math.min(MAX_WEIGHT_FACTOR, Math.max(1, graphWeight));
+        const weightFactor = Math.min(MAX_RELATION_WEIGHT_FACTOR, Math.max(1, graphWeight));
         // Strongly related nodes are allowed to sit closer than the generic clearance,
         // down to a hard floor that still keeps them visually distinct.
         const pairClearance = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, collisionDist / weightFactor);

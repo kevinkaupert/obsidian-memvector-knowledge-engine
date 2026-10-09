@@ -18,6 +18,7 @@ import { sanitizeRelType } from "../../relationVocabulary/resolveTerm";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { SettingsHost } from "../types";
 import { presetsFolder } from "../../vaultLayout";
+import { MAX_RELATION_WEIGHT_FACTOR } from "../../views/vectorScatter/layout/layoutTunables";
 
 /**
  * Purpose: Resolves the vault path of the active vocabulary file from settings.
@@ -322,6 +323,7 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
         weightField.value = String(term.weight ?? 1.0);
         return;
       }
+      warnIfWeightCapped(parsed, t);
       // Only the field the user touched - sending the checkbox state too would write back
       // whatever it showed when the table was rendered, reverting a change made meanwhile.
       void updateLayout(term.label, { weight: parsed });
@@ -397,8 +399,22 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
       },
       () => {
         new Notice(`[OK] ${t.relTypeAdded}`);
+        if (Number.isFinite(weight)) warnIfWeightCapped(weight, t);
         rerender();
       }
     );
   };
+}
+
+/** Purpose: Formats the weight cap warning with the layout's actual cap. */
+function weightCapMessage(t: TranslationKeys): string {
+  return t.relTypeWeightCapped.split("{max}").join(String(MAX_RELATION_WEIGHT_FACTOR));
+}
+
+/**
+ * Purpose: Tells the user that a weight above the layout's attraction cap is saved but has no stronger effect.
+ * Architecture: The value is kept, not clamped - the vocabulary is the user's data and the cap is a layout detail.
+ */
+function warnIfWeightCapped(weight: number, t: TranslationKeys): void {
+  if (weight > MAX_RELATION_WEIGHT_FACTOR) new Notice(`[INFO] ${weightCapMessage(t)}`, 8000);
 }

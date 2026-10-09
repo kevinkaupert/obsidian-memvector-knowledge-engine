@@ -48,7 +48,7 @@ carried by a separate factor, so the two concerns stay separable:
 
 ```ts
 const topWeight = Math.min(1.0, graphWeight);                              // target selection
-const weightFactor = Math.min(MAX_WEIGHT_FACTOR, Math.max(1, graphWeight)); // strength
+const weightFactor = Math.min(MAX_RELATION_WEIGHT_FACTOR, Math.max(1, graphWeight)); // strength
 const pairClearance = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, collisionDist / weightFactor);
 const idealDist = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, base / weightFactor);
 ```
@@ -68,7 +68,7 @@ Three properties follow:
   so the clearance, not the weight, decides where a related pair settles.
 - **The pull saturates instead of growing without bound.** Both the clearance
   and the target distance are floored at `MIN_PAIR_CLEARANCE_RATIO *
-  targetSpacing`, and `weightFactor` saturates at `MAX_WEIGHT_FACTOR`, so an
+  targetSpacing`, and `weightFactor` saturates at `MAX_RELATION_WEIGHT_FACTOR`, so an
   arbitrarily large weight is no more extreme than the largest supported one.
   Note what this does and does not guarantee: it bounds the *target* distance
   and the pair's clearance. It is not by itself a guaranteed hard minimum
@@ -99,9 +99,11 @@ Resulting pair distance for two directly related nodes at `nodeSpacing=350`:
   This is the previously advertised behavior taking effect, not a new feature,
   but it is a visual change on upgrade and belongs in the release notes.
 - Weights are no longer a bounded `[0, 1]` scale in practice. The Settings field
-  keeps accepting any non-negative number; values beyond `MAX_WEIGHT_FACTOR`
+  keeps accepting any non-negative number; values beyond `MAX_RELATION_WEIGHT_FACTOR`
   are accepted and saturate rather than being rejected, so a shared vocabulary
-  file from another vault never fails to load.
+  file from another vault never fails to load. The relation type settings show
+  a notice when such a weight is entered, so the saturation is not silent. The
+  cap lives in `layoutTunables.ts` as `MAX_RELATION_WEIGHT_FACTOR`.
 - Tests for weight semantics must assert finished projection coordinates.
   Asserting the intermediate `conn` matrix is what allowed this defect to
   survive: that matrix was always correct — its only consumer discarded it.

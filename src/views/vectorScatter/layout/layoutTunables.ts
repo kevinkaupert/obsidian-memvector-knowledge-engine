@@ -48,3 +48,9 @@ export function clampNodeSpacing(value: number): number {
 export function clampCloudSpacing(value: number): number {
   return Math.max(CLOUD_SPACING_RANGE.min, Math.min(CLOUD_SPACING_RANGE.max, value));
 }
+
+/**
+ * Upper bound on how far a relation weight may shorten a pair's target distance and stiffen its spring (a factor,
+ * unitless). Weights above it behave like this value; the relation type settings warn when one is entered.
+ */
+export const MAX_RELATION_WEIGHT_FACTOR = 6;
