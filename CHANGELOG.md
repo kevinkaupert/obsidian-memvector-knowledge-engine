@@ -7,6 +7,19 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-10-09
+
+### Fixed
+- **Fingerprint-Scoped Vector Reconcile**: `SqliteVectorStore.reconcile` now only reads and deletes rows of
+  its own embedding fingerprint, so a reconcile no longer removes vectors stored by another model (#229).
+- **Partial Index Outcomes**: Embedding failures of individual notes (e.g. rate limits) are recorded in
+  `VectorSyncResult` (`failedCount`, `failedPaths`). "Index vault locally now" reports `[WARN]` with the
+  number of skipped notes instead of `[OK]`, and logs their paths to the console (#230).
+
+### Changed
+- Added localized `indexVaultPartial`, `indexVaultNoticePartial` and `indexVaultNoticePartialSavedSuffix`
+  strings in English and German.
+
 ## [0.2.3] - 2026-10-02
 
 ### Fixed
