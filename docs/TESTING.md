@@ -1,5 +1,7 @@
 # Manual Integration Testing
 
+Setup, build commands, vault linking and the mock server configuration are in [`runbook.md`](runbook.md).
+
 ## Local (SQLite) — current default (v0.1.x)
 
 This is the engine every install actually uses today. Automated coverage

@@ -146,6 +146,11 @@ before relying on it for anything critical.
 - [**User Guide** (`docs/USER_GUIDE.md`)](docs/USER_GUIDE.md) — canvas controls, gesture reference, synthesis workflow
 - [**Hybrid GraphRAG** (`docs/GRAPHRAG.md`)](docs/GRAPHRAG.md) — how synthesis enriches prompts with vector and graph context
 
+### Development & Contributing
+
+- [**Runbook** (`docs/runbook.md`)](docs/runbook.md) — clone, build and test commands, linking the clone into a vault, the local mock server, inspecting the index, releasing
+- [**Manual testing** (`docs/TESTING.md`)](docs/TESTING.md) — smoke test steps inside Obsidian
+
 ---
 
 ## Installation & Quickstart
