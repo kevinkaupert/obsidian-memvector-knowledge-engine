@@ -41,6 +41,7 @@ function fixture() {
   const app = {
     vault: {
       getAbstractFileByPath: (path: string) => files.has(path) ? Object.assign(new TFile(), { path }) : null,
+      read: vi.fn(async (file: TFile) => files.get(file.path) ?? ""),
       createFolder: vi.fn(async () => {}), create, modify,
     },
     fileManager: { trashFile },
@@ -80,15 +81,32 @@ describe("safe relation replacement (#73)", () => {
     expect([...f.edges]).toEqual([key("a", "b", "PROVES")]);
   });
 
-  it("retains the previous file and edge if graph upsert fails", async () => {
+  it("retains the previous file and edge and removes the new file if graph upsert fails (#231)", async () => {
     const f = fixture();
     f.store.upsertTypedEdges.mockRejectedValueOnce(new Error("Graph unavailable"));
     await expect(saveRelation(f.app, f.graph, target, "New content", replacement, previous)).rejects.toThrow("Graph unavailable");
     expect(f.files.get(previous.path)).toBe("Original content");
-    expect(f.files.get(target)).toBe("New content");
+    expect(f.files.has(target)).toBe(false);
     expect(f.edges.has(key("a", "b", "REQUIRES"))).toBe(true);
     expect(f.store.deleteEdge).not.toHaveBeenCalled();
+  });
+
+  it("restores the old content of an in-place edit if graph upsert fails (#231)", async () => {
+    const f = fixture();
+    f.store.upsertTypedEdges.mockRejectedValueOnce(new Error("Graph unavailable"));
+    await expect(saveRelation(f.app, f.graph, previous.path, "New content", replacement, previous)).rejects.toThrow("Graph unavailable");
+    expect([...f.files.entries()]).toEqual([[previous.path, "Original content"]]);
+    expect([...f.edges]).toEqual([key("a", "b", "REQUIRES")]);
     expect(f.trashFile).not.toHaveBeenCalled();
+  });
+
+  it("reports the graph error even when reverting the file fails as well (#231)", async () => {
+    const f = fixture();
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    f.store.upsertTypedEdges.mockRejectedValueOnce(new Error("Graph unavailable"));
+    f.trashFile.mockRejectedValueOnce(new Error("Trash failed"));
+    await expect(saveRelation(f.app, f.graph, target, "New content", replacement)).rejects.toThrow("Graph unavailable");
+    expect(console.error).toHaveBeenCalled();
   });
 
   it.each([false, true])("does not delete the replacement when an old key is reused (swapped: %s)", async (swapped) => {
@@ -166,5 +184,27 @@ describe("collision-safe relation saving (#74)", () => {
     expect([...f.files.entries()]).toEqual([[previous.path, "Edited legacy relation"]]);
     expect(f.create).not.toHaveBeenCalled();
     expect(f.trashFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("batch relation save with a failing entry (#231)", () => {
+  it("leaves the failed relation without file or edge and keeps the others complete", async () => {
+    const f = fixture();
+    const edges = ["c", "d", "e"].map((id) => ({ ...replacement, tgt: { id, path: `${id}.md`, title: id } }));
+    f.store.upsertTypedEdges
+      .mockImplementationOnce(async (input) => { for (const e of input) f.edges.add(key(e.src.id, e.tgt.id, e.relType)); })
+      .mockRejectedValueOnce(new Error("Database locked"));
+    const outcomes: string[] = [];
+    for (const [i, edge] of edges.entries()) {
+      // Sequential, like the relation builder's save loop.
+      outcomes.push(await saveRelation(f.app, f.graph, `wiki/relations/r${i}.md`, `Relation ${i}`, edge).then(() => "saved", () => "failed"));
+    }
+    expect(outcomes).toEqual(["saved", "failed", "saved"]);
+    expect(f.files.has("wiki/relations/r1.md")).toBe(false);
+    expect(f.files.get("wiki/relations/r0.md")).toBe("Relation 0");
+    expect(f.files.get("wiki/relations/r2.md")).toBe("Relation 2");
+    expect(f.edges.has(key("a", "d", "PROVES"))).toBe(false);
+    expect(f.edges.has(key("a", "c", "PROVES"))).toBe(true);
+    expect(f.edges.has(key("a", "e", "PROVES"))).toBe(true);
   });
 });

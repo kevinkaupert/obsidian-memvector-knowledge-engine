@@ -9,7 +9,12 @@ export interface PreviousRelation {
   relType: string;
 }
 
-/** Preserve the previous relation until both its replacement file and graph edge are saved. */
+/**
+ * Purpose: Saves one relation as a file plus a graph edge, as a unit.
+ * Architecture: The previous relation is preserved until both its replacement file and graph edge are saved. If the
+ * graph write fails, the file write is undone - a new file is trashed, an edited file gets its old content back - so a
+ * failed relation leaves neither a dangling note nor a half-applied edit behind.
+ */
 export async function saveRelation(
   app: App,
   store: GraphStore,
@@ -18,8 +23,15 @@ export async function saveRelation(
   edge: TypedEdgeInput,
   previous?: PreviousRelation
 ): Promise<void> {
+  const existing = app.vault.getAbstractFileByPath(path);
+  const originalContent = existing instanceof TFile ? await app.vault.read(existing) : null;
   await writeRelationFile(app, path, content, previous?.path);
-  await store.upsertTypedEdges([edge]);
+  try {
+    await store.upsertTypedEdges([edge]);
+  } catch (err) {
+    await undoRelationFileWrite(app, path, originalContent);
+    throw err;
+  }
 
   if (!previous) return;
   if (previous.srcId && previous.tgtId && previous.relType) {
@@ -36,5 +48,20 @@ export async function saveRelation(
   if (path !== previous.path) {
     const oldFile = app.vault.getAbstractFileByPath(previous.path);
     if (oldFile instanceof TFile) await app.fileManager.trashFile(oldFile);
+  }
+}
+
+/**
+ * Purpose: Reverts a relation file write after its graph edge could not be saved.
+ * Architecture: A failed revert is logged and does not replace the original error, which is the one the caller reports.
+ */
+async function undoRelationFileWrite(app: App, path: string, originalContent: string | null): Promise<void> {
+  const file = app.vault.getAbstractFileByPath(path);
+  if (!(file instanceof TFile)) return;
+  try {
+    if (originalContent === null) await app.fileManager.trashFile(file);
+    else await app.vault.modify(file, originalContent);
+  } catch (err) {
+    console.error(`MemVector: Failed to revert relation file ${path} after a graph write error:`, err);
   }
 }
