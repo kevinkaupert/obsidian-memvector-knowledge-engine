@@ -30,31 +30,45 @@ export function computeWorldViewport(
 }
 
 /**
- * Purpose: Checks if a scatter node's center coordinate is within the world-coordinate viewport bounding box.
+ * Screen-space reach of a node's label beyond its center: horizontally half of a ~45-character title at the largest
+ * label font (covers truncated labels and most untruncated focus labels), vertically the label's offset plus height
+ * below the dot.
  */
-export function isNodeInViewport(node: ScatterNode, viewport: ViewportBounds): boolean {
+export const NODE_LABEL_REACH_PX = { x: 160, y: 32 };
+
+/**
+ * Purpose: Checks whether a scatter node or its label can reach into the world-coordinate viewport.
+ * Architecture: The center test is widened by the label's reach (screen px, converted with `zoom`), so a node just
+ * outside the margin still draws while part of its label would be visible (#163). Omitting `zoom` tests the center only.
+ */
+export function isNodeInViewport(node: ScatterNode, viewport: ViewportBounds, zoom?: number): boolean {
+  const reachX = zoom ? NODE_LABEL_REACH_PX.x / zoom : 0;
+  const reachY = zoom ? NODE_LABEL_REACH_PX.y / zoom : 0;
   return (
-    node.x >= viewport.minX &&
-    node.x <= viewport.maxX &&
-    node.y >= viewport.minY &&
-    node.y <= viewport.maxY
+    node.x + reachX >= viewport.minX &&
+    node.x - reachX <= viewport.maxX &&
+    node.y + reachY >= viewport.minY &&
+    node.y - reachY <= viewport.maxY
   );
 }
 
 /**
  * Purpose: Determines whether a relation edge between two nodes could intersect the visible canvas viewport.
- * Architecture: Evaluates the bounding box spanned by both node endpoints. If both endpoints are strictly
- * beyond the same side of the viewport + margin, the edge (and its fan curvature) cannot intersect the screen (Issue #158).
+ * Architecture: A quadratic curve lies inside the triangle of its endpoints and control point, so the bounding box of
+ * those three points is a safe test: an edge is culled only when that whole box lies beyond one side of the viewport +
+ * margin. Without `control` the edge is treated as a straight line (#158, #163).
  */
 export function isEdgeInViewport(
-  src: ScatterNode,
-  tgt: ScatterNode,
-  viewport: ViewportBounds
+  src: { x: number; y: number },
+  tgt: { x: number; y: number },
+  viewport: ViewportBounds,
+  control?: { x: number; y: number }
 ): boolean {
-  const minEdgeX = Math.min(src.x, tgt.x);
-  const maxEdgeX = Math.max(src.x, tgt.x);
-  const minEdgeY = Math.min(src.y, tgt.y);
-  const maxEdgeY = Math.max(src.y, tgt.y);
+  const points = control ? [src, tgt, control] : [src, tgt];
+  const minEdgeX = Math.min(...points.map((p) => p.x));
+  const maxEdgeX = Math.max(...points.map((p) => p.x));
+  const minEdgeY = Math.min(...points.map((p) => p.y));
+  const maxEdgeY = Math.max(...points.map((p) => p.y));
 
   if (maxEdgeX < viewport.minX) return false;
   if (minEdgeX > viewport.maxX) return false;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeWorldViewport, isEdgeInViewport, isNodeInViewport, type ViewportBounds } from "./viewportCulling";
 import type { ScatterNode } from "../types";
+import { computeControlPoint } from "../edgeGrouping";
 
 function node(id: string, x: number, y: number): ScatterNode {
   return { id, title: id, path: `${id}.md`, x, y, type: "concept", basenameKey: id.toLowerCase(), latexFormulas: [], links: [], content: "" };
@@ -46,6 +47,19 @@ describe("viewportCulling (Issue #63 Phase 2, Issue #158)", () => {
       expect(isNodeInViewport(node("top", 200, -120), vp)).toBe(false);
       expect(isNodeInViewport(node("bottom", 200, 450), vp)).toBe(false);
     });
+
+    it("keeps a node just outside the margin whose label still reaches into view (#163)", () => {
+      // 150px left of the bound: the dot is culled by a center-only test, but its label reaches 160px.
+      expect(isNodeInViewport(node("left", -250, 200), vp)).toBe(false);
+      expect(isNodeInViewport(node("left", -250, 200), vp, 1)).toBe(true);
+      expect(isNodeInViewport(node("top", 200, -120), vp, 1)).toBe(true);
+    });
+
+    it("scales the label reach with zoom and still culls nodes far outside (#163)", () => {
+      // Zoomed in 2x, the same screen reach covers half the world distance.
+      expect(isNodeInViewport(node("left", -250, 200), vp, 2)).toBe(false);
+      expect(isNodeInViewport(node("far", -1000, 200), vp, 1)).toBe(false);
+    });
   });
 
   describe("isEdgeInViewport", () => {
@@ -83,6 +97,24 @@ describe("viewportCulling (Issue #63 Phase 2, Issue #158)", () => {
       expect(isEdgeInViewport(node("a", 100, -200), node("b", 300, -50), vp)).toBe(false);
       // Both bottom
       expect(isEdgeInViewport(node("a", 100, 900), node("b", 300, 1200), vp)).toBe(false);
+    });
+
+    it("keeps a fanned edge whose bulge enters the viewport although both endpoints are above it (#163)", () => {
+      const a = node("a", 100, -150);
+      const b = node("b", 900, -150);
+      expect(isEdgeInViewport(a, b, vp)).toBe(false);
+      // Outermost slot of a large bundle at 1x zoom: the control point dips well below y = 0.
+      const control = computeControlPoint(a, b, { index: 39, total: 40 });
+      expect(control.y).toBeGreaterThan(0);
+      expect(isEdgeInViewport(a, b, vp, control)).toBe(true);
+    });
+
+    it("still culls a fanned edge whose bulge points away from the viewport (#163)", () => {
+      const a = node("a", 100, -150);
+      const b = node("b", 900, -150);
+      const control = computeControlPoint(a, b, { index: 0, total: 40 });
+      expect(control.y).toBeLessThan(-150);
+      expect(isEdgeInViewport(a, b, vp, control)).toBe(false);
     });
   });
 });

@@ -86,7 +86,7 @@ export function drawNodes(
   const candidates: LabelCandidate[] = [];
 
   nodes.forEach((node) => {
-    if (viewport && !isNodeInViewport(node, viewport)) {
+    if (viewport && !isNodeInViewport(node, viewport, zoom)) {
       return;
     }
     const pos = worldToScreen(node.x, node.y, zoom, pan);
