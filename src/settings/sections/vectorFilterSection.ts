@@ -205,8 +205,9 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             // The index just changed - open views must drop vectors they still hold from before.
             host.applySettingsToOpenViews?.({ embeddings: true });
             if (vecResult.failedCount > 0) {
+              console.warn("MemVector: Notes skipped because their embedding failed:", vecResult.failedPaths);
               btn.setButtonText(t.indexVaultPartial);
-              new Notice(`[WARN] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix} (${vecResult.failedCount} ${t.indexVaultNoticePartial})`, 8000);
+              new Notice(`[WARN] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticePartialSavedSuffix} ${vecResult.failedCount} ${t.indexVaultNoticePartial}`, 8000);
             } else {
               btn.setButtonText(t.indexVaultSuccess);
               new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);

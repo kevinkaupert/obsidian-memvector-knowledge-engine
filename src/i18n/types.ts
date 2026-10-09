@@ -216,6 +216,7 @@ export interface TranslationKeys {
   indexVaultNoticeStarting: string;
   indexVaultNoticeSaved: string;
   indexVaultNoticePartial: string;
+  indexVaultNoticePartialSavedSuffix: string;
 
   synthesisContentCapTitle: string;
   synthesisContentCapDesc: string;
