@@ -204,8 +204,13 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             }
             // The index just changed - open views must drop vectors they still hold from before.
             host.applySettingsToOpenViews?.({ embeddings: true });
-            btn.setButtonText(t.indexVaultSuccess);
-            new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
+            if (vecResult.failedCount > 0) {
+              btn.setButtonText(t.indexVaultPartial);
+              new Notice(`[WARN] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix} (${vecResult.failedCount} ${t.indexVaultNoticePartial})`, 8000);
+            } else {
+              btn.setButtonText(t.indexVaultSuccess);
+              new Notice(`[OK] ${vecResult.syncedCount} ${t.indexVaultNoticeSaved} ${graphResult.edgeCount} ${t.indexVaultNoticeSavedSuffix}`);
+            }
           } catch (err) {
             if (err instanceof EmbeddingTargetChangedError) {
               console.warn("MemVector:", err.message);

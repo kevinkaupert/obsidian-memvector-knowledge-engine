@@ -120,14 +120,15 @@ export class SqliteVectorStore implements VectorStore {
   async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
     const db = await this.openDb();
     const current = new Set(currentPaths);
+    const { where, params } = this.scope();
 
-    const result = db.exec("SELECT path FROM vectors");
+    const result = db.exec(`SELECT path FROM vectors WHERE ${where}`, params);
     const existingPaths = result.length === 0 ? [] : result[0].values.map((row) => String(row[0]));
 
     let removed = 0;
     for (const path of existingPaths) {
       if (!current.has(path)) {
-        db.run("DELETE FROM vectors WHERE path = ?", [path]);
+        db.run(`DELETE FROM vectors WHERE path = ? AND ${where}`, [path, ...params]);
         removed++;
       }
     }
