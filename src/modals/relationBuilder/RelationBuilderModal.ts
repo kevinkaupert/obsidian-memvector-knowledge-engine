@@ -327,7 +327,7 @@ export class RelationBuilderModal extends Modal {
       }
 
       let createdCount = 0;
-      let failedCount = 0;
+      const failedPaths: string[] = [];
 
       const store = getGraphStore(this.app, this.host.settings);
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
@@ -345,12 +345,16 @@ export class RelationBuilderModal extends Modal {
           }, previous);
           createdCount++;
         } catch (err) {
-          failedCount++;
+          // saveRelation undoes its own partial write, so a failed entry leaves nothing behind and the others stay valid.
+          failedPaths.push(paths[idx]);
           console.error(`${t.relSaveError} ${paths[idx]}:`, err);
         }
       }
 
-      if (failedCount > 0) new Notice(`${t.relSaveError}: ${failedCount}`, 8000);
+      if (failedPaths.length > 0) {
+        const names = failedPaths.map((p) => p.split("/").pop()?.replace(/\.md$/, "") ?? p);
+        new Notice(`[ERROR] ${t.relSaveError} (${failedPaths.length}): ${names.join(", ")}`, 12000);
+      }
       if (createdCount > 0) new Notice(`${createdCount} ${withFolder(t.relSaveSuccess, relationsFolder(this.host.settings))}`);
 
       this.onSaved?.("saved");

@@ -41,8 +41,8 @@ That declaration does three things at once:
    Nothing is hidden in a database you cannot inspect.
 
 3. **Persists to a local SQLite graph.** Relations are traversable at query
-   time: multi-hop neighbor lookups, AI synthesis context, radar sidebar —
-   all read this graph.
+   time: multi-hop neighbor lookups and the AI synthesis context read this
+   graph. The radar sidebar ranks neighbors by vector similarity instead.
 
 Semantic embeddings run underneath as a second force: notes with similar
 content are pulled together even without an explicit relation. Your declared
@@ -52,8 +52,10 @@ relations win when they are stronger. The vector similarity fills the gaps.
 
 ## What it is not
 
-- **Not a WikiLink visualizer.** WikiLinks are opt-in and carry the weakest
-  graph weight (0.7) — weaker than any typed relation. The default is off.
+- **Not a WikiLink visualizer.** WikiLinks are opt-in and carry a low fixed
+  graph weight (0.7), below most typed relations. Some typed relations are
+  weaker still (e.g. `INDEPENDENT_OF` at 0.05, or any custom weight you set
+  lower). The default is off.
 - **Not a replacement for Obsidian Graph.** Both coexist. Obsidian Graph
   shows your link structure. MemVector shows your declared conceptual
   structure.
@@ -143,6 +145,11 @@ before relying on it for anything critical.
 - [**Configuration** (`docs/CONFIGURATION.md`)](docs/CONFIGURATION.md) — settings reference, provider setup, vocabulary
 - [**User Guide** (`docs/USER_GUIDE.md`)](docs/USER_GUIDE.md) — canvas controls, gesture reference, synthesis workflow
 - [**Hybrid GraphRAG** (`docs/GRAPHRAG.md`)](docs/GRAPHRAG.md) — how synthesis enriches prompts with vector and graph context
+
+### Development & Contributing
+
+- [**Runbook** (`docs/runbook.md`)](docs/runbook.md) — clone, build and test commands, linking the clone into a vault, the local mock server, inspecting the index, releasing
+- [**Manual testing** (`docs/TESTING.md`)](docs/TESTING.md) — smoke test steps inside Obsidian
 
 ---
 

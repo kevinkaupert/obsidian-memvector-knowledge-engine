@@ -6,6 +6,8 @@ import type { SettingsHost } from "../types";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { withBundledLayoutDefaults } from "../../relationVocabulary/layoutDefaults";
 
+const notices = vi.hoisted(() => [] as string[]);
+
 const { MockTFile, textComponents } = vi.hoisted(() => {
   class MockTFile {
     path: string;
@@ -76,7 +78,9 @@ vi.mock("obsidian", () => {
     TFile: MockTFile,
     TFolder: MockTFile,
     Notice: class {
-      constructor(public message: string) {}
+      constructor(public message: string) {
+        notices.push(message);
+      }
     },
     Modal: class {},
     Setting: FakeSetting,
@@ -374,6 +378,46 @@ describe("relation type table handlers", () => {
     const saved = env.find("IS_HOMOMORPHIC_TO")!;
     expect(saved.weight).toBeUndefined();
     expect(saved.repels).toBeUndefined();
+  });
+
+  it("warns that the layout caps attraction when a table weight above the cap is entered (#221)", async () => {
+    const env = fakeApp([conflicts]);
+    const table = renderTable(env.app, [conflicts]);
+    notices.length = 0;
+
+    table.weightInput.value = "10";
+    table.weightInput.onchange!();
+    await settle();
+
+    expect(env.find("CONFLICTS_WITH")?.weight).toBe(10);
+    expect(notices.some((m) => m.includes("saturates at 6"))).toBe(true);
+  });
+
+  it("does not warn for a table weight at the cap (#221)", async () => {
+    const env = fakeApp([conflicts]);
+    const table = renderTable(env.app, [conflicts]);
+    notices.length = 0;
+
+    table.weightInput.value = "6";
+    table.weightInput.onchange!();
+    await settle();
+
+    expect(env.find("CONFLICTS_WITH")?.weight).toBe(6);
+    expect(notices.some((m) => m.includes("saturates"))).toBe(false);
+  });
+
+  it("warns when a type above the cap is added, and keeps the entered weight (#221)", async () => {
+    const env = fakeApp([{ key: "a", label: "A", term: "a", category: "C", bidirectional: false, reversed: false }]);
+    const form = renderAddForm(env.app, []);
+    notices.length = 0;
+
+    form.label.value = "BINDS_TIGHTLY";
+    form.weight.value = "12";
+    form.addButton.onclick!();
+    await settle();
+
+    expect(env.find("BINDS_TIGHTLY")?.weight).toBe(12);
+    expect(notices.some((m) => m.includes("saturates at 6"))).toBe(true);
   });
 
   it("persists an explicit non-default weight and repels from the add form", async () => {

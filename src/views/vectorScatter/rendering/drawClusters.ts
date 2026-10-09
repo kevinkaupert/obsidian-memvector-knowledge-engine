@@ -85,7 +85,9 @@ export function drawClusters(
       const labelY = hull.cy - hull.r - 14;
       const width = ctx.measureText(text).width;
       // Cluster labels always render (there are few, and they anchor the view) - the
-      // reservation is what matters, so node labels below know to steer clear of them.
+      // reservation is what matters, so connected and other node labels steer clear of them.
+      // Focus labels are forced as well and draw afterwards, so a selected or hovered label
+      // stays on top of a cluster label it collides with.
       labels.tryPlace({ x1: hull.cx - width / 2 - 2, x2: hull.cx + width / 2 + 2, y1: labelY - 7, y2: labelY + 7 }, true);
       ctx.fillStyle = labelColor;
       ctx.fillText(text, hull.cx, labelY);

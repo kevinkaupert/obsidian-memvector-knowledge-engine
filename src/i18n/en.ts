@@ -181,6 +181,7 @@ export const en: TranslationKeys = {
   relTypeDuplicate: "Type already exists:",
   relTypeRemoved: "Type removed.",
   relTypeWeightInvalid: "Weight must be a number >= 0.",
+  relTypeWeightCapped: "Weight saved. The 2D layout's attraction saturates at {max}, so any weight above {max} behaves like {max}.",
   relTypeRemoveTitle: "Remove relation type from the vocabulary",
   relTypeResetBtn: "Reset to STEM default",
   relTypeResetDone: "Vocabulary reset to the STEM default.",

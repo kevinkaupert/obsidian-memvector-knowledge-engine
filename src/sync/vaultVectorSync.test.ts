@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { App, TFile } from "obsidian";
+import { TFile, type App } from "obsidian";
 
 vi.mock("obsidian", () => ({
   requestUrl: vi.fn(),
@@ -16,16 +16,22 @@ import { EmbeddingTargetChangedError } from "./embeddingTarget";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
+/** A file the pipeline recognizes as an existing note (instanceof TFile against the mocked class). */
+const note = (path: string, basename: string): TFile => Object.assign(new TFile(), { path, basename, name: `${basename}.md` });
+/** Vault lookup over the test's file list. */
+const lookup = (files: TFile[]) => (path: string) => files.find((f) => f.path === path) ?? null;
+
 describe("vaultVectorSync", () => {
   it("syncs vector points with canonical pathToId and reconciles included paths", async () => {
     const files: TFile[] = [
-      { path: "Work/Overview.md", basename: "Overview", name: "Overview.md" } as unknown as TFile,
-      { path: "Concepts/Deep Learning.md", basename: "Deep Learning", name: "Deep Learning.md" } as unknown as TFile,
+      note("Work/Overview.md", "Overview"),
+      note("Concepts/Deep Learning.md", "Deep Learning"),
     ];
 
     const fakeApp = {
       vault: {
         getMarkdownFiles: () => files,
+        getAbstractFileByPath: lookup(files),
         cachedRead: async (f: TFile) => `Content of ${f.basename}`,
       },
       secretStorage: {
@@ -78,14 +84,15 @@ describe("vaultVectorSync", () => {
 
   it("surfaces transient embedding failures in failedCount and failedPaths (#230)", async () => {
     const files: TFile[] = [
-      { path: "A.md", basename: "A", name: "A.md" } as unknown as TFile,
-      { path: "B.md", basename: "B", name: "B.md" } as unknown as TFile,
-      { path: "C.md", basename: "C", name: "C.md" } as unknown as TFile,
+      note("A.md", "A"),
+      note("B.md", "B"),
+      note("C.md", "C"),
     ];
 
     const fakeApp = {
       vault: {
         getMarkdownFiles: () => files,
+        getAbstractFileByPath: lookup(files),
         cachedRead: async (f: TFile) => `Content of ${f.basename}`,
       },
       secretStorage: {
@@ -121,13 +128,14 @@ describe("vaultVectorSync", () => {
 
   it("skips unchanged notes when content hash matches stored hash", async () => {
     const files: TFile[] = [
-      { path: "Work/Overview.md", basename: "Overview", name: "Overview.md" } as unknown as TFile,
-      { path: "Concepts/Deep Learning.md", basename: "Deep Learning", name: "Deep Learning.md" } as unknown as TFile,
+      note("Work/Overview.md", "Overview"),
+      note("Concepts/Deep Learning.md", "Deep Learning"),
     ];
 
     const fakeApp = {
       vault: {
         getMarkdownFiles: () => files,
+        getAbstractFileByPath: lookup(files),
         cachedRead: async (f: TFile) => `Content of ${f.basename}`,
       },
       secretStorage: {
@@ -175,8 +183,8 @@ describe("vaultVectorSync", () => {
 
   it("re-embeds unchanged notes after an embedding model or endpoint switch, then caches again (#164)", async () => {
     const files: TFile[] = [
-      { path: "A.md", basename: "A", name: "A.md" } as unknown as TFile,
-      { path: "B.md", basename: "B", name: "B.md" } as unknown as TFile,
+      note("A.md", "A"),
+      note("B.md", "B"),
     ];
     const wasm = readFileSync(resolve(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
     const disk = new Map<string, ArrayBuffer>([
@@ -186,6 +194,7 @@ describe("vaultVectorSync", () => {
       vault: {
         configDir: ".obsidian",
         getMarkdownFiles: () => files,
+        getAbstractFileByPath: lookup(files),
         cachedRead: async (f: TFile) => `Content of ${f.basename}`,
         adapter: {
           exists: async (path: string) => disk.has(path),
@@ -218,8 +227,8 @@ describe("vaultVectorSync", () => {
 
   it("adversarial (#202): a run whose model was switched mid-run neither overwrites the new model's vectors nor reports success", async () => {
     const files: TFile[] = [
-      { path: "A.md", basename: "A", name: "A.md" } as unknown as TFile,
-      { path: "B.md", basename: "B", name: "B.md" } as unknown as TFile,
+      note("A.md", "A"),
+      note("B.md", "B"),
     ];
     const wasm = readFileSync(resolve(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
     const disk = new Map<string, ArrayBuffer>([
@@ -229,6 +238,7 @@ describe("vaultVectorSync", () => {
       vault: {
         configDir: ".obsidian",
         getMarkdownFiles: () => files,
+        getAbstractFileByPath: lookup(files),
         cachedRead: async (f: TFile) => `Content of ${f.basename}`,
         adapter: {
           exists: async (path: string) => disk.has(path),

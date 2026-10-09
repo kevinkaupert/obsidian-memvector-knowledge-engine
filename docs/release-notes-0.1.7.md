@@ -33,7 +33,7 @@ See **Upgrade notes** below for the two visible behavior changes: relation notes
   Relation *notes* are hidden by default, so the canvas reads as typed connections between
   concepts rather than as relation files.
 - **Transparent Graph Context Quotas (#115, PR #122):**
-  Removed hidden internal SQL query caps (`perHop * 3 + seeds`) and arbitrary slack multipliers from graph enrichment queries. Neighbor retrieval now strictly follows user-configured settings without silently dropping or overfetching notes across multi-hop queries.
+  Removed hidden internal SQL query caps (`perHop * 3 + seeds`) and arbitrary slack multipliers from graph enrichment queries. Neighbor retrieval now strictly follows user-configured settings and no longer silently drops notes across multi-hop queries. The graph store is queried without an SQL limit and the user quota is applied afterwards, so the guarantee is the selection quota, not that no additional candidates are fetched.
 - **Scatterplot Label Decluttering (PR #130):**
   Greedy screen-space collision avoidance (`labelPlacement.ts`) over a uniform grid. Cluster labels
   anchor first, then selected/hovered/connected node labels reserve their space, then everyone else

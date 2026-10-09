@@ -165,6 +165,7 @@ export interface TranslationKeys {
   relTypeDuplicate: string;
   relTypeRemoved: string;
   relTypeWeightInvalid: string;
+  relTypeWeightCapped: string;
   relTypeRemoveTitle: string;
   relTypeResetBtn: string;
   relTypeResetDone: string;

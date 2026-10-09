@@ -126,6 +126,7 @@ The relationship graph and the vector index sit behind uniform interfaces (`sync
 - **Local SQLite Engine (Active in v0.1.0):**
   - **Local Graph Store** (`sqlite/sqliteGraphStore.ts`): zero external dependencies. Notes and edges are stored in `memvector-local.sqlite` in the plugin directory. Multi-hop neighbor lookups are computed using recursive SQL CTEs (`WITH RECURSIVE`).
   - **Local Vector Store** (`sqlite/sqliteVectorStore.ts`): dense BGE-M3 embeddings are persisted in SQLite and cosine similarity search is computed locally in JavaScript.
+  - **Vector pipeline** (`sync/vectorPipeline.ts`): the single embed-write-reconcile path behind "Index vault locally now" (`sync/vaultVectorSync.ts`) and the 2D view's "Calculate vectors" (`views/vectorScatter/toolbar/toolbar.ts`), so both share error tolerance, persistence and reconcile semantics (plan 0004).
   - **WASM Database (`sql.js`)** (`sqlite/sqliteDb.ts`): runs pure SQLite compiled to WebAssembly, eliminating native binary compatibility issues with Obsidian Electron runtimes. The database is cleanly serialized to `memvector-local.sqlite` via Obsidian's vault adapter.
 
 - **Remote Backends (Planned for v0.2+, see `ROADMAP.md`):**

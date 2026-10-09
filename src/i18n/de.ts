@@ -181,6 +181,7 @@ export const de: TranslationKeys = {
   relTypeDuplicate: "Typ existiert bereits:",
   relTypeRemoved: "Typ entfernt.",
   relTypeWeightInvalid: "Gewicht muss eine Zahl >= 0 sein.",
+  relTypeWeightCapped: "Gewicht gespeichert. Die Anziehung im 2D-Layout ist bei {max} gesättigt, jedes Gewicht über {max} wirkt wie {max}.",
   relTypeRemoveTitle: "Relationstyp aus dem Vokabular entfernen",
   relTypeResetBtn: "Auf STEM-Standard zurücksetzen",
   relTypeResetDone: "Vokabular auf STEM-Standard zurückgesetzt.",
