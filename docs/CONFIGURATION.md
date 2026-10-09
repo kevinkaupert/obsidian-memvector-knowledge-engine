@@ -104,7 +104,7 @@ You can edit this file at any time to customize the vocabulary for any domain (m
 
 - `key`: stable identifier used internally.
 - `label`: the canonical relationship type stored in the SQLite graph table and YAML frontmatter, displayed in the Relation Builder dropdown.
-- `term`: descriptive natural language phrase for the relationship, used as dropdown display text.
+- `term`: descriptive natural language phrase for the relationship. It is not shown in the dropdown, which displays the canonical `label`.
 - `category`: dropdown group heading.
 - `bidirectional`: whether the relationship holds symmetrically in both directions.
 - `reversed`: swaps source/target when creating a relation or selecting a different reversed type (e.g. "follows from"). Editing an existing relation while retaining its canonical label preserves its already-stored direction. The UI also includes an interactive "Richtung umkehren" (swap direction) button for explicit direction changes during editing.
