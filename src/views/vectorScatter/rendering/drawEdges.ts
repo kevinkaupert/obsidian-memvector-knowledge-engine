@@ -132,16 +132,18 @@ export function drawEdges(
     const tgtNode = nodeMap.get(edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) return;
     if (reachable && !reachable.has(srcNode.id) && !reachable.has(tgtNode.id)) return;
-    if (viewport && !isEdgeInViewport(srcNode, tgtNode, viewport)) return;
-
-    const isHovered = edge === hoveredEdge;
-    const edgeColor = resolveEdgeColor(edge.relType, style, themeAccent);
 
     const p1 = worldToScreen(srcNode.x, srcNode.y, zoom, pan);
     const p2 = worldToScreen(tgtNode.x, tgtNode.y, zoom, pan);
     const slot = slots.get(edge) || COLLAPSED_SLOT;
     const isExpanded = slot.total === 1 || groupKeyFor(edge) === expandedGroupKey;
     const control = computeControlPoint(p1, p2, isExpanded ? slot : COLLAPSED_SLOT);
+    // The fan bulge is screen-space, so the curve can reach the screen while both endpoints are off it.
+    const controlWorld = { x: (control.x - pan.x) / zoom, y: (control.y - pan.y) / zoom };
+    if (viewport && !isEdgeInViewport(srcNode, tgtNode, viewport, controlWorld)) return;
+
+    const isHovered = edge === hoveredEdge;
+    const edgeColor = resolveEdgeColor(edge.relType, style, themeAccent);
 
     ctx.save();
     ctx.beginPath();
