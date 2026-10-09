@@ -45,6 +45,13 @@ function relationColor(ctx: CanvasRenderingContext2D, tally: RelationTally, x: n
   return grad;
 }
 
+/** Placement order of node labels; lower tiers reserve their space first. */
+enum LabelTier {
+  Focus,
+  Connected,
+  Other,
+}
+
 /**
  * Purpose: Renders scatter nodes, halos, and priority labels on the 2D canvas, skipping off-screen nodes when viewport bounds are provided (Issue #158).
  * Architecture: Employs viewport culling to avoid canvas context calls and label measuring for off-screen nodes in dense graphs.
@@ -68,10 +75,12 @@ export function drawNodes(
   const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
 
   /**
-   * Labels are collected during the dot pass and placed afterwards in two priority rounds.
-   * Placing them inline would let an arbitrary unselected node reserve space first and force
-   * the selected/hovered label - the one the user is actually looking at - to draw on top of
-   * it, which is the overlap that matters most.
+   * Labels are collected during the dot pass and placed afterwards in three tiers:
+   * - focus (selected/hovered): always drawn, even on top of each other - the user picked them;
+   * - connected neighbors of the focus: drawn only where no focus or earlier connected label sits;
+   * - everything else: drawn only into the space that is still free.
+   * Placing them inline would let an arbitrary node reserve space first and force the label the
+   * user is actually looking at to draw on top of it, which is the overlap that matters most.
    */
   interface LabelCandidate {
     text: string;
@@ -79,7 +88,7 @@ export function drawNodes(
     top: number;
     fontH: number;
     rect: { x1: number; y1: number; x2: number; y2: number };
-    priority: boolean;
+    tier: LabelTier;
     color: string;
     alpha: number;
   }
@@ -145,7 +154,7 @@ export function drawNodes(
         top: labelTop,
         fontH,
         rect: { x1: pos.x - width / 2 - 2, x2: pos.x + width / 2 + 2, y1: labelTop - 1, y2: labelTop + fontH + 1 },
-        priority: isActive || !!tally,
+        tier: isActive ? LabelTier.Focus : tally ? LabelTier.Connected : LabelTier.Other,
         color: isSelected ? themeAccent : isHovered ? themeTextNormal : themeTextMuted,
         alpha: isDimmed ? unselectedLabelOpacity : 1,
       });
@@ -155,12 +164,11 @@ export function drawNodes(
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  // Round 1: labels that must stay readable reserve their space (forced, so they always draw).
-  // Round 2: the rest yields to anything already reserved.
-  for (const round of [true, false]) {
+  // Only focus labels are forced; every later tier yields to whatever is already reserved.
+  for (const tier of [LabelTier.Focus, LabelTier.Connected, LabelTier.Other]) {
     for (const c of candidates) {
-      if (c.priority !== round) continue;
-      if (!labels.tryPlace(c.rect, c.priority)) continue;
+      if (c.tier !== tier) continue;
+      if (!labels.tryPlace(c.rect, tier === LabelTier.Focus)) continue;
       ctx.globalAlpha = c.alpha;
       ctx.font = `${c.fontH}px sans-serif`;
       ctx.fillStyle = c.color;

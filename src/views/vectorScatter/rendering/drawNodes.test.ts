@@ -78,11 +78,40 @@ describe("drawNodes label decluttering (PR #130)", () => {
     expect(drawn).toEqual(["tallied"]);
   });
 
-  it("draws every priority label even when two of them collide", () => {
+  it("draws every focus label even when two of them collide, because the user picked each one", () => {
     const a = node("selectedA", 0, 0);
     const b = node("selectedB", 0, 0);
     const drawn = render([a, b], new Set(["selectedA", "selectedB"]));
     expect(drawn.sort()).toEqual(["selectedA", "selectedB"]);
+  });
+
+  it("never draws a connected neighbor's label over the focused label (#138)", () => {
+    const tallies = new Map<string, RelationTally>([["neighbor", { wikilink: 1, typed: 0 }]]);
+    // The neighbor comes first in node order, so array order alone would let it reserve the spot.
+    const drawn = render([node("neighbor", 0, 0), node("selected", 0, 0)], new Set(["selected"]), null, tallies);
+    expect(drawn).toEqual(["selected"]);
+  });
+
+  it("keeps the hovered label ahead of a colliding connected neighbor (#138)", () => {
+    const hoveredNode = node("hovered", 0, 0);
+    const tallies = new Map<string, RelationTally>([["neighbor", { wikilink: 0, typed: 1 }]]);
+    const drawn = render([node("neighbor", 0, 0), hoveredNode], new Set(), hoveredNode, tallies);
+    expect(drawn).toEqual(["hovered"]);
+  });
+
+  it("does not stack two colliding connected neighbor labels (#138)", () => {
+    const tallies = new Map<string, RelationTally>([
+      ["neighborA", { wikilink: 1, typed: 0 }],
+      ["neighborB", { wikilink: 1, typed: 0 }],
+    ]);
+    const drawn = render([node("neighborA", 0, 0), node("neighborB", 0, 0)], new Set(), null, tallies);
+    expect(drawn).toHaveLength(1);
+  });
+
+  it("still draws a connected neighbor label that does not collide with the focus (#138)", () => {
+    const tallies = new Map<string, RelationTally>([["neighbor", { wikilink: 1, typed: 0 }]]);
+    const drawn = render([node("neighbor", 0, 400), node("selected", 0, 0)], new Set(["selected"]), null, tallies);
+    expect(drawn.sort()).toEqual(["neighbor", "selected"]);
   });
 
   it("hides all labels below the zoom threshold unless a node is focused", () => {
