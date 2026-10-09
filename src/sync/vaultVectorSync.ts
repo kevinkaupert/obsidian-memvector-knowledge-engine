@@ -12,6 +12,8 @@ export interface VectorSyncResult {
   totalFiles: number;
   syncedCount: number;
   skippedCount: number;
+  failedCount: number;
+  failedPaths: string[];
 }
 
 /**
@@ -32,6 +34,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   // below succeeds this run - reconciliation must not delete a file's existing
   // stored vector just because a single transient embedding call for it failed.
   const includedPaths: string[] = [];
+  const failedPaths: string[] = [];
   let consecutiveErrors = 0;
   let firstErrorMsg: string | null = null;
   let skippedCount = 0;
@@ -59,6 +62,7 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
 
     if (error) {
       consecutiveErrors++;
+      failedPaths.push(file.path);
       if (!firstErrorMsg) firstErrorMsg = error;
       if (consecutiveErrors >= 3 || (points.length === 0 && consecutiveErrors >= 1)) {
         throw new Error(`Embedding error (${target.model}): ${firstErrorMsg}`);
@@ -87,6 +91,6 @@ export async function syncVaultVectors(app: App, settings: MemVectorSettings, st
   // Also covers runs where every note was a cache hit: their hashes may stem from an earlier failed write.
   await store.flush();
 
-  return { totalFiles, syncedCount: points.length, skippedCount };
+  return { totalFiles, syncedCount: points.length, skippedCount, failedCount: failedPaths.length, failedPaths };
 }
 

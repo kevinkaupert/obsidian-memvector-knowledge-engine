@@ -231,8 +231,11 @@ export const de: TranslationKeys = {
   indexVaultBtn: "Jetzt Vault lokal indizieren",
   indexVaultIndexing: "Indiziere Vault...",
   indexVaultSuccess: "[OK] Indiziert!",
+  indexVaultPartial: "[WARN] Teilweise indiziert",
   indexVaultNoticeStarting: "Starte lokale Vektor- und Graph-Indizierung für",
   indexVaultNoticeSaved: "Vektoren &",
+  indexVaultNoticePartial: "Notizen konnten nicht eingebettet werden und wurden übersprungen (Details in der Konsole).",
+  indexVaultNoticePartialSavedSuffix: "Kanten in lokaler SQLite gespeichert.",
 
   synthesisContentCapTitle: "Synthese-Inhalts-Obergrenze (Zeichen pro Notiz)",
   synthesisContentCapDesc: "0 = kein Limit, voller Notiztext wird verwendet. Gilt gleichermaßen für ausgewählte Notizen und GraphRAG-Nachbarn. [NOTE] Einfache Zeichen-Kappung am Ende des Textfensters - wird in einem späteren Schritt durch eine kontextbewusstere Zuteilung ersetzt.",

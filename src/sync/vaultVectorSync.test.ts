@@ -61,6 +61,8 @@ describe("vaultVectorSync", () => {
 
     expect(result.syncedCount).toBe(2);
     expect(result.skippedCount).toBe(0);
+    expect(result.failedCount).toBe(0);
+    expect(result.failedPaths).toEqual([]);
     expect(syncedPoints.length).toBe(2);
 
     expect(syncedPoints[0].id).toBe(pathToId("Work/Overview.md"));
@@ -72,6 +74,49 @@ describe("vaultVectorSync", () => {
     expect(syncedPoints[1].contentHash).toBeDefined();
 
     expect(reconciledPaths).toEqual(["Work/Overview.md", "Concepts/Deep Learning.md"]);
+  });
+
+  it("surfaces transient embedding failures in failedCount and failedPaths (#230)", async () => {
+    const files: TFile[] = [
+      { path: "A.md", basename: "A", name: "A.md" } as unknown as TFile,
+      { path: "B.md", basename: "B", name: "B.md" } as unknown as TFile,
+      { path: "C.md", basename: "C", name: "C.md" } as unknown as TFile,
+    ];
+
+    const fakeApp = {
+      vault: {
+        getMarkdownFiles: () => files,
+        cachedRead: async (f: TFile) => `Content of ${f.basename}`,
+      },
+      secretStorage: {
+        getSecret: () => "mock-secret-key",
+      },
+    } as unknown as App;
+
+    // A succeeds, B has a transient error (e.g. rate limit), C succeeds
+    vi.spyOn(fetchEmbeddingModule, "fetchEmbedding").mockImplementation(async (text) => {
+      if (text.includes("B")) {
+        return { embedding: null, error: "429 Too Many Requests" };
+      }
+      return { embedding: [0.1, 0.2, 0.3], error: null };
+    });
+
+    const mockStore: VectorStore = {
+      testConnection: async () => {},
+      syncPoints: async () => {},
+      search: async () => [],
+      getVector: async () => null,
+      getVectors: async () => new Map(),
+      flush: async () => {},
+      getStoredHashes: async () => new Map(),
+      reconcile: async () => ({ removed: 0 }),
+    };
+
+    const result = await syncVaultVectors(fakeApp, DEFAULT_SETTINGS, mockStore);
+
+    expect(result.syncedCount).toBe(2);
+    expect(result.failedCount).toBe(1);
+    expect(result.failedPaths).toEqual(["B.md"]);
   });
 
   it("skips unchanged notes when content hash matches stored hash", async () => {

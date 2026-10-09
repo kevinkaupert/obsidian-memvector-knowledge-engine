@@ -231,8 +231,11 @@ export const en: TranslationKeys = {
   indexVaultBtn: "Index vault locally now",
   indexVaultIndexing: "Indexing vault...",
   indexVaultSuccess: "[OK] Indexed!",
+  indexVaultPartial: "[WARN] Partially indexed",
   indexVaultNoticeStarting: "Starting local vector and graph indexing for",
   indexVaultNoticeSaved: "vectors &",
+  indexVaultNoticePartial: "notes could not be embedded and were skipped (details in the console).",
+  indexVaultNoticePartialSavedSuffix: "edges saved to local SQLite.",
 
   synthesisContentCapTitle: "Synthesis content cap (characters per note)",
   synthesisContentCapDesc: "0 = no limit, full note text is used. Applies equally to selected notes and GraphRAG neighbors. [NOTE] Simple character cutoff at the end of the text window - will be replaced by context-aware budgeting in a later step.",

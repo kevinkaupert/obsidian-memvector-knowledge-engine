@@ -281,5 +281,25 @@ describe("SqliteVectorStore", () => {
       expect(await scoped.getVector("legacy.md")).toEqual([0, 1]);
       expect((await new SqliteVectorStore(app).search([0, 1], 10)).length).toBe(1);
     });
+
+    it("reconcile only removes rows matching its own fingerprint, preserving other models (#229)", async () => {
+      const app = fakeApp();
+      const storeA = new SqliteVectorStore(app, "model-a@local");
+      const storeB = new SqliteVectorStore(app, "model-b@local");
+
+      await storeA.syncPoints([hashed("note-a", [1, 0])]);
+      await storeB.syncPoints([hashed("note-b1", [0, 1]), hashed("note-b2", [0, 1])]);
+
+      // Reconcile storeB with only note-b1 (note-b2 removed from B's scope)
+      const resB = await storeB.reconcile(["note-b1.md"]);
+      expect(resB.removed).toBe(1);
+
+      // storeB has note-b1, lost note-b2
+      expect(await storeB.getVector("note-b1.md")).toEqual([0, 1]);
+      expect(await storeB.getVector("note-b2.md")).toBeNull();
+
+      // storeA still has note-a (completely untouched by storeB's reconcile, even though note-a.md was not in currentPaths)
+      expect(await storeA.getVector("note-a.md")).toEqual([1, 0]);
+    });
   });
 });

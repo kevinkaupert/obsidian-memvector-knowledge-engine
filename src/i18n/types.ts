@@ -212,8 +212,11 @@ export interface TranslationKeys {
   indexVaultBtn: string;
   indexVaultIndexing: string;
   indexVaultSuccess: string;
+  indexVaultPartial: string;
   indexVaultNoticeStarting: string;
   indexVaultNoticeSaved: string;
+  indexVaultNoticePartial: string;
+  indexVaultNoticePartialSavedSuffix: string;
 
   synthesisContentCapTitle: string;
   synthesisContentCapDesc: string;
