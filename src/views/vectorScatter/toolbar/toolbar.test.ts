@@ -170,6 +170,25 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
     expect(noticeCalls.some((n) => n.message.includes("[ERROR]"))).toBe(false);
   });
 
+  it("reports a partial run as [WARN], keeps the other vectors and reconciles (#232)", async () => {
+    mockCtx.settings.language = "en";
+    (mockCtx as { app: unknown }).app = { vault: createMockVault({ "note-1.md": "Content of note 1", "note-2.md": "Content of note 2" }) };
+    const second = { ...mockCtx.nodes[0], id: "note-2", path: "note-2.md", title: "Note 2" };
+    mockCtx.nodes = [mockCtx.nodes[0], second];
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.mocked(fetchEmbedding)
+      .mockResolvedValueOnce({ embedding: [0.1, 0.2, 0.3], error: null })
+      .mockResolvedValueOnce({ embedding: null, error: "429 Too Many Requests" });
+
+    await runCalcVectors(mockCtx, mockBtn, mockStatusText, mockHoverBar);
+
+    expect(mockSyncPoints).toHaveBeenCalledWith([expect.objectContaining({ payload: expect.objectContaining({ path: "note-1.md" }) })]);
+    expect(mockReconcile).toHaveBeenCalledTimes(1);
+    expect(mockCtx.nodes[0].embedding).toEqual([0.1, 0.2, 0.3]);
+    expect(noticeCalls.some((n) => n.message.startsWith("[WARN]") && n.message.includes("1 notes could not be embedded"))).toBe(true);
+    expect(noticeCalls.some((n) => n.message.includes("[OK]"))).toBe(false);
+  });
+
   it("reports localized success when SQLite sync succeeds in English", async () => {
     mockCtx.settings.language = "en";
 

@@ -1,15 +1,11 @@
-import { Notice, TFile } from "obsidian";
+import { Notice } from "obsidian";
 import { getTranslation, type TranslationKeys } from "../../../i18n";
-import { fetchEmbedding } from "../../../llm/fetchEmbedding";
 import { getShortModelName } from "../../../llm/getShortModelName";
-import { resolveEmbeddingApiKey } from "../../../settings/secrets";
-import { pathToId } from "../../../noteSlug";
-import { buildEmbeddingInput } from "../../../sync/embeddingText";
-import { embeddingTargetChanged, resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
+import { EmbeddingTargetChangedError, resolveEmbeddingTarget } from "../../../sync/embeddingTarget";
+import { EmbeddingAbortedError, VectorPersistenceError, runVectorPipeline, type VectorPipelineResult } from "../../../sync/vectorPipeline";
 import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
 import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
-import type { VectorPoint } from "../../../sync/vectorStore";
 import type { ScatterViewContext } from "../context";
 import type { ScatterNode } from "../types";
 import { contextWarnings, enrichContext } from "../contextEnrichment";
@@ -424,160 +420,84 @@ async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonElement, s
 }
 
 /**
- * Purpose: Embeds every node of the stable work list (text built by the shared buildEmbeddingInput, so cache hashes
- * match the Settings vault sync), persists the results and reports the outcome.
- * Architecture: Vectors are collected per path and only handed to the view and the store once the embedding target
- * is verified unchanged. A model or endpoint switch mid-run makes every result belong to the previous vector space,
- * so the run is cancelled instead: the view keeps what the switch rehydrated, and the store keeps the new model's rows.
+ * Purpose: Embeds every node of the stable work list through the shared vector pipeline, hands the vectors to the
+ * view and reports the outcome in the toolbar.
+ * Architecture: The pipeline (vectorPipeline.ts) gives the same guarantees as "Index vault locally now": failed notes
+ * are skipped and reported, repeated failures abort the run, and reconcile runs against the whole indexable vault,
+ * not the filtered view. Vectors reach the view's nodes only after the pipeline verified that the embedding target
+ * did not change mid-run; on a switch the view keeps what the switch rehydrated.
  */
 async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: ScatterNode[], statusText: HTMLElement, hoverBar: HTMLElement): Promise<void> {
   const vT = getTranslation(ctx.settings.language || "de");
-  const { model: embedModel, apiBase, fingerprint } = resolveEmbeddingTarget(ctx.settings);
-  const targetChanged = () => embeddingTargetChanged(ctx.settings, fingerprint);
-  const apiKey = resolveEmbeddingApiKey(ctx.app, ctx.settings);
-  const total = workNodes.length;
-  statusText.setText(`${vT.statusVectorsCalculating} 0/${total}...`);
+  const { model: embedModel } = resolveEmbeddingTarget(ctx.settings);
+  const titles = new Map(workNodes.map((n) => [n.path, n.title]));
+  statusText.setText(`${vT.statusVectorsCalculating} 0/${workNodes.length}...`);
 
-  let successCount = 0;
-  let skippedCount = 0;
-  let newCalculatedCount = 0;
-  let vanishedCount = 0;
-  let lastError: string | null = null;
-  const points: VectorPoint[] = [];
-  const embeddings = new Map<string, number[]>();
-
-  const vectorStore = getVectorStore(ctx.app, ctx.settings);
-  let storedHashes = new Map<string, { hash: string; mtime?: number }>();
+  let result: VectorPipelineResult;
   try {
-    storedHashes = await vectorStore.getStoredHashes();
-  } catch (err) {
-    console.warn("MemVector: Failed to load stored vector hashes, calculating unconditionally:", err);
-  }
-  let storedVectors = new Map<string, number[]>();
-  try {
-    storedVectors = await vectorStore.getVectors(workNodes.map((n) => n.path));
-  } catch (err) {
-    console.warn("MemVector: Failed to load stored vectors, calculating unconditionally:", err);
-  }
-
-  for (let i = 0; i < total; i++) {
-    if (targetChanged()) break;
-    const node = workNodes[i];
-    // Embed from the note file itself, not from node.content: that is a short display/layout
-    // excerpt, and the text and hash must match the Settings vault sync exactly.
-    const file = ctx.app.vault.getAbstractFileByPath(node.path);
-    if (!(file instanceof TFile)) {
-      // Deleted since the scan - nothing left to embed, and not counted as calculated or cached either.
-      vanishedCount++;
-      continue;
-    }
-    const { text: sampleText, hash: currentHash, body } = buildEmbeddingInput(file.basename, await ctx.app.vault.cachedRead(file), ctx.settings.embeddingMaxChars);
-    const cached = storedHashes.get(node.path) ?? storedHashes.get(node.id);
-
-    if (cached && cached.hash === currentHash) {
-      // Take the stored vector even if the node already holds one: the store is scoped to the active model, while an
-      // in-memory vector may still come from the previous one (e.g. after a model switch and a Settings re-index).
-      const stored = storedVectors.get(node.path);
-      if (stored && stored.length > 0) {
-        embeddings.set(node.path, stored);
-        skippedCount++;
-        successCount++;
-        continue;
-      }
-    }
-
-    setHoverBarText(hoverBar, `[INFO] ${vT.statusCalcEmbeddings} '${embedModel}' (${i + 1}/${total}): ${node.title}...`, "muted");
-
-    const res = await fetchEmbedding(sampleText, apiBase, apiKey, embedModel);
-
-    if (res.error) {
-      lastError = res.error;
-      setHoverBarText(hoverBar, `[ERROR] ${vT.noticeEmbeddingError} (${i + 1}/${total}): ${res.error}`, "error");
-      new Notice(`[ERROR] ${vT.noticeEmbeddingError}: ${res.error}`, 8000);
-      break;
-    } else if (res.embedding) {
-      embeddings.set(node.path, res.embedding);
-      points.push({
-        id: pathToId(node.path),
-        vector: res.embedding,
-        payload: { path: node.path, title: node.title, content: body.slice(0, 500) },
-        contentHash: currentHash,
-      });
-      successCount++;
-      newCalculatedCount++;
-    }
-  }
-
-  if (targetChanged()) {
-    console.warn(`MemVector: Embedding target changed during vector calculation (was ${fingerprint}), discarding the run's vectors`);
-    statusText.setText(vT.statusVectorsCancelled);
-    setHoverBarText(hoverBar, `[WARN] ${vT.noticeEmbeddingTargetChanged}`, "warning");
-    new Notice(`[WARN] ${vT.noticeEmbeddingTargetChanged}`, 8000);
-    return;
-  }
-
-  adoptEmbeddings(ctx, embeddings);
-  // Notes that still exist - the base for completion and for every count reported below.
-  const done = total - vanishedCount;
-
-  let syncFailed = false;
-  let syncErrorMsg: string | null = null;
-
-  if (points.length > 0) {
-    try {
-      await vectorStore.syncPoints(points);
-    } catch (syncErr) {
-      syncFailed = true;
-      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      console.error("MemVector: Failed to persist calculated vectors to SQLite:", syncErr);
-    }
-  }
-
-  if (!syncFailed && successCount === done) {
-    try {
+    result = await runVectorPipeline(ctx.app, ctx.settings, getVectorStore(ctx.app, ctx.settings), {
+      paths: workNodes.map((n) => n.path),
       // Reconcile against the whole indexable vault, not ctx.nodes: the node list honours the transient view
       // filter, and reconciling against it would delete the vectors of every note filtered out of the view.
-      await vectorStore.reconcile(listIndexableFiles(ctx.app, ctx.settings.vectorSearchExclusions).map((f) => f.path));
-    } catch (syncErr) {
-      syncFailed = true;
-      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      console.error("MemVector: Failed to reconcile vectors in SQLite:", syncErr);
+      reconcilePaths: listIndexableFiles(ctx.app, ctx.settings.vectorSearchExclusions).map((f) => f.path),
+      collectVectors: true,
+      onProgress: (i, total, path) =>
+        setHoverBarText(hoverBar, `[INFO] ${vT.statusCalcEmbeddings} '${embedModel}' (${i + 1}/${total}): ${titles.get(path) ?? path}...`, "muted"),
+      onEmbeddingError: (i, total, _path, error) =>
+        setHoverBarText(hoverBar, `[ERROR] ${vT.noticeEmbeddingError} (${i + 1}/${total}): ${error}`, "error"),
+    });
+  } catch (err) {
+    if (err instanceof EmbeddingTargetChangedError) {
+      console.warn(`MemVector: ${err.message}, discarding the run's vectors`);
+      statusText.setText(vT.statusVectorsCancelled);
+      setHoverBarText(hoverBar, `[WARN] ${vT.noticeEmbeddingTargetChanged}`, "warning");
+      new Notice(`[WARN] ${vT.noticeEmbeddingTargetChanged}`, 8000);
+      return;
     }
-    await reconcilePositionsOrWarn(ctx);
+    if (err instanceof VectorPersistenceError) {
+      adoptEmbeddings(ctx, err.partial.vectors);
+      console.error("MemVector: Failed to persist calculated vectors to SQLite:", err.cause);
+      statusText.setText(vT.statusPersistenceError);
+      setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${err.message || vT.unknownError}`, "error");
+      new Notice(`[ERROR] ${vT.noticePersistenceError}: ${err.message}`, 8000);
+      return;
+    }
+    if (err instanceof EmbeddingAbortedError) {
+      adoptEmbeddings(ctx, err.partial.vectors);
+      const done = err.partial.total - err.partial.vanishedCount;
+      const ok = err.partial.calculatedCount + err.partial.skippedCount;
+      statusText.setText(`${vT.statusErrorCount} (${ok}/${done})`);
+      new Notice(`[ERROR] ${err.message}`, 8000);
+      return;
+    }
+    throw err;
   }
 
-  if (!syncFailed) {
-    // Cache hits may stem from an earlier run whose write failed - put them on disk before reporting success.
-    try {
-      await vectorStore.flush();
-    } catch (syncErr) {
-      syncFailed = true;
-      syncErrorMsg = syncErr instanceof Error ? syncErr.message : String(syncErr);
-      console.error("MemVector: Failed to persist pending vector changes to SQLite:", syncErr);
-    }
-  }
+  adoptEmbeddings(ctx, result.vectors);
+  await reconcilePositionsOrWarn(ctx);
+  await ctx.onVectorsCalculated();
 
-  if (syncFailed) {
-    statusText.setText(vT.statusPersistenceError);
-    setHoverBarText(hoverBar, `[ERROR] ${vT.hoverPersistenceError}: ${syncErrorMsg || vT.unknownError}`, "error");
-    new Notice(`[ERROR] ${vT.noticePersistenceError}: ${syncErrorMsg}`, 8000);
-  } else if (successCount === done) {
-    await ctx.onVectorsCalculated();
-    if (newCalculatedCount === 0 && skippedCount > 0) {
-      setHoverBarText(hoverBar, `[OK] ${done}/${done} ${vT.statusSkippedCached}`, "muted");
-      statusText.setText(`${done} | ${vT.statusCacheActive}`);
-      new Notice(`[OK] ${done} ${vT.statusSkippedCached}`);
-    } else if (skippedCount > 0) {
-      setHoverBarText(hoverBar, `[OK] ${newCalculatedCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`, "muted");
-      statusText.setText(`${done} | ${vT.statusVectorsOk}`);
-      new Notice(`[OK] ${newCalculatedCount} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`);
-    } else {
-      setHoverBarText(hoverBar, `[OK] ${successCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
-      statusText.setText(`${done} | ${vT.statusVectorsOk}`);
-      new Notice(`[OK] ${successCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
-    }
-  } else if (lastError) {
-    statusText.setText(`${vT.statusErrorCount} (${successCount}/${done})`);
+  // Notes that still exist - the base for every count reported below.
+  const done = result.total - result.vanishedCount;
+  const { calculatedCount, skippedCount, failedPaths } = result;
+  if (failedPaths.length > 0) {
+    console.warn("MemVector: Notes skipped because their embedding failed:", failedPaths);
+    const message = `${calculatedCount + skippedCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}'. ${failedPaths.length} ${vT.indexVaultNoticePartial}`;
+    setHoverBarText(hoverBar, `[WARN] ${message}`, "warning");
+    statusText.setText(`${calculatedCount + skippedCount}/${done} | ${vT.indexVaultPartial.replace(/^\[WARN\]\s*/, "")}`);
+    new Notice(`[WARN] ${message}`, 8000);
+  } else if (calculatedCount === 0 && skippedCount > 0) {
+    setHoverBarText(hoverBar, `[OK] ${done}/${done} ${vT.statusSkippedCached}`, "muted");
+    statusText.setText(`${done} | ${vT.statusCacheActive}`);
+    new Notice(`[OK] ${done} ${vT.statusSkippedCached}`);
+  } else if (skippedCount > 0) {
+    setHoverBarText(hoverBar, `[OK] ${calculatedCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`, "muted");
+    statusText.setText(`${done} | ${vT.statusVectorsOk}`);
+    new Notice(`[OK] ${calculatedCount} ${vT.noticeVectorsCalc} '${embedModel}' (${skippedCount} ${vT.statusSkippedCached})`);
+  } else {
+    setHoverBarText(hoverBar, `[OK] ${calculatedCount}/${done} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`, "muted");
+    statusText.setText(`${done} | ${vT.statusVectorsOk}`);
+    new Notice(`[OK] ${calculatedCount} ${vT.noticeVectorsCalc} '${embedModel}' ${vT.noticeVectorsCalcSuffix}`);
   }
 }
 
