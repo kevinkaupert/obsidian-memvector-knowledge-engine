@@ -52,6 +52,16 @@ describe("asserted graph edges (#254)", () => {
     expect(keys).toEqual(new Set([edgeKey(id("X"), id("Y"), "REQUIRES"), edgeKey(id("Y"), id("X"), "REQUIRES")]));
   });
 
+  it("is unknown when another relation note is incomplete, but not when only the ignored note is (#258)", async () => {
+    const notes = [
+      { path: "A.md" }, { path: "B.md" },
+      relation("rel/ab.md", "A", "B"),
+      { path: "rel/draft.md", frontmatter: { type: "relation", source_note: "[[A]]", relation_type: "REQUIRES", description: "d" } },
+    ];
+    expect(await loadAssertedEdgeKeys(fakeVault(notes), {}, ["rel/ab.md"])).toBeNull();
+    expect(await loadAssertedEdgeKeys(fakeVault(notes), {}, ["rel/ab.md", "rel/draft.md"])).toEqual(new Set());
+  });
+
   it("deletes only unasserted edges and keeps everything when the vault could not be read", async () => {
     const store = { deleteEdge: vi.fn(async () => {}) } as unknown as GraphStore;
     const asserted = new Set([edgeKey(pathToId("A.md"), "b", "REQUIRES")]);

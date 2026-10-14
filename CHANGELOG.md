@@ -12,6 +12,8 @@ Releases are cut only when the maintainer explicitly asks for one.
 - **Asserted Edges Survive Relation Edits**: Deleting a relation note, or changing its type or direction, no longer
   removes the old edge from the graph index while another relation note or a confirmed frontmatter link still asserts
   it. If the vault cannot be read at that moment, the edge is kept until the next full re-index (#254).
+- **Relation Edits With Unreadable Relation Notes**: If another relation note cannot be read or is incomplete, the
+  old edge is kept as well, because that note may still assert it (#258).
 - **WikiLinks Setting Help**: The description of "WikiLinks as graph relations" now states that WikiLinks always
   raise the 2D similarity of linked notes and that the setting only controls `LINKS_TO` edges (#256).
 
