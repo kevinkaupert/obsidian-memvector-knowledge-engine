@@ -41,6 +41,10 @@ export interface RelationEdge {
   title: string;
   path: string;
   bidirectional: boolean;
+  /** Where the edge was read from: a relation note (default) or a typed-link key in a note's frontmatter (#243). `path` is that note. */
+  origin?: "relation-note" | "frontmatter";
+  /** "suggested" for `<label>_suggested` frontmatter links: proposed by a model and not yet confirmed (#243). Missing means confirmed. */
+  confidence?: "confirmed" | "suggested";
 }
 
 /**

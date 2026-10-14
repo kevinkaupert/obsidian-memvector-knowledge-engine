@@ -151,8 +151,12 @@ export function drawEdges(
     ctx.quadraticCurveTo(control.x, control.y, p2.x, p2.y);
     ctx.strokeStyle = edgeColor;
     ctx.lineWidth = isHovered ? 3 : 2;
-    ctx.globalAlpha = isHovered || !isExpanded ? 1 : 0.8;
+    // Unconfirmed `<label>_suggested` frontmatter links: dashed and muted (#243).
+    const isSuggested = edge.confidence === "suggested";
+    if (isSuggested) ctx.setLineDash([6 * zoom, 4 * zoom]);
+    ctx.globalAlpha = isHovered ? 1 : isSuggested ? 0.55 : !isExpanded ? 1 : 0.8;
     ctx.stroke();
+    if (isSuggested) ctx.setLineDash([]);
     ctx.globalAlpha = 1;
 
     drawArrowhead(ctx, p2, tangentOnCurve(p1, control, p2, 1), zoom, edgeColor);
