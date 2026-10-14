@@ -7,7 +7,7 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
-## [0.3.0] - 2026-10-14
+## [0.2.5] - 2026-10-14
 
 ### Added
 - **Relation Weight Cap Notice**: Entering a relation weight above the 2D layout's attraction cap in the relation
