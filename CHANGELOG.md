@@ -13,7 +13,7 @@ Releases are cut only when the maintainer explicitly asks for one.
   removes the old edge from the graph index while another relation note or a confirmed frontmatter link still asserts
   it. If the vault cannot be read at that moment, the edge is kept until the next full re-index (#254).
 - **WikiLinks Setting Help**: The description of "WikiLinks as graph relations" now states that WikiLinks always
-  group linked notes into the same 2D cloud and that the setting only controls `LINKS_TO` edges (#256).
+  raise the 2D similarity of linked notes and that the setting only controls `LINKS_TO` edges (#256).
 
 ### Added
 - **Frontmatter Typed Links**: Every lowercase label of the relation vocabulary is read as a typed-link key in note

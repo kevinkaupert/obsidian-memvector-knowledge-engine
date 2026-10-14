@@ -69,7 +69,7 @@ export const en: TranslationKeys = {
   exclusionsName: "Path & File Exclusions",
   exclusionsDesc: "Global exclusion rules for vector indexing, graph edges, and 2D Graph (e.g. -path:schema -file:index -file:log -file:README). Same syntax as Obsidian Graph View.",
   wikiLinksAsRelationsName: "Index WikiLinks as graph relations",
-  wikiLinksAsRelationsDesc: "Off by default: [[WikiLinks]] are not indexed as LINKS_TO graph edges, so GraphRAG multi-hop context and the 2D topology forces rely on semantic vectors and explicit typed relations (Relation Builder) only. WikiLinks always group linked notes into the same 2D cloud; this setting only decides whether they also become LINKS_TO relations. Turn on to treat WikiLinks as LINKS_TO relationships again. Takes effect on the next full vault re-index.",
+  wikiLinksAsRelationsDesc: "Off by default: [[WikiLinks]] are not indexed as LINKS_TO graph edges, so GraphRAG multi-hop context and the 2D topology forces rely on semantic vectors and explicit typed relations (Relation Builder) only. WikiLinks always raise the 2D similarity of linked notes, so they tend to land in the same cloud; this setting only decides whether they also become LINKS_TO relations. Turn on to treat WikiLinks as LINKS_TO relationships again. Takes effect on the next full vault re-index.",
   agentsPathsName: "Agent Guideline Files",
   agentsPathsDesc: "Vault paths loaded as compilation rules for synthesis when the 'Include agent guidelines' toggle is on. Separate multiple paths with commas.",
   agentsIncludeDesc: "Include the vault's own AGENTS.md (or the configured guideline files) as house-style guidance in the synthesis prompt.",
