@@ -7,6 +7,32 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-14
+
+### Added
+- **Relation Weight Cap Notice**: Entering a relation weight above the 2D layout's attraction cap in the relation
+  type table or the add form keeps the value and shows a notice that the attraction saturates there. The cap is
+  `MAX_RELATION_WEIGHT_FACTOR` in `layoutTunables.ts`, shared by the layout and the settings.
+- **Runbook**: `docs/runbook.md` covers the npm scripts, the committed `main.js` and its CI check, linking the
+  build into a vault, the mock echo server and the release steps.
+
+### Changed
+- **One Vector Pipeline**: "Index vault locally now" and the 2D view's "Calculate vectors" share
+  `src/sync/vectorPipeline.ts`. A failed note is skipped and reported; a run aborts on a failing first request or
+  after 3 consecutive errors and still writes what it calculated; reconcile runs after every non-aborted run. The
+  toolbar now reports partial runs as `[WARN]` instead of stopping at the first error (Plan 0004).
+
+### Fixed
+- **Relation Save Atomicity**: If a relation's graph edge cannot be written, a newly created relation note is
+  trashed and an edited one gets its previous content back. Other entries of a batch stay saved; the notice names
+  the relations that failed.
+- **Label Priority**: Selected and hovered labels always draw; labels of connected neighbors yield to them and to
+  each other before all other labels.
+- **Culling**: Edges are culled by their whole curve and nodes by their label reach, so fanned edges and partly
+  visible labels no longer disappear at the screen edge.
+- **Documentation**: README, CONFIGURATION and the 0.1.7 audit and release notes corrected where they deviated
+  from the code.
+
 ## [0.2.4] - 2026-10-09
 
 ### Fixed
