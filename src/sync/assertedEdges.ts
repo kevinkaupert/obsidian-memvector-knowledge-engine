@@ -1,9 +1,10 @@
 import type { App } from "obsidian";
-import { confirmedEdges } from "../frontmatterLinks";
+import { buildLinkKeys, confirmedEdges, loadFrontmatterLinkEdges } from "../frontmatterLinks";
+import { pathToId } from "../noteSlug";
 import { readRelationLabels } from "../relationVocabulary/presets";
 import type { MemVectorSettings } from "../settings/types";
 import { relationsFolder } from "../vaultLayout";
-import { loadRelationEdges } from "../views/vectorScatter/relationEdges";
+import { loadRelationFilesResult, resolveLinkTextToId } from "../views/vectorScatter/relationEdges";
 import type { GraphStore } from "./graphStore";
 
 /** Purpose: Case-insensitive identity of one directed graph edge, matching how graph-store ids are written. */
@@ -14,7 +15,9 @@ export function edgeKey(src: string, tgt: string, relType: string): string {
 /**
  * Purpose: Collects the directed edges the vault still asserts as confirmed, from relation notes and frontmatter
  * typed links, ignoring the relation notes at `ignoredPaths` (the note being deleted or replaced) (#254).
- * Architecture: Ignoring by path is needed because a replaced or just-trashed note can still be in the metadata cache.
+ * Architecture: Reads every assertion without the display deduplication of loadRelationEdges: there a relation note
+ * hides a matching frontmatter link, so dropping an ignored note afterwards would lose the link that still asserts
+ * the edge. Ignoring by path is needed because a replaced or just-trashed note can still be in the metadata cache.
  */
 export async function loadAssertedEdgeKeys(
   app: App,
@@ -22,11 +25,19 @@ export async function loadAssertedEdgeKeys(
   ignoredPaths: string[] = []
 ): Promise<Set<string>> {
   const ignored = new Set(ignoredPaths);
-  const edges = confirmedEdges(
-    await loadRelationEdges(app, settings.vectorSearchExclusions ?? "", relationsFolder(settings), await readRelationLabels(app, settings))
+  const exclusions = settings.vectorSearchExclusions ?? "";
+  const folder = relationsFolder(settings);
+  const { edges: relationNoteEdges } = await loadRelationFilesResult(app, exclusions, folder);
+  const frontmatterEdges = loadFrontmatterLinkEdges(
+    app,
+    buildLinkKeys(await readRelationLabels(app, settings)),
+    (linkText, sourcePath) => resolveLinkTextToId(app, linkText, sourcePath, exclusions),
+    pathToId,
+    exclusions,
+    folder
   );
   const keys = new Set<string>();
-  for (const e of edges) {
+  for (const e of confirmedEdges([...relationNoteEdges, ...frontmatterEdges])) {
     if (ignored.has(e.path)) continue;
     keys.add(edgeKey(e.srcId, e.tgtId, e.relType));
     if (e.bidirectional) keys.add(edgeKey(e.tgtId, e.srcId, e.relType));
