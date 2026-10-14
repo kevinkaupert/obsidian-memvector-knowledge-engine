@@ -4,6 +4,7 @@ import type { RelationEdge } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
 import { isRelationNote } from "../../relationNotes";
 import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
+import { buildLinkKeys, loadFrontmatterLinkEdges } from "../../frontmatterLinks";
 
 /**
  * Resolves a relation file's stored WikiLink text (e.g. from `source_note`)
@@ -14,7 +15,7 @@ import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
  * Returns null when the target note is excluded, so callers can tell an
  * intentional omission apart from a link that yields no usable id.
  */
-function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string | null {
+export function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string | null {
   const destFile = app.metadataCache.getFirstLinkpathDest(linkText, sourcePath);
   if (destFile && !shouldIncludeFile(destFile, exclusions)) return null;
   return destFile ? pathToId(destFile.path) : toSlug(linkText);
@@ -162,27 +163,67 @@ export interface RelationEdgesResult {
 }
 
 /**
- * Purpose: Deduplicates graph edges by ordered endpoints and type, reporting any partial load errors.
+ * Purpose: Merges relation-note edges and frontmatter typed-link edges into one list with one entry per edge.
+ * Architecture: An edge is identified by ordered endpoints and canonical label (knowOS vault schema). Relation notes
+ * come first and win, since they carry description and sources; a bidirectional relation note also covers the
+ * reverse frontmatter link. Among frontmatter links a confirmed one wins over a suggested one (#243).
+ */
+export function mergeRelationEdges(relationNoteEdges: RelationEdge[], frontmatterEdges: RelationEdge[]): RelationEdge[] {
+  const keyOf = (src: string, tgt: string, type: string) => JSON.stringify([src, tgt, type]);
+  const seen = new Set<string>();
+  // Reverse directions of bidirectional relation notes: they cover frontmatter links only, so relation-note
+  // deduplication keeps its pre-#243 behavior.
+  const coveredReverse = new Set<string>();
+  const merged: RelationEdge[] = [];
+  for (const edge of relationNoteEdges) {
+    const key = keyOf(edge.srcId, edge.tgtId, edge.relType);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (edge.bidirectional) coveredReverse.add(keyOf(edge.tgtId, edge.srcId, edge.relType));
+    merged.push(edge);
+  }
+  for (const key of coveredReverse) seen.add(key);
+  const ordered = [...frontmatterEdges].sort((a, b) => Number(a.confidence === "suggested") - Number(b.confidence === "suggested"));
+  for (const edge of ordered) {
+    const key = keyOf(edge.srcId, edge.tgtId, edge.relType);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(edge);
+  }
+  return merged;
+}
+
+/**
+ * Purpose: Loads the deduplicated graph edges from relation notes and, when labels are given, from frontmatter
+ * typed links, reporting any partial relation-note read.
  * Architecture: Exposes hasErrors indicator so graph sync can skip edge reconciliation on partial reads (Issue #183).
+ * Without `linkLabels` only relation notes are read, as before #243.
  */
 export async function loadRelationEdgesResult(
   app: App,
   exclusions = "",
-  relationsFolder = DEFAULT_RELATIONS_FOLDER
+  relationsFolder = DEFAULT_RELATIONS_FOLDER,
+  linkLabels: Iterable<string> = []
 ): Promise<RelationEdgesResult> {
   const { edges: files, hasErrors } = await loadRelationFilesResult(app, exclusions, relationsFolder);
-  const seen = new Set<string>();
-  const edges = files.filter((edge) => {
-    const key = JSON.stringify([edge.srcId, edge.tgtId, edge.relType]);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  return { edges, hasErrors };
+  const frontmatterEdges = loadFrontmatterLinkEdges(
+    app,
+    buildLinkKeys(linkLabels),
+    (linkText, sourcePath) => resolveLinkTextToId(app, linkText, sourcePath, exclusions),
+    pathToId,
+    exclusions,
+    relationsFolder
+  );
+  return { edges: mergeRelationEdges(files, frontmatterEdges), hasErrors };
 }
 
-/** Deduplicates graph edges by ordered endpoints and type for rendering and graph sync. */
-export async function loadRelationEdges(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
-  const result = await loadRelationEdgesResult(app, exclusions, relationsFolder);
+/** Loads the deduplicated graph edges for rendering and graph sync. */
+export async function loadRelationEdges(
+  app: App,
+  exclusions = "",
+  relationsFolder = DEFAULT_RELATIONS_FOLDER,
+  linkLabels: Iterable<string> = []
+): Promise<RelationEdge[]> {
+  const result = await loadRelationEdgesResult(app, exclusions, relationsFolder, linkLabels);
   return result.edges;
 }

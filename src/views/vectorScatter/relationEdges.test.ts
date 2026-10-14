@@ -260,3 +260,80 @@ describe("incomplete relation notes mark the load as partial (#203)", () => {
     expect(result.hasErrors).toBe(false);
   });
 });
+
+describe("frontmatter typed links (#243)", () => {
+  const LABELS = ["REQUIRES", "EQUIVALENT_TO"];
+  const notes: FakeFile[] = [
+    { path: "Matrix.md", basename: "Matrix" },
+    { path: "Körper.md", basename: "Körper" },
+    { path: "Gruppe.md", basename: "Gruppe" },
+  ];
+
+  it("reads <label> as confirmed and <label>_suggested as suggested edges", async () => {
+    const app = fakeApp([
+      ...notes,
+      { path: "Vektorraum.md", basename: "Vektorraum",
+        frontmatter: { requires: ["[[Matrix]]", "[[Körper|K]]"], requires_suggested: "[[Gruppe]]", tags: ["x"] } },
+    ]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    const summary = edges.map((e) => [e.tgtId, e.relType, e.confidence, e.origin]);
+    expect(summary).toEqual([
+      [pathToId("Matrix.md"), "REQUIRES", "confirmed", "frontmatter"],
+      [pathToId("Körper.md"), "REQUIRES", "confirmed", "frontmatter"],
+      [pathToId("Gruppe.md"), "REQUIRES", "suggested", "frontmatter"],
+    ]);
+    expect(edges.every((e) => e.srcId === pathToId("Vektorraum.md") && e.path === "Vektorraum.md")).toBe(true);
+  });
+
+  it("reads nothing from frontmatter without labels, keeping the pre-#243 behavior", async () => {
+    const app = fakeApp([...notes, { path: "V.md", basename: "V", frontmatter: { requires: ["[[Matrix]]"] } }]);
+    expect(await loadRelationEdges(app)).toEqual([]);
+  });
+
+  it("covers every vocabulary label, not only requires", async () => {
+    const app = fakeApp([...notes, { path: "V.md", basename: "V", frontmatter: { equivalent_to: "[[Matrix]]" } }]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    expect(edges.map((e) => e.relType)).toEqual(["EQUIVALENT_TO"]);
+  });
+
+  it("keeps one edge when a relation note and a frontmatter link describe it; the relation note wins", async () => {
+    const app = fakeApp([
+      ...notes,
+      { path: "V.md", basename: "V", frontmatter: { requires: "[[Matrix]]" } },
+      { path: "wiki/relations/r.md", basename: "r",
+        frontmatter: { source_note: "[[V]]", target_note: "[[Matrix]]", relation_type: "REQUIRES", description: "why" } },
+    ]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    expect(edges).toHaveLength(1);
+    expect(edges[0]).toMatchObject({ path: "wiki/relations/r.md", desc: "why" });
+    expect(edges[0].origin).toBeUndefined();
+  });
+
+  it("prefers a confirmed link over the same suggested one", async () => {
+    const app = fakeApp([...notes, { path: "V.md", basename: "V",
+      frontmatter: { requires_suggested: "[[Matrix]]", requires: "[[Matrix]]" } }]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    expect(edges.map((e) => e.confidence)).toEqual(["confirmed"]);
+  });
+
+  it("lets a bidirectional relation note cover the reverse frontmatter link", async () => {
+    const app = fakeApp([
+      ...notes,
+      { path: "V.md", basename: "V", frontmatter: { equivalent_to: "[[Matrix]]" } },
+      { path: "wiki/relations/r.md", basename: "r",
+        frontmatter: { source_note: "[[Matrix]]", target_note: "[[V]]", relation_type: "EQUIVALENT_TO", bidirectional: true, description: "d" } },
+    ]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    expect(edges.map((e) => e.path)).toEqual(["wiki/relations/r.md"]);
+  });
+
+  it("ignores typed-link keys inside relation notes", async () => {
+    const app = fakeApp([
+      ...notes,
+      { path: "wiki/relations/r.md", basename: "r",
+        frontmatter: { source_note: "[[Matrix]]", target_note: "[[Gruppe]]", relation_type: "REQUIRES", description: "d", requires: "[[Körper]]" } },
+    ]);
+    const edges = await loadRelationEdges(app, "", undefined, LABELS);
+    expect(edges.map((e) => e.tgtId)).toEqual([pathToId("Gruppe.md")]);
+  });
+});

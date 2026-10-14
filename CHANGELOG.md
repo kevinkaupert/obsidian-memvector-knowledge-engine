@@ -7,6 +7,13 @@ and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0
 
 ## [Unreleased]
 
+### Added
+- **Frontmatter Typed Links**: Every lowercase label of the relation vocabulary is read as a typed-link key in note
+  frontmatter (`requires`, `equivalent_to`, ...), and `<label>_suggested` as an unconfirmed suggestion (#243). A
+  relation note and a frontmatter link for the same edge count once; the relation note wins. Suggestions are drawn
+  dashed and stay out of layout forces, the graph index and synthesis context. Clicking a frontmatter edge opens its
+  note instead of the relation builder.
+
 ## [0.2.5] - 2026-10-14
 
 ### Added

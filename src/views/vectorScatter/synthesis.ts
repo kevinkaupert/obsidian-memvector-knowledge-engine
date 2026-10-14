@@ -10,6 +10,8 @@ import { SynthesisResultModal } from "../../modals/SynthesisResultModal";
 import { contextWarnings, enrichContext, type EnrichedNote } from "./contextEnrichment";
 import { loadAgentsGuidelines } from "./agentsGuidelines";
 import { loadRelationEdges } from "./relationEdges";
+import { confirmedEdges } from "../../frontmatterLinks";
+import { readRelationLabels } from "../../relationVocabulary/presets";
 import type { RelationEdge, ScatterNode } from "./types";
 
 function buildEnrichedSection(enriched: EnrichedNote[], lang: string, contentCapChars: number): string {
@@ -336,7 +338,10 @@ export async function runSynthesis(
     if (warnings.length > 0) new Notice(warnings.join("\n"), 10000);
   }
 
-  const allEdges = await loadRelationEdges(app, settings.vectorSearchExclusions, relationsFolder(settings));
+  // Unconfirmed `<label>_suggested` links are not handed to the model as established relations (#243).
+  const allEdges = confirmedEdges(
+    await loadRelationEdges(app, settings.vectorSearchExclusions, relationsFolder(settings), await readRelationLabels(app, settings))
+  );
   const activeIds = new Set<string>([
     ...selected.map((n) => n.id.toLowerCase()),
     ...enriched.map((n) => n.id.toLowerCase()),

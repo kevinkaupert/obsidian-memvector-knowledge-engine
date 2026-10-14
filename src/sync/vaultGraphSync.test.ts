@@ -223,6 +223,29 @@ describe("syncVaultGraph (F03: full-vault re-index reconciliation)", () => {
     expect(await store.fetchNeighbors(["a"], 1, 10)).toEqual([]);
   });
 
+  it("indexes confirmed frontmatter links but keeps suggested ones out of the graph (#243)", async () => {
+    const files: FakeFile[] = [
+      { path: "a.md", basename: "a" },
+      { path: "b.md", basename: "b" },
+      { path: "c.md", basename: "c" },
+    ];
+    const app = fakeAppWithStore(files);
+    const store = new SqliteGraphStore(app);
+    const edge = (tgtId: string, confidence: "confirmed" | "suggested") => ({
+      srcId: "a", tgtId, relType: "REQUIRES", desc: "", title: "", path: "a.md", bidirectional: false,
+      origin: "frontmatter" as const, confidence,
+    });
+    const spy = vi.spyOn(relationEdgesModule, "loadRelationEdgesResult")
+      .mockResolvedValueOnce({ edges: [edge("b", "confirmed"), edge("c", "suggested")], hasErrors: false });
+    try {
+      await syncVaultGraph(app, store, undefined, false, undefined, ["REQUIRES"]);
+      expect(spy).toHaveBeenCalledWith(app, undefined, expect.any(String), ["REQUIRES"]);
+      expect((await store.fetchNeighbors(["a"], 1, 10)).map((n) => n.id)).toEqual(["b"]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("adversarial (Issue #183): preserves existing typed relation edges when loadRelationEdges throws an error", async () => {
     const files: FakeFile[] = [
       { path: "a.md", basename: "a" },

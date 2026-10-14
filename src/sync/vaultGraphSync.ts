@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 import { pathToId, toSlug } from "../noteSlug";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
 import { loadRelationEdgesResult } from "../views/vectorScatter/relationEdges";
+import { confirmedEdges } from "../frontmatterLinks";
 import { shouldIncludeFile } from "../vaultFilter";
 import { DEFAULT_RELATIONS_FOLDER } from "../vaultLayout";
 
@@ -45,21 +46,23 @@ export function extractVaultGraph(
 
 /**
  * Purpose: Full-vault graph re-index against the configured GraphStore, applying exclusion filters and synchronizing typed relations (F03).
- * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed. If loading typed relations throws or encounters unreadable/unparseable files, edge reconciliation is skipped to preserve existing relations in SQLite (Issue #183).
+ * Architecture: WikiLink LINKS_TO edges are only included when includeWikiLinksAsRelations is true (Issue #100, ADR-0001); typed Relation Builder edges are always indexed, as are confirmed frontmatter typed links for `linkLabels`. Unconfirmed `<label>_suggested` links stay out of the graph index (#243). If loading typed relations throws or encounters unreadable/unparseable files, edge reconciliation is skipped to preserve existing relations in SQLite (Issue #183).
  */
 export async function syncVaultGraph(
   app: App,
   store: GraphStore,
   exclusions?: string,
   includeWikiLinksAsRelations = false,
-  relationsFolder = DEFAULT_RELATIONS_FOLDER
+  relationsFolder = DEFAULT_RELATIONS_FOLDER,
+  linkLabels: Iterable<string> = []
 ): Promise<{ nodeCount: number; edgeCount: number }> {
   const { nodes, edges } = extractVaultGraph(app, exclusions, includeWikiLinksAsRelations);
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
   let relationLoadFailed = false;
   try {
-    const { edges: relationEdges, hasErrors } = await loadRelationEdgesResult(app, exclusions, relationsFolder);
+    const { edges: loaded, hasErrors } = await loadRelationEdgesResult(app, exclusions, relationsFolder, linkLabels);
+    const relationEdges = confirmedEdges(loaded);
     if (hasErrors) {
       relationLoadFailed = true;
       console.warn("MemVector: Partial failure while reading relation notes, skipping edge deletion to preserve existing relations");

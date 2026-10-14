@@ -1,6 +1,6 @@
 import { TFile, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
-import type { SettingsHost } from "../settings/types";
+import type { MemVectorSettings, SettingsHost } from "../settings/types";
 import { LAW_VOCABULARY, MEDICINE_VOCABULARY, PHILOSOPHY_VOCABULARY } from "./bundledPresets";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
 import { isValidTerm } from "./loadRelationVocabulary";
@@ -211,4 +211,17 @@ export async function deletePreset(app: App, host: SettingsHost, key: string): P
     host.settings.relationVocabularyPath = DEFAULT_RELATION_VOCABULARY_PATH;
     await host.saveSettings();
   }
+}
+
+/**
+ * Purpose: The canonical labels of the vault's vocabulary, which name the frontmatter typed-link keys (#243).
+ * Architecture: Reads without seeding the file (unlike loadRelationVocabulary), so graph sync and synthesis never write
+ * to the vault. A missing or unreadable file falls back to the bundled default; an intentionally empty one yields none.
+ */
+export async function readRelationLabels(
+  app: App,
+  settings: Partial<Pick<MemVectorSettings, "relationVocabularyPath">> = {}
+): Promise<string[]> {
+  const terms = (await readVocabularyFile(app, resolveVocabularyPath(settings))) ?? DEFAULT_RELATION_VOCABULARY;
+  return [...new Set(terms.map((t) => t.label))];
 }

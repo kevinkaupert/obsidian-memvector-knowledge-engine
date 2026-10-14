@@ -16,6 +16,7 @@ import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
+import { buildLinkKeys, confirmedEdges, hasLinkKeys } from "../../frontmatterLinks";
 import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
@@ -404,8 +405,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
     // A deleted file has no frontmatter left, so a relation note outside the relations folder is only recognizable
     // by the paths of the relation edges loaded from it.
+    const linkKeys = () => buildLinkKeys(this.vocabulary.map((t) => t.label));
     const isRel = (path: string, type?: string) =>
       isRelationNote(path, type, relationsFolder(this.settings)) || this.relationEdges.some((e) => e.path === path);
+    // A note whose frontmatter carries typed-link keys contributes edges too (#243).
+    const hasLinks = (file: { path: string }) =>
+      file instanceof TFile && hasLinkKeys(this.app.metadataCache.getFileCache(file)?.frontmatter, linkKeys());
     const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
     const isShown = (path: string) => this.nodes.some((n) => n.path === path);
     const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
@@ -418,7 +423,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       }
       if (!isMd(file.path)) return;
       const type = kind === "delete" ? undefined : fmType(file);
-      if (isRel(file.path, type)) this.triggerRelationsReload();
+      if (isRel(file.path, type) || (kind !== "delete" && hasLinks(file))) this.triggerRelationsReload();
       if (kind === "delete") {
         if (isShown(file.path)) this.triggerVaultRescan({ kind: "delete", path: file.path });
       } else if (isShown(file.path) || inScope(file.path, type)) {
@@ -433,7 +438,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       }
       if (!isMd(file?.path) && !isMd(oldPath)) return;
       const type = fmType(file);
-      if (isRel(file.path, type) || isRel(oldPath)) this.triggerRelationsReload();
+      if (isRel(file.path, type) || isRel(oldPath) || hasLinks(file)) this.triggerRelationsReload();
       if (isShown(oldPath) || inScope(file.path, type)) {
         this.triggerVaultRescan({ kind: "rename", path: file.path, oldPath });
       }
@@ -443,6 +448,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file, "modify")));
     this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file, "delete")));
     this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
+    // `modify` can arrive before Obsidian re-parses the frontmatter; the parsed cache catches the first typed-link key
+    // added to a note and the last one removed from it (#243).
+    if (this.app.metadataCache?.on) {
+      this.registerEvent(
+        this.app.metadataCache.on("changed", (file, _data, cache) => {
+          if (hasLinkKeys(cache?.frontmatter, linkKeys()) || this.relationEdges.some((e) => e.path === file.path)) {
+            this.triggerRelationsReload();
+          }
+        })
+      );
+    }
   }
 
   /**
@@ -896,7 +912,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     const { simulated } = this.layoutEngine.run(
       {
         nodes: this.nodes,
-        relationEdges: this.relationEdges,
+        // Unconfirmed suggestions are drawn but do not pull notes together (#243).
+        relationEdges: confirmedEdges(this.relationEdges),
         vocabulary: this.vocabulary,
         settings: this.settings,
         nodeSpacing: this.nodeSpacing,
@@ -937,11 +954,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   }
 
   async loadRelationEdges(): Promise<void> {
-    this.relationEdges = await loadRelationEdgesPure(this.app, this.settings.vectorSearchExclusions, relationsFolder(this.settings));
     // Per-label attraction/repulsion comes from the vault's own vocabulary
     // file (ADR-0002); refresh it together with the edges so saved custom
-    // types feed the force layout immediately.
+    // types feed the force layout immediately. Its labels also name the
+    // frontmatter typed-link keys (#243), so it is loaded first.
     this.vocabulary = await loadRelationVocabulary(this.app, this.settings);
+    this.relationEdges = await loadRelationEdgesPure(
+      this.app,
+      this.settings.vectorSearchExclusions,
+      relationsFolder(this.settings),
+      this.vocabulary.map((t) => t.label)
+    );
   }
 
   hitTest(mouseX: number, mouseY: number): ScatterNode | null {
@@ -984,6 +1007,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Opens the relation builder modal pre-filled with an existing edge's metadata for editing or deletion.
    */
   editRelationEdge(edge: RelationEdge): void {
+    // A frontmatter link lives in an ordinary note, not a relation note: open that note instead of the relation
+    // builder, which would rewrite or delete the file as if it were a relation note (#243).
+    if (edge.origin === "frontmatter") {
+      void this.app.workspace.openLinkText(edge.path, "", false);
+      return;
+    }
     const srcNode = this.nodes.find((n) => n.id.toLowerCase() === edge.srcId.toLowerCase());
     const tgtNode = this.nodes.find((n) => n.id.toLowerCase() === edge.tgtId.toLowerCase());
     if (!srcNode || !tgtNode) return;
