@@ -1,6 +1,6 @@
-# Release 0.3.0 — One Vector Pipeline & Safer Relation Saves
+# Release 0.2.5 — One Vector Pipeline & Safer Relation Saves
 
-> **Release Version:** `0.3.0`  
+> **Release Version:** `0.2.5`  
 > **Release Date:** `2026-10-14`  
 > **Target Obsidian Version:** `>= 1.11.4` (Desktop)  
 > **Assets:** `main.js`, `manifest.json`, `styles.css`
@@ -9,7 +9,7 @@
 
 ## Overview
 
-Release `0.3.0` runs both vector indexing entry points on one pipeline with the same failure handling, makes saving a relation atomic with its graph edge, and improves label and edge rendering in the 2D view.
+Release `0.2.5` runs both vector indexing entry points on one pipeline with the same failure handling, makes saving a relation atomic with its graph edge, and improves label and edge rendering in the 2D view.
 
 ---
 
