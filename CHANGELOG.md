@@ -3,7 +3,8 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to pre-1.0 feature/PR versioning (0.x.0 for features, 0.0.x for PRs/fixes).
+and this project stays below 1.0.0: features and fixes alike only raise the patch version (0.2.x).
+Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 

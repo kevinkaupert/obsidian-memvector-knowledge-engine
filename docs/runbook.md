@@ -105,6 +105,9 @@ re-indexing with another model overwrites that note's row.
 
 ## Release
 
+Releases are cut only on the maintainer's explicit request. Only the patch version is raised (0.2.x), for
+features as well as fixes.
+
 1. On a `chore/release-x.y.z` branch: bump `version` in `package.json`, `package-lock.json` and `manifest.json`,
    update the version and test badges in `README.md`, add a `CHANGELOG.md` section and `docs/release-notes-x.y.z.md`.
 2. Open a PR, wait for green CI, merge.
