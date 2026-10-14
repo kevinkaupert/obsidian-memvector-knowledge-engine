@@ -91,6 +91,8 @@ export interface RelationFilesResult {
   edges: RelationEdge[];
   /** True when any relation note could not be read or is incomplete, i.e. the edge list is partial. */
   hasErrors: boolean;
+  /** Paths of the relation notes that made the read partial. */
+  errorPaths: string[];
 }
 
 /**
@@ -105,6 +107,7 @@ export async function loadRelationFilesResult(
 ): Promise<RelationFilesResult> {
   const edges: RelationEdge[] = [];
   let hasErrors = false;
+  const errorPaths: string[] = [];
   const files = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"));
 
   for (const f of files) {
@@ -130,6 +133,7 @@ export async function loadRelationFilesResult(
         // Missing or unusable link (e.g. frontmatter still being written): the relation is unknown rather than gone,
         // so the read is flagged as partial and graph sync keeps the stored edges instead of deleting them.
         hasErrors = true;
+        errorPaths.push(f.path);
         console.warn(`MemVector: skipping incomplete relation note ${f.path} (missing or unresolvable source_note/target_note)`);
         continue;
       }
@@ -144,11 +148,12 @@ export async function loadRelationFilesResult(
       });
     } catch (err) {
       hasErrors = true;
+      errorPaths.push(f.path);
       console.warn(`MemVector: skipping unparseable relation note ${f.path}`, err);
     }
   }
 
-  return { edges, hasErrors };
+  return { edges, hasErrors, errorPaths };
 }
 
 /** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */

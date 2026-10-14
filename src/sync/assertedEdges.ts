@@ -18,16 +18,18 @@ export function edgeKey(src: string, tgt: string, relType: string): string {
  * Architecture: Reads every assertion without the display deduplication of loadRelationEdges: there a relation note
  * hides a matching frontmatter link, so dropping an ignored note afterwards would lose the link that still asserts
  * the edge. Ignoring by path is needed because a replaced or just-trashed note can still be in the metadata cache.
+ * Returns null when another relation note could not be read, since it may still assert the edge (#258).
  */
 export async function loadAssertedEdgeKeys(
   app: App,
   settings: Partial<MemVectorSettings>,
   ignoredPaths: string[] = []
-): Promise<Set<string>> {
+): Promise<Set<string> | null> {
   const ignored = new Set(ignoredPaths);
   const exclusions = settings.vectorSearchExclusions ?? "";
   const folder = relationsFolder(settings);
-  const { edges: relationNoteEdges } = await loadRelationFilesResult(app, exclusions, folder);
+  const { edges: relationNoteEdges, errorPaths } = await loadRelationFilesResult(app, exclusions, folder);
+  if (errorPaths.some((path) => !ignored.has(path))) return null;
   const frontmatterEdges = loadFrontmatterLinkEdges(
     app,
     buildLinkKeys(await readRelationLabels(app, settings)),
