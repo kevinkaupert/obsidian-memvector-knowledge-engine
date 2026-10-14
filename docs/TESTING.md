@@ -184,6 +184,36 @@ resolution, relation-file loading, conflict guard, and markdown writes with
 mocked Obsidian UI/storage and graph-store boundaries. They do not replace
 the real Obsidian checks above.
 
+## Frontmatter typed links (#243)
+
+Use `testing/fixtures/smoke-test-vault/` with the current build (see its
+`README.md`). The notes in `typed-links/` cover every case. No embedding
+provider or LLM is needed; open the 2D graph with edges shown.
+
+1. **Confirmed and suggested.** Vektorraum -> Körper is a solid `REQUIRES`
+   edge. Vektorraum -> Abbildung is dashed and muted (`requires_suggested`).
+2. **Other labels.** Körper -> Feld is an `EQUIVALENT_TO` edge, read from the
+   `equivalent_to` key.
+3. **One edge per assertion.** Basis -> Vektorraum appears once. Hovering it
+   shows the description of `Relation Basis requires Vektorraum.md`, so the
+   relation note won over the frontmatter link.
+4. **Click opens the note.** Clicking Vektorraum -> Körper opens
+   `Vektorraum.md`; the relation builder must not open. Clicking
+   Basis -> Vektorraum still opens the relation builder for the relation note.
+5. **Live reload.** With the view open, add `requires: "[[Basis]]"` to the
+   frontmatter of `Dimension.md`. Within a few seconds a solid
+   Dimension -> Basis edge appears without reopening the view. Removing the
+   key removes the edge.
+6. **Suggestions stay out of the index.** Run a full re-index
+   (Settings -> MemVector). In `memvector-local.sqlite`, an edge
+   Vektorraum -> Abbildung must not exist, while Vektorraum -> Körper does.
+
+Automated counterparts run with:
+
+```sh
+npx vitest run src/frontmatterLinks.test.ts src/views/vectorScatter/relationEdges.test.ts src/sync/vaultGraphSync.test.ts
+```
+
 ## Remote backends (Qdrant + Memgraph) — not implemented yet
 
 > [!WARNING]
