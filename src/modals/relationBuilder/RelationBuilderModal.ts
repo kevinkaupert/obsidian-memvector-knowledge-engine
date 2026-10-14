@@ -12,6 +12,7 @@ import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePaths } from "./relationFileTemplate";
 import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
+import { deleteEdgeUnlessAsserted, loadAssertedEdgeKeys } from "../../sync/assertedEdges";
 import { loadRelationFiles } from "../../views/vectorScatter/relationEdges";
 
 export interface InitialRelationEdge {
@@ -342,7 +343,7 @@ export class RelationBuilderModal extends Modal {
           await saveRelation(this.app, store, paths[idx], buildRelationFileContent(e, this.relDesc, t), {
             src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc,
             bidirectional: e.bidirectional, originalTerm: e.originalTerm,
-          }, previous);
+          }, previous, (ignoredPaths) => this.loadAssertedEdges(ignoredPaths));
           createdCount++;
         } catch (err) {
           // saveRelation undoes its own partial write, so a failed entry leaves nothing behind and the others stay valid.
@@ -360,6 +361,16 @@ export class RelationBuilderModal extends Modal {
       this.onSaved?.("saved");
       this.close();
     };
+  }
+
+  /** Purpose: Edges the vault still asserts, or null when it cannot be read, so callers keep the graph edge (#254). */
+  private async loadAssertedEdges(ignoredPaths: string[]): Promise<Set<string> | null> {
+    try {
+      return await loadAssertedEdgeKeys(this.app, this.host.settings, ignoredPaths);
+    } catch (err) {
+      console.warn("MemVector: could not read asserted relations, keeping graph edges:", err);
+      return null;
+    }
   }
 
   private renderDeleteButton(btnRow: HTMLElement, t: ReturnType<typeof getTranslation>): void {
@@ -395,8 +406,10 @@ export class RelationBuilderModal extends Modal {
       if (oldSrc && oldTgt) {
         try {
           const store = getGraphStore(this.app, this.host.settings);
-          await store.deleteEdge(oldSrc, oldTgt, initialEdge.relType);
-          await store.deleteEdge(oldTgt, oldSrc, initialEdge.relType);
+          // Keep an edge another relation note or a frontmatter link still asserts (#254).
+          const asserted = await this.loadAssertedEdges([initialEdge.path]);
+          await deleteEdgeUnlessAsserted(store, asserted, oldSrc, oldTgt, initialEdge.relType);
+          await deleteEdgeUnlessAsserted(store, asserted, oldTgt, oldSrc, initialEdge.relType);
         } catch (err) {
           console.error("MemVector: Failed to delete SQLite graph edge:", err);
         }

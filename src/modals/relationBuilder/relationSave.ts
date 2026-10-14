@@ -1,6 +1,7 @@
 import { TFile, type App } from "obsidian";
 import type { GraphStore, TypedEdgeInput } from "../../sync/graphStore";
 import { writeRelationFile } from "./relationFileWriter";
+import { deleteEdgeUnlessAsserted } from "../../sync/assertedEdges";
 
 export interface PreviousRelation {
   path: string;
@@ -13,7 +14,8 @@ export interface PreviousRelation {
  * Purpose: Saves one relation as a file plus a graph edge, as a unit.
  * Architecture: The previous relation is preserved until both its replacement file and graph edge are saved. If the
  * graph write fails, the file write is undone - a new file is trashed, an edited file gets its old content back - so a
- * failed relation leaves neither a dangling note nor a half-applied edit behind.
+ * failed relation leaves neither a dangling note nor a half-applied edit behind. With `loadAsserted`, an old graph edge
+ * that another relation note or a frontmatter link still asserts is kept (#254).
  */
 export async function saveRelation(
   app: App,
@@ -21,7 +23,8 @@ export async function saveRelation(
   path: string,
   content: string,
   edge: TypedEdgeInput,
-  previous?: PreviousRelation
+  previous?: PreviousRelation,
+  loadAsserted?: (ignoredPaths: string[]) => Promise<Set<string> | null>
 ): Promise<void> {
   const existing = app.vault.getAbstractFileByPath(path);
   const originalContent = existing instanceof TFile ? await app.vault.read(existing) : null;
@@ -35,13 +38,14 @@ export async function saveRelation(
 
   if (!previous) return;
   if (previous.srcId && previous.tgtId && previous.relType) {
+    const asserted = loadAsserted ? await loadAsserted([previous.path, path]) : new Set<string>();
     for (const [src, tgt] of [[previous.srcId, previous.tgtId], [previous.tgtId, previous.srcId]]) {
       // In-place edits and direction swaps can reuse an old key. Never delete the replacement.
       const isReplacement = previous.relType === edge.relType && (
         (src === edge.src.id && tgt === edge.tgt.id) ||
         (edge.bidirectional && src === edge.tgt.id && tgt === edge.src.id)
       );
-      if (!isReplacement) await store.deleteEdge(src, tgt, previous.relType);
+      if (!isReplacement) await deleteEdgeUnlessAsserted(store, asserted, src, tgt, previous.relType);
     }
   }
 

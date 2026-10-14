@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+### Fixed
+- **Asserted Edges Survive Relation Edits**: Deleting a relation note, or changing its type or direction, no longer
+  removes the old edge from the graph index while another relation note or a confirmed frontmatter link still asserts
+  it. If the vault cannot be read at that moment, the edge is kept until the next full re-index (#254).
+
 ### Added
 - **Frontmatter Typed Links**: Every lowercase label of the relation vocabulary is read as a typed-link key in note
   frontmatter (`requires`, `equivalent_to`, ...), and `<label>_suggested` as an unconfirmed suggestion (#243). A
