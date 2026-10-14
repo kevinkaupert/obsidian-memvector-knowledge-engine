@@ -208,3 +208,30 @@ describe("batch relation save with a failing entry (#231)", () => {
     expect(f.edges.has(key("a", "e", "PROVES"))).toBe(true);
   });
 });
+
+describe("edges still asserted elsewhere (#254)", () => {
+  const assertedKey = (src: string, tgt: string, type: string) => JSON.stringify([src, tgt, type]);
+
+  it("keeps the old graph edge when a frontmatter link still asserts it", async () => {
+    const f = fixture();
+    const loadAsserted = vi.fn(async () => new Set([assertedKey("a", "b", "REQUIRES")]));
+    await saveRelation(f.app, f.graph, target, "New content", replacement, previous, loadAsserted);
+    expect(loadAsserted).toHaveBeenCalledWith([previous.path, target]);
+    expect(f.edges).toEqual(new Set([key("a", "b", "REQUIRES"), key("a", "b", "PROVES")]));
+    expect(f.store.deleteEdge).toHaveBeenCalledTimes(1);
+    expect(f.store.deleteEdge).toHaveBeenCalledWith("b", "a", "REQUIRES");
+  });
+
+  it("keeps old graph edges when the vault cannot be read", async () => {
+    const f = fixture();
+    await saveRelation(f.app, f.graph, target, "New content", replacement, previous, async () => null);
+    expect(f.store.deleteEdge).not.toHaveBeenCalled();
+    expect(f.edges.has(key("a", "b", "REQUIRES"))).toBe(true);
+  });
+
+  it("removes the old graph edge when nothing else asserts it", async () => {
+    const f = fixture();
+    await saveRelation(f.app, f.graph, target, "New content", replacement, previous, async () => new Set());
+    expect([...f.edges]).toEqual([key("a", "b", "PROVES")]);
+  });
+});
