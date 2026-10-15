@@ -3,6 +3,7 @@ import type { Database } from "sql.js";
 import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { cosineSimilarity } from "./cosineSimilarity";
 import { flushLocalDb, getLocalDb, persistLocalDb } from "./sqliteDb";
+import { pathToId } from "../../noteSlug";
 
 /**
  * VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale).
@@ -140,6 +141,48 @@ export class SqliteVectorStore implements VectorStore {
   async flush(): Promise<void> {
     await this.openDb();
     await flushLocalDb(this.app);
+  }
+
+  /**
+   * Purpose: Moves an existing vector row to a new path and id on rename without re-embedding.
+   * Architecture: Updates the row across all embedding fingerprints so inactive models do not keep
+   * ghost rows at the old path, while returning whether the active model's vector existed and moved.
+   */
+  async moveVector(oldPath: string, newPath: string, newTitle: string): Promise<boolean> {
+    const db = await this.openDb();
+    const oldId = pathToId(oldPath);
+    const newId = pathToId(newPath);
+    const { where, params } = this.scope();
+
+    const checkCurrent = db.exec(`SELECT id FROM vectors WHERE (id = ? OR path = ?) AND ${where}`, [oldId, oldPath, ...params]);
+    const currentMoved = checkCurrent.length > 0 && checkCurrent[0].values.length > 0;
+
+    const checkAny = db.exec("SELECT id FROM vectors WHERE id = ? OR path = ?", [oldId, oldPath]);
+    if (checkAny.length === 0 || checkAny[0].values.length === 0) return false;
+
+    db.run("DELETE FROM vectors WHERE (id = ? OR path = ?) AND id != ?", [newId, newPath, oldId]);
+    db.run(
+      "UPDATE vectors SET id = ?, path = ?, title = ? WHERE id = ? OR path = ?",
+      [newId, newPath, newTitle, oldId, oldPath]
+    );
+    await persistLocalDb(this.app, db);
+    return currentMoved;
+  }
+
+  /**
+   * Purpose: Deletes a stored vector point by path or id (Issue #250).
+   * Architecture: Vault lifecycle deletion purges the path across all embedding fingerprints
+   * so obsolete vectors are not resurrected if the user switches models back.
+   */
+  async deleteVector(pathOrId: string): Promise<boolean> {
+    const db = await this.openDb();
+    const id = pathToId(pathOrId);
+    db.run("DELETE FROM vectors WHERE id = ? OR path = ?", [id, pathOrId]);
+    const modified = db.getRowsModified() > 0;
+    if (modified) {
+      await persistLocalDb(this.app, db);
+    }
+    return modified;
   }
 
   async search(vector: number[], limit: number): Promise<VectorSearchHit[]> {

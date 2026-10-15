@@ -224,5 +224,138 @@ describe("SqliteGraphStore", () => {
       expect(neighbors.length).toBe(25);
     });
   });
+
+  describe("incremental mutations (Issue #250)", () => {
+    it("moves note and updates incoming and outgoing edges on rename", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph(
+        [node("a"), node("b"), node("c")],
+        [
+          { src: "a", tgt: "b", type: "LINKS_TO" },
+          { src: "c", tgt: "a", type: "REQUIRES" },
+        ]
+      );
+
+      const moved = await store.moveNote("a.md", "a_renamed.md", "a_renamed");
+      expect(moved).toBe(true);
+
+      // Old note ID should not be found in neighbors
+      const neighborsB = await store.fetchNeighbors(["b"], 1, 10);
+      expect(neighborsB.map((n) => n.id)).toContain("a_renamed");
+      expect(neighborsB.map((n) => n.id)).not.toContain("a");
+
+      const neighborsC = await store.fetchNeighbors(["c"], 1, 10);
+      expect(neighborsC.map((n) => n.id)).toContain("a_renamed");
+    });
+
+    it("deletes note and its edges", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph(
+        [node("a"), node("b")],
+        [{ src: "a", tgt: "b", type: "LINKS_TO" }]
+      );
+
+      const deleted = await store.deleteNote("a.md");
+      expect(deleted).toBe(true);
+
+      const neighborsB = await store.fetchNeighbors(["b"], 1, 10);
+      expect(neighborsB.length).toBe(0);
+    });
+
+    it("upserts note node and replaces outgoing wikilinks", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.upsertNoteNode({ id: "source", title: "Source", path: "source.md" });
+      await store.upsertNoteNode({ id: "target1", title: "Target 1", path: "target1.md" });
+      await store.upsertNoteNode({ id: "target2", title: "Target 2", path: "target2.md" });
+
+      await store.replaceOutgoingWikiLinks("source", ["target1", "target2"]);
+      const neighbors = await store.fetchNeighbors(["source"], 1, 10);
+      expect(neighbors.map((n) => n.id).sort()).toEqual(["target1", "target2"].sort());
+
+      // Replace with only target2
+      await store.replaceOutgoingWikiLinks("source", ["target2"]);
+      const updated = await store.fetchNeighbors(["source"], 1, 10);
+      expect(updated.map((n) => n.id)).toEqual(["target2"]);
+    });
+
+    it("preserves explicit LINKS_TO relations when replacing WikiLink edges", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.upsertNoteNode({ id: "source", title: "Source", path: "source.md" });
+      await store.upsertNoteNode({ id: "explicit_target", title: "Explicit Target", path: "explicit_target.md" });
+      await store.upsertNoteNode({ id: "wikilink_target", title: "WikiLink Target", path: "wikilink_target.md" });
+
+      // Explicit relation with custom label "LINKS_TO" saved via Relation Builder
+      await store.upsertTypedEdges([
+        {
+          src: { id: "source", title: "Source", path: "source.md" },
+          tgt: { id: "explicit_target", title: "Explicit Target", path: "explicit_target.md" },
+          relType: "LINKS_TO",
+          description: "explicit didactic link",
+          bidirectional: false,
+          originalTerm: "LINKS_TO",
+        },
+      ]);
+
+      // WikiLink replace with wikilink_target
+      await store.replaceOutgoingWikiLinks("source", ["wikilink_target"]);
+
+      // Both explicit_target and wikilink_target must be neighbors
+      const neighbors = await store.fetchNeighbors(["source"], 1, 10);
+      expect(neighbors.map((n) => n.id).sort()).toEqual(["explicit_target", "wikilink_target"].sort());
+
+      // Empty WikiLink replace should NOT drop explicit_target
+      await store.replaceOutgoingWikiLinks("source", []);
+      const remaining = await store.fetchNeighbors(["source"], 1, 10);
+      expect(remaining.map((n) => n.id)).toEqual(["explicit_target"]);
+    });
+
+    it("preserves graph edges on case-only rename with identical canonical ID", async () => {
+      const store = new SqliteGraphStore(fakeApp());
+      await store.syncVaultGraph(
+        [node("note"), node("b")],
+        [{ src: "note", tgt: "b", type: "LINKS_TO" }]
+      );
+
+      // Case-only rename: note.md -> Note.md (pathToId returns "note" for both)
+      const moved = await store.moveNote("note.md", "Note.md", "Note");
+      expect(moved).toBe(true);
+
+      const neighbors = await store.fetchNeighbors(["note"], 1, 10);
+      expect(neighbors.map((n) => n.id)).toEqual(["b"]);
+    });
+
+    it("clears obsolete typed provenance during authoritative reconciliation so subsequent wikilink removal deletes edge", async () => {
+      const app = fakeApp();
+      const store = new SqliteGraphStore(app);
+      await store.upsertNoteNode({ id: "a", title: "A", path: "a.md" });
+      await store.upsertNoteNode({ id: "b", title: "B", path: "b.md" });
+
+      // 1. Initial state: explicit relation with LINKS_TO
+      await store.upsertTypedEdges([
+        {
+          src: { id: "a", title: "A", path: "a.md" },
+          tgt: { id: "b", title: "B", path: "b.md" },
+          relType: "LINKS_TO",
+          description: "explicit didactic link",
+          bidirectional: false,
+          originalTerm: "LINKS_TO",
+        },
+      ]);
+
+      // 2. Authoritative sync where explicit relation was deleted, leaving only a body WikiLink
+      await store.syncVaultGraph(
+        [node("a"), node("b")],
+        [{ src: "a", tgt: "b", type: "LINKS_TO" }],
+        { reconcileEdges: true }
+      );
+
+      // 3. Subsequently WikiLink is removed from body
+      await store.replaceOutgoingWikiLinks("a", []);
+
+      // Edge must now be deleted because authoritative sync cleared the obsolete typed provenance
+      const neighbors = await store.fetchNeighbors(["a"], 1, 10);
+      expect(neighbors.length).toBe(0);
+    });
+  });
 });
 

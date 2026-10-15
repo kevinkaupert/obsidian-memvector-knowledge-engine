@@ -4,7 +4,12 @@ export const NOTE_CHANGE_DEBOUNCE_MS = 800;
 export const RELATION_CHANGE_DEBOUNCE_MS = 400;
 
 /** One note-level vault event, as the watcher reports it. */
-export type VaultNoteChange = { kind: "upsert"; path: string } | { kind: "delete"; path: string } | { kind: "rename"; path: string; oldPath: string };
+export type VaultNoteChange =
+  | { kind: "create"; path: string }
+  | { kind: "modify"; path: string }
+  | { kind: "upsert"; path: string }
+  | { kind: "delete"; path: string }
+  | { kind: "rename"; path: string; oldPath: string };
 
 /** Vault changes collected since the last flush, coalesced per path. */
 export interface PendingVaultChanges {
@@ -14,6 +19,10 @@ export interface PendingVaultChanges {
   removals: Set<string>;
   /** New path -> original path of renamed notes, so the node keeps its position and vector. */
   renamedFrom: Map<string, string>;
+  /** Notes whose content was created or modified (as opposed to pure renames). */
+  modified: Set<string>;
+  /** Notes created in this batch (as opposed to modified or pure renames). */
+  created: Set<string>;
   /** Relation notes or the vocabulary changed: edges and per-type forces must be reloaded. */
   relations: boolean;
   /** Something requested a full rescan, which supersedes the per-note changes. */
@@ -25,7 +34,15 @@ interface TimerHost {
   clearTimeout(id: number): void;
 }
 
-const emptyChanges = (): PendingVaultChanges => ({ upserts: new Set(), removals: new Set(), renamedFrom: new Map(), relations: false, fullScan: false });
+export const emptyChanges = (): PendingVaultChanges => ({
+  upserts: new Set(),
+  removals: new Set(),
+  renamedFrom: new Map(),
+  modified: new Set(),
+  created: new Set(),
+  relations: false,
+  fullScan: false,
+});
 
 /**
  * Purpose: Collects vault events for one scatter view and hands them over in batches after a quiet period.
@@ -44,26 +61,47 @@ export class VaultEventQueue {
     private readonly timers: TimerHost = window
   ) {}
 
+  noteCreated(path: string): void {
+    this.pending.removals.delete(path);
+    this.pending.upserts.add(path);
+    this.pending.modified.add(path);
+    this.pending.created.add(path);
+    this.schedule("note");
+  }
+
   noteChanged(path: string): void {
     this.pending.removals.delete(path);
     this.pending.upserts.add(path);
+    this.pending.modified.add(path);
     this.schedule("note");
   }
 
   noteDeleted(path: string): void {
     this.pending.upserts.delete(path);
     this.pending.renamedFrom.delete(path);
+    this.pending.modified.delete(path);
+    this.pending.created.delete(path);
     this.pending.removals.add(path);
     this.schedule("note");
   }
 
   noteRenamed(oldPath: string, newPath: string): void {
     const origin = this.pending.renamedFrom.get(oldPath) ?? oldPath;
+    const wasModified = this.pending.modified.has(oldPath);
+    const wasCreated = this.pending.created.has(oldPath);
     this.pending.upserts.delete(oldPath);
     this.pending.renamedFrom.delete(oldPath);
+    this.pending.modified.delete(oldPath);
+    this.pending.created.delete(oldPath);
     this.pending.removals.add(oldPath);
     this.pending.removals.delete(newPath);
     this.pending.upserts.add(newPath);
+    if (wasModified) {
+      this.pending.modified.add(newPath);
+    }
+    if (wasCreated) {
+      this.pending.created.add(newPath);
+    }
     if (origin !== newPath) this.pending.renamedFrom.set(newPath, origin);
     this.schedule("note");
   }

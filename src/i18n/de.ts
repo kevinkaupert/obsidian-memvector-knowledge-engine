@@ -70,6 +70,8 @@ export const de: TranslationKeys = {
   exclusionsDesc: "Globale Ausschlussregeln für Vektor-Indizierung, Graph-Kanten und den 2D-Graph (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",
   wikiLinksAsRelationsName: "WikiLinks als Graph-Relationen indizieren",
   wikiLinksAsRelationsDesc: "Standardmäßig aus: [[WikiLinks]] werden nicht als LINKS_TO-Graph-Kanten indiziert - GraphRAG-Kontext und die Topologie-Kräfte der 2D-Ansicht stützen sich dann nur auf semantische Vektoren und explizite typisierte Relationen (Relation Builder). WikiLinks erhöhen immer die 2D-Ähnlichkeit verlinkter Notizen, sodass diese eher in derselben Wolke landen; die Einstellung entscheidet nur, ob sie zusätzlich LINKS_TO-Relationen werden. Einschalten, um WikiLinks wieder als LINKS_TO-Beziehungen zu behandeln. Wirkt bei der nächsten vollständigen Vault-Neuindizierung.",
+  autoIndexVaultOnChangesName: "Hintergrund-Indizierung bei Tresoränderungen",
+  autoIndexVaultOnChangesDesc: "Hält Embeddings und Graph-Verbindungen bei Notizänderungen automatisch im Hintergrund aktuell, auch wenn die 2D-Ansicht geschlossen ist.",
   agentsPathsName: "Agenten-Richtlinien-Dateien",
   agentsPathsDesc: "Vault-Pfade, die bei aktiviertem 'Agenten-Richtlinien einbeziehen'-Schalter in der Synthese als Kompilierungsregeln geladen werden. Mehrere Pfade durch Komma trennen.",
   agentsIncludeDesc: "Die eigene AGENTS.md des Vaults (bzw. die konfigurierten Richtlinien-Dateien) als Stil-Vorgabe in den Synthese-Prompt aufnehmen.",

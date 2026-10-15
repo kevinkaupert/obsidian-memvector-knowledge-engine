@@ -21,6 +21,8 @@ export interface VectorPipelineOptions {
   onProgress?: (index: number, total: number, path: string) => void;
   /** Called for every failed embedding request, also for the one that aborts the run. */
   onEmbeddingError?: (index: number, total: number, path: string, error: string) => void;
+  /** Optional cancellation predicate checked before and during each note; aborts the run without reconciling when true. */
+  isCancelled?: () => boolean;
 }
 
 export interface VectorPipelineResult {
@@ -87,6 +89,10 @@ export async function runVectorPipeline(app: App, settings: MemVectorSettings, s
   let abortMessage: string | null = null;
 
   for (let i = 0; i < paths.length; i++) {
+    if (options.isCancelled?.()) {
+      abortMessage = "cancelled";
+      break;
+    }
     assertTargetUnchanged();
     const path = paths[i];
     const file = app.vault.getAbstractFileByPath(path);
@@ -107,8 +113,17 @@ export async function runVectorPipeline(app: App, settings: MemVectorSettings, s
       }
     }
 
+    if (options.isCancelled?.()) {
+      abortMessage = "cancelled";
+      break;
+    }
+
     onProgress?.(i, paths.length, path);
     const { embedding, error } = await fetchEmbedding(text, target.apiBase, apiKey, target.model);
+    if (options.isCancelled?.()) {
+      abortMessage = "cancelled";
+      break;
+    }
     if (error || !embedding || embedding.length === 0) {
       const message = error || "empty embedding";
       result.failedPaths.push(path);
@@ -132,14 +147,24 @@ export async function runVectorPipeline(app: App, settings: MemVectorSettings, s
       contentHash: hash,
       mtime: file.stat?.mtime,
     });
+    if (options.isCancelled?.()) {
+      abortMessage = "cancelled";
+      break;
+    }
+  }
+
+  if (options.isCancelled?.()) {
+    abortMessage = "cancelled";
   }
 
   assertTargetUnchanged();
   try {
-    if (points.length > 0) await store.syncPoints(points);
-    if (abortMessage === null) await store.reconcile(reconcilePaths);
-    // Also covers runs where every note was a cache hit: their hashes may stem from an earlier failed write.
-    await store.flush();
+    if (abortMessage !== "cancelled") {
+      if (points.length > 0) await store.syncPoints(points);
+      if (abortMessage === null) await store.reconcile(reconcilePaths);
+      // Also covers runs where every note was a cache hit: their hashes may stem from an earlier failed write.
+      await store.flush();
+    }
   } catch (err) {
     throw new VectorPersistenceError(err, result);
   }

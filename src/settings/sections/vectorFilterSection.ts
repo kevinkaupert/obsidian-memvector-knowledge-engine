@@ -181,6 +181,16 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     );
 
   new Setting(containerEl)
+    .setName(t.autoIndexVaultOnChangesName)
+    .setDesc(t.autoIndexVaultOnChangesDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(settings.autoIndexVaultOnChanges).onChange(async (value) => {
+        settings.autoIndexVaultOnChanges = value;
+        await host.saveSettings();
+      })
+    );
+
+  new Setting(containerEl)
     .setName(t.indexVaultTitle)
     .setDesc(t.indexVaultDesc)
     .addButton((btn) =>

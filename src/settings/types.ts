@@ -42,6 +42,13 @@ export interface MemVectorSettings {
    */
   includeWikiLinksAsRelations: boolean;
 
+  /**
+   * Continuously update embeddings and graph index on vault changes in the background (Issue #250).
+   * Default false (opt-in). When true, creates, modifies, renames and deletes keep the local vector
+   * and graph stores current without waiting for a manual sync or an open 2D view.
+   */
+  autoIndexVaultOnChanges: boolean;
+
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
   /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. Controlled from the toolbar Synthese section only (Issue #103). */

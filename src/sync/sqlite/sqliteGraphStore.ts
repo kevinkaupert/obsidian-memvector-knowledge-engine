@@ -3,6 +3,7 @@ import type { Database, QueryExecResult } from "sql.js";
 import type { GraphEdge, GraphNeighbor, GraphNode, GraphStore, SyncVaultGraphOptions, TypedEdgeInput } from "../graphStore";
 import { getLocalDb, persistLocalDb } from "./sqliteDb";
 import { buildNeighborQuery } from "./sqliteGraphQueries";
+import { pathToId } from "../../noteSlug";
 
 function execToRows(result: QueryExecResult[]): Record<string, string | number | null>[] {
   if (result.length === 0) return [];
@@ -38,19 +39,50 @@ export class SqliteGraphStore implements GraphStore {
   ): Promise<{ nodeCount: number; edgeCount: number }> {
     const db = await getLocalDb(this.app);
     nodes.forEach((n) => upsertNote(db, n));
+    const shouldReconcileEdges = options?.reconcileEdges ?? true;
     edges.forEach((e) => {
-      db.run("INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at) VALUES (?, ?, ?, '', 0, NULL, ?) ON CONFLICT(src, tgt, type) DO NOTHING", [
-        e.src,
-        e.tgt,
-        e.type,
-        new Date().toISOString(),
-      ]);
+      if (shouldReconcileEdges) {
+        db.run(
+          `INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(src, tgt, type) DO UPDATE SET
+             description = excluded.description,
+             bidirectional = excluded.bidirectional,
+             original_term = excluded.original_term,
+             updated_at = excluded.updated_at`,
+          [
+            e.src,
+            e.tgt,
+            e.type,
+            e.description ?? "",
+            e.bidirectional ? 1 : 0,
+            e.originalTerm ?? null,
+            new Date().toISOString(),
+          ]
+        );
+      } else {
+        db.run(
+          `INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(src, tgt, type) DO UPDATE SET
+             description = CASE WHEN excluded.description != '' THEN excluded.description ELSE edges.description END,
+             bidirectional = CASE WHEN excluded.bidirectional = 1 THEN 1 ELSE edges.bidirectional END,
+             original_term = COALESCE(excluded.original_term, edges.original_term)`,
+          [
+            e.src,
+            e.tgt,
+            e.type,
+            e.description ?? "",
+            e.bidirectional ? 1 : 0,
+            e.originalTerm ?? null,
+            new Date().toISOString(),
+          ]
+        );
+      }
     });
 
     const currentNodeIds = new Set(nodes.map((n) => n.id));
     const currentEdgeKeys = new Set(edges.map((e) => `${e.src}|${e.tgt}|${e.type}`));
-
-    const shouldReconcileEdges = options?.reconcileEdges ?? true;
     if (shouldReconcileEdges) {
       const existingEdges = execToRows(db.exec("SELECT src, tgt, type FROM edges"));
       for (const row of existingEdges) {
@@ -139,5 +171,88 @@ export class SqliteGraphStore implements GraphStore {
     const rows = execToRows(db.exec("SELECT COUNT(*) as cnt FROM notes"));
     const count = Number(rows[0]?.cnt) || 0;
     return count > 0;
+  }
+
+  /**
+   * Purpose: Moves an existing note row and updates connected edges on rename (Issue #250).
+   */
+  async moveNote(oldPath: string, newPath: string, newTitle: string): Promise<boolean> {
+    const db = await getLocalDb(this.app);
+    const oldId = pathToId(oldPath);
+    const newId = pathToId(newPath);
+
+    const check = db.exec("SELECT id FROM notes WHERE id = ? OR path = ?", [oldId, oldPath]);
+    if (check.length === 0 || check[0].values.length === 0) return false;
+
+    db.run("DELETE FROM notes WHERE (id = ? OR path = ?) AND id != ?", [newId, newPath, oldId]);
+    db.run("UPDATE notes SET id = ?, title = ?, path = ? WHERE id = ? OR path = ?", [
+      newId,
+      newTitle,
+      newPath,
+      oldId,
+      oldPath,
+    ]);
+
+    if (oldId !== newId) {
+      db.run(
+        "DELETE FROM edges WHERE src = ? AND EXISTS (SELECT 1 FROM edges e2 WHERE e2.src = ? AND e2.tgt = edges.tgt AND e2.type = edges.type)",
+        [oldId, newId]
+      );
+      db.run("UPDATE edges SET src = ? WHERE src = ?", [newId, oldId]);
+
+      db.run(
+        "DELETE FROM edges WHERE tgt = ? AND EXISTS (SELECT 1 FROM edges e2 WHERE e2.tgt = ? AND e2.src = edges.src AND e2.type = edges.type)",
+        [oldId, newId]
+      );
+      db.run("UPDATE edges SET tgt = ? WHERE tgt = ?", [newId, oldId]);
+    }
+
+    await persistLocalDb(this.app, db);
+    return true;
+  }
+
+  /**
+   * Purpose: Deletes an existing note and its connected edges (Issue #250).
+   */
+  async deleteNote(pathOrId: string): Promise<boolean> {
+    const db = await getLocalDb(this.app);
+    const id = pathToId(pathOrId);
+    db.run("DELETE FROM edges WHERE src = ? OR tgt = ?", [id, id]);
+    db.run("DELETE FROM notes WHERE id = ? OR path = ?", [id, pathOrId]);
+    const modified = db.getRowsModified() > 0;
+    if (modified) {
+      await persistLocalDb(this.app, db);
+    }
+    return modified;
+  }
+
+  /**
+   * Purpose: Upserts a single note into the graph (Issue #250).
+   */
+  async upsertNoteNode(node: GraphNode): Promise<void> {
+    const db = await getLocalDb(this.app);
+    upsertNote(db, node);
+    await persistLocalDb(this.app, db);
+  }
+
+  /**
+   * Purpose: Replaces WikiLink LINKS_TO edges originating from a source note (Issue #250).
+   * Architecture: Only removes WikiLink-derived edges (where original_term is null/empty, description is empty, and bidirectional is 0),
+   * preserving explicit relations with label 'LINKS_TO' created via Relation Builder or relation files.
+   */
+  async replaceOutgoingWikiLinks(srcId: string, targetIds: string[]): Promise<void> {
+    const db = await getLocalDb(this.app);
+    db.run(
+      "DELETE FROM edges WHERE src = ? AND type = 'LINKS_TO' AND (original_term IS NULL OR original_term = '') AND (description IS NULL OR description = '') AND bidirectional = 0",
+      [srcId]
+    );
+    const now = new Date().toISOString();
+    for (const tgt of targetIds) {
+      db.run(
+        "INSERT INTO edges (src, tgt, type, description, bidirectional, original_term, updated_at) VALUES (?, ?, 'LINKS_TO', '', 0, NULL, ?) ON CONFLICT(src, tgt, type) DO NOTHING",
+        [srcId, tgt, now]
+      );
+    }
+    await persistLocalDb(this.app, db);
   }
 }

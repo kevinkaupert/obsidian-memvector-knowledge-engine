@@ -48,4 +48,13 @@ export interface VectorStore {
    * before reporting success, including runs that found every note cached. Throws if persisting fails.
    */
   flush(): Promise<void>;
+  /**
+   * Moves an existing vector to a new path and id on rename without re-embedding (Issue #250).
+   * Returns true if a vector was found and moved, false otherwise.
+   */
+  moveVector?(oldPath: string, newPath: string, newTitle: string): Promise<boolean>;
+  /**
+   * Removes a single vector point by path or id (Issue #250).
+   */
+  deleteVector?(pathOrId: string): Promise<boolean>;
 }
