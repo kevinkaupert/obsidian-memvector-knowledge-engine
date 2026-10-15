@@ -13,7 +13,7 @@ export interface LinkKey {
 
 /**
  * Purpose: Maps frontmatter keys to relation labels: every vocabulary label in lowercase (`requires`, `equivalent_to`)
- * is a confirmed typed-link key, and `<label>_suggested` its unconfirmed form (#243, knowOS vault schema).
+ * is a confirmed typed-link key, and `<label>_suggested` its unconfirmed form (#243).
  */
 export function buildLinkKeys(labels: Iterable<string>): Map<string, LinkKey> {
   const keys = new Map<string, LinkKey>();

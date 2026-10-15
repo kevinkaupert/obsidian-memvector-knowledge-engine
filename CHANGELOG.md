@@ -8,8 +8,23 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-15
+
+### Added
+- **Frontmatter Typed Links**: Every lowercase label of the relation vocabulary is read as a typed-link key in note
+  frontmatter (`requires`, `equivalent_to`, ...), and `<label>_suggested` as an unconfirmed suggestion (#243). A
+  relation note and a frontmatter link for the same edge count once; the relation note wins. Suggestions are drawn
+  dashed and stay out of layout forces, the graph index and synthesis context. Clicking a frontmatter edge opens its
+  note instead of the relation builder.
+- **Background Vault Indexing**: Graph store and vector index keep current on vault changes (create, modify, delete,
+  rename) in the background, independent of whether the 2D view is open (#250).
+- **Clean Canvas Decluttering**: Redundant uppercase topic cluster headers (`CLUSTER (count)`) were removed from the 2D
+  scatter view for a distraction-free thinking canvas and conflict-free note label placement.
+
 ### Fixed
-- **Preserve Foreign Frontmatter on Relation Edits**: Editing a relation note preserves unknown frontmatter fields (e.g. `id`, `thoughtmap`, tags) and custom body content outside the generated section instead of rewriting the entire note from scratch (#246).
+- **Preserve Foreign Frontmatter on Relation Edits**: Editing a relation note preserves unknown frontmatter fields
+  (e.g. `id`, custom properties, tags) and custom body content outside the generated section instead of rewriting the
+  entire note from scratch (#246).
 - **Safe Frontmatter Serialization**: Synthesis notes and relation notes are written via a shared YAML serializer
   (`stringifyYaml`) instead of string interpolation, preventing invalid YAML when note titles or descriptions contain
   quotes, colons, hashtags, or line breaks (#247).
@@ -20,13 +35,6 @@ Releases are cut only when the maintainer explicitly asks for one.
   old edge is kept as well, because that note may still assert it (#258).
 - **WikiLinks Setting Help**: The description of "WikiLinks as graph relations" now states that WikiLinks always
   raise the 2D similarity of linked notes and that the setting only controls `LINKS_TO` edges (#256).
-
-### Added
-- **Frontmatter Typed Links**: Every lowercase label of the relation vocabulary is read as a typed-link key in note
-  frontmatter (`requires`, `equivalent_to`, ...), and `<label>_suggested` as an unconfirmed suggestion (#243). A
-  relation note and a frontmatter link for the same edge count once; the relation note wins. Suggestions are drawn
-  dashed and stay out of layout forces, the graph index and synthesis context. Clicking a frontmatter edge opens its
-  note instead of the relation builder.
 
 ## [0.2.5] - 2026-10-14
 
