@@ -1,4 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("obsidian", async () => {
+  const yaml = await import("yaml");
+  return {
+    stringifyYaml: (obj: unknown) => yaml.stringify(obj),
+    parseYaml: (str: string) => yaml.parse(str),
+  };
+});
+
+import { parseYaml } from "obsidian";
 import { pathToId } from "../../noteSlug";
 import { getTranslation } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
@@ -23,6 +33,33 @@ describe("buildRelationFileContent", () => {
     expect(content).toContain('target_note: "[[Home/Overview|Overview]]"');
     expect(content).not.toContain("work-overview");
     expect(content).not.toContain("home-overview");
+  });
+
+  it("safely serializes titles with quotes, colons, hashes, and line breaks without breaking YAML (#247)", () => {
+    const customEdge = edge({
+      src: {
+        id: "tricky-src",
+        title: 'Title with "quotes" and colon: and #hashtag\nand newline',
+        path: 'Wiki/Tricky "Src".md',
+        type: "concept",
+      },
+      tgt: {
+        id: "tricky-tgt",
+        title: 'Another: "Target" #2',
+        path: "Wiki/Tricky Target.md",
+        type: "concept",
+      },
+    });
+
+    const content = buildRelationFileContent(customEdge, 'Reason with "quotes" & #tags', getTranslation("en"));
+    const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+    expect(match).not.toBeNull();
+
+    const parsed = parseYaml(match![1]);
+    expect(parsed.type).toBe("relation");
+    expect(parsed.title).toBe('Title with "quotes" and colon: and #hashtag\nand newline -> Another: "Target" #2 (REQUIRES)');
+    expect(parsed.description).toBe('Reason with "quotes" & #tags');
+    expect(parsed.relation_type).toBe("REQUIRES");
   });
 });
 

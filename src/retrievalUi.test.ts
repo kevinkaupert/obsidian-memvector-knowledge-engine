@@ -48,19 +48,24 @@ class Element {
 }
 
 const { renderedMarkdown, notices, opened } = vi.hoisted(() => ({ renderedMarkdown: vi.fn(), notices: vi.fn(), opened: vi.fn() }));
-vi.mock("obsidian", () => ({
-  TFile: class {},
-  TFolder: class {},
-  setIcon: vi.fn(),
-  Notice: class { constructor(text: string) { notices(text); } },
-  Modal: class {
-    contentEl = new Element();
-    constructor(public app: App) {}
-    open() { opened(this); }
-    close() {}
-  },
-  MarkdownRenderer: { render: renderedMarkdown },
-}));
+vi.mock("obsidian", async () => {
+  const yaml = await import("yaml");
+  return {
+    TFile: class {},
+    TFolder: class {},
+    setIcon: vi.fn(),
+    Notice: class { constructor(text: string) { notices(text); } },
+    Modal: class {
+      contentEl = new Element();
+      constructor(public app: App) {}
+      open() { opened(this); }
+      close() {}
+    },
+    MarkdownRenderer: { render: renderedMarkdown },
+    stringifyYaml: (obj: unknown) => yaml.stringify(obj),
+    parseYaml: (str: string) => yaml.parse(str),
+  };
+});
 vi.mock("./views/vectorScatter/contextEnrichment", async (original) => ({
   ...await original<typeof import("./views/vectorScatter/contextEnrichment")>(),
   enrichContext: vi.fn(),

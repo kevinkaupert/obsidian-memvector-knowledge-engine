@@ -42,15 +42,20 @@ class ElementStub {
   }
 }
 
-vi.mock("obsidian", () => ({
-  TFile: class {}, TFolder: class {}, Notice: vi.fn(),
-  Modal: class {
-    contentEl = new ElementStub();
-    modalEl = new ElementStub();
-    constructor(public app: App) {}
-    close = vi.fn();
-  },
-}));
+vi.mock("obsidian", async () => {
+  const yaml = await import("yaml");
+  return {
+    TFile: class {}, TFolder: class {}, Notice: vi.fn(),
+    Modal: class {
+      contentEl = new ElementStub();
+      modalEl = new ElementStub();
+      constructor(public app: App) {}
+      close = vi.fn();
+    },
+    stringifyYaml: (obj: unknown) => yaml.stringify(obj),
+    parseYaml: (str: string) => yaml.parse(str),
+  };
+});
 vi.mock("../../relationVocabulary/loadRelationVocabulary", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../relationVocabulary/loadRelationVocabulary")>();
   return {
