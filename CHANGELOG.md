@@ -9,6 +9,7 @@ Releases are cut only when the maintainer explicitly asks for one.
 ## [Unreleased]
 
 ### Fixed
+- **Preserve Foreign Frontmatter on Relation Edits**: Editing a relation note preserves unknown frontmatter fields (e.g. `id`, `thoughtmap`, tags) and custom body content outside the generated section instead of rewriting the entire note from scratch (#246).
 - **Safe Frontmatter Serialization**: Synthesis notes and relation notes are written via a shared YAML serializer
   (`stringifyYaml`) instead of string interpolation, preventing invalid YAML when note titles or descriptions contain
   quotes, colons, hashtags, or line breaks (#247).
