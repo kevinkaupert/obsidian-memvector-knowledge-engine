@@ -10,12 +10,10 @@ interface ClusterHull {
   cx: number;
   cy: number;
   r: number;
-  count: number;
-  label: string;
 }
 
 /**
- * Purpose: Computes screen-space bounding radii and centroid labels for multi-node topic clusters.
+ * Purpose: Computes screen-space bounding radii for multi-node topic clusters.
  */
 function computeClusterHulls(nodes: ScatterNode[], zoom: number, pan: PanState): ClusterHull[] {
   const groups = new Map<number, ScatterNode[]>();
@@ -27,13 +25,13 @@ function computeClusterHulls(nodes: ScatterNode[], zoom: number, pan: PanState):
 
   const hulls: ClusterHull[] = [];
   groups.forEach((groupNodes, cloudId) => {
-    // A single isolated note does not form a visual topic cluster halo/label
+    // A single isolated note does not form a visual topic cluster halo
     if (groupNodes.length < 2) return;
     const points = groupNodes.map((n) => worldToScreen(n.x, n.y, zoom, pan));
     const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
     const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
     const r = Math.max(...points.map((p) => Math.hypot(p.x - cx, p.y - cy))) + 40 * zoom;
-    hulls.push({ cloudId, cx, cy, r, count: groupNodes.length, label: groupNodes[0].cloudLabel || `Thema ${cloudId + 1}` });
+    hulls.push({ cloudId, cx, cy, r });
   });
   return hulls;
 }
@@ -59,39 +57,15 @@ export function drawClusters(
   nodes: ScatterNode[],
   zoom: number,
   pan: PanState,
-  projectionMode: string | undefined,
+  _projectionMode: string | undefined,
   style: ScatterVisualStyle,
-  labels: LabelPlacer = createLabelPlacer()
+  _labels: LabelPlacer = createLabelPlacer()
 ): void {
-  if (nodes.length === 0) return;
+  if (nodes.length === 0 || style !== "muted") return;
   const hulls = computeClusterHulls(nodes, zoom, pan);
 
-  if (style === "muted") {
-    hulls.forEach((hull) => {
-      const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
-      drawGlow(ctx, hull, palette);
-    });
-  }
-
-  if (!projectionMode || projectionMode === "cloud" || projectionMode === "graphvector") {
-    ctx.save();
-    ctx.font = "bold 11px var(--font-interface, sans-serif)";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    hulls.forEach((hull) => {
-      const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
-      const labelColor = style === "muted" ? palette.labelColor : "rgba(148, 163, 184, 0.85)";
-      const text = `${hull.label.toUpperCase()} (${hull.count})`;
-      const labelY = hull.cy - hull.r - 14;
-      const width = ctx.measureText(text).width;
-      // Cluster labels always render (there are few, and they anchor the view) - the
-      // reservation is what matters, so connected and other node labels steer clear of them.
-      // Focus labels are forced as well and draw afterwards, so a selected or hovered label
-      // stays on top of a cluster label it collides with.
-      labels.tryPlace({ x1: hull.cx - width / 2 - 2, x2: hull.cx + width / 2 + 2, y1: labelY - 7, y2: labelY + 7 }, true);
-      ctx.fillStyle = labelColor;
-      ctx.fillText(text, hull.cx, labelY);
-    });
-    ctx.restore();
-  }
+  hulls.forEach((hull) => {
+    const palette = CLOUD_PALETTES[hull.cloudId % CLOUD_PALETTES.length];
+    drawGlow(ctx, hull, palette);
+  });
 }

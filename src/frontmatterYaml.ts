@@ -4,7 +4,7 @@ import { stringifyYaml, parseYaml } from "obsidian";
  * Purpose: Unified frontmatter serialization, parsing, and merging helper for synthesis and relation notes (#246, #247).
  * Architecture: Serializes frontmatter using Obsidian's stringifyYaml so titles and descriptions
  * containing quotes, colons, hash symbols, or line breaks remain valid YAML. When editing relations,
- * unknown frontmatter fields (e.g. `id`, `thoughtmap`) and note body outside the generated section are preserved.
+ * unknown frontmatter fields (e.g. `id`, custom metadata) and note body outside the generated section are preserved.
  */
 
 /**

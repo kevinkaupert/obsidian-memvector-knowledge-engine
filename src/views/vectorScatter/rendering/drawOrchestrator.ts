@@ -73,9 +73,9 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
 
   const nodeMap = buildNodeMap(state.nodes);
 
-  // One placer per frame, shared by clusters and nodes so cluster labels reserve first.
+  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle);
+
   const labels = createLabelPlacer();
-  drawClusters(ctx, state.nodes, state.zoom, state.pan, state.projectionMode, state.scatterVisualStyle, labels);
 
   const viewport = computeWorldViewport(width, height, state.zoom, state.pan);
 

@@ -169,7 +169,7 @@ export interface RelationEdgesResult {
 
 /**
  * Purpose: Merges relation-note edges and frontmatter typed-link edges into one list with one entry per edge.
- * Architecture: An edge is identified by ordered endpoints and canonical label (knowOS vault schema). Relation notes
+ * Architecture: An edge is identified by ordered endpoints and canonical label. Relation notes
  * come first and win, since they carry description and sources; a bidirectional relation note also covers the
  * reverse frontmatter link. Among frontmatter links a confirmed one wins over a suggested one (#243).
  */
