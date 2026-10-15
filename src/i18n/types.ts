@@ -56,6 +56,8 @@ export interface TranslationKeys {
   exclusionsDesc: string;
   wikiLinksAsRelationsName: string;
   wikiLinksAsRelationsDesc: string;
+  autoIndexVaultOnChangesName: string;
+  autoIndexVaultOnChangesDesc: string;
   agentsPathsName: string;
   agentsPathsDesc: string;
   agentsIncludeDesc: string;

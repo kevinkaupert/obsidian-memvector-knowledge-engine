@@ -59,6 +59,11 @@ export async function syncVaultGraph(
   const { nodes, edges } = extractVaultGraph(app, exclusions, includeWikiLinksAsRelations);
   const knownNodeIds = new Set(nodes.map((n) => n.id));
 
+  const edgeMap = new Map<string, GraphEdge>();
+  for (const edge of edges) {
+    edgeMap.set(`${edge.src}|${edge.tgt}|${edge.type}`, edge);
+  }
+
   let relationLoadFailed = false;
   try {
     const { edges: loaded, hasErrors } = await loadRelationEdgesResult(app, exclusions, relationsFolder, linkLabels);
@@ -71,16 +76,24 @@ export async function syncVaultGraph(
       if (exclusions && (!knownNodeIds.has(rel.srcId) || !knownNodeIds.has(rel.tgtId))) {
         continue;
       }
-      edges.push({
+      const key = `${rel.srcId}|${rel.tgtId}|${rel.relType}`;
+      edgeMap.set(key, {
         src: rel.srcId,
         tgt: rel.tgtId,
         type: rel.relType,
+        description: rel.desc,
+        bidirectional: rel.bidirectional,
+        originalTerm: rel.relType,
       });
       if (rel.bidirectional) {
-        edges.push({
+        const revKey = `${rel.tgtId}|${rel.srcId}|${rel.relType}`;
+        edgeMap.set(revKey, {
           src: rel.tgtId,
           tgt: rel.srcId,
           type: rel.relType,
+          description: rel.desc,
+          bidirectional: rel.bidirectional,
+          originalTerm: rel.relType,
         });
       }
     }
@@ -88,5 +101,5 @@ export async function syncVaultGraph(
     relationLoadFailed = true;
     console.warn("MemVector: Failed to include typed relation edges in sync, skipping edge deletion to preserve existing relations:", err);
   }
-  return store.syncVaultGraph(nodes, edges, { reconcileEdges: !relationLoadFailed });
+  return store.syncVaultGraph(nodes, Array.from(edgeMap.values()), { reconcileEdges: !relationLoadFailed });
 }

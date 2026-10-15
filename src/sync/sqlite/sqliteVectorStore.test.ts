@@ -302,4 +302,100 @@ describe("SqliteVectorStore", () => {
       expect(await storeA.getVector("note-a.md")).toEqual([1, 0]);
     });
   });
+
+  describe("moveVector and deleteVector (Issue #250)", () => {
+    it("moves an existing vector to a new path and id without re-embedding", async () => {
+      const app = fakeApp();
+      const store = new SqliteVectorStore(app, "model-a@local");
+      await store.syncPoints([
+        {
+          id: "wiki/concept_a",
+          vector: [0.5, 0.5],
+          payload: { path: "wiki/concept_a.md", title: "concept_a", content: "hello" },
+          contentHash: "hash-123",
+          mtime: 1000,
+        },
+      ]);
+
+      const moved = await store.moveVector("wiki/concept_a.md", "wiki/concept_renamed.md", "concept_renamed");
+      expect(moved).toBe(true);
+
+      // Old vector should be gone
+      expect(await store.getVector("wiki/concept_a.md")).toBeNull();
+
+      // New vector should exist with identical embedding and content hash
+      expect(await store.getVector("wiki/concept_renamed.md")).toEqual([0.5, 0.5]);
+      const hashes = await store.getStoredHashes();
+      expect(hashes.get("wiki/concept_renamed.md")?.hash).toBe("hash-123");
+    });
+
+    it("returns false when moving a vector that does not exist", async () => {
+      const app = fakeApp();
+      const store = new SqliteVectorStore(app, "model-a@local");
+      const moved = await store.moveVector("wiki/nonexistent.md", "wiki/new.md", "new");
+      expect(moved).toBe(false);
+    });
+
+    it("deletes a stored vector by path or id", async () => {
+      const app = fakeApp();
+      const store = new SqliteVectorStore(app, "model-a@local");
+      await store.syncPoints([point("to_delete", [1, 0])]);
+      expect(await store.getVector("to_delete.md")).toEqual([1, 0]);
+
+      const deleted = await store.deleteVector("to_delete.md");
+      expect(deleted).toBe(true);
+      expect(await store.getVector("to_delete.md")).toBeNull();
+    });
+
+    it("deletes a stored vector across all fingerprints when note is removed from vault", async () => {
+      const app = fakeApp();
+      const store1 = new SqliteVectorStore(app, "model1");
+      const store2 = new SqliteVectorStore(app, "model2");
+
+      // Note indexed under model1
+      await store1.syncPoints([point("a", [1, 0])]);
+
+      // Later user switches to model2 and deletes the note from the vault
+      const deleted = await store2.deleteVector("a.md");
+      expect(deleted).toBe(true);
+
+      // Switching back to model1 must NOT show the deleted note
+      expect(await store1.getVector("a.md")).toBeNull();
+    });
+
+    it("removes destination conflicts across different fingerprints on rename", async () => {
+      const app = fakeApp();
+      const store1 = new SqliteVectorStore(app, "model1");
+      const store2 = new SqliteVectorStore(app, "model2");
+
+      // Index "a" with model1
+      await store1.syncPoints([point("a", [1, 0])]);
+      // Index "b" with model2
+      await store2.syncPoints([point("b", [0, 1])]);
+
+      // Rename "b" to "a" in store2 without UNIQUE constraint failure
+      const moved = await store2.moveVector("b.md", "a.md", "a");
+      expect(moved).toBe(true);
+      expect(await store2.getVector("a.md")).toEqual([0, 1]);
+      expect(await store2.getVector("b.md")).toBeNull();
+    });
+
+    it("moves vectors of inactive models on rename while returning false for the active model", async () => {
+      const app = fakeApp();
+      const store1 = new SqliteVectorStore(app, "model1");
+      const store2 = new SqliteVectorStore(app, "model2");
+
+      // Index "old_note" under model1
+      await store1.syncPoints([point("old_note", [1, 0])]);
+
+      // Note is renamed while model2 is active
+      const moved = await store2.moveVector("old_note.md", "new_note.md", "new_note");
+      // Returns false because model2 had no vector for old_note (needs to calculate)
+      expect(moved).toBe(false);
+
+      // Model1's vector must have moved to new_note.md, NOT stay at old_note.md
+      expect(await store1.getVector("old_note.md")).toBeNull();
+      expect(await store1.getVector("new_note.md")).toEqual([1, 0]);
+    });
+  });
 });

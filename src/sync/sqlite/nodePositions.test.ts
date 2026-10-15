@@ -3,7 +3,7 @@ import { resolve } from "path";
 import type { App } from "obsidian";
 import { describe, expect, it } from "vitest";
 import { closeLocalDb } from "./sqliteDb";
-import { getStoredNodePositions, reconcileNodePositions, reconcileNodePositionsWithVault, saveNodePositions } from "./nodePositions";
+import { deleteNodePosition, getStoredNodePositions, moveNodePosition, reconcileNodePositions, reconcileNodePositionsWithVault, saveNodePositions } from "./nodePositions";
 import { pathToId } from "../../noteSlug";
 
 function fakeApp(files: Map<string, ArrayBuffer> = new Map()): App {
@@ -133,5 +133,41 @@ describe("nodePositions SQLite persistence", () => {
     const left = await getStoredNodePositions(app, [...paths, "wiki/deleted.md"].map(pathToId));
     expect([...left.keys()].sort()).toEqual([pathToId("wiki/kept.md"), pathToId("wiki/relations/a--b.md")].sort());
     await closeLocalDb();
+  });
+
+  describe("moveNodePosition and deleteNodePosition (Issue #250)", () => {
+    it("moves a stored position to a new path and id on rename", async () => {
+      const app = fakeApp();
+      await saveNodePositions(app, [{ id: "wiki/old", path: "wiki/old.md", x: 150, y: -75 }]);
+
+      const moved = await moveNodePosition(app, "wiki/old.md", "wiki/new.md");
+      expect(moved).toBe(true);
+
+      const oldPos = await getStoredNodePositions(app, ["wiki/old", "wiki/old.md"]);
+      expect(oldPos.has("wiki/old")).toBe(false);
+
+      const newPos = await getStoredNodePositions(app, [pathToId("wiki/new.md"), "wiki/new.md"]);
+      expect(newPos.get("wiki/new.md")).toEqual({ x: 150, y: -75 });
+      await closeLocalDb();
+    });
+
+    it("returns false when moving a position that does not exist", async () => {
+      const app = fakeApp();
+      const moved = await moveNodePosition(app, "wiki/unknown.md", "wiki/target.md");
+      expect(moved).toBe(false);
+      await closeLocalDb();
+    });
+
+    it("deletes a stored node position by path or id", async () => {
+      const app = fakeApp();
+      await saveNodePositions(app, [{ id: "wiki/delete", path: "wiki/delete.md", x: 50, y: 50 }]);
+
+      const deleted = await deleteNodePosition(app, "wiki/delete.md");
+      expect(deleted).toBe(true);
+
+      const pos = await getStoredNodePositions(app, ["wiki/delete", "wiki/delete.md"]);
+      expect(pos.has("wiki/delete.md")).toBe(false);
+      await closeLocalDb();
+    });
   });
 });

@@ -29,6 +29,7 @@ import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
 import { isRelationNote } from "../../relationNotes";
+import type { VaultIndexingPipeline } from "../../sync/vaultIndexPipeline";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
 
@@ -39,6 +40,7 @@ export interface VectorScatterHost {
   focusSidebarNote(file: TFile): void;
   /** Re-applies settings to every open 2D view (MemVectorPlugin.applySettingsToOpenViews). */
   applySettingsToOpenViews?(options?: OpenViewSettingsChange): void;
+  vaultIndexer?: VaultIndexingPipeline | null;
 }
 
 export interface NodePositionProvider {
@@ -353,12 +355,20 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       await initScan();
     }
 
-    this.registerVaultWatchers();
+    if (this.host.vaultIndexer) {
+      this.unsubscribeIndexer = this.host.vaultIndexer.subscribe((changes) => {
+        this.processVaultChanges(changes);
+      });
+    } else {
+      this.registerVaultWatchers();
+    }
     this.registerVisibilityWatchers();
   }
 
   onClose(): Promise<void> {
     this.initialScanPending = false;
+    this.unsubscribeIndexer?.();
+    this.unsubscribeIndexer = null;
     this.vaultEvents.dispose();
     void this.positionWriter.flush();
     if (this.embeddingReloadTimer !== null) {
@@ -373,6 +383,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return Promise.resolve();
   }
 
+  private unsubscribeIndexer: (() => void) | null = null;
   private readonly vaultEvents = new VaultEventQueue(() => this.processVaultChanges());
   /** Serializes every update of the node list, so an older scan can never finish after - and overwrite - a newer one. */
   private workChain: Promise<void> = Promise.resolve();
@@ -505,15 +516,23 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   /** Queues a reload of relation edges and vocabulary forces. */
   triggerRelationsReload(): void {
-    this.vaultEvents.relationsChanged();
+    if (this.host.vaultIndexer) {
+      this.host.vaultIndexer.triggerRelationsReload();
+    } else {
+      this.vaultEvents.relationsChanged();
+    }
   }
 
   /** Queues one note change, or a background full rescan when no change is given. */
   triggerVaultRescan(change?: VaultNoteChange): void {
-    if (!change) this.vaultEvents.fullScanRequested();
-    else if (change.kind === "rename") this.vaultEvents.noteRenamed(change.oldPath, change.path);
-    else if (change.kind === "delete") this.vaultEvents.noteDeleted(change.path);
-    else this.vaultEvents.noteChanged(change.path);
+    if (this.host.vaultIndexer) {
+      this.host.vaultIndexer.triggerVaultRescan(change);
+    } else {
+      if (!change) this.vaultEvents.fullScanRequested();
+      else if (change.kind === "rename") this.vaultEvents.noteRenamed(change.oldPath, change.path);
+      else if (change.kind === "delete") this.vaultEvents.noteDeleted(change.path);
+      else this.vaultEvents.noteChanged(change.path);
+    }
   }
 
   /** The scope the scan and incremental updates use to decide which notes are nodes. */
@@ -533,12 +552,34 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     return run;
   }
 
+  private mergeChangesIntoQueue(changes: PendingVaultChanges): void {
+    if (changes.fullScan) this.vaultEvents.fullScanRequested();
+    if (changes.relations) this.vaultEvents.relationsChanged();
+    const renamedOld = new Set(changes.renamedFrom.values());
+    for (const [newPath, oldPath] of changes.renamedFrom.entries()) {
+      this.vaultEvents.noteRenamed(oldPath, newPath);
+    }
+    for (const path of changes.upserts) {
+      if (!changes.renamedFrom.has(path) || changes.modified?.has(path)) {
+        this.vaultEvents.noteChanged(path);
+      }
+    }
+    for (const path of changes.removals) {
+      if (!renamedOld.has(path)) {
+        this.vaultEvents.noteDeleted(path);
+      }
+    }
+  }
+
   /**
    * Purpose: Applies the batch of queued vault changes.
    * Architecture: A queued full scan supersedes per-note changes. Otherwise only the changed notes are read; if that
    * fails, a full scan restores a consistent node list.
    */
-  private processVaultChanges(): void {
+  private processVaultChanges(incomingChanges?: PendingVaultChanges): void {
+    if (incomingChanges) {
+      this.mergeChangesIntoQueue(incomingChanges);
+    }
     // A hidden view keeps collecting; nothing is read or laid out until it is shown again.
     if (!this.isVisible()) {
       this.staleWhileHidden = true;
@@ -590,9 +631,28 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       fresh.push(node);
     }
 
-    const added = fresh.filter((n) => !previousByPath.has(n.path));
-    await this.hydrateStoredEmbeddings(added.filter((n) => !n.embedding), new Map());
-    await this.hydrateStoredPositions(added.filter((n) => !isPlaced(n)));
+    const needsEmbeddingHydration: ScatterNode[] = [];
+    const fallback = new Map<string, number[]>();
+
+    for (const node of fresh) {
+      const isRename = changes.renamedFrom.has(node.path);
+      const wasModified = changes.modified?.has(node.path);
+      if ((!isRename || wasModified) && this.settings.autoIndexVaultOnChanges) {
+        if (node.embedding) fallback.set(node.path, node.embedding);
+        needsEmbeddingHydration.push(node);
+      } else if (!node.embedding) {
+        needsEmbeddingHydration.push(node);
+      }
+    }
+
+    if (needsEmbeddingHydration.length > 0) {
+      await this.hydrateStoredEmbeddings(needsEmbeddingHydration, fallback);
+    }
+
+    const unplaced = fresh.filter((n) => !isPlaced(n));
+    if (unplaced.length > 0) {
+      await this.hydrateStoredPositions(unplaced);
+    }
     if (changes.relations) await this.loadRelationEdges();
     if (generation !== this.scanGeneration) return;
 

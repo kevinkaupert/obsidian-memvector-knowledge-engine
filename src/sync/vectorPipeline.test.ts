@@ -154,4 +154,51 @@ describe("runVectorPipeline", () => {
     expect(result.vanishedCount).toBe(1);
     expect(result.calculatedCount).toBe(1);
   });
+
+  it("aborts early without reconciling when isCancelled returns true", async () => {
+    const f = fixture(["A", "B", "C"]);
+    const fetch = embedFailingFor();
+    let cancelled = false;
+    let callCount = 0;
+    fetch.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) {
+        cancelled = true;
+      }
+      return { embedding: [1, 0], error: null };
+    });
+
+    await expect(
+      runVectorPipeline(f.app, DEFAULT_SETTINGS, f.graph, {
+        paths: f.paths,
+        reconcilePaths: f.paths,
+        isCancelled: () => cancelled,
+      })
+    ).rejects.toThrow("cancelled");
+
+    expect(callCount).toBe(1);
+    expect(f.synced.length).toBe(0);
+    expect(f.reconciled.length).toBe(0);
+  });
+
+  it("aborts when cancelled during the final embedding request and skips reconcile and persistence", async () => {
+    const f = fixture(["Single"]);
+    const fetch = embedFailingFor();
+    let cancelled = false;
+    fetch.mockImplementation(async () => {
+      cancelled = true;
+      return { embedding: [1, 0], error: null };
+    });
+
+    await expect(
+      runVectorPipeline(f.app, DEFAULT_SETTINGS, f.graph, {
+        paths: f.paths,
+        reconcilePaths: f.paths,
+        isCancelled: () => cancelled,
+      })
+    ).rejects.toThrow("cancelled");
+
+    expect(f.synced.length).toBe(0);
+    expect(f.reconciled.length).toBe(0);
+  });
 });

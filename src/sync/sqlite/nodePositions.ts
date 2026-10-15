@@ -110,3 +110,39 @@ export async function reconcileNodePositions(
 export async function reconcileNodePositionsWithVault(app: App, exclusions: string): Promise<{ removed: number }> {
   return reconcileNodePositions(app, listIndexableFiles(app, exclusions).map((f) => pathToId(f.path)));
 }
+
+/**
+ * Purpose: Moves a stored 2D node position to a new path and id when a note is renamed (Issue #250).
+ */
+export async function moveNodePosition(app: App, oldPath: string, newPath: string): Promise<boolean> {
+  const db = await getLocalDb(app);
+  const oldId = pathToId(oldPath);
+  const newId = pathToId(newPath);
+  const check = db.exec("SELECT id FROM node_positions WHERE id = ? OR path = ?", [oldId, oldPath]);
+  if (check.length === 0 || check[0].values.length === 0) return false;
+
+  db.run("DELETE FROM node_positions WHERE (id = ? OR path = ?) AND id != ?", [newId, newPath, oldId]);
+  db.run("UPDATE node_positions SET id = ?, path = ?, updated_at = ? WHERE id = ? OR path = ?", [
+    newId,
+    newPath,
+    Date.now(),
+    oldId,
+    oldPath,
+  ]);
+  await persistLocalDb(app, db);
+  return true;
+}
+
+/**
+ * Purpose: Deletes a stored node position when a note is deleted or excluded (Issue #250).
+ */
+export async function deleteNodePosition(app: App, pathOrId: string): Promise<boolean> {
+  const db = await getLocalDb(app);
+  const id = pathToId(pathOrId);
+  db.run("DELETE FROM node_positions WHERE id = ? OR path = ?", [id, pathOrId]);
+  const modified = db.getRowsModified() > 0;
+  if (modified) {
+    await persistLocalDb(app, db);
+  }
+  return modified;
+}

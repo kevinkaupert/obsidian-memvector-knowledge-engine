@@ -9,9 +9,11 @@ import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 import { setPluginId, setPluginDir, closeLocalDb } from "./sync/sqlite/sqliteDb";
 import { getTranslation } from "./i18n";
 import { resolveEmbeddingTarget } from "./sync/embeddingTarget";
+import { VaultIndexingPipeline } from "./sync/vaultIndexPipeline";
 
 export default class MemVectorPlugin extends Plugin {
   settings: MemVectorSettings = DEFAULT_SETTINGS;
+  vaultIndexer: VaultIndexingPipeline | null = null;
   private sidebarView: MathWikiSidebarView | null = null;
   private sidebarDebounceTimer: number | null = null;
   /** Embedding fingerprint the open views were last hydrated for - see saveSettings. */
@@ -37,6 +39,9 @@ export default class MemVectorPlugin extends Plugin {
     setPluginId(this.manifest.id);
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
+
+    this.vaultIndexer = new VaultIndexingPipeline(this.app, () => this.settings);
+    this.vaultIndexer.registerWatchers(this);
 
     this.registerView(MATH_WIKI_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
       const view = new MathWikiSidebarView(leaf, () => this.settings);
@@ -165,6 +170,8 @@ export default class MemVectorPlugin extends Plugin {
       window.clearTimeout(this.sidebarDebounceTimer);
       this.sidebarDebounceTimer = null;
     }
+    this.vaultIndexer?.dispose();
+    this.vaultIndexer = null;
     void closeLocalDb();
   }
 }

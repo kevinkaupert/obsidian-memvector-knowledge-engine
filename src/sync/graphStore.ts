@@ -8,6 +8,9 @@ export interface GraphEdge {
   src: string;
   tgt: string;
   type: string;
+  description?: string;
+  bidirectional?: boolean;
+  originalTerm?: string;
 }
 
 export interface GraphNeighbor {
@@ -52,5 +55,13 @@ export interface GraphStore {
   fetchNeighbors(nodeIds: string[], hops: number, limit: number, perHopLimit?: number): Promise<GraphNeighbor[]>;
   /** Checks whether the graph index has been synchronized with vault notes/edges. */
   isIndexed?(): Promise<boolean>;
+  /** Moves an existing note to a new path and id on rename (Issue #250). */
+  moveNote?(oldPath: string, newPath: string, newTitle: string): Promise<boolean>;
+  /** Deletes an existing note and its connected edges (Issue #250). */
+  deleteNote?(pathOrId: string): Promise<boolean>;
+  /** Upserts a single note into the graph (Issue #250). */
+  upsertNoteNode?(node: GraphNode): Promise<void>;
+  /** Replaces WikiLink LINKS_TO edges originating from a source note (Issue #250). */
+  replaceOutgoingWikiLinks?(srcId: string, targetIds: string[]): Promise<void>;
 }
 
