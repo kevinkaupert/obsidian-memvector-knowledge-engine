@@ -2,6 +2,7 @@ import type { TranslationKeys } from "../../i18n";
 import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm";
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
 import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
+import { serializeFrontmatter } from "../../frontmatterYaml";
 
 /**
  * Keep a short readable prefix, but derive identity from the complete ordered IDs
@@ -51,25 +52,25 @@ export function buildRelationFileContent(
   const descText = description || `${t.relDefaultDesc} ${edge.label} ${t.relBetween} ${srcLink} ${t.relAnd} ${tgtLink}.`;
   const bidirectionalText = edge.bidirectional ? t.relBidirectionalYes : t.relBidirectionalNo;
 
-  return `---
-type: relation
-title: "${edge.src.title} -> ${edge.tgt.title} (${edge.label})"
-description: "${descText.replace(/"/g, '\\"')}"
-status: draft
-sources:
-  - "${edge.src.path}"
-  - "${edge.tgt.path}"
-generated:
-  by: "MemVector Co-Pilot"
-  at: "${new Date().toISOString()}"
-verified: null
-relation_type: "${edge.label}"
-original_term: "${edge.originalTerm.replace(/"/g, '\\"')}"
-bidirectional: ${edge.bidirectional}
-source_note: "${srcLink}"
-target_note: "${tgtLink}"
----
+  const frontmatter = serializeFrontmatter({
+    type: "relation",
+    title: `${edge.src.title} -> ${edge.tgt.title} (${edge.label})`,
+    description: descText,
+    status: "draft",
+    sources: [edge.src.path, edge.tgt.path],
+    generated: {
+      by: "MemVector Co-Pilot",
+      at: new Date().toISOString(),
+    },
+    verified: null,
+    relation_type: edge.label,
+    original_term: edge.originalTerm,
+    bidirectional: edge.bidirectional,
+    source_note: srcLink,
+    target_note: tgtLink,
+  });
 
+  return `${frontmatter}
 # ${t.relFileHeading}: ${srcLink} -> ${tgtLink}
 
 - **${t.relFileType}:** \`${edge.label}\`

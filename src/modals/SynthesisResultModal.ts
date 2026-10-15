@@ -5,6 +5,7 @@ import { wikiLinkTarget } from "../noteSlug";
 import type { MemVectorSettings } from "../settings/types";
 import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
 import { renderRetrievalWarning } from "../retrievalStatus";
+import { serializeFrontmatter } from "../frontmatterYaml";
 
 interface SynthesisNode {
   id: string;
@@ -66,24 +67,26 @@ export class SynthesisResultModal extends Modal {
       const finalPath = uniqueNotePath(synthesisFolder(this.settings ?? {}), `synthese-${slug}`, (p) => Boolean(this.app.vault.getAbstractFileByPath(p)));
 
       const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
-      const frontmatter = `---
-type: synthesis
-title: "${synthTitlePrefix} ${this.selectedNodes.map((n) => n.title).join(" & ")}"
-description: "${t.synthDocDesc}"
-status: draft
-sources: [${this.selectedNodes.map((n) => `"${n.path}"`).join(", ")}]
-generated:
-  by: "${this.modelName}"
-  at: "${new Date().toISOString()}"
----
-
+      const synthTitle = `${synthTitlePrefix} ${this.selectedNodes.map((n) => n.title).join(" & ")}`;
+      const frontmatter = serializeFrontmatter({
+        type: "synthesis",
+        title: synthTitle,
+        description: t.synthDocDesc,
+        status: "draft",
+        sources: this.selectedNodes.map((n) => n.path),
+        generated: {
+          by: this.modelName,
+          at: new Date().toISOString(),
+        },
+      });
+      const noteContent = `${frontmatter}
 # ${synthTitlePrefix} ${this.selectedNodes.map((n) => `[[${wikiLinkTarget(n.path)}|${n.title}]]`).join(" & ")}
 
 ${this.warnings.map((warning) => `> [!warning] ${warning}\n\n`).join("")}${this.synthesisText}
 `;
       try {
         await ensureParentFolder(this.app, finalPath);
-        await this.app.vault.create(finalPath, frontmatter);
+        await this.app.vault.create(finalPath, noteContent);
         new Notice(`${t.noticeSynthSaved} '${finalPath}' ${t.noticeSynthSavedSuffix}`);
         this.close();
       } catch (err) {

@@ -9,6 +9,9 @@ Releases are cut only when the maintainer explicitly asks for one.
 ## [Unreleased]
 
 ### Fixed
+- **Safe Frontmatter Serialization**: Synthesis notes and relation notes are written via a shared YAML serializer
+  (`stringifyYaml`) instead of string interpolation, preventing invalid YAML when note titles or descriptions contain
+  quotes, colons, hashtags, or line breaks (#247).
 - **Asserted Edges Survive Relation Edits**: Deleting a relation note, or changing its type or direction, no longer
   removes the old edge from the graph index while another relation note or a confirmed frontmatter link still asserts
   it. If the vault cannot be read at that moment, the edge is kept until the next full re-index (#254).
