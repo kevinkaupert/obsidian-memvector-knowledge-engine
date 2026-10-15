@@ -13,11 +13,18 @@ const { MockTFile } = vi.hoisted(() => {
   return { MockTFile };
 });
 
-vi.mock("obsidian", () => ({
-  TFile: MockTFile,
-}));
+vi.mock("obsidian", async () => {
+  const yaml = await import("yaml");
+  return {
+    TFile: MockTFile,
+    TFolder: class {},
+    stringifyYaml: (obj: unknown) => yaml.stringify(obj),
+    parseYaml: (str: string) => yaml.parse(str),
+  };
+});
 
-import { findRelationBatchConflict, findRelationPathConflict } from "./relationFileWriter";
+import { findRelationBatchConflict, findRelationPathConflict, writeRelationFile } from "./relationFileWriter";
+import { parseFrontmatter } from "../../frontmatterYaml";
 
 function mockAppWithFiles(existingPaths: string[]): App {
   const fileSet = new Set(existingPaths);
@@ -92,5 +99,131 @@ describe("batch preflight (#73)", () => {
 
   it("allows an in-place edit followed by distinct new files", () => {
     expect(findRelationBatchConflict(mockAppWithFiles(["old.md"]), ["old.md", "new.md"], "old.md")).toBeUndefined();
+  });
+});
+
+describe("writeRelationFile (Issue #246)", () => {
+  function createMockApp(initialFiles: Record<string, string> = {}) {
+    const files = new Map<string, string>(Object.entries(initialFiles));
+    const app = {
+      vault: {
+        getAbstractFileByPath: (path: string): TAbstractFile | null => {
+          if (files.has(path)) {
+            return new MockTFile(path) as unknown as TAbstractFile;
+          }
+          return null;
+        },
+        read: vi.fn(async (file: TAbstractFile) => files.get((file as { path: string }).path) ?? ""),
+        modify: vi.fn(async (file: TAbstractFile, content: string) => {
+          files.set((file as { path: string }).path, content);
+        }),
+        create: vi.fn(async (path: string, content: string) => {
+          if (files.has(path)) throw new Error("File already exists");
+          files.set(path, content);
+        }),
+        createFolder: vi.fn(async () => {}),
+      },
+    } as unknown as App;
+    return { app, files };
+  }
+
+  const existingRelationNote = `---
+type: relation
+title: Alpha -> Beta (REQUIRES)
+description: Alpha ist die Basis für Beta.
+relation_type: REQUIRES
+status: draft
+id: 01JA987654321
+thoughtmap:
+  canvas: "Brain.canvas"
+tags:
+  - foundations
+---
+
+> [!NOTE] User remark before heading
+
+# Relation: [[Alpha]] -> [[Beta]]
+
+- **Typ:** \`REQUIRES\`
+
+## Grund
+Alpha ist die Basis für Beta.
+
+## Custom User Section
+Here are user-specific reflections.
+`;
+
+  const freshlyGeneratedNote = `---
+type: relation
+title: Alpha -> Beta (PROVES)
+description: Alpha beweist Beta direkt.
+relation_type: PROVES
+status: draft
+sources:
+  - Alpha.md
+  - Beta.md
+---
+
+# Relation: [[Alpha]] -> [[Beta]]
+
+- **Typ:** \`PROVES\`
+
+## Grund
+Alpha beweist Beta direkt.
+`;
+
+  it("preserves foreign frontmatter and custom body when editing in-place", async () => {
+    const path = "wiki/relations/rel-alpha-to-beta.md";
+    const { app, files } = createMockApp({ [path]: existingRelationNote });
+
+    await writeRelationFile(app, path, freshlyGeneratedNote, path);
+
+    const updated = files.get(path);
+    expect(updated).toBeDefined();
+
+    const parsedFm = parseFrontmatter(updated!);
+    // Unknown fields preserved
+    expect(parsedFm?.id).toBe("01JA987654321");
+    expect(parsedFm?.thoughtmap).toEqual({ canvas: "Brain.canvas" });
+    expect(parsedFm?.tags).toEqual(["foundations"]);
+
+    // MemVector fields updated
+    expect(parsedFm?.title).toBe("Alpha -> Beta (PROVES)");
+    expect(parsedFm?.description).toBe("Alpha beweist Beta direkt.");
+    expect(parsedFm?.relation_type).toBe("PROVES");
+    expect(parsedFm?.sources).toEqual(["Alpha.md", "Beta.md"]);
+
+    // Note body preserved outside generated section
+    expect(updated).toContain("> [!NOTE] User remark before heading");
+    expect(updated).toContain("## Grund\nAlpha beweist Beta direkt.");
+    expect(updated).toContain("## Custom User Section\nHere are user-specific reflections.");
+  });
+
+  it("preserves foreign frontmatter and custom body when renaming/moving a relation", async () => {
+    const oldPath = "wiki/relations/rel-alpha-to-beta-requires.md";
+    const newPath = "wiki/relations/rel-alpha-to-beta-proves.md";
+    const { app, files } = createMockApp({ [oldPath]: existingRelationNote });
+
+    await writeRelationFile(app, newPath, freshlyGeneratedNote, oldPath);
+
+    const created = files.get(newPath);
+    expect(created).toBeDefined();
+
+    const parsedFm = parseFrontmatter(created!);
+    expect(parsedFm?.id).toBe("01JA987654321");
+    expect(parsedFm?.thoughtmap).toEqual({ canvas: "Brain.canvas" });
+    expect(parsedFm?.tags).toEqual(["foundations"]);
+
+    expect(created).toContain("> [!NOTE] User remark before heading");
+    expect(created).toContain("## Custom User Section\nHere are user-specific reflections.");
+  });
+
+  it("writes raw content directly when creating a new relation without initialEdgePath", async () => {
+    const newPath = "wiki/relations/brand-new.md";
+    const { app, files } = createMockApp({});
+
+    await writeRelationFile(app, newPath, freshlyGeneratedNote);
+
+    expect(files.get(newPath)).toBe(freshlyGeneratedNote);
   });
 });
