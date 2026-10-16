@@ -1,6 +1,6 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-0.2.6-blue)
+![Version](https://img.shields.io/badge/version-0.3.0-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
@@ -131,7 +131,7 @@ labels are stored as plain strings.
 
 ## Status: Early-Stage (Pre-1.0)
 
-This plugin is at version `0.2.x` and under active development. The version
+This plugin is at version `0.3.x` and under active development. The version
 number stays below `1.0.0` on purpose — it has not yet reached the stability
 that number implies. Expect rough edges, and check the
 [open issues](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues)
