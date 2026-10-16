@@ -1,6 +1,6 @@
 # 0007 — Note Identity: Frontmatter `id` with Path Fallback
 
-Status: Proposed (spike for #249; implementation in a follow-up issue)
+Status: Accepted (2026-10-16; knowOS ADR-0002 section 5 amended accordingly in knowOS#28)
 
 ## Context
 
@@ -41,7 +41,7 @@ effectiveId(note) = frontmatter.id   if it is a valid ULID and unique in the vau
   impossible without the prefix: `pathToId` lowercases every segment, a ULID is uppercase, so the two key spaces never
   overlap, because the ULID key is always uppercased. No other knowOS component reads MemVector keys: Thought Map and
   Jovian identify notes by frontmatter `id` or path, and MemVector's database is private plugin state (knowOS
-  `docs/synergies.md`). knowOS ADR-0002 is to be aligned with this (see Consequences).
+  `docs/synergies.md`). knowOS ADR-0002 section 5 was amended to match (knowOS#28).
 - **Duplicate ids** (a note copied with its frontmatter): the note whose path sorts first keeps the `id` as its key, every
   other note with the same `id` falls back to its path key, and the conflict is reported once per scan (console warning
   plus the existing index status). MemVector does not fix the duplicate; that needs a user decision.
@@ -109,5 +109,5 @@ stored under a ULID that now belongs to a note at a different path is updated in
   `noteKey`, and tests have to cover both key kinds.
 - Rollback: an older MemVector build sees ULID-keyed rows it cannot map to a path; it treats them as stale and
   re-embeds those notes under path keys. No vault file is affected, only re-embedding cost.
-- knowOS ADR-0002 section 5 should state the fallback as "the component's existing path key" instead of the literal
-  `path:` prefix. That change belongs in knowOS and is proposed there separately.
+- knowOS ADR-0002 section 5 states the fallback as the component's existing path key instead of a `path:` prefix
+  (amended in knowOS#28).
