@@ -9,13 +9,13 @@ function makeNode(id: string): RelationNode {
 }
 
 describe("relationVocabulary", () => {
-  it("ships exactly one entry per canonical label - 13 canonical types exclusively from vocabulary", () => {
+  it("ships exactly one entry per canonical label - 17 canonical types exclusively from vocabulary", () => {
     const categories = buildRelationCategories(DEFAULT_RELATION_VOCABULARY);
     const allOptions = categories.flatMap((c) => c.items);
 
     expect(allOptions.some((o) => o.val === "CUSTOM")).toBe(false);
-    expect(DEFAULT_RELATION_VOCABULARY.length).toBe(13);
-    expect(allOptions.length).toBe(13);
+    expect(DEFAULT_RELATION_VOCABULARY.length).toBe(17);
+    expect(allOptions.length).toBe(17);
     const expectedLabels = [
       "IMPLIES",
       "EQUIVALENT_TO",
@@ -30,6 +30,10 @@ describe("relationVocabulary", () => {
       "EMBEDS_IN",
       "REFUTES",
       "ANALOGOUS_TO",
+      "DEFINED_BY",
+      "USES",
+      "GOVERNED_BY",
+      "EXAMPLE_OF",
     ];
     expectedLabels.forEach((label) => {
       expect(allOptions.some((o) => o.val === label && o.label === label)).toBe(true);
