@@ -7,65 +7,62 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
 ![Tests](https://img.shields.io/badge/tests-869%20passing-brightgreen)
 
-**A 2D thinking workspace for Obsidian.**
+**Map what you think connects — and why.**
 
-Not a graph viewer. Not a replacement for Obsidian Graph. A space where you
-map what you believe connects your concepts — and why — and the map becomes
-a navigable, queryable artifact of your thinking.
+Obsidian's graph shows what you linked. MemVector shows what you *believe*:
+which ideas imply each other, which depend on each other, which contradict.
+Declare a relation, and your notes move on a 2D canvas — related ideas pull
+together, conflicting ones push apart. Your thinking becomes a map you can
+navigate, query, and ask an AI about.
 
----
-
-## The core idea
-
-Obsidian Graph shows you **what you linked**. MemVector shows you **what you
-believe is connected — and how strongly, and why**.
-
-You select two or more notes and declare a typed relation:
-
-```
-Concept A  →  IMPLIES  →  Concept B
-Theorem X  →  REQUIRES  →  Definition Y
-Claim P    →  CONFLICTS_WITH  →  Claim Q
-```
-
-That declaration does three things at once:
-
-1. **Moves them in the 2D canvas.** `EQUIVALENT_TO` pulls notes closer than
-   a generic relation. `CONFLICTS_WITH` actively pushes them apart. The spatial
-   layout is a direct expression of your declared structure.
-
-2. **Creates a Markdown file in your vault.** The relation lives in
-   the relations folder (`wiki/relations/` by default, configurable) as a normal
-   `.md` file with `type: relation` in its frontmatter — readable, editable,
-   version-controlled, searchable. You can write a reason in plain text.
-   Nothing is hidden in a database you cannot inspect.
-
-3. **Persists to a local SQLite graph.** Relations are traversable at query
-   time: multi-hop neighbor lookups and the AI synthesis context read this
-   graph. The radar sidebar ranks neighbors by vector similarity instead.
-
-Semantic embeddings run underneath as a second force: notes with similar
-content are pulled together even without an explicit relation. Your declared
-relations win when they are stronger. The vector similarity fills the gaps.
+- **Relations you can read.** Every relation is a plain Markdown note with a type and a reason.
+- **Meaning as layout.** Typed relations plus semantic similarity drive the canvas.
+- **Ask your own map.** AI synthesis uses your declared structure as context.
+- **Fully local.** Embeddings and graph live in one SQLite file in your vault. Works with Ollama, no API key needed.
 
 ---
 
-## What it is not
+## How it works
 
-- **Not a WikiLink visualizer.** WikiLinks are opt-in and carry a low fixed
-  graph weight (0.7), below most typed relations. Some typed relations are
-  weaker still (e.g. `INDEPENDENT_OF` at 0.05, or any custom weight you set
-  lower). The default is off.
-- **Not a replacement for Obsidian Graph.** Both coexist. Obsidian Graph
-  shows your link structure. MemVector shows your declared conceptual
-  structure.
-- **Not automated knowledge extraction.** No LLM reads your notes and builds
-  the graph for you. You build it. The AI assists when you ask it to
-  synthesize.
-- **Not classical GraphRAG.** Classical GraphRAG traverses an automatically
-  generated topology and feeds it to an LLM. MemVector's graph is an
-  intentional artifact — the LLM gets *your thinking* as context, not a
-  machine-generated one.
+You are writing a thesis and have 200 notes, but no overview of which claims
+support each other and which collide. Select two notes and declare how they
+relate:
+
+```
+Utilitarianism        →  CONFLICTS_WITH  →  Kantian duty ethics
+Natural selection     →  REQUIRES        →  Heritable variation
+Bayes' theorem        →  GENERALIZES     →  Likelihood ratio
+```
+
+That one step does three things:
+
+1. **The canvas rearranges.** `EQUIVALENT_TO` pulls notes close,
+   `CONFLICTS_WITH` pushes them apart. The layout is your declared structure.
+2. **A Markdown note appears in your vault** (`wiki/relations/` by default),
+   with WikiLinks to both notes and your reason in plain text — readable,
+   editable, searchable, version-controlled.
+3. **The relation joins a local graph** that multi-hop lookups and AI
+   synthesis can traverse.
+
+Underneath, semantic embeddings act as a second force: notes with similar
+content drift together even without a relation. Your declared relations win
+where they are stronger; similarity fills the gaps.
+
+MemVector does not replace Obsidian's graph, and it does not build the graph
+for you — you decide what connects. The AI only steps in when you ask it to
+synthesize.
+
+---
+
+## Installation & Quickstart
+
+1. In **Settings → Community plugins → Browse**, search for **MemVector Knowledge Engine**, install and enable it.
+2. Choose your embedding and LLM provider — Ollama with `bge-m3` works
+   out of the box with no API key.
+3. Click **"Index entire vault"** to compute embeddings.
+4. Open the 2D canvas from the ribbon icon or command palette.
+5. Select two notes (`Cmd`-click or `Shift`-drag lasso), then open
+   the Relation Builder to declare your first typed relation.
 
 ---
 
@@ -130,7 +127,7 @@ labels are stored as plain strings.
 
 ## Status: Early-Stage (Pre-1.0)
 
-This plugin is at version `0.1.x` and under active development. The version
+This plugin is at version `0.2.x` and under active development. The version
 number stays below `1.0.0` on purpose — it has not yet reached the stability
 that number implies. Expect rough edges, and check the
 [open issues](https://github.com/kevinkaupert/obsidian-memvector-knowledge-engine/issues)
@@ -150,20 +147,6 @@ before relying on it for anything critical.
 
 - [**Runbook** (`docs/runbook.md`)](docs/runbook.md) — clone, build and test commands, linking the clone into a vault, the local mock server, inspecting the index, releasing
 - [**Manual testing** (`docs/TESTING.md`)](docs/TESTING.md) — smoke test steps inside Obsidian
-
----
-
-## Installation & Quickstart
-
-1. Copy `main.js`, `manifest.json`, `styles.css`, and `sql-wasm.wasm` into
-   `<your-vault>/.obsidian/plugins/memvector-knowledge-engine/`.
-2. Enable **MemVector Knowledge Engine** in **Settings → Community Plugins**.
-3. Choose your embedding and LLM provider — Ollama with `bge-m3` works
-   out of the box with no API key.
-4. Click **"Index entire vault"** to compute embeddings.
-5. Open the 2D canvas from the ribbon icon or command palette.
-6. Select two notes, `Cmd-click` a second one or lasso them (`Shift` + drag), then open
-   the Relation Builder to declare your first typed relation.
 
 ---
 
