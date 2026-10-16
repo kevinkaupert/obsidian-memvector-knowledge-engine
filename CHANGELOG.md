@@ -3,35 +3,43 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project stays below 1.0.0: features and fixes alike only raise the patch version (0.2.x).
+and this project stays below 1.0.0: features and fixes alike only raise the patch version (0.3.x).
 Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
+From 0.3 on, MemVector is developed together with further private projects, while staying a standalone Obsidian
+plugin. Compatibility for existing vaults is kept; please open an issue if an update causes problems. See
+`docs/release-notes-0.3.0.md`.
+
 ### Added
 - **Foundation Relation Labels**: The bundled STEM vocabulary adds `DEFINED_BY`, `USES`, `GOVERNED_BY` and `EXAMPLE_OF`,
-  directed and with dedicated edge colors, so MemVector, Thought Map and Jovian share one vocabulary for the chain
-  concept -> definition -> simpler concept -> primitive notion -> axiom (#242). New vaults get them on first use. An
-  existing `wiki/relation-types.json` is not changed: colors and layout weights apply right away, the dropdown and the
-  frontmatter keys follow once the terms are added to the file (see `docs/CONFIGURATION.md`, section 3.5).
+  directed and with dedicated edge colors, for the chain concept -> definition -> simpler concept -> primitive notion
+  -> axiom (#242). New vaults get them on first use. An existing `wiki/relation-types.json` is not changed: colors and
+  layout weights apply right away, the dropdown and the frontmatter keys follow once the terms are added to the file
+  (see `docs/CONFIGURATION.md`, section 3.5).
 - **Frontmatter Fields in Embeddings**: New setting `embeddingFrontmatterKeys` (empty by default) embeds the values of
   the listed frontmatter keys, e.g. `description, aliases, notation`, before the note body (#251). With the setting
   empty the embedded text is unchanged, so no note is re-embedded; with keys set, only notes that have one of the
   fields are.
+- **Note Identity Decision**: ADR-0007 records how notes will be keyed by a frontmatter `id` with the path as fallback
+  (#249); the implementation follows in #271.
 
 ### Changed
-- **Synthesis and Relation Notes Follow the knowOS Vault Schema** (#248):
+- **Synthesis and Relation Note Frontmatter** (#248):
   - Synthesis notes write `sources` as quoted wikilinks (`"[[wiki/A|A]]"`) instead of raw paths, so Obsidian keeps
     them current on rename, and `generated.by` as `memvector/<provider>:<model>` instead of the bare model name.
   - New relation notes no longer repeat their endpoints in `sources`; the endpoints are in `source_note` and
     `target_note`, and `sources` is reserved for evidence. `generated.by` is `user`, since the Relation Builder
     content comes from the user.
-  - New synthesis and relation notes get a stable ULID `id` (knowOS ADR-0002). MemVector still keys its index by
-    path; keying by `id` follows in #249.
+  - New synthesis and relation notes get a stable ULID `id`. MemVector still keys its index by path; keying by `id`
+    follows in #271.
   - Existing notes are not migrated. Editing a relation note in the Relation Builder keeps its `id` (or adds one when
     missing), removes only the raw endpoint paths from `sources` and keeps every other entry.
   - Anything outside MemVector that reads `sources` of relation notes as endpoints should read `source_note` and
-    `target_note`. See https://github.com/kevinkaupert/knowOS/blob/main/docs/contracts/vault-schema.md.
+    `target_note`.
 
 ## [0.2.6] - 2026-10-15
 
