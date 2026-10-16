@@ -19,6 +19,20 @@ Releases are cut only when the maintainer explicitly asks for one.
   empty the embedded text is unchanged, so no note is re-embedded; with keys set, only notes that have one of the
   fields are.
 
+### Changed
+- **Synthesis and Relation Notes Follow the knowOS Vault Schema** (#248):
+  - Synthesis notes write `sources` as quoted wikilinks (`"[[wiki/A|A]]"`) instead of raw paths, so Obsidian keeps
+    them current on rename, and `generated.by` as `memvector/<provider>:<model>` instead of the bare model name.
+  - New relation notes no longer repeat their endpoints in `sources`; the endpoints are in `source_note` and
+    `target_note`, and `sources` is reserved for evidence. `generated.by` is `user`, since the Relation Builder
+    content comes from the user.
+  - New synthesis and relation notes get a stable ULID `id` (knowOS ADR-0002). MemVector still keys its index by
+    path; keying by `id` follows in #249.
+  - Existing notes are not migrated. Editing a relation note in the Relation Builder keeps its `id` (or adds one when
+    missing), removes only the raw endpoint paths from `sources` and keeps every other entry.
+  - Anything outside MemVector that reads `sources` of relation notes as endpoints should read `source_note` and
+    `target_note`. See https://github.com/kevinkaupert/knowOS/blob/main/docs/contracts/vault-schema.md.
+
 ## [0.2.6] - 2026-10-15
 
 ### Added
