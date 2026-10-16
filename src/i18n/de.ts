@@ -65,6 +65,8 @@ export const de: TranslationKeys = {
   embedModelName: "Embedding Modellname",
   embedModelDesc: "Exakter Modellname für Notiz-Embeddings (z. B. 'bge-m3', 'nomic-embed-text', 'text-embedding-3-small').",
   embedMaxCharsTitle: "Embedding-Textlimit (Zeichen pro Notiz)",
+  embedFrontmatterKeysTitle: "Frontmatter-Felder im Embedding",
+  embedFrontmatterKeysDesc: "Kommagetrennte Frontmatter-Schlüssel, deren Werte vor dem Notizinhalt eingebettet werden, in dieser Reihenfolge (z. B. description, aliases, notation). Leer = kein Frontmatter wird eingebettet. Eine Änderung berechnet nur Notizen neu, die eines dieser Felder haben.",
   embedMaxCharsDesc: "Maximale Zeichen pro Notiz (Dateiname + Inhalt, ohne Frontmatter), die an das Embedding-Modell gesendet werden. 0 = kein Limit. Innerhalb des Eingabelimits des Modells bleiben (bge-m3 und OpenAI-Embedding-Modelle: ca. 8k Tokens) - längere Eingaben kürzt oder verweigert der Anbieter. Eine Änderung berechnet nur Notizen neu, deren Embedding-Text sich ändert.",
   exclusionsName: "Pfad- & Datei-Ausschließungen",
   exclusionsDesc: "Globale Ausschlussregeln für Vektor-Indizierung, Graph-Kanten und den 2D-Graph (z. B. -path:schema -file:index -file:log -file:README). Syntax wie im Obsidian Graph View.",

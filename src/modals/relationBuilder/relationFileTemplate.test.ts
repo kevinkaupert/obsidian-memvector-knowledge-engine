@@ -155,3 +155,20 @@ describe("relation file folder (#173)", () => {
   });
 });
 
+
+describe("buildRelationFileContent and the knowOS vault schema (#248)", () => {
+  const fm = () => parseYaml(buildRelationFileContent(edge(), "", getTranslation("en")).match(/^---\r?\n([\s\S]*?)\r?\n---/)![1]);
+
+  it("keeps endpoints out of `sources` and writes them only to source_note/target_note", () => {
+    const parsed = fm();
+    expect(parsed.sources).toBeUndefined();
+    expect(parsed.source_note).toBe("[[Work/Overview|Overview]]");
+    expect(parsed.target_note).toBe("[[Home/Overview|Overview]]");
+  });
+
+  it("records the user as producer and a fresh ULID id (ADR-0002)", () => {
+    const parsed = fm();
+    expect(parsed.generated.by).toBe("user");
+    expect(parsed.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+  });
+});

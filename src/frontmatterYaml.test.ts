@@ -274,3 +274,65 @@ New reason.
     expect(mergeRelationNoteContent("Original content", "New content")).toBe("New content");
   });
 });
+
+describe("mergeRelationNoteContent and the knowOS vault schema (#248)", () => {
+  const legacy = (sources: string, id = "") => `---
+${id ? `id: ${id}\n` : ""}type: relation
+description: Old
+relation_type: REQUIRES
+source_note: "[[wiki/A|A]]"
+target_note: "[[wiki/B|B]]"
+sources:
+${sources}
+generated:
+  by: MemVector Co-Pilot
+  at: "2026-01-01T00:00:00Z"
+---
+
+# Relation
+
+## Grund
+Old
+`;
+  const fresh = `---
+id: 01NEWNEWNEWNEWNEWNEWNEWNEW
+type: relation
+description: New
+relation_type: REQUIRES
+source_note: "[[wiki/A|A]]"
+target_note: "[[wiki/B|B]]"
+generated:
+  by: user
+  at: "2026-10-16T00:00:00Z"
+---
+
+# Relation
+
+## Grund
+New
+`;
+
+  it("removes the legacy raw endpoint paths from `sources` and drops the emptied list", () => {
+    const merged = parseFrontmatter(mergeRelationNoteContent(legacy("  - wiki/A.md\n  - wiki/B.md"), fresh))!;
+    expect(merged.sources).toBeUndefined();
+    expect(merged.source_note).toBe("[[wiki/A|A]]");
+    expect((merged.generated as { by: string }).by).toBe("user");
+  });
+
+  it("keeps every source entry the user added", () => {
+    const merged = parseFrontmatter(
+      mergeRelationNoteContent(legacy('  - wiki/A.md\n  - "[[Skript LA1#2.5]]"\n  - https://example.org/paper\n  - wiki/B.md'), fresh)
+    )!;
+    expect(merged.sources).toEqual(["[[Skript LA1#2.5]]", "https://example.org/paper"]);
+  });
+
+  it("keeps the existing id instead of the freshly generated one", () => {
+    const merged = parseFrontmatter(mergeRelationNoteContent(legacy("  - wiki/A.md", "01OLDOLDOLDOLDOLDOLDOLDOLD"), fresh))!;
+    expect(merged.id).toBe("01OLDOLDOLDOLDOLDOLDOLDOLD");
+  });
+
+  it("adopts the fresh id for a legacy note without one (user-confirmed write, ADR-0002)", () => {
+    const merged = parseFrontmatter(mergeRelationNoteContent(legacy("  - wiki/A.md"), fresh))!;
+    expect(merged.id).toBe("01NEWNEWNEWNEWNEWNEWNEWNEW");
+  });
+});
