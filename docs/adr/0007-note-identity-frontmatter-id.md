@@ -33,12 +33,15 @@ effectiveId(note) = frontmatter.id   if it is a valid ULID and unique in the vau
                   = pathToId(path)   otherwise
 ```
 
-- A valid ULID is 26 characters of Crockford Base32. Any other value (empty, wrong length, a slug someone typed) is
-  ignored and the note falls back to its path key. The value is never rewritten by MemVector.
+- A valid ULID is 26 characters of Crockford Base32. ULIDs are case-insensitive (knowOS ADR-0002 section 1), so
+  MemVector uses the uppercased value as the key; the frontmatter value is never rewritten. Any other value (empty,
+  wrong length, a slug someone typed) is ignored and the note falls back to its path key.
 - **The fallback stays `pathToId` unchanged, without the `path:` prefix shown in knowOS ADR-0002.** Every existing row in
   every user database is keyed this way; adding a prefix would rewrite every row on upgrade for no gain. Collisions are
   impossible without the prefix: `pathToId` lowercases every segment, a ULID is uppercase, so the two key spaces never
-  overlap. knowOS ADR-0002 is to be aligned with this (see Consequences).
+  overlap, because the ULID key is always uppercased. No other knowOS component reads MemVector keys: Thought Map and
+  Jovian identify notes by frontmatter `id` or path, and MemVector's database is private plugin state (knowOS
+  `docs/synergies.md`). knowOS ADR-0002 is to be aligned with this (see Consequences).
 - **Duplicate ids** (a note copied with its frontmatter): the note whose path sorts first keeps the `id` as its key, every
   other note with the same `id` falls back to its path key, and the conflict is reported once per scan (console warning
   plus the existing index status). MemVector does not fix the duplicate; that needs a user decision.
