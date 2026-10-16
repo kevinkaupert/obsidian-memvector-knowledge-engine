@@ -92,7 +92,18 @@ The toolbar's **Synthese** section shows a scrollable **context preview** listin
 
 ### Section 3.5: Relation Vocabulary (`wiki/relation-types.json`)
 
-The Relation Builder's type dropdown is read from a configurable vault file (default `wiki/relation-types.json`). If the file doesn't exist yet, it is created automatically the first time you open the Relation Builder, seeded with the 13 canonical labels (`IMPLIES`, `REQUIRES`, `EQUIVALENT_TO`, `GENERALIZES`, `SPECIALIZES`, `EXTENDS`, `REDUCES_TO`, `CONSTRUCTS`, `EMBEDS_IN`, `REFUTES`, `CONFLICTS_WITH`, `INDEPENDENT_OF`, `ANALOGOUS_TO`) - one entry per label.
+The Relation Builder's type dropdown is read from a configurable vault file (default `wiki/relation-types.json`). If the file doesn't exist yet, it is created automatically the first time you open the Relation Builder, seeded with the 17 canonical labels (`IMPLIES`, `REQUIRES`, `DEFINED_BY`, `USES`, `GOVERNED_BY`, `EXAMPLE_OF`, `EQUIVALENT_TO`, `GENERALIZES`, `SPECIALIZES`, `EXTENDS`, `REDUCES_TO`, `CONSTRUCTS`, `EMBEDS_IN`, `REFUTES`, `CONFLICTS_WITH`, `INDEPENDENT_OF`, `ANALOGOUS_TO`) - one entry per label.
+
+An existing file is never extended automatically, so a file created before these labels were bundled does not list `DEFINED_BY`, `USES`, `GOVERNED_BY` and `EXAMPLE_OF`. Their colors and layout weights already apply, but the Relation Builder dropdown and the frontmatter typed-link keys (`defined_by`, `uses`, `governed_by`, `example_of`) only follow once the terms are in the file. To adopt them, add these entries to `terms`:
+
+```json
+{ "key": "relDefinedBy", "label": "DEFINED_BY", "term": "is defined by", "category": "Preconditions", "bidirectional": false, "reversed": false },
+{ "key": "relUses", "label": "USES", "term": "uses", "category": "Preconditions", "bidirectional": false, "reversed": false },
+{ "key": "relGovernedBy", "label": "GOVERNED_BY", "term": "is governed by", "category": "Preconditions", "bidirectional": false, "reversed": false },
+{ "key": "relExampleOf", "label": "EXAMPLE_OF", "term": "is an example of", "category": "Generalization & Specialization", "bidirectional": false, "reversed": false }
+```
+
+Check first that no existing frontmatter field named `uses`, `defined_by`, `governed_by` or `example_of` holds wikilinks you do not mean as typed edges.
 
 You can edit this file at any time to customize the vocabulary for any domain (mathematics, medicine, law, engineering, etc.):
 

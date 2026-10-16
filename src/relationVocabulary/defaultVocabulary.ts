@@ -2,7 +2,7 @@ import type { RelationTermDef } from "./types";
 
 /**
  * The plugin's bundled STEM vocabulary: exactly one entry per canonical Cypher
- * label (13 total). Per-label layout semantics (weight/repels, ADR-0002) live
+ * label (17 total). Per-label layout semantics (weight/repels, ADR-0002) live
  * here as the single source of truth for the defaults. Vaults seed
  * wiki/relation-types.json from this list on first use and can extend or
  * replace it freely.
@@ -16,11 +16,16 @@ export const DEFAULT_RELATION_VOCABULARY: RelationTermDef[] = [
 
   // Preconditions
   { key: "relRequires", label: "REQUIRES", term: "requires", category: "Preconditions", bidirectional: false, reversed: false },
+  // Foundation chain concept -> definition -> simpler concept -> primitive notion -> axiom (#242)
+  { key: "relDefinedBy", label: "DEFINED_BY", term: "is defined by", category: "Preconditions", bidirectional: false, reversed: false },
+  { key: "relUses", label: "USES", term: "uses", category: "Preconditions", bidirectional: false, reversed: false },
+  { key: "relGovernedBy", label: "GOVERNED_BY", term: "is governed by", category: "Preconditions", bidirectional: false, reversed: false },
 
   // Generalization & Specialization
   { key: "relGeneralizes", label: "GENERALIZES", term: "generalizes", category: "Generalization & Specialization", bidirectional: false, reversed: false },
   { key: "relSpecializes", label: "SPECIALIZES", term: "is special case of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
   { key: "relExtends", label: "EXTENDS", term: "extends", category: "Generalization & Specialization", bidirectional: false, reversed: false },
+  { key: "relExampleOf", label: "EXAMPLE_OF", term: "is an example of", category: "Generalization & Specialization", bidirectional: false, reversed: false },
 
   // Proofs & Corollaries
   { key: "relReducesTo", label: "REDUCES_TO", term: "reduces to", category: "Proofs & Corollaries", bidirectional: false, reversed: false },
