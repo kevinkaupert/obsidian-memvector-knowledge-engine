@@ -68,7 +68,7 @@ synthesize.
 
 ## Relation types
 
-Thirteen canonical types ship as a starting vocabulary. All are customizable
+Seventeen canonical types ship as a starting vocabulary. All are customizable
 via `wiki/relation-types.json` in your vault — nothing is hardcoded.
 
 | Type | Meaning | Force in canvas |
@@ -77,8 +77,12 @@ via `wiki/relation-types.json` in your vault — nothing is hardcoded.
 | `ANALOGOUS_TO` | Structurally similar | Strong pull (×1.1) |
 | `IMPLIES` | A makes B necessary | Standard (×1.0) |
 | `REQUIRES` | A presupposes B | Standard (×1.0) |
+| `DEFINED_BY` | A concept is defined by B | Standard (×1.0) |
+| `USES` | A definition uses the simpler concept B | Standard (×1.0) |
+| `GOVERNED_BY` | A primitive notion is governed by axiom B | Standard (×1.0) |
 | `GENERALIZES` | A is the broader case | Standard (×1.0) |
 | `SPECIALIZES` | A is a special case | Standard (×1.0) |
+| `EXAMPLE_OF` | A is a concrete instance of concept B | Standard (×1.0) |
 | `EXTENDS` | A builds on B | Standard (×1.0) |
 | `CONSTRUCTS` | A constructs B | Standard (×1.0) |
 | `EMBEDS_IN` | A is embedded in B | Standard (×1.0) |

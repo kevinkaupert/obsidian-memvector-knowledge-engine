@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyLayoutEdit, bundledLayoutForLabel, withBundledLayoutDefaults } from "./layoutDefaults";
 import type { RelationTermDef } from "./types";
+import { CANONICAL_EDGE_COLORS, colorForLabel } from "../views/vectorScatter/rendering/drawEdges";
 
 /** Exactly what a vault seeded by 0.1.0-0.1.6 has on disk: no weight/repels fields at all. */
 const LEGACY_TERMS: RelationTermDef[] = [
@@ -116,6 +117,21 @@ describe("applyLayoutEdit (Settings round-trip)", () => {
     for (const [w, r] of [[0, false], [0.05, true], [1, true], [1.3, false], [3, true]] as [number, boolean][]) {
       const back = roundTrip(applyLayoutEdit(conflicts, { weight: w, repels: r }));
       expect([back.weight ?? 1, back.repels ?? false]).toEqual([w, r]);
+    }
+  });
+});
+
+describe("foundation labels in a vault file that predates them (#242)", () => {
+  // A vault seeded before #242 only lists the original labels; its file is never extended automatically.
+  const legacyVaultTerms: RelationTermDef[] = [
+    { key: "relRequires", label: "REQUIRES", term: "requires", category: "Preconditions", bidirectional: false, reversed: false },
+  ];
+
+  it("still resolves bundled layout semantics and a dedicated color for the new labels", () => {
+    for (const label of ["DEFINED_BY", "USES", "GOVERNED_BY", "EXAMPLE_OF"]) {
+      expect(legacyVaultTerms.some((t) => t.label === label)).toBe(false);
+      expect(bundledLayoutForLabel(label)).toMatchObject({ label, bidirectional: false });
+      expect(colorForLabel(label)).toBe(CANONICAL_EDGE_COLORS[label]);
     }
   });
 });
