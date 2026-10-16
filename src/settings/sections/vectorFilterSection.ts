@@ -169,6 +169,19 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
     });
 
   new Setting(containerEl)
+    .setName(t.embedFrontmatterKeysTitle)
+    .setDesc(t.embedFrontmatterKeysDesc)
+    .addText((text) => {
+      text
+        .setPlaceholder("description, aliases, notation")
+        .setValue(settings.embeddingFrontmatterKeys ?? DEFAULT_SETTINGS.embeddingFrontmatterKeys)
+        .onChange(async (value) => {
+          settings.embeddingFrontmatterKeys = value;
+          await host.saveSettings();
+        });
+    });
+
+  new Setting(containerEl)
     .setName(t.wikiLinksAsRelationsName)
     .setDesc(t.wikiLinksAsRelationsDesc)
     .addToggle((toggle) =>

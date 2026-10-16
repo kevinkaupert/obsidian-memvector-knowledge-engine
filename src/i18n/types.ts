@@ -52,6 +52,8 @@ export interface TranslationKeys {
   embedModelDesc: string;
   embedMaxCharsTitle: string;
   embedMaxCharsDesc: string;
+  embedFrontmatterKeysTitle: string;
+  embedFrontmatterKeysDesc: string;
   exclusionsName: string;
   exclusionsDesc: string;
   wikiLinksAsRelationsName: string;

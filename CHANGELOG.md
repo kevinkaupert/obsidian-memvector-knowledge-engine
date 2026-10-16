@@ -8,6 +8,12 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+### Added
+- **Frontmatter Fields in Embeddings**: New setting `embeddingFrontmatterKeys` (empty by default) embeds the values of
+  the listed frontmatter keys, e.g. `description, aliases, notation`, before the note body (#251). With the setting
+  empty the embedded text is unchanged, so no note is re-embedded; with keys set, only notes that have one of the
+  fields are.
+
 ## [0.2.6] - 2026-10-15
 
 ### Added
