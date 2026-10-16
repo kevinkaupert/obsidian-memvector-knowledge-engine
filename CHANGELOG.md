@@ -14,6 +14,10 @@ Releases are cut only when the maintainer explicitly asks for one.
   concept -> definition -> simpler concept -> primitive notion -> axiom (#242). New vaults get them on first use. An
   existing `wiki/relation-types.json` is not changed: colors and layout weights apply right away, the dropdown and the
   frontmatter keys follow once the terms are added to the file (see `docs/CONFIGURATION.md`, section 3.5).
+- **Frontmatter Fields in Embeddings**: New setting `embeddingFrontmatterKeys` (empty by default) embeds the values of
+  the listed frontmatter keys, e.g. `description, aliases, notation`, before the note body (#251). With the setting
+  empty the embedded text is unchanged, so no note is re-embedded; with keys set, only notes that have one of the
+  fields are.
 
 ## [0.2.6] - 2026-10-15
 
