@@ -7,7 +7,7 @@ import { buildLinkKeys, hasLinkKeys } from "../frontmatterLinks";
 import { isRelationNote } from "../relationNotes";
 import { shouldIncludeFile } from "../vaultFilter";
 import { pathToId, toSlug } from "../noteSlug";
-import { buildEmbeddingInput } from "./embeddingText";
+import { buildEmbeddingInput, parseEmbeddingFrontmatterKeys } from "./embeddingText";
 import { embeddingTargetChanged, resolveEmbeddingTarget } from "./embeddingTarget";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
@@ -380,7 +380,7 @@ export class VaultIndexingPipeline {
 
       if (!isPureRename) {
         const content = await this.app.vault.cachedRead(file);
-        const { text, hash, body } = buildEmbeddingInput(file.basename, content, settings.embeddingMaxChars);
+        const { text, hash, body } = buildEmbeddingInput(file.basename, content, settings.embeddingMaxChars, parseEmbeddingFrontmatterKeys(settings.embeddingFrontmatterKeys));
 
         const cached = storedHashes.get(path) ?? storedHashes.get(pathToId(path));
         if (!cached || cached.hash !== hash) {

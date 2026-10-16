@@ -8,6 +8,17 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+### Added
+- **Foundation Relation Labels**: The bundled STEM vocabulary adds `DEFINED_BY`, `USES`, `GOVERNED_BY` and `EXAMPLE_OF`,
+  directed and with dedicated edge colors, so MemVector, Thought Map and Jovian share one vocabulary for the chain
+  concept -> definition -> simpler concept -> primitive notion -> axiom (#242). New vaults get them on first use. An
+  existing `wiki/relation-types.json` is not changed: colors and layout weights apply right away, the dropdown and the
+  frontmatter keys follow once the terms are added to the file (see `docs/CONFIGURATION.md`, section 3.5).
+- **Frontmatter Fields in Embeddings**: New setting `embeddingFrontmatterKeys` (empty by default) embeds the values of
+  the listed frontmatter keys, e.g. `description, aliases, notation`, before the note body (#251). With the setting
+  empty the embedded text is unchanged, so no note is re-embedded; with keys set, only notes that have one of the
+  fields are.
+
 ### Changed
 - **Synthesis and Relation Notes Follow the knowOS Vault Schema** (#248):
   - Synthesis notes write `sources` as quoted wikilinks (`"[[wiki/A|A]]"`) instead of raw paths, so Obsidian keeps

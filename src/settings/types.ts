@@ -19,6 +19,12 @@ export interface MemVectorSettings {
    * Changing it re-embeds only the notes whose capped text changes.
    */
   embeddingMaxChars: number;
+  /**
+   * Comma-separated frontmatter keys whose values are prepended to the embedding text in this
+   * order (e.g. "description, aliases, notation"), #251. Empty (default) embeds no frontmatter.
+   * Changing it re-embeds only the notes whose embedded text changes.
+   */
+  embeddingFrontmatterKeys: string;
 
   llmProvider: LlmProvider;
   apiBaseUrl: string;

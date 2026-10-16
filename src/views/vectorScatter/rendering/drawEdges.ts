@@ -26,6 +26,10 @@ export const CANONICAL_EDGE_COLORS: Record<string, string> = {
   REDUCES_TO: "#8890c9",
   INDEPENDENT_OF: "#9098a3",
   ANALOGOUS_TO: "#c98fae",
+  DEFINED_BY: "#e0b45c",
+  USES: "#a6b86f",
+  GOVERNED_BY: "#9b7fc9",
+  EXAMPLE_OF: "#7fb0d9",
 };
 
 export const EDGE_COLOR_PALETTE = [

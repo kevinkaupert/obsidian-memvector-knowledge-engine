@@ -24,19 +24,23 @@ describe("drawEdges color resolution (Issue #62)", () => {
     "REDUCES_TO",
     "INDEPENDENT_OF",
     "ANALOGOUS_TO",
+    "DEFINED_BY",
+    "USES",
+    "GOVERNED_BY",
+    "EXAMPLE_OF",
   ];
 
   describe("canonical Cypher relation colors", () => {
-    it("defines exactly 13 canonical relation labels", () => {
-      expect(Object.keys(CANONICAL_EDGE_COLORS)).toHaveLength(13);
+    it("defines exactly 17 canonical relation labels", () => {
+      expect(Object.keys(CANONICAL_EDGE_COLORS)).toHaveLength(17);
       for (const label of EXPECTED_CANONICAL_LABELS) {
         expect(CANONICAL_EDGE_COLORS).toHaveProperty(label);
       }
     });
 
-    it("assigns distinct, unique colors to all 13 canonical labels", () => {
+    it("assigns distinct, unique colors to all 17 canonical labels", () => {
       const colorSet = new Set(Object.values(CANONICAL_EDGE_COLORS));
-      expect(colorSet.size).toBe(13);
+      expect(colorSet.size).toBe(17);
     });
 
     it("colorForLabel resolves each canonical label to its defined color", () => {
