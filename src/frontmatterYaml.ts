@@ -117,6 +117,35 @@ export function extractUserBodyOutsideGenerated(
   return { userPrefix, userSuffix: "" };
 }
 
+function linkTarget(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^\s*\[\[([^\]|#]+)/);
+  return match ? match[1].trim().replace(/\.md$/i, "") : null;
+}
+
+/**
+ * Relation notes written before the knowOS vault schema stored their endpoints as raw paths in
+ * `sources`. The schema keeps endpoints in source_note/target_note and reserves `sources` for
+ * evidence, so an edit removes exactly those raw endpoint paths and keeps every other entry the
+ * user added. An emptied list is removed.
+ */
+function dropLegacyEndpointSources(fm: Record<string, unknown>, endpointsFrom: Record<string, unknown>[]): void {
+  if (!Array.isArray(fm.sources)) return;
+  const endpoints = new Set<string>();
+  for (const source of endpointsFrom) {
+    for (const key of ["source_note", "target_note"]) {
+      const target = linkTarget(source[key]);
+      if (target) endpoints.add(target);
+    }
+  }
+  const kept = fm.sources.filter((entry) => {
+    if (typeof entry !== "string" || entry.trim().startsWith("[[")) return true;
+    return !endpoints.has(entry.trim().replace(/\.md$/i, ""));
+  });
+  if (kept.length > 0) fm.sources = kept;
+  else delete fm.sources;
+}
+
 /**
  * Merges an existing relation note with freshly generated relation content,
  * preserving unknown frontmatter fields and note body outside the generated section (#246).
@@ -135,6 +164,11 @@ export function mergeRelationNoteContent(existingContent: string, newContent: st
     ...existing.frontmatter,
     ...fresh.frontmatter,
   };
+  // A note keeps its identity across edits (knowOS ADR-0002): the existing id wins over a fresh one.
+  if (existing.frontmatter.id !== undefined && existing.frontmatter.id !== null && existing.frontmatter.id !== "") {
+    mergedFrontmatter.id = existing.frontmatter.id;
+  }
+  dropLegacyEndpointSources(mergedFrontmatter, [existing.frontmatter, fresh.frontmatter]);
 
   const oldDesc = typeof existing.frontmatter.description === "string"
     ? existing.frontmatter.description.trim()

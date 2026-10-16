@@ -3,6 +3,7 @@ import type { ResolvedRelationEdge } from "../../relationVocabulary/resolveTerm"
 import { toSlug, wikiLinkTarget } from "../../noteSlug";
 import { DEFAULT_RELATIONS_FOLDER } from "../../vaultLayout";
 import { serializeFrontmatter } from "../../frontmatterYaml";
+import { newNoteId } from "../../noteId";
 
 /**
  * Keep a short readable prefix, but derive identity from the complete ordered IDs
@@ -52,14 +53,17 @@ export function buildRelationFileContent(
   const descText = description || `${t.relDefaultDesc} ${edge.label} ${t.relBetween} ${srcLink} ${t.relAnd} ${tgtLink}.`;
   const bidirectionalText = edge.bidirectional ? t.relBidirectionalYes : t.relBidirectionalNo;
 
+  // knowOS vault schema: endpoints live in source_note/target_note only; `sources` is reserved for
+  // evidence and omitted here. The content comes from the user's Relation Builder input, so
+  // `generated.by` is "user". A fresh `id` (ADR-0002) is replaced by the existing one on edit.
   const frontmatter = serializeFrontmatter({
+    id: newNoteId(),
     type: "relation",
     title: `${edge.src.title} -> ${edge.tgt.title} (${edge.label})`,
     description: descText,
     status: "draft",
-    sources: [edge.src.path, edge.tgt.path],
     generated: {
-      by: "MemVector Co-Pilot",
+      by: "user",
       at: new Date().toISOString(),
     },
     verified: null,
