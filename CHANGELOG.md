@@ -8,6 +8,15 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-18
+
+### Fixed
+- **No Orphaned Vectors after a Model Switch** (#234): A note keeps one vector, from the model that embedded it last. A
+  full re-index now removes the vectors of deleted or excluded notes for every model, including rows from before model
+  tracking existed. Before, rows of a previous model and those legacy rows stayed in the database forever. Vectors of
+  other models for notes that still exist are kept until the note is embedded with the active model. Keeping vectors
+  of several models per note is tracked as an idea in #278.
+
 ## [0.3.2] - 2026-10-18
 
 ### Changed

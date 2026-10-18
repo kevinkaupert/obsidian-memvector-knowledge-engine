@@ -282,7 +282,7 @@ describe("SqliteVectorStore", () => {
       expect((await new SqliteVectorStore(app).search([0, 1], 10)).length).toBe(1);
     });
 
-    it("reconcile only removes rows matching its own fingerprint, preserving other models (#229)", async () => {
+    it("reconcile removes rows of every fingerprint for notes no longer in the vault, and keeps other models' rows of existing notes (#234)", async () => {
       const app = fakeApp();
       const storeA = new SqliteVectorStore(app, "model-a@local");
       const storeB = new SqliteVectorStore(app, "model-b@local");
@@ -290,16 +290,36 @@ describe("SqliteVectorStore", () => {
       await storeA.syncPoints([hashed("note-a", [1, 0])]);
       await storeB.syncPoints([hashed("note-b1", [0, 1]), hashed("note-b2", [0, 1])]);
 
-      // Reconcile storeB with only note-b1 (note-b2 removed from B's scope)
+      // Reconcile with only note-b1 left in the vault (note-b2 and note-a deleted)
       const resB = await storeB.reconcile(["note-b1.md"]);
-      expect(resB.removed).toBe(1);
+      expect(resB.removed).toBe(2);
 
       // storeB has note-b1, lost note-b2
       expect(await storeB.getVector("note-b1.md")).toEqual([0, 1]);
       expect(await storeB.getVector("note-b2.md")).toBeNull();
 
-      // storeA still has note-a (completely untouched by storeB's reconcile, even though note-a.md was not in currentPaths)
-      expect(await storeA.getVector("note-a.md")).toEqual([1, 0]);
+      // note-a.md is no longer in the vault either, so model A's row goes too
+      expect(await storeA.getVector("note-a.md")).toBeNull();
+
+      await storeA.syncPoints([hashed("kept", [1, 0])]);
+      await new SqliteVectorStore(app).syncPoints([hashed("legacy", [1, 1])]);
+      expect((await storeB.reconcile(["note-b1.md", "kept.md"])).removed).toBe(1);
+      expect(await storeA.getVector("kept.md")).toEqual([1, 0]);
+      expect(await new SqliteVectorStore(app).getVector("legacy.md")).toBeNull();
+    });
+
+    it("keeps one row per note: a second model on the same path replaces the first (#234)", async () => {
+      const app = fakeApp();
+      const storeA = new SqliteVectorStore(app, "model-a@local");
+      const storeB = new SqliteVectorStore(app, "model-b@local");
+      await storeA.syncPoints([hashed("shared", [1, 0])]);
+      await storeB.syncPoints([hashed("shared", [0, 1])]);
+
+      expect(await storeB.getVector("shared.md")).toEqual([0, 1]);
+      expect(await storeA.getVector("shared.md")).toBeNull();
+      expect((await new SqliteVectorStore(app).search([0, 1], 10)).length).toBe(1);
+      expect((await storeB.reconcile([])).removed).toBe(1);
+      expect((await new SqliteVectorStore(app).search([0, 1], 10)).length).toBe(0);
     });
   });
 

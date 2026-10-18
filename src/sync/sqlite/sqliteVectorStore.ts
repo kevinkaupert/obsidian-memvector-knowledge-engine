@@ -8,11 +8,12 @@ import { noteKey } from "../../noteKey";
 /**
  * VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale).
  *
+ * One vector row per note (#234): the row key is the note key, so embedding a note with another model replaces its row.
  * Scoped to one embedding fingerprint (model + endpoint, see resolveEmbeddingTarget): writes stamp it on every row, and
  * reads, hashes and search only see rows with the same fingerprint, so vectors from another model are never mixed in and
  * count as cache misses. Rows written before fingerprints existed (NULL) have unknown provenance: a scoped store never
  * sees them, so they are re-embedded - and overwritten - instead of being attributed to whatever model is configured
- * now. `fingerprint: null` leaves the store unscoped.
+ * now. `fingerprint: null` leaves the store unscoped. Keeping vectors of several models per note is an open idea (#278).
  */
 export class SqliteVectorStore implements VectorStore {
   constructor(
@@ -118,18 +119,23 @@ export class SqliteVectorStore implements VectorStore {
     return found;
   }
 
+  /**
+   * Purpose: Deletes the vector rows of notes that are no longer in `currentPaths` (every indexable note).
+   * Architecture: Removes rows of every fingerprint, including legacy rows without one (#234): a note has one row, so a
+   * row of another model for a deleted or excluded note would otherwise stay forever. Rows of other models for notes
+   * that still exist are kept; they are replaced when the note is embedded with the active model.
+   */
   async reconcile(currentPaths: string[]): Promise<{ removed: number }> {
     const db = await this.openDb();
     const current = new Set(currentPaths);
-    const { where, params } = this.scope();
 
-    const result = db.exec(`SELECT path FROM vectors WHERE ${where}`, params);
-    const existingPaths = result.length === 0 ? [] : result[0].values.map((row) => String(row[0]));
+    const result = db.exec("SELECT id, path FROM vectors");
+    const rows = result.length === 0 ? [] : result[0].values.map((row) => ({ id: String(row[0]), path: row[1] == null ? "" : String(row[1]) }));
 
     let removed = 0;
-    for (const path of existingPaths) {
-      if (!current.has(path)) {
-        db.run(`DELETE FROM vectors WHERE path = ? AND ${where}`, [path, ...params]);
+    for (const row of rows) {
+      if (!current.has(row.path)) {
+        db.run("DELETE FROM vectors WHERE id = ?", [row.id]);
         removed++;
       }
     }
