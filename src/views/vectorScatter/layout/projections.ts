@@ -252,6 +252,42 @@ export function applyGraphVectorProjection({
   const targetSpacing = nodeSpacing || 350;
   const clusterRadius = cloudSpacing || 800;
   const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges, includeWikiLinksAsRelations, vocabulary);
+  const isRepelled = buildRepelMask(n, repel);
+
+  // Positions before this pass: anchors for mobile nodes in a bounded pass.
+  const wasPlaced = nodes.map((node) => isPlaced(node));
+  const anchors = nodes.map((node) => ({ x: node.x, y: node.y }));
+
+  // 1. Initial placement: use 2D PCA or spectral matrix projection, or center spiral fallback
+  const needsPlacement = wasPlaced.every((placed) => !placed);
+  if (needsPlacement) {
+    placeInitial(nodes, matrix, targetSpacing, clusterRadius);
+  } else {
+    placeIncremental(nodes, matrix, wasPlaced, targetSpacing);
+  }
+
+  const mobile = bounded ? nodes.map((node) => bounded.mobileIds.has(node.id)) : null;
+
+  // 2. Iterative Organic Force Simulation
+  const ran = simulateForces({
+    nodes,
+    matrix,
+    conn,
+    isRepelled,
+    wasPlaced,
+    anchors,
+    mobile,
+    bounded: Boolean(bounded),
+    targetSpacing,
+    clusterRadius,
+  });
+
+  for (const node of nodes) node.placed = true;
+  return { iterations: ran };
+}
+
+/** Pair mask (row-major n x n) of node index pairs joined by a repelling relation such as CONFLICTS_WITH. */
+function buildRepelMask(n: number, repel: ReturnType<typeof computeGraphTopologyWeights>["repel"]): Uint8Array {
   const isRepelled = new Uint8Array(n * n);
   if (repel && repel.size > 0) {
     for (const key of repel) {
@@ -267,73 +303,94 @@ export function applyGraphVectorProjection({
     }
   }
 
-  // Positions before this pass: anchors for mobile nodes in a bounded pass.
-  const wasPlaced = nodes.map((node) => isPlaced(node));
-  const anchors = nodes.map((node) => ({ x: node.x, y: node.y }));
+  return isRepelled;
+}
 
-  // 1. Initial placement: use 2D PCA or spectral matrix projection, or center spiral fallback
-  const needsPlacement = wasPlaced.every((placed) => !placed);
-  if (needsPlacement) {
-    const hasPca = compute2DPcaProjection(nodes, clusterRadius);
-    const hasMatrixProj = !hasPca && compute2DProjectionFromMatrix(nodes, matrix, clusterRadius);
-    if (!hasPca && !hasMatrixProj) {
-      nodes.forEach((node, i) => {
-        const phi = i * 2.399963;
-        const r = i === 0 ? 0 : targetSpacing * Math.sqrt(i) * 0.5;
-        node.x = Math.cos(phi) * r;
-        node.y = Math.sin(phi) * r;
-      });
-    } else if (hasPca) {
-      nodes.forEach((node, i) => {
-        if ((node.embedding?.length ?? 0) === 0) {
-          let bestSim = -1;
-          let bestNeighbor: ScatterNode | null = null;
-          for (let j = 0; j < n; j++) {
-            if (i === j || (nodes[j].embedding?.length ?? 0) === 0) continue;
-            if (matrix[i][j] > bestSim) {
-              bestSim = matrix[i][j];
-              bestNeighbor = nodes[j];
-            }
-          }
-          const phi = i * 2.399963;
-          if (bestNeighbor && bestSim > 0.15) {
-            node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
-            node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
-          } else {
-            const r = clusterRadius * 0.75;
-            node.x = Math.cos(phi) * r;
-            node.y = Math.sin(phi) * r;
-          }
-        }
-      });
-    }
-  } else {
-    // Incremental placement for newly-added unplaced notes next to their most similar placed note
+/** First placement of a layout without any placed node: PCA, else the matrix projection, else a spiral. */
+function placeInitial(nodes: ScatterNode[], matrix: number[][], targetSpacing: number, clusterRadius: number): void {
+  const n = nodes.length;
+  const hasPca = compute2DPcaProjection(nodes, clusterRadius);
+  const hasMatrixProj = !hasPca && compute2DProjectionFromMatrix(nodes, matrix, clusterRadius);
+  if (!hasPca && !hasMatrixProj) {
     nodes.forEach((node, i) => {
-      if (wasPlaced[i]) return;
-      let bestSim = -1;
-      let bestNeighbor: ScatterNode | null = null;
-      for (let j = 0; j < n; j++) {
-        if (i === j || !wasPlaced[j]) continue;
-        if (matrix[i][j] > bestSim) {
-          bestSim = matrix[i][j];
-          bestNeighbor = nodes[j];
-        }
-      }
       const phi = i * 2.399963;
-      if (bestNeighbor && bestSim > 0.15) {
-        node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
-        node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
-      } else {
-        node.x = Math.cos(phi) * targetSpacing * 0.5;
-        node.y = Math.sin(phi) * targetSpacing * 0.5;
+      const r = i === 0 ? 0 : targetSpacing * Math.sqrt(i) * 0.5;
+      node.x = Math.cos(phi) * r;
+      node.y = Math.sin(phi) * r;
+    });
+  } else if (hasPca) {
+    nodes.forEach((node, i) => {
+      if ((node.embedding?.length ?? 0) === 0) {
+        let bestSim = -1;
+        let bestNeighbor: ScatterNode | null = null;
+        for (let j = 0; j < n; j++) {
+          if (i === j || (nodes[j].embedding?.length ?? 0) === 0) continue;
+          if (matrix[i][j] > bestSim) {
+            bestSim = matrix[i][j];
+            bestNeighbor = nodes[j];
+          }
+        }
+        const phi = i * 2.399963;
+        if (bestNeighbor && bestSim > 0.15) {
+          node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
+          node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
+        } else {
+          const r = clusterRadius * 0.75;
+          node.x = Math.cos(phi) * r;
+          node.y = Math.sin(phi) * r;
+        }
       }
     });
   }
+}
 
-  const mobile = bounded ? nodes.map((node) => bounded.mobileIds.has(node.id)) : null;
+/** Places each node that was not placed before next to its most similar node that was. */
+function placeIncremental(nodes: ScatterNode[], matrix: number[][], wasPlaced: boolean[], targetSpacing: number): void {
+  const n = nodes.length;
+  // Incremental placement for newly-added unplaced notes next to their most similar placed note
+  nodes.forEach((node, i) => {
+    if (wasPlaced[i]) return;
+    let bestSim = -1;
+    let bestNeighbor: ScatterNode | null = null;
+    for (let j = 0; j < n; j++) {
+      if (i === j || !wasPlaced[j]) continue;
+      if (matrix[i][j] > bestSim) {
+        bestSim = matrix[i][j];
+        bestNeighbor = nodes[j];
+      }
+    }
+    const phi = i * 2.399963;
+    if (bestNeighbor && bestSim > 0.15) {
+      node.x = bestNeighbor.x + Math.cos(phi) * targetSpacing * 0.4;
+      node.y = bestNeighbor.y + Math.sin(phi) * targetSpacing * 0.4;
+    } else {
+      node.x = Math.cos(phi) * targetSpacing * 0.5;
+      node.y = Math.sin(phi) * targetSpacing * 0.5;
+    }
+  });
+}
 
-  // 2. Iterative Organic Force Simulation
+interface ForceSimulationInput {
+  nodes: ScatterNode[];
+  matrix: number[][];
+  conn: ReturnType<typeof computeGraphTopologyWeights>["conn"];
+  isRepelled: Uint8Array;
+  wasPlaced: boolean[];
+  anchors: { x: number; y: number }[];
+  /** Per node whether it may move; null in a free pass, where every node moves. */
+  mobile: boolean[] | null;
+  bounded: boolean;
+  targetSpacing: number;
+  clusterRadius: number;
+}
+
+/**
+ * Runs the force iterations and returns how many ran. Each node is moved right after its forces are summed, so later
+ * nodes in the same iteration see the new position (the layout depends on this order).
+ */
+function simulateForces(input: ForceSimulationInput): number {
+  const { nodes, matrix, conn, isRepelled, wasPlaced, anchors, mobile, bounded, targetSpacing, clusterRadius } = input;
+  const n = nodes.length;
   const collisionDist = Math.max(60, targetSpacing * 0.45);
   const iterations = 60;
   const startAlpha = bounded ? BOUNDED_START_ALPHA : 0.5;
@@ -442,8 +499,5 @@ export function applyGraphVectorProjection({
 
     if (bounded && largestStep < BOUNDED_STOP_MOVEMENT) break;
   }
-
-  for (const node of nodes) node.placed = true;
-  return { iterations: ran };
+  return ran;
 }
-
