@@ -1043,7 +1043,7 @@ describe("VectorScatterView search (characterization before the split, #273)", (
       now.mockReturnValue(2900);
       w.step();
       expect((view as any).searchHighlight).toBeNull();
-      expect((view as any).searchAnim).toBeNull();
+      expect((view as any).search.anim).toBeNull();
       expect(w.frames.size).toBe(0);
     } finally {
       now.mockRestore();
@@ -1076,7 +1076,7 @@ describe("VectorScatterView search (characterization before the split, #273)", (
     view.setShowRelationNotes(false);
     expect((view as any).searchHighlight?.nodeId).toBe("alpha one");
     expect(w.cancelled).toEqual([]);
-    expect((view as any).lastSearchQuery).toBeNull();
+    expect((view as any).search.lastQuery).toBeNull();
   });
 
   it("centers on the current camera after fitToView replaced the pan object", () => {

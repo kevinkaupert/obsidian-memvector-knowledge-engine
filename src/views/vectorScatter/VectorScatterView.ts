@@ -1,4 +1,4 @@
-import { Notice, ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal, type RelationChange } from "../../modals/relationBuilder/RelationBuilderModal";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
@@ -17,7 +17,7 @@ import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
 import { confirmedEdges } from "../../frontmatterLinks";
-import { findNodesByQuery } from "./search";
+import { SearchController } from "./searchController";
 import { runSynthesis } from "./synthesis";
 import { saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { PositionPersister } from "./positionPersistence";
@@ -29,8 +29,6 @@ import { registerScatterVaultWatchers } from "./vaultWatchers";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
 import type { VaultIndexingPipeline } from "../../sync/vaultIndexPipeline";
-
-const SEARCH_PULSE_DURATION_MS = 1800;
 
 export interface VectorScatterHost {
   app: App;
@@ -138,9 +136,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         this.hoveredNode = null;
       }
 
-      this.lastSearchQuery = null;
-      this.lastSearchMatches = [];
-      this.lastSearchIndex = -1;
+      this.search.resetMatches();
 
       if (this.searchHighlight) {
         const match = this.nodes.find((n) => n.id === this.searchHighlight?.nodeId);
@@ -219,17 +215,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private resizeObserver: ResizeObserver | null = null;
   private interactionCleanup: (() => void) | null = null;
   private toolbarHandles: ToolbarHandles | null = null;
-  private searchHighlight: { nodeId: string; startedAt: number } | null = null;
-  /**
-   * Pending search-pulse frame, kept together with the window that issued it. The view can be
-   * dragged into an Obsidian popout, which has its own window object; a bare `window.` prefix
-   * resolves to the window the plugin was loaded in, so the pulse would be scheduled on - and
-   * cancelled against - a window the view no longer lives in.
-   */
-  private searchAnim: { win: Window; handle: number } | null = null;
-  private lastSearchQuery: string | null = null;
-  private lastSearchMatches: ScatterNode[] = [];
-  private lastSearchIndex = -1;
+  private readonly search = new SearchController({
+    visibleNodes: () => this.getVisibleNodes(),
+    viewportSize: () => ({ width: this.canvasWrap.clientWidth, height: this.canvasWrap.clientHeight }),
+    pan: () => this.pan,
+    zoom: () => this.zoom,
+    redraw: () => this.redraw(),
+    win: () => this.containerEl.win,
+    settings: () => this.settings,
+  });
+  private get searchHighlight(): { nodeId: string; startedAt: number } | null {
+    return this.search.highlight;
+  }
+  private set searchHighlight(value: { nodeId: string; startedAt: number } | null) {
+    this.search.highlight = value;
+  }
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -811,9 +811,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       if (!visible.has(id)) this.selectedNodeIds.delete(id);
     }
     this.hoveredNode = this.hoveredNode ? (visible.get(this.hoveredNode.id) ?? null) : null;
-    this.lastSearchQuery = null;
-    this.lastSearchMatches = [];
-    this.lastSearchIndex = -1;
+    this.search.resetMatches();
   }
 
 
@@ -969,57 +967,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     ).open();
   }
 
-  /** Repeated Enter on the same query cycles through every match (looping back to the first) instead of jumping to the best match each time. */
+  /** Repeated Enter on the same query cycles through every match (see SearchController.search). */
   searchNote(query: string): void {
-    const normalized = query.trim().toLowerCase();
-    const isSameQuery = normalized === this.lastSearchQuery && this.lastSearchMatches.length > 0;
-
-    if (isSameQuery) {
-      this.lastSearchIndex = (this.lastSearchIndex + 1) % this.lastSearchMatches.length;
-    } else {
-      this.lastSearchQuery = normalized;
-      this.lastSearchMatches = findNodesByQuery(this.getVisibleNodes(), query);
-      this.lastSearchIndex = 0;
-    }
-
-    const match = this.lastSearchMatches[this.lastSearchIndex];
-    if (!match) {
-      const t = getTranslation(this.settings.language || "de");
-      new Notice(`${t.searchNotFound} "${query}"`);
-      return;
-    }
-
-    this.pan.x = this.canvasWrap.clientWidth / 2 - match.x * this.zoom;
-    this.pan.y = this.canvasWrap.clientHeight / 2 - match.y * this.zoom;
-
-    this.cancelSearchAnim();
-    const startedAt = performance.now();
-    this.searchHighlight = { nodeId: match.id, startedAt };
-
-    const tick = (): void => {
-      this.redraw();
-      if (performance.now() - startedAt < SEARCH_PULSE_DURATION_MS) {
-        this.scheduleSearchAnim(tick);
-      } else {
-        this.searchHighlight = null;
-        this.searchAnim = null;
-        this.redraw();
-      }
-    };
-    this.scheduleSearchAnim(tick);
-  }
-
-  /** Schedules the next pulse frame on the window the view currently lives in. */
-  private scheduleSearchAnim(tick: () => void): void {
-    const win = this.containerEl.win;
-    this.searchAnim = { win, handle: win.requestAnimationFrame(tick) };
+    this.search.search(query);
   }
 
   /** Cancels a pending pulse frame against the window that issued it. */
   private cancelSearchAnim(): void {
-    if (this.searchAnim === null) return;
-    this.searchAnim.win.cancelAnimationFrame(this.searchAnim.handle);
-    this.searchAnim = null;
+    this.search.cancelPulse();
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string, excludedContextIds?: ReadonlySet<string>): Promise<void> {
