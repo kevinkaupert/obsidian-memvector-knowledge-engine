@@ -7,6 +7,7 @@ import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
 import { renderRetrievalWarning } from "../retrievalStatus";
 import { serializeFrontmatter } from "../frontmatterYaml";
 import { synthesisFrontmatter, type SynthesisNode } from "../synthesisNote";
+import { chooseNoteWriter } from "../noteWriter/noteWriter";
 
 export class SynthesisResultModal extends Modal {
   constructor(
@@ -72,8 +73,9 @@ export class SynthesisResultModal extends Modal {
 ${this.warnings.map((warning) => `> [!warning] ${warning}\n\n`).join("")}${this.synthesisText}
 `;
       try {
+        const writer = await chooseNoteWriter(this.app, this.settings);
         await ensureParentFolder(this.app, finalPath);
-        await this.app.vault.create(finalPath, noteContent);
+        await writer.create(finalPath, noteContent, "memvector.synthesis_save");
         new Notice(`${t.noticeSynthSaved} '${finalPath}' ${t.noticeSynthSavedSuffix}`);
         this.close();
       } catch (err) {

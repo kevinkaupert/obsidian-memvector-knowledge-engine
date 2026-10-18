@@ -21,6 +21,8 @@ export const DEFAULT_SETTINGS: MemVectorSettings = {
   radarNoteCount: 10,
   includeWikiLinksAsRelations: false,
   autoIndexVaultOnChanges: false,
+  writeViaJovian: false,
+  jovianCommand: "",
 
   enrichSynthesisContext: true,
   synthesisHopDepth: 2,

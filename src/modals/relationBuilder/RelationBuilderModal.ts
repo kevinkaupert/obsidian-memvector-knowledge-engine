@@ -12,6 +12,7 @@ import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePaths } from "./relationFileTemplate";
 import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
+import { chooseNoteWriter } from "../../noteWriter/noteWriter";
 import { deleteEdgeUnlessAsserted, loadAssertedEdgeKeys } from "../../sync/assertedEdges";
 import { loadRelationFiles } from "../../views/vectorScatter/relationEdges";
 
@@ -331,6 +332,7 @@ export class RelationBuilderModal extends Modal {
       const failedPaths: string[] = [];
 
       const store = getGraphStore(this.app, this.host.settings);
+      const writer = await chooseNoteWriter(this.app, this.host.settings);
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
         const e = resolvedEdges[idx];
         const previous = this.initialEdge && idx === 0 ? {
@@ -343,7 +345,7 @@ export class RelationBuilderModal extends Modal {
           await saveRelation(this.app, store, paths[idx], buildRelationFileContent(e, this.relDesc, t), {
             src: e.src, tgt: e.tgt, relType: e.label, description: this.relDesc,
             bidirectional: e.bidirectional, originalTerm: e.originalTerm,
-          }, previous, (ignoredPaths) => this.loadAssertedEdges(ignoredPaths));
+          }, previous, (ignoredPaths) => this.loadAssertedEdges(ignoredPaths), writer);
           createdCount++;
         } catch (err) {
           // saveRelation undoes its own partial write, so a failed entry leaves nothing behind and the others stay valid.

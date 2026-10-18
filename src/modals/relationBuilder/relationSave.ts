@@ -2,6 +2,7 @@ import { TFile, type App } from "obsidian";
 import type { GraphStore, TypedEdgeInput } from "../../sync/graphStore";
 import { writeRelationFile } from "./relationFileWriter";
 import { deleteEdgeUnlessAsserted } from "../../sync/assertedEdges";
+import { createNativeWriter, type NoteWriter } from "../../noteWriter/noteWriter";
 
 export interface PreviousRelation {
   path: string;
@@ -15,7 +16,8 @@ export interface PreviousRelation {
  * Architecture: The previous relation is preserved until both its replacement file and graph edge are saved. If the
  * graph write fails, the file write is undone - a new file is trashed, an edited file gets its old content back - so a
  * failed relation leaves neither a dangling note nor a half-applied edit behind. With `loadAsserted`, an old graph edge
- * that another relation note or a frontmatter link still asserts is kept (#254).
+ * that another relation note or a frontmatter link still asserts is kept (#254). `writer` writes the note natively or
+ * through Jovian's gate (#274); trashing a new file stays native, since the gate has no delete.
  */
 export async function saveRelation(
   app: App,
@@ -24,15 +26,16 @@ export async function saveRelation(
   content: string,
   edge: TypedEdgeInput,
   previous?: PreviousRelation,
-  loadAsserted?: (ignoredPaths: string[]) => Promise<Set<string> | null>
+  loadAsserted?: (ignoredPaths: string[]) => Promise<Set<string> | null>,
+  writer: NoteWriter = createNativeWriter(app)
 ): Promise<void> {
   const existing = app.vault.getAbstractFileByPath(path);
   const originalContent = existing instanceof TFile ? await app.vault.read(existing) : null;
-  await writeRelationFile(app, path, content, previous?.path);
+  await writeRelationFile(app, path, content, previous?.path, writer);
   try {
     await store.upsertTypedEdges([edge]);
   } catch (err) {
-    await undoRelationFileWrite(app, path, originalContent);
+    await undoRelationFileWrite(app, path, originalContent, writer);
     throw err;
   }
 
@@ -59,12 +62,12 @@ export async function saveRelation(
  * Purpose: Reverts a relation file write after its graph edge could not be saved.
  * Architecture: A failed revert is logged and does not replace the original error, which is the one the caller reports.
  */
-async function undoRelationFileWrite(app: App, path: string, originalContent: string | null): Promise<void> {
+async function undoRelationFileWrite(app: App, path: string, originalContent: string | null, writer: NoteWriter): Promise<void> {
   const file = app.vault.getAbstractFileByPath(path);
   if (!(file instanceof TFile)) return;
   try {
     if (originalContent === null) await app.fileManager.trashFile(file);
-    else await app.vault.modify(file, originalContent);
+    else await writer.update(file, () => originalContent, "memvector.relation_revert");
   } catch (err) {
     console.error(`MemVector: Failed to revert relation file ${path} after a graph write error:`, err);
   }

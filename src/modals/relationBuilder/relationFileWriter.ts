@@ -1,6 +1,7 @@
 import { TFile, type App } from "obsidian";
 import { ensureParentFolder } from "../../ensureFolder";
 import { mergeRelationNoteContent } from "../../frontmatterYaml";
+import { createNativeWriter, type NoteWriter } from "../../noteWriter/noteWriter";
 
 /**
  * Purpose: Checks whether a target relation file path already exists in the vault and belongs to a different relation, preventing destructive overwrites.
@@ -27,16 +28,23 @@ export function findRelationBatchConflict(app: App, paths: string[], initialEdge
   });
 }
 
-/** Only the explicitly edited file may be modified; new relations always use create(). Foreign frontmatter and custom body are preserved (#246). */
-export async function writeRelationFile(app: App, path: string, content: string, initialEdgePath?: string): Promise<void> {
+/**
+ * Only the explicitly edited file may be modified; new relations always use create(). Foreign frontmatter and custom
+ * body are preserved (#246). `writer` is native or Jovian's gate (#274).
+ */
+export async function writeRelationFile(
+  app: App,
+  path: string,
+  content: string,
+  initialEdgePath?: string,
+  writer: NoteWriter = createNativeWriter(app)
+): Promise<void> {
   const existing = app.vault.getAbstractFileByPath(path);
   if (existing) {
     if (!(existing instanceof TFile) || path !== initialEdgePath) {
       throw new Error(`Relation file already exists: ${path}`);
     }
-    const existingContent = await app.vault.read(existing);
-    const finalContent = mergeRelationNoteContent(existingContent, content);
-    await app.vault.modify(existing, finalContent);
+    await writer.update(existing, (existingContent) => mergeRelationNoteContent(existingContent, content), "memvector.relation_save");
     return;
   }
 
@@ -50,6 +58,6 @@ export async function writeRelationFile(app: App, path: string, content: string,
   }
 
   await ensureParentFolder(app, path);
-  // If another writer wins the race, create rejects instead of overwriting its file.
-  await app.vault.create(path, finalContent);
+  // If another writer wins the race, create rejects instead of overwriting its file (the gate: TARGET_EXISTS).
+  await writer.create(path, finalContent, "memvector.relation_save");
 }

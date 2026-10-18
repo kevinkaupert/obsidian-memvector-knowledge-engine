@@ -1,8 +1,9 @@
-import { Setting } from "obsidian";
+import { Notice, Setting } from "obsidian";
 import { withFolder, type TranslationKeys } from "../../i18n";
 import { relationsFolder } from "../../vaultLayout";
 import type { ScatterVisualStyle, SettingsHost } from "../types";
 import { renderFolderSettings } from "./folderSettings";
+import { probeGate } from "../../noteWriter/jovianGate";
 
 /** Everything that shapes overall plugin behavior rather than one specific provider/database - previously scattered across languageSection.ts and the top of vectorFilterSection.ts. */
 export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
@@ -25,6 +26,37 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
     );
 
   renderFolderSettings(containerEl, host, t, rerender);
+
+  new Setting(containerEl).setName(t.secJovian).setHeading();
+  new Setting(containerEl)
+    .setName(t.writeViaJovianName)
+    .setDesc(t.writeViaJovianDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(settings.writeViaJovian).onChange(async (value) => {
+        settings.writeViaJovian = value;
+        await host.saveSettings();
+      })
+    );
+  new Setting(containerEl)
+    .setName(t.jovianCommandName)
+    .setDesc(t.jovianCommandDesc)
+    .addText((text) =>
+      text
+        .setPlaceholder("python3 -m jovian.gate")
+        .setValue(settings.jovianCommand || "")
+        .onChange(async (value) => {
+          settings.jovianCommand = value;
+          await host.saveSettings();
+        })
+    )
+    .addButton((button) =>
+      button.setButtonText(t.jovianTestBtn).onClick(async () => {
+        button.setDisabled(true);
+        const result = await probeGate(settings.jovianCommand || "");
+        button.setDisabled(false);
+        new Notice(result.ok ? result.message : `${t.jovianTestFailed} ${result.message}`, 8000);
+      })
+    );
 
   new Setting(containerEl).setName(t.secGeneralScan).setHeading();
 

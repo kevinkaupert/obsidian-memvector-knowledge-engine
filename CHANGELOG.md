@@ -8,6 +8,19 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-18
+
+### Added
+- **Optional Writes through Jovian**: New settings "Write through Jovian" (`writeViaJovian`, default off) and
+  "Jovian command" (`jovianCommand`) with a "Test gate" button (#274). When on, synthesis notes and relation notes
+  (create, edit and the revert after a failed graph write) are written through Jovian's write gate
+  (`jovian gate check|write`, protocol 1), which adds its per-file lock, stale check, conflict rescue in
+  `.jovian/conflicts/` and a journal line naming MemVector. The path is chosen before each save: when the gate does not
+  answer, the note is saved directly with a notice. Once a gate call started, nothing falls back to a direct write; a
+  refusal (e.g. the note changed since it was read) shows the existing save error. Relation edits declare the text they
+  replace as reviewed, since the user made the edit in the Relation Builder. With the setting off nothing changes, and
+  MemVector keeps working without Python or Jovian.
+
 ## [0.3.0] - 2026-10-16
 
 From 0.3 on, MemVector is developed together with further private projects, while staying a standalone Obsidian

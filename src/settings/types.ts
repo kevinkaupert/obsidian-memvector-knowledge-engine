@@ -55,6 +55,14 @@ export interface MemVectorSettings {
    */
   autoIndexVaultOnChanges: boolean;
 
+  /**
+   * Write synthesis and relation notes through Jovian's write gate (`jovian gate`, #274). Default false: notes are
+   * written with Obsidian's vault API. When true and the gate does not answer, the save is native with a notice.
+   */
+  writeViaJovian: boolean;
+  /** The `jovian` CLI, e.g. `~/venv/bin/jovian`; empty runs `python3 -m jovian.gate`. */
+  jovianCommand: string;
+
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */
   enrichSynthesisContext: boolean;
   /** Maximum graph traversal depth (1-3 hops) for GraphRAG context enrichment, independent of canvas visual hops. Controlled from the toolbar Synthese section only (Issue #103). */
