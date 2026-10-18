@@ -80,41 +80,39 @@ export function draw(ctx: CanvasRenderingContext2D, width: number, height: numbe
   const viewport = computeWorldViewport(width, height, state.zoom, state.pan);
 
   if (state.showEdges && state.relationEdges.length > 0) {
-    drawEdges(
-      ctx,
+    drawEdges(ctx, {
       nodeMap,
-      state.relationEdges,
-      state.selectedNodeIds,
-      state.hoveredNode,
-      state.hoveredEdge,
-      state.edgeHops,
-      state.zoom,
-      state.pan,
+      relationEdges: state.relationEdges,
+      selectedNodeIds: state.selectedNodeIds,
+      hoveredNode: state.hoveredNode,
+      hoveredEdge: state.hoveredEdge,
+      hops: state.edgeHops,
+      zoom: state.zoom,
+      pan: state.pan,
       themeTextNormal,
       themeAccent,
-      state.scatterVisualStyle,
-      viewport
-    );
+      style: state.scatterVisualStyle,
+      viewport,
+    });
   }
 
   const relationTallies = computeFocusRelationTallies(state.nodes, state.relationEdges, state.selectedNodeIds, state.hoveredNode);
 
-  drawNodes(
-    ctx,
-    state.nodes,
-    state.selectedNodeIds,
-    state.hoveredNode,
-    state.zoom,
-    state.pan,
+  drawNodes(ctx, {
+    nodes: state.nodes,
+    selectedNodeIds: state.selectedNodeIds,
+    hoveredNode: state.hoveredNode,
+    zoom: state.zoom,
+    pan: state.pan,
     themeTextNormal,
     themeTextMuted,
     themeAccent,
-    state.scatterVisualStyle,
+    style: state.scatterVisualStyle,
     relationTallies,
-    state.unselectedLabelOpacity,
+    unselectedLabelOpacity: state.unselectedLabelOpacity,
     labels,
-    viewport
-  );
+    viewport,
+  });
 
   if (state.isDraggingLasso) {
     drawLasso(ctx, state.lassoPath);
