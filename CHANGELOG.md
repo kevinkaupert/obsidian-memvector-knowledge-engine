@@ -10,6 +10,13 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [0.3.4] - 2026-10-18
 
+### Fixed
+- **"Layout neu anordnen" leaves related notes far apart**: one free pass from scratch did not settle when node spacing
+  is small, so relation edges stayed long and crossed until a spacing slider triggered another pass. A layout built
+  from scratch now runs further passes until it settles (best effort: at most 6, within a work budget, none above
+  about 500 notes). In the integration vault (34 notes, spacing 120/750) it settles after 4 passes in about 40 ms;
+  the longest relation edge goes from 785 to 551 units. ADR-0006 addendum.
+
 ### Changed
 - No user-visible change. The 2D view is split (#273): vault watchers (`vaultWatchers.ts`), stored vector and position
   loading with the map gates (`nodeHydration.ts`) and search (`searchController.ts`) leave `VectorScatterView.ts`

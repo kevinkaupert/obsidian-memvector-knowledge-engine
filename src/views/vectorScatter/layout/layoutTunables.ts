@@ -54,3 +54,14 @@ export function clampCloudSpacing(value: number): number {
  * unitless). Weights above it behave like this value; the relation type settings warn when one is entered.
  */
 export const MAX_RELATION_WEIGHT_FACTOR = 6;
+
+/**
+ * Extra free passes after a layout built from scratch ("Layout neu anordnen", first layout without stored positions):
+ * one pass cannot travel from the initial spread to a settled layout when node spacing is small, because the per-step
+ * movement is capped by node spacing. Best effort, not guaranteed convergence (ADR-0006).
+ */
+export const SETTLE_MAX_PASSES = 6;
+/** Work budget of the extra passes in node pairs per pass: floor(budget / n^2) passes at most, so large vaults stay fast. */
+export const SETTLE_PAIR_BUDGET = 250_000;
+/** The extra passes stop once no node moved further than this share of node spacing in one pass. */
+export const SETTLE_STOP_RATIO = 0.05;

@@ -214,7 +214,9 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     await view.scanVaultNotes();
     await settle();
 
-    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    // A layout from scratch: one free pass plus settle passes (#282 review); none of them bounded
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.every(([p]) => !p.bounded)).toBe(true);
     expect(view.nodes.every((n) => n.x !== 0 || n.y !== 0)).toBe(true);
     expect(saveNodePositions).toHaveBeenCalled();
   });
@@ -511,7 +513,9 @@ describe("VectorScatterView explicit rearrangement (#214)", () => {
     await view.rearrangeLayout();
     await settle(2000);
 
-    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    // A layout from scratch: one free pass plus settle passes (#282 review); none of them bounded
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.every(([p]) => !p.bounded)).toBe(true);
     expect(view.nodes.every((n) => Math.abs(n.x) < 5000)).toBe(true);
     expect(saveNodePositions).toHaveBeenCalledTimes(1);
 
@@ -752,7 +756,9 @@ describe("VectorScatterView review follow-ups for #191 and #196", () => {
     await view.onVectorsCalculated();
     await view.rearrangeLayout();
 
-    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    // A layout from scratch: one free pass plus settle passes (#282 review); none of them bounded
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.length).toBeGreaterThanOrEqual(1);
+    expect(vi.mocked(applyGraphVectorProjection).mock.calls.every(([p]) => !p.bounded)).toBe(true);
     error.mockRestore();
   });
 

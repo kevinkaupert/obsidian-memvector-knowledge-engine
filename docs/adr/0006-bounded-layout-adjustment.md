@@ -71,6 +71,16 @@ A free global layout run is only performed on an explicit user action, and when 
 - Warm start from positions persisted in SQLite.
 - Camera persistence through the workspace state.
 
+### Addendum (0.3.4): a layout built from scratch settles
+
+One free pass from scratch does not settle: the step size per iteration is capped by node spacing, so with small
+node spacing the 60 iterations cannot travel from the initial spread to a settled layout, and related notes stay far
+apart until the next pass (observed after "Layout neu anordnen"; a spacing slider then "repaired" it). A layout built
+from scratch (rearrange, or every node unplaced) therefore runs further free passes on the same matrix and node order,
+best effort and bounded: at most `SETTLE_MAX_PASSES` and `SETTLE_PAIR_BUDGET / n^2` passes, stopping once the largest
+move of a pass is below `SETTLE_STOP_RATIO` of node spacing. Vaults above about 500 notes get no extra pass. Warm free
+passes (spacing sliders) and bounded adjustments are unchanged; after a large slider jump they are not relaxed further.
+
 ## Consequences
 
 - Editing notes no longer moves the map unless the edit changes a layout input, and then only locally. The familiar arrangement stays stable within a session and across restarts.
