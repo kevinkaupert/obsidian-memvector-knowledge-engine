@@ -26,7 +26,7 @@ The settings menu is organized into 3 focused sections:
   (`jovian gate`, protocol 1) instead of Obsidian's vault API, for users who run Jovian. The gate locks the note, refuses
   a write when the note changed since MemVector read it (and keeps the content in `.jovian/conflicts/`), and records
   each write in `.jovian/journal.jsonl` with `client.component: "memvector"`. The command is the `jovian` CLI (e.g.
-  `~/venv/bin/jovian`, `~` is expanded); empty runs `python3 -m jovian.gate`. "Test gate" runs `jovian gate --version`.
+  `~/venv/bin/jovian`, `~` is expanded); empty runs `python3 -m jovian.gate`. Obsidian puts `/opt/homebrew/bin` and `/usr/local/bin` first on PATH, so with several Pythons installed `python3` may not be the one Jovian is installed in; then enter the full path of the `jovian` CLI (e.g. `~/Library/Python/3.9/bin/jovian`). "Test gate" runs `jovian gate --version`.
   Before each save MemVector checks the gate; if it does not answer, the note is saved directly and a notice says so.
   After a gate call started there is no direct fallback: on a refusal, timeout or unclear answer nothing is written and
   the usual save error appears. Folders are still created by Obsidian. Deleting a newly created relation note after a
