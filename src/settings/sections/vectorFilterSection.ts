@@ -7,6 +7,7 @@ import { syncVaultVectors } from "../../sync/vaultVectorSync";
 import { EmbeddingTargetChangedError } from "../../sync/embeddingTarget";
 import { syncVaultGraph } from "../../sync/vaultGraphSync";
 import { reconcileNodePositionsWithVault } from "../../sync/sqlite/nodePositions";
+import { migrateVaultNoteKeys } from "../../sync/sqlite/noteKeyMigration";
 import type { KnowledgeDomain, LlmProvider, SettingsHost } from "../types";
 import { DEFAULT_SETTINGS } from "../defaults";
 import { relationsFolder } from "../../vaultLayout";
@@ -218,6 +219,7 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
             new Notice(`[INFO] ${t.indexVaultNoticeStarting} ${totalFiles} ${t.indexVaultNoticeStartingSuffix}`);
             const vectorStore = getVectorStore(app, settings);
             const graphStore = getGraphStore(app, settings);
+            await migrateVaultNoteKeys(app, settings.vectorSearchExclusions);
             const vecResult = await syncVaultVectors(app, settings, vectorStore);
             const graphResult = await syncVaultGraph(app, graphStore, settings.vectorSearchExclusions, settings.includeWikiLinksAsRelations, relationsFolder(settings), await readRelationLabels(app, settings));
             try {

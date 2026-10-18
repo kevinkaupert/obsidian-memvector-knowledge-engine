@@ -2,7 +2,7 @@ import { TFile, type App } from "obsidian";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import type { MemVectorSettings } from "../settings/types";
-import { pathToId } from "../noteSlug";
+import { noteKey } from "../noteKey";
 import { buildEmbeddingInput, parseEmbeddingFrontmatterKeys } from "./embeddingText";
 import { EmbeddingTargetChangedError, embeddingTargetChanged, resolveEmbeddingTarget } from "./embeddingTarget";
 import type { StoredVectorHash, VectorPoint, VectorStore } from "./vectorStore";
@@ -102,7 +102,7 @@ export async function runVectorPipeline(app: App, settings: MemVectorSettings, s
     }
     const { text, hash, body } = buildEmbeddingInput(file.basename, await app.vault.cachedRead(file), settings.embeddingMaxChars, parseEmbeddingFrontmatterKeys(settings.embeddingFrontmatterKeys));
 
-    const cached = storedHashes.get(path) ?? storedHashes.get(pathToId(path));
+    const cached = storedHashes.get(path) ?? storedHashes.get(noteKey(app, path));
     if (cached && cached.hash === hash) {
       // With collectVectors a cache hit counts only when the vector itself can be handed back; otherwise re-embed.
       const stored = storedVectors.get(path);
@@ -141,7 +141,7 @@ export async function runVectorPipeline(app: App, settings: MemVectorSettings, s
     result.vectors.set(path, embedding);
     result.calculatedCount++;
     points.push({
-      id: pathToId(path),
+      id: noteKey(app, path),
       vector: embedding,
       payload: { path, title: file.basename, content: body.slice(0, 500) },
       contentHash: hash,

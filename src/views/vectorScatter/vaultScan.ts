@@ -1,6 +1,6 @@
 import type { App, TFile } from "obsidian";
 import { stripFrontmatter } from "../../noteContent";
-import { pathToId } from "../../noteSlug";
+import { noteKey } from "../../noteKey";
 import type { ScatterNode, ScatterNoteType } from "./types";
 import { shouldIncludeFile } from "../../vaultFilter";
 import { isRelationNote } from "../../relationNotes";
@@ -79,7 +79,7 @@ export async function buildScatterNode(app: App, file: TFile): Promise<ScatterNo
   const body = stripFrontmatter(content);
 
   return {
-    id: pathToId(file.path),
+    id: noteKey(app, file.path),
     basenameKey: file.basename.toLowerCase(),
     title,
     type,

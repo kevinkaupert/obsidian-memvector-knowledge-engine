@@ -1,7 +1,7 @@
 import { TFile, type App } from "obsidian";
 import { getGraphStore, getVectorStore } from "../../sync/storeFactory";
 import type { MemVectorSettings } from "../../settings/types";
-import { pathToId } from "../../noteSlug";
+import { noteKey } from "../../noteKey";
 import { capText, stripFrontmatter } from "../../noteContent";
 import type { ScatterNode } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
@@ -91,7 +91,7 @@ async function fetchVectorNeighbors(
     if (!(file instanceof TFile)) continue;
     // Enforce current exclusions before reading content, even with a stale index.
     if (!shouldIncludeFile(file, settings.vectorSearchExclusions)) continue;
-    const id = pathToId(path);
+    const id = noteKey(app, path);
     // The note as it is now - also when it was emptied. The stored payload is the excerpt from embedding time and
     // would put text the note no longer contains into the synthesis prompt.
     const content = stripFrontmatter(await app.vault.cachedRead(file));

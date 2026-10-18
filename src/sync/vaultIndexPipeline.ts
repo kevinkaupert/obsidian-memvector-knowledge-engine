@@ -6,12 +6,14 @@ import { cachedFrontmatterType } from "../views/vectorScatter/vaultScan";
 import { buildLinkKeys, hasLinkKeys } from "../frontmatterLinks";
 import { isRelationNote } from "../relationNotes";
 import { shouldIncludeFile } from "../vaultFilter";
-import { pathToId, toSlug } from "../noteSlug";
+import { toSlug } from "../noteSlug";
+import { duplicateIdPaths, invalidateNoteKeys, noteKey } from "../noteKey";
 import { buildEmbeddingInput, parseEmbeddingFrontmatterKeys } from "./embeddingText";
 import { embeddingTargetChanged, resolveEmbeddingTarget } from "./embeddingTarget";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
 import { fetchEmbedding } from "../llm/fetchEmbedding";
 import { getGraphStore, getVectorStore } from "./storeFactory";
+import { migrateVaultNoteKeys } from "./sqlite/noteKeyMigration";
 import { deleteNodePosition, moveNodePosition, reconcileNodePositionsWithVault } from "./sqlite/nodePositions";
 import { syncVaultGraph } from "./vaultGraphSync";
 import { readRelationLabels } from "../relationVocabulary/presets";
@@ -37,6 +39,8 @@ export class VaultIndexingPipeline {
   private activeVocabLabels: string[] = DEFAULT_RELATION_VOCABULARY.map((t) => t.label);
   private notesWithLinks = new Set<string>();
   private knownRelationNotes = new Set<string>();
+  /** Last key seen per note, to notice a key change from a frontmatter id edit (ADR-0007). */
+  private seenKeys = new Map<string, string>();
   private isDisposed = false;
 
   constructor(
@@ -69,6 +73,7 @@ export class VaultIndexingPipeline {
       if (hasLinkKeys(cache?.frontmatter, linkKeys)) {
         this.notesWithLinks.add(file.path);
       }
+      if (cache) this.seenKeys.set(file.path, noteKey(this.app, file.path));
     }
   }
 
@@ -103,6 +108,7 @@ export class VaultIndexingPipeline {
 
     const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
       if (!file?.path) return;
+      invalidateNoteKeys(this.app);
       if (isVocabulary(file.path)) {
         this.triggerRelationsReload();
         return;
@@ -130,6 +136,7 @@ export class VaultIndexingPipeline {
     };
 
     const handleRenameEvent = (file: { path: string }, oldPath: string) => {
+      invalidateNoteKeys(this.app);
       if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
         this.triggerRelationsReload();
         return;
@@ -178,8 +185,16 @@ export class VaultIndexingPipeline {
     component.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
 
     if (this.app.metadataCache?.on) {
+      component.registerEvent(this.app.metadataCache.on("resolved", () => invalidateNoteKeys(this.app)));
       component.registerEvent(
         this.app.metadataCache.on("changed", (file, _data, cache) => {
+          // A note that gains, loses or changes its frontmatter id changes its key (ADR-0007); its modify event queues
+          // the move, and edges drawn to the old key are reloaded.
+          invalidateNoteKeys(this.app);
+          const key = noteKey(this.app, file.path);
+          const keyBefore = this.seenKeys.get(file.path);
+          this.seenKeys.set(file.path, key);
+          if (keyBefore !== undefined && keyBefore !== key) this.triggerRelationsReload();
           const type = typeof cache?.frontmatter?.type === "string" ? cache.frontmatter.type : undefined;
           const isRelNow = isRel(file.path, type);
           const wasRel = this.knownRelationNotes.has(file.path);
@@ -293,6 +308,7 @@ export class VaultIndexingPipeline {
 
     if (changes.fullScan) {
       const isCancelled = () => this.isDisposed || !this.getSettings().autoIndexVaultOnChanges;
+      await migrateVaultNoteKeys(this.app, settings.vectorSearchExclusions);
       try {
         await syncVaultVectors(this.app, settings, vectorStore, { isCancelled });
       } catch (err) {
@@ -350,10 +366,10 @@ export class VaultIndexingPipeline {
             if (!rawLink) continue;
             const destFile = this.app.metadataCache?.getFirstLinkpathDest(rawLink, file.path);
             if (destFile && !shouldIncludeFile(destFile, settings.vectorSearchExclusions)) continue;
-            const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
+            const targetId = destFile ? noteKey(this.app, destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
             if (targetId) targetIds.push(targetId);
           }
-          await graphStore.replaceOutgoingWikiLinks?.(pathToId(newPath), targetIds);
+          await graphStore.replaceOutgoingWikiLinks?.(noteKey(this.app, newPath), targetIds);
         }
       }
     }
@@ -366,7 +382,13 @@ export class VaultIndexingPipeline {
       await graphStore.deleteNote?.(path);
     }
 
-    // 3. Process Upserts: creates and modifications
+    // 3. Move rows of changed notes whose key changed (gained, lost or changed frontmatter id; ADR-0007)
+    const changedNotes = [...new Set([...changes.upserts, ...duplicateIdPaths(this.app)])]
+      .map((p) => this.app.vault.getAbstractFileByPath(p))
+      .filter((f): f is TFile => f instanceof TFile && f.path.endsWith(".md") && shouldIncludeFile(f, settings.vectorSearchExclusions));
+    await migrateVaultNoteKeys(this.app, settings.vectorSearchExclusions, changedNotes);
+
+    // 4. Process Upserts: creates and modifications
     const storedHashes = await vectorStore.getStoredHashes();
 
     for (const path of changes.upserts) {
@@ -382,7 +404,7 @@ export class VaultIndexingPipeline {
         const content = await this.app.vault.cachedRead(file);
         const { text, hash, body } = buildEmbeddingInput(file.basename, content, settings.embeddingMaxChars, parseEmbeddingFrontmatterKeys(settings.embeddingFrontmatterKeys));
 
-        const cached = storedHashes.get(path) ?? storedHashes.get(pathToId(path));
+        const cached = storedHashes.get(path) ?? storedHashes.get(noteKey(this.app, path));
         if (!cached || cached.hash !== hash) {
           if (this.isDisposed || !this.getSettings().autoIndexVaultOnChanges || embeddingTargetChanged(this.getSettings(), target.fingerprint)) break;
           try {
@@ -393,7 +415,7 @@ export class VaultIndexingPipeline {
             } else {
               await vectorStore.syncPoints([
                 {
-                  id: pathToId(path),
+                  id: noteKey(this.app, path),
                   vector: embedding,
                   payload: { path, title: file.basename, content: body.slice(0, 500) },
                   contentHash: hash,
@@ -411,7 +433,7 @@ export class VaultIndexingPipeline {
       if (this.isDisposed) return null;
 
       // Upsert graph node
-      const nodeId = pathToId(path);
+      const nodeId = noteKey(this.app, path);
       await graphStore.upsertNoteNode?.({
         id: nodeId,
         title: file.basename,
@@ -427,7 +449,7 @@ export class VaultIndexingPipeline {
           if (!rawLink) continue;
           const destFile = this.app.metadataCache?.getFirstLinkpathDest(rawLink, file.path);
           if (destFile && !shouldIncludeFile(destFile, settings.vectorSearchExclusions)) continue;
-          const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
+          const targetId = destFile ? noteKey(this.app, destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
           if (targetId) targetIds.push(targetId);
         }
         await graphStore.replaceOutgoingWikiLinks?.(nodeId, targetIds);
@@ -447,10 +469,10 @@ export class VaultIndexingPipeline {
                     if (!rawLink) continue;
                     const destFile = this.app.metadataCache?.getFirstLinkpathDest(rawLink, srcFile.path);
                     if (destFile && !shouldIncludeFile(destFile, settings.vectorSearchExclusions)) continue;
-                    const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
+                    const targetId = destFile ? noteKey(this.app, destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
                     if (targetId) srcTargetIds.push(targetId);
                   }
-                  await graphStore.replaceOutgoingWikiLinks?.(pathToId(srcFile.path), srcTargetIds);
+                  await graphStore.replaceOutgoingWikiLinks?.(noteKey(this.app, srcFile.path), srcTargetIds);
                 }
               }
             }
@@ -473,10 +495,10 @@ export class VaultIndexingPipeline {
                   if (!rawLink) continue;
                   const destFile = this.app.metadataCache?.getFirstLinkpathDest(rawLink, otherFile.path);
                   if (destFile && !shouldIncludeFile(destFile, settings.vectorSearchExclusions)) continue;
-                  const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
+                  const targetId = destFile ? noteKey(this.app, destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
                   if (targetId) otherTargetIds.push(targetId);
                 }
-                await graphStore.replaceOutgoingWikiLinks?.(pathToId(otherFile.path), otherTargetIds);
+                await graphStore.replaceOutgoingWikiLinks?.(noteKey(this.app, otherFile.path), otherTargetIds);
               }
             }
           }
@@ -484,7 +506,7 @@ export class VaultIndexingPipeline {
       }
     }
 
-    // 4. Reload relation edges if relations or vocabulary changed
+    // 5. Reload relation edges if relations or vocabulary changed
     if (changes.relations && !this.isDisposed) {
       try {
         const labels = await readRelationLabels(this.app, settings);

@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
-import { pathToId, toSlug } from "../noteSlug";
+import { toSlug } from "../noteSlug";
+import { noteKeys } from "../noteKey";
 import type { GraphEdge, GraphNode, GraphStore } from "./graphStore";
 import { loadRelationEdgesResult } from "../views/vectorScatter/relationEdges";
 import { confirmedEdges } from "../frontmatterLinks";
@@ -18,11 +19,12 @@ export function extractVaultGraph(
   const nodeMap = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
 
+  const keys = noteKeys(app);
   const markdownFiles = app.vault.getMarkdownFiles().slice().sort((a, b) => a.path.localeCompare(b.path, "en"));
   for (const file of markdownFiles) {
     if (exclusions && !shouldIncludeFile(file, exclusions)) continue;
 
-    const id = pathToId(file.path);
+    const id = keys.keyOf(file.path);
     nodeMap.set(id, { id, title: file.basename, path: file.path });
 
     if (!includeWikiLinksAsRelations) continue;
@@ -34,7 +36,7 @@ export function extractVaultGraph(
       const destFile = app.metadataCache.getFirstLinkpathDest(rawLink, file.path);
       if (destFile && exclusions && !shouldIncludeFile(destFile, exclusions)) continue;
 
-      const targetId = destFile ? pathToId(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
+      const targetId = destFile ? keys.keyOf(destFile.path) : toSlug(rawLink.split("/").pop() || rawLink);
       if (targetId) {
         edges.push({ src: id, tgt: targetId, type: "LINKS_TO" });
       }

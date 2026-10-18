@@ -8,6 +8,7 @@ import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 import { setPluginId, setPluginDir, closeLocalDb } from "./sync/sqlite/sqliteDb";
 import { setNoteWriterClientVersion } from "./noteWriter/noteWriter";
+import { enableNoteKeyCache } from "./noteKey";
 import { getTranslation } from "./i18n";
 import { resolveEmbeddingTarget } from "./sync/embeddingTarget";
 import { VaultIndexingPipeline } from "./sync/vaultIndexPipeline";
@@ -39,6 +40,7 @@ export default class MemVectorPlugin extends Plugin {
     }
     setPluginId(this.manifest.id);
     setNoteWriterClientVersion(this.manifest.version);
+    enableNoteKeyCache(this.app);
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
 

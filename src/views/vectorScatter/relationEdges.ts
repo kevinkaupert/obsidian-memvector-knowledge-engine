@@ -1,5 +1,6 @@
 import type { App } from "obsidian";
-import { pathToId, toSlug } from "../../noteSlug";
+import { toSlug } from "../../noteSlug";
+import { noteKey } from "../../noteKey";
 import type { RelationEdge } from "./types";
 import { shouldIncludeFile } from "./vaultScan";
 import { isRelationNote } from "../../relationNotes";
@@ -18,7 +19,7 @@ import { buildLinkKeys, loadFrontmatterLinkEdges } from "../../frontmatterLinks"
 export function resolveLinkTextToId(app: App, linkText: string, sourcePath: string, exclusions: string): string | null {
   const destFile = app.metadataCache.getFirstLinkpathDest(linkText, sourcePath);
   if (destFile && !shouldIncludeFile(destFile, exclusions)) return null;
-  return destFile ? pathToId(destFile.path) : toSlug(linkText);
+  return destFile ? noteKey(app, destFile.path) : toSlug(linkText);
 }
 
 export interface RawRelationMetadata {
@@ -215,7 +216,7 @@ export async function loadRelationEdgesResult(
     app,
     buildLinkKeys(linkLabels),
     (linkText, sourcePath) => resolveLinkTextToId(app, linkText, sourcePath, exclusions),
-    pathToId,
+    (path) => noteKey(app, path),
     exclusions,
     relationsFolder
   );

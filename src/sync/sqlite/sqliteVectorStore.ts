@@ -2,8 +2,8 @@ import type { App } from "obsidian";
 import type { Database } from "sql.js";
 import type { StoredVectorHash, VectorPoint, VectorSearchHit, VectorStore } from "../vectorStore";
 import { cosineSimilarity } from "./cosineSimilarity";
-import { flushLocalDb, getLocalDb, persistLocalDb } from "./sqliteDb";
-import { pathToId } from "../../noteSlug";
+import { flushLocalDb, getLocalDb, persistLocalDb, storedKeyAt } from "./sqliteDb";
+import { noteKey } from "../../noteKey";
 
 /**
  * VectorStore backed by the plugin's local SQLite file - embeddings stored as a JSON-stringified number[] column, brute-force cosine search in JS at query time (fast enough at personal-vault scale).
@@ -150,8 +150,8 @@ export class SqliteVectorStore implements VectorStore {
    */
   async moveVector(oldPath: string, newPath: string, newTitle: string): Promise<boolean> {
     const db = await this.openDb();
-    const oldId = pathToId(oldPath);
-    const newId = pathToId(newPath);
+    const oldId = storedKeyAt(db, "vectors", oldPath);
+    const newId = noteKey(this.app, newPath);
     const { where, params } = this.scope();
 
     const checkCurrent = db.exec(`SELECT id FROM vectors WHERE (id = ? OR path = ?) AND ${where}`, [oldId, oldPath, ...params]);
@@ -176,7 +176,7 @@ export class SqliteVectorStore implements VectorStore {
    */
   async deleteVector(pathOrId: string): Promise<boolean> {
     const db = await this.openDb();
-    const id = pathToId(pathOrId);
+    const id = storedKeyAt(db, "vectors", pathOrId);
     db.run("DELETE FROM vectors WHERE id = ? OR path = ?", [id, pathOrId]);
     const modified = db.getRowsModified() > 0;
     if (modified) {

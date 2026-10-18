@@ -6,6 +6,7 @@ import { EmbeddingAbortedError, VectorPersistenceError, runVectorPipeline, type 
 import { listIndexableFiles } from "../../../vaultFilter";
 import { getVectorStore } from "../../../sync/storeFactory";
 import { reconcileNodePositionsWithVault } from "../../../sync/sqlite/nodePositions";
+import { migrateVaultNoteKeys } from "../../../sync/sqlite/noteKeyMigration";
 import type { ScatterViewContext } from "../context";
 import type { ScatterNode } from "../types";
 import { contextWarnings, enrichContext } from "../contextEnrichment";
@@ -435,6 +436,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
 
   let result: VectorPipelineResult;
   try {
+    await migrateVaultNoteKeys(ctx.app, ctx.settings.vectorSearchExclusions);
     result = await runVectorPipeline(ctx.app, ctx.settings, getVectorStore(ctx.app, ctx.settings), {
       paths: workNodes.map((n) => n.path),
       // Reconcile against the whole indexable vault, not ctx.nodes: the node list honours the transient view

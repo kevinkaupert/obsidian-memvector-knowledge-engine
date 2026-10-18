@@ -1,9 +1,9 @@
 import type { App } from "obsidian";
 import type { Database, QueryExecResult } from "sql.js";
 import type { GraphEdge, GraphNeighbor, GraphNode, GraphStore, SyncVaultGraphOptions, TypedEdgeInput } from "../graphStore";
-import { getLocalDb, persistLocalDb } from "./sqliteDb";
+import { getLocalDb, persistLocalDb, storedKeyAt } from "./sqliteDb";
 import { buildNeighborQuery } from "./sqliteGraphQueries";
-import { pathToId } from "../../noteSlug";
+import { noteKey } from "../../noteKey";
 
 function execToRows(result: QueryExecResult[]): Record<string, string | number | null>[] {
   if (result.length === 0) return [];
@@ -178,8 +178,8 @@ export class SqliteGraphStore implements GraphStore {
    */
   async moveNote(oldPath: string, newPath: string, newTitle: string): Promise<boolean> {
     const db = await getLocalDb(this.app);
-    const oldId = pathToId(oldPath);
-    const newId = pathToId(newPath);
+    const oldId = storedKeyAt(db, "notes", oldPath);
+    const newId = noteKey(this.app, newPath);
 
     const check = db.exec("SELECT id FROM notes WHERE id = ? OR path = ?", [oldId, oldPath]);
     if (check.length === 0 || check[0].values.length === 0) return false;
@@ -216,7 +216,7 @@ export class SqliteGraphStore implements GraphStore {
    */
   async deleteNote(pathOrId: string): Promise<boolean> {
     const db = await getLocalDb(this.app);
-    const id = pathToId(pathOrId);
+    const id = storedKeyAt(db, "notes", pathOrId);
     db.run("DELETE FROM edges WHERE src = ? OR tgt = ?", [id, id]);
     db.run("DELETE FROM notes WHERE id = ? OR path = ?", [id, pathOrId]);
     const modified = db.getRowsModified() > 0;

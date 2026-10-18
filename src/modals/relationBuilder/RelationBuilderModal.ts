@@ -403,8 +403,9 @@ export class RelationBuilderModal extends Modal {
         }
       }
 
-      const oldSrc = (initialEdge.srcId || this.selectedNodes[0]?.id || "").toLowerCase();
-      const oldTgt = (initialEdge.tgtId || this.selectedNodes[1]?.id || "").toLowerCase();
+      // Keys are stored as written: path keys are lowercase, frontmatter ULID keys uppercase (ADR-0007).
+      const oldSrc = initialEdge.srcId || this.selectedNodes[0]?.id || "";
+      const oldTgt = initialEdge.tgtId || this.selectedNodes[1]?.id || "";
       if (oldSrc && oldTgt) {
         try {
           const store = getGraphStore(this.app, this.host.settings);
