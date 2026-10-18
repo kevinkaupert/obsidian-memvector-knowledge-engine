@@ -2,7 +2,7 @@ import { Notice, ItemView, TFile, type App, type ViewStateResult, type Workspace
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal, type RelationChange } from "../../modals/relationBuilder/RelationBuilderModal";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
-import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
+import { relationsFolder } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings, OpenViewSettingsChange } from "../../settings/types";
@@ -16,7 +16,7 @@ import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
-import { buildLinkKeys, confirmedEdges, hasLinkKeys } from "../../frontmatterLinks";
+import { confirmedEdges } from "../../frontmatterLinks";
 import { findNodesByQuery } from "./search";
 import { runSynthesis } from "./synthesis";
 import { getVectorStore } from "../../sync/storeFactory";
@@ -25,10 +25,10 @@ import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nod
 import { PositionPersister } from "./positionPersistence";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
-import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { buildScatterNode, cachedFrontmatterType, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { registerScatterVaultWatchers } from "./vaultWatchers";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
-import { isRelationNote } from "../../relationNotes";
 import type { VaultIndexingPipeline } from "../../sync/vaultIndexPipeline";
 
 const SEARCH_PULSE_DURATION_MS = 1800;
@@ -406,66 +406,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * old path of a rename, where no frontmatter is left - by the paths of the loaded relation edges.
    */
   registerVaultWatchers(): void {
-    if (!this.app?.vault?.on) return;
-
-    const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
-    // A deleted file has no frontmatter left, so a relation note outside the relations folder is only recognizable
-    // by the paths of the relation edges loaded from it.
-    const linkKeys = () => buildLinkKeys(this.vocabulary.map((t) => t.label));
-    const isRel = (path: string, type?: string) =>
-      isRelationNote(path, type, relationsFolder(this.settings)) || this.relationEdges.some((e) => e.path === path);
-    // A note whose frontmatter carries typed-link keys contributes edges too (#243).
-    const hasLinks = (file: { path: string }) =>
-      file instanceof TFile && hasLinkKeys(this.app.metadataCache.getFileCache(file)?.frontmatter, linkKeys());
-    const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
-    const isShown = (path: string) => this.nodes.some((n) => n.path === path);
-    const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
-
-    const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
-      if (!file?.path) return;
-      if (isVocabulary(file.path)) {
-        this.triggerRelationsReload();
-        return;
-      }
-      if (!isMd(file.path)) return;
-      const type = kind === "delete" ? undefined : fmType(file);
-      if (isRel(file.path, type) || (kind !== "delete" && hasLinks(file))) this.triggerRelationsReload();
-      if (kind === "delete") {
-        if (isShown(file.path)) this.triggerVaultRescan({ kind: "delete", path: file.path });
-      } else if (isShown(file.path) || inScope(file.path, type)) {
-        this.triggerVaultRescan({ kind: "upsert", path: file.path });
-      }
-    };
-
-    const handleRenameEvent = (file: { path: string }, oldPath: string) => {
-      if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
-        this.triggerRelationsReload();
-        return;
-      }
-      if (!isMd(file?.path) && !isMd(oldPath)) return;
-      const type = fmType(file);
-      if (isRel(file.path, type) || isRel(oldPath) || hasLinks(file)) this.triggerRelationsReload();
-      if (isShown(oldPath) || inScope(file.path, type)) {
-        this.triggerVaultRescan({ kind: "rename", path: file.path, oldPath });
-      }
-    };
-
-    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file, "create")));
-    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file, "modify")));
-    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file, "delete")));
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
-    // `modify` can arrive before Obsidian re-parses the frontmatter; the parsed cache catches the first typed-link key
-    // added to a note and the last one removed from it (#243).
-    if (this.app.metadataCache?.on) {
-      this.registerEvent(
-        this.app.metadataCache.on("changed", (file, _data, cache) => {
-          if (hasLinkKeys(cache?.frontmatter, linkKeys()) || this.relationEdges.some((e) => e.path === file.path)) {
-            this.triggerRelationsReload();
-          }
-        })
-      );
-    }
+    registerScatterVaultWatchers({
+      app: this.app,
+      settings: () => this.settings,
+      nodes: () => this.nodes,
+      relationEdges: () => this.relationEdges,
+      vocabulary: () => this.vocabulary,
+      scanScope: () => this.scanScope(),
+      triggerRelationsReload: () => this.triggerRelationsReload(),
+      triggerVaultRescan: (change) => this.triggerVaultRescan(change),
+      registerEvent: (ref) => this.registerEvent(ref),
+    });
   }
 
   /**
