@@ -40,6 +40,8 @@ function makeMockDiv(): any {
   return el;
 }
 
+const notices = vi.hoisted(() => [] as string[]);
+
 vi.mock("obsidian", () => ({
   ItemView: class {
     containerEl = makeMockDiv();
@@ -51,7 +53,11 @@ vi.mock("obsidian", () => ({
     async setState(_state: unknown, _result: unknown): Promise<void> {}
   },
   Modal: class {},
-  Notice: class {},
+  Notice: class {
+    constructor(message: string) {
+      notices.push(message);
+    }
+  },
   TFile: class {},
   setIcon: vi.fn(),
 }));
@@ -961,5 +967,235 @@ describe("VectorScatterView rescans when relation-note visibility changes (#204)
 
     await vi.waitFor(() => expect(log).toHaveBeenCalledWith(expect.stringContaining("relation note visibility"), err));
     log.mockRestore();
+  });
+});
+
+/** A window double whose animation frames run only when the test steps them. */
+function frameWindow() {
+  const frames = new Map<number, () => void>();
+  const cancelled: number[] = [];
+  let next = 1;
+  return {
+    frames,
+    cancelled,
+    win: {
+      requestAnimationFrame: vi.fn((cb: () => void) => {
+        const h = next++;
+        frames.set(h, cb);
+        return h;
+      }),
+      cancelAnimationFrame: vi.fn((h: number) => {
+        cancelled.push(h);
+        frames.delete(h);
+      }),
+    },
+    step() {
+      const [h, cb] = [...frames.entries()][0];
+      frames.delete(h);
+      cb();
+    },
+  };
+}
+
+function searchView() {
+  const view = makeScanView();
+  (view as any).canvasWrap = { clientWidth: 800, clientHeight: 600 };
+  const w = frameWindow();
+  (view as any).containerEl.win = w.win;
+  view.zoom = 2;
+  view.nodes = [
+    { ...makeNode("alpha one", "A1.md", "concept"), x: 10, y: 20 },
+    { ...makeNode("alpha two", "A2.md", "concept"), x: 100, y: 50 },
+    { ...makeNode("beta", "wiki/relations/B.md", "relation"), x: -40, y: 0 },
+  ];
+  view.showRelationNotes = true;
+  return { view, w };
+}
+
+describe("VectorScatterView search (characterization before the split, #273)", () => {
+  it("cycles through matches, wraps around, and treats case and spaces as the same query", () => {
+    const { view } = searchView();
+    const centers: Array<{ x: number; y: number }> = [];
+    for (const q of ["alpha", "  ALPHA ", "alpha"]) {
+      view.searchNote(q);
+      centers.push({ ...view.pan });
+    }
+    expect(centers[0]).not.toEqual(centers[1]);
+    expect(centers[2]).toEqual(centers[0]);
+  });
+
+  it("reports a query without match", () => {
+    const { view } = searchView();
+    notices.length = 0;
+    view.searchNote("gamma");
+    expect(notices).toEqual(['Keine Notiz im Graph gefunden für "gamma"']);
+  });
+
+  it("pulses until the duration ends, then clears the highlight", () => {
+    const { view, w } = searchView();
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    try {
+      view.searchNote("beta");
+      expect((view as any).searchHighlight?.nodeId).toBe("beta");
+      now.mockReturnValue(2000);
+      w.step();
+      expect(w.frames.size).toBe(1);
+      now.mockReturnValue(2900);
+      w.step();
+      expect((view as any).searchHighlight).toBeNull();
+      expect((view as any).searchAnim).toBeNull();
+      expect(w.frames.size).toBe(0);
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it("a new search, closing and hiding relation notes cancel a running pulse on the window that scheduled it", async () => {
+    const { view, w } = searchView();
+    view.searchNote("alpha");
+    const first = [...w.frames.keys()][0];
+    const popout = frameWindow();
+    (view as any).containerEl.win = popout.win;
+    view.searchNote("beta");
+    expect(w.cancelled).toEqual([first]);
+    expect(popout.frames.size).toBe(1);
+
+    view.setShowRelationNotes(false);
+    expect(popout.cancelled.length).toBe(1);
+    expect((view as any).searchHighlight).toBeNull();
+
+    view.showRelationNotes = true;
+    view.searchNote("alpha");
+    await view.onClose();
+    expect(popout.cancelled.length).toBe(2);
+  });
+
+  it("hiding relation notes keeps a pulse on a regular note but forgets the query", () => {
+    const { view, w } = searchView();
+    view.searchNote("alpha");
+    view.setShowRelationNotes(false);
+    expect((view as any).searchHighlight?.nodeId).toBe("alpha one");
+    expect(w.cancelled).toEqual([]);
+    expect((view as any).lastSearchQuery).toBeNull();
+  });
+
+  it("centers on the current camera after fitToView replaced the pan object", () => {
+    const { view } = searchView();
+    const before = view.pan;
+    view.fitToView();
+    expect(view.pan).not.toBe(before);
+    view.searchNote("alpha two");
+    expect(view.pan).toEqual({ x: 400 - 100 * view.zoom, y: 300 - 50 * view.zoom });
+  });
+});
+
+describe("VectorScatterView watchers read live state (characterization before the split, #273)", () => {
+  it("the metadata handler sees vocabulary and edges replaced after registration", () => {
+    const changed: Function[] = [];
+    const host = createMockHost();
+    (host.app as any).metadataCache = { on: vi.fn((_e: string, cb: Function) => (changed.push(cb), {})), getFileCache: vi.fn(() => null) };
+    const view = new VectorScatterView({} as WorkspaceLeaf, host);
+    view.registerVaultWatchers();
+    view.triggerRelationsReload = vi.fn();
+    expect(changed).toHaveLength(1);
+
+    changed[0]({ path: "N.md" }, "", { frontmatter: { MY_LINK: "[[X]]" } });
+    expect(view.triggerRelationsReload).not.toHaveBeenCalled();
+    view.vocabulary = [{ key: "my", label: "MY_LINK", term: "my", category: "x", bidirectional: false, reversed: false }] as any;
+    changed[0]({ path: "N.md" }, "", { frontmatter: { MY_LINK: "[[X]]" } });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(1);
+
+    view.relationEdges = [{ srcId: "a", tgtId: "b", relType: "IMPLIES", desc: "", title: "", path: "Old.md", bidirectional: false }];
+    changed[0]({ path: "Old.md" }, "", { frontmatter: {} });
+    expect(view.triggerRelationsReload).toHaveBeenCalledTimes(2);
+  });
+
+  it("with the plugin's indexer the view subscribes instead of watching the vault, and unsubscribes on close", async () => {
+    const host = createMockHost();
+    const unsubscribe = vi.fn();
+    const subscribe = vi.fn(() => unsubscribe);
+    host.vaultIndexer = { subscribe } as any;
+    const view = new VectorScatterView({} as WorkspaceLeaf, host);
+    view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
+    await view.onOpen();
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(host.app.vault.on).not.toHaveBeenCalled();
+    await view.onClose();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VectorScatterView hydration gates (characterization before the split, #273)", () => {
+  it("a write scheduled before a failed position read writes nothing", async () => {
+    const { getStoredNodePositions, saveNodePositions } = await import("../../sync/sqlite/nodePositions");
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    view.redraw = vi.fn();
+    view.nodes = [{ ...makeNode("p", "P.md", "concept"), x: 5, y: 6, placed: true }];
+    (view as any).positionsHydrated = true;
+    (view as any).positionWriter.schedule();
+    vi.mocked(scanVaultNotesPure).mockResolvedValue([{ ...makeNode("p", "P.md", "concept") }]);
+    vi.mocked(getStoredNodePositions).mockRejectedValueOnce(new Error("locked"));
+    vi.mocked(saveNodePositions).mockClear();
+    mockStoredVectors(new Map());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await view.scanVaultNotes(undefined, { preserveView: true });
+      await (view as any).positionWriter.flush();
+      expect(saveNodePositions).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("an incremental position read cannot reopen the gate; a full one does", async () => {
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    (view as any).positionsHydrated = false;
+    await (view as any).hydrateStoredPositions([makeNode("q", "Q.md", "concept")]);
+    expect((view as any).positionsHydrated).toBe(false);
+    await (view as any).hydrateStoredPositions([makeNode("q", "Q.md", "concept")], true);
+    expect((view as any).positionsHydrated).toBe(true);
+  });
+
+  it("vectors are looked up by path before id, positions by id before path", async () => {
+    const { getStoredNodePositions } = await import("../../sync/sqlite/nodePositions");
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    const n = makeNode("ID", "Path.md", "concept");
+    mockStoredVectors(new Map([["Path.md", [1]], ["ID", [2]]]));
+    await (view as any).hydrateStoredEmbeddings([n], new Map(), true);
+    expect(n.embedding).toEqual([1]);
+    vi.mocked(getStoredNodePositions).mockResolvedValueOnce(new Map([["ID", { x: 1, y: 1 }], ["Path.md", { x: 2, y: 2 }]]));
+    const unplaced = makeNode("ID", "Path.md", "concept");
+    await (view as any).hydrateStoredPositions([unplaced], true);
+    expect({ x: unplaced.x, y: unplaced.y }).toEqual({ x: 1, y: 1 });
+  });
+
+  it("stored positions of already placed nodes are still marked as persisted", async () => {
+    const { getStoredNodePositions } = await import("../../sync/sqlite/nodePositions");
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    const placed = { ...makeNode("m", "M.md", "concept"), x: 9, y: 9, placed: true };
+    vi.mocked(getStoredNodePositions).mockResolvedValueOnce(new Map([["m", { x: 9, y: 9 }]]));
+    await (view as any).hydrateStoredPositions([placed], true);
+    expect((view as any).positionWriter.movedRecords([placed])).toEqual([]);
+  });
+
+  it("a failed vector read is reported once until a full read succeeds again", async () => {
+    const view = new VectorScatterView({} as WorkspaceLeaf, createMockHost());
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      notices.length = 0;
+      mockStoredVectors(new Error("db"));
+      await (view as any).hydrateStoredEmbeddings([makeNode("a", "A.md", "concept")], new Map(), true);
+      await (view as any).hydrateStoredEmbeddings([makeNode("a", "A.md", "concept")], new Map(), true);
+      expect(notices).toHaveLength(1);
+      expect((view as any).embeddingHydrationFailed).toBe(true);
+      mockStoredVectors(new Map());
+      await (view as any).hydrateStoredEmbeddings([makeNode("a", "A.md", "concept")], new Map(), true);
+      expect((view as any).embeddingHydrationFailed).toBe(false);
+      mockStoredVectors(new Error("db"));
+      await (view as any).hydrateStoredEmbeddings([makeNode("a", "A.md", "concept")], new Map(), true);
+      expect(notices).toHaveLength(2);
+    } finally {
+      err.mockRestore();
+    }
   });
 });

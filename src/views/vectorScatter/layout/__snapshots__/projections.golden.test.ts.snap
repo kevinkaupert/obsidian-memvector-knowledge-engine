@@ -1,0 +1,489 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`applyGraphVectorProjection golden outputs (#76) > CONFLICTS_WITH repels and a relation weight above 1 pulls closer 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 477.28315689666556,
+      "y": -242.40726630194806,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n1",
+      "placed": true,
+      "x": -853.8696260053995,
+      "y": 42.93361460476224,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 1086.5759002970235,
+      "y": 188.66596843118478,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n3",
+      "placed": true,
+      "x": -827.2535559652135,
+      "y": -70.78226317678052,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 785.7637272988942,
+      "y": -23.899566405505492,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n5",
+      "placed": true,
+      "x": -701.660632011895,
+      "y": 23.08685397811899,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > PCA with nodes lacking embeddings, on both sides of the 0.15 neighbor threshold 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 816.346073371466,
+      "y": -6.55813974986892,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n5",
+      "id": "n1",
+      "placed": true,
+      "x": -843.6440354625508,
+      "y": 70.19686834431215,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 864.3719946468818,
+      "y": -154.42127545360518,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n5",
+      "id": "n3",
+      "placed": true,
+      "x": -703.6089543810272,
+      "y": 3.432772685854029,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 968.0659886936853,
+      "y": -39.44576140824903,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n5",
+      "id": "n5",
+      "placed": true,
+      "x": -830.0946859808082,
+      "y": -83.96508508025856,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "near",
+      "placed": true,
+      "x": 548.4167835743918,
+      "y": 302.0559222225662,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "far",
+      "placed": true,
+      "x": -264.1720856438164,
+      "y": -508.64527593087104,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > bounded pass with an existing mobile node, a new mobile node and fixed nodes 1`] = `
+{
+  "iterations": 21,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": -772.6009820178205,
+      "y": 91.77056424074169,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n1",
+      "placed": true,
+      "x": 720.5063821841036,
+      "y": 54.68218559356712,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": -889.0432187817154,
+      "y": -33.33150107427835,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n3",
+      "placed": true,
+      "x": 870.5245088291043,
+      "y": 10.993220020112005,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": -743.1559302050691,
+      "y": -62.875671743191596,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n5",
+      "placed": true,
+      "x": 764.3487784849871,
+      "y": -104.60772202656402,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n6",
+      "placed": true,
+      "x": -913.6828850294726,
+      "y": 108.1186020817481,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > free pass from scratch with embeddings (PCA placement) 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 869.5327517751336,
+      "y": -72.70628943751281,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n1",
+      "placed": true,
+      "x": -889.7916687921702,
+      "y": 45.940325350090596,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 740.0617014034832,
+      "y": 90.48252853785856,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n3",
+      "placed": true,
+      "x": -854.0560490601232,
+      "y": -93.87596650784799,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 726.6916079904869,
+      "y": -54.233265818954045,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n5",
+      "placed": true,
+      "x": -749.4764823427721,
+      "y": 82.20649883257414,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n6",
+      "placed": true,
+      "x": 883.1472799630195,
+      "y": 71.28109294487292,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n7",
+      "placed": true,
+      "x": -711.869180904049,
+      "y": -60.04424953935759,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > free pass without embeddings and a flat matrix falls back to the spiral 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "s0",
+      "id": "s0",
+      "placed": true,
+      "x": 111.46556696416158,
+      "y": 160.77994227491726,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "s1",
+      "id": "s1",
+      "placed": true,
+      "x": -30.467671366133494,
+      "y": -179.73699350083803,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "s0",
+      "id": "s2",
+      "placed": true,
+      "x": -134.99285222394215,
+      "y": 192.88144430556565,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "s0",
+      "id": "s3",
+      "placed": true,
+      "x": 180.10351713965946,
+      "y": -53.49262017921008,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "s0",
+      "id": "s4",
+      "placed": true,
+      "x": -214.55335328527195,
+      "y": -54.39948464814284,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > free pass without embeddings uses the matrix projection 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 847.5908219662236,
+      "y": 49.69238796102837,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n1",
+      "id": "n1",
+      "placed": true,
+      "x": -856.1146146118401,
+      "y": 19.250576814176426,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 697.3441370484305,
+      "y": 5.683166542618601,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n1",
+      "id": "n3",
+      "placed": true,
+      "x": -714.7572766564253,
+      "y": 84.58588681301657,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 809.4881023135747,
+      "y": -101.62597955608354,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n1",
+      "id": "n5",
+      "placed": true,
+      "x": -730.2658860552443,
+      "y": -69.59854002746391,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > incremental placement of several new nodes, including a tie between neighbors 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 140.04539560157454,
+      "y": 37.1829107193691,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n1",
+      "id": "n1",
+      "placed": true,
+      "x": -461.073353013782,
+      "y": 9.561418677760178,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 335.832089375239,
+      "y": -47.49851636160159,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n1",
+      "id": "n3",
+      "placed": true,
+      "x": -286.10383686101846,
+      "y": 75.94968871071131,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 287.24759728956485,
+      "y": 85.54964811318153,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n5",
+      "placed": true,
+      "x": -223.48699960356996,
+      "y": -63.43431050238241,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n6",
+      "placed": true,
+      "x": 216.00724023179382,
+      "y": -92.38108841162055,
+    },
+  ],
+}
+`;
+
+exports[`applyGraphVectorProjection golden outputs (#76) > warm free pass over placed nodes 1`] = `
+{
+  "iterations": 60,
+  "nodes": [
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n0",
+      "placed": true,
+      "x": 666.0702167525833,
+      "y": 13.70304876492943,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n1",
+      "placed": true,
+      "x": -700.4313600438833,
+      "y": -83.6073618827037,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n2",
+      "placed": true,
+      "x": 811.2932434706951,
+      "y": 64.67549824679966,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n3",
+      "placed": true,
+      "x": -840.1587856461545,
+      "y": -16.722860166076472,
+    },
+    {
+      "cloudId": 0,
+      "cloudLabel": "n0",
+      "id": "n4",
+      "placed": true,
+      "x": 783.1547409664338,
+      "y": -88.95796291543708,
+    },
+    {
+      "cloudId": 1,
+      "cloudLabel": "n3",
+      "id": "n5",
+      "placed": true,
+      "x": -712.798039161492,
+      "y": 70.92170007455847,
+    },
+  ],
+}
+`;
