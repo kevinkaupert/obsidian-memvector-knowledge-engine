@@ -90,13 +90,13 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
     mouseDownX = mouseX;
     mouseDownY = mouseY;
 
-    const isLassoMode = ctx.lassoSelectMode || e.shiftKey;
+    const isLassoMode = ctx.interaction.lassoSelectMode || e.shiftKey;
     if (isLassoMode) {
-      ctx.isDraggingLasso = true;
-      ctx.lassoPath = [{ x: mouseX, y: mouseY }];
+      ctx.interaction.isDraggingLasso = true;
+      ctx.interaction.lassoPath = [{ x: mouseX, y: mouseY }];
     } else {
-      ctx.isDraggingPan = true;
-      ctx.dragStart = { x: mouseX - ctx.pan.x, y: mouseY - ctx.pan.y };
+      ctx.interaction.isDraggingPan = true;
+      ctx.interaction.dragStart = { x: mouseX - ctx.pan.x, y: mouseY - ctx.pan.y };
       canvas.addClass("is-grabbing");
     }
   };
@@ -112,12 +112,12 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
       if (Math.sqrt(dx * dx + dy * dy) > 4) wasDragging = true;
     }
 
-    if (ctx.isDraggingPan) {
-      ctx.pan.x = mouseX - ctx.dragStart.x;
-      ctx.pan.y = mouseY - ctx.dragStart.y;
+    if (ctx.interaction.isDraggingPan) {
+      ctx.pan.x = mouseX - ctx.interaction.dragStart.x;
+      ctx.pan.y = mouseY - ctx.interaction.dragStart.y;
       scheduleRedraw();
-    } else if (ctx.isDraggingLasso) {
-      ctx.lassoPath.push({ x: mouseX, y: mouseY });
+    } else if (ctx.interaction.isDraggingLasso) {
+      ctx.interaction.lassoPath.push({ x: mouseX, y: mouseY });
       scheduleRedraw();
     } else {
       const hovered = ctx.hitTest(mouseX, mouseY);
@@ -147,27 +147,27 @@ export function wireCanvasInteraction(ctx: ScatterViewContext, refs: CanvasInter
   };
 
   const onMouseUp = () => {
-    if (ctx.isDraggingPan) {
-      ctx.isDraggingPan = false;
+    if (ctx.interaction.isDraggingPan) {
+      ctx.interaction.isDraggingPan = false;
       canvas.removeClass("is-grabbing");
-      if (ctx.lassoSelectMode) {
+      if (ctx.interaction.lassoSelectMode) {
         canvas.addClass("is-crosshair");
       } else {
         canvas.removeClass("is-crosshair");
       }
     }
-    if (ctx.isDraggingLasso) {
-      ctx.isDraggingLasso = false;
-      if (ctx.lassoPath.length > 2) {
+    if (ctx.interaction.isDraggingLasso) {
+      ctx.interaction.isDraggingLasso = false;
+      if (ctx.interaction.lassoPath.length > 2) {
         wasDragging = true; // Prevent click from clearing the lasso selection
         ctx.getVisibleNodes().forEach((node) => {
           const screenPos = worldToScreen(node.x, node.y, ctx.zoom, ctx.pan);
-          if (isPointInPolygon(screenPos.x, screenPos.y, ctx.lassoPath)) {
+          if (isPointInPolygon(screenPos.x, screenPos.y, ctx.interaction.lassoPath)) {
             ctx.selectedNodeIds.add(node.id);
           }
         });
       }
-      ctx.lassoPath = [];
+      ctx.interaction.lassoPath = [];
       updateSelectionUI();
     }
   };

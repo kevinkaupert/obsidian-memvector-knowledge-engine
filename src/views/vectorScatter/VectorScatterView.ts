@@ -8,7 +8,7 @@ import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings, OpenViewSettingsChange } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
-import type { ScatterViewContext } from "./context";
+import { createInteractionState, type ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
 import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
 import { clampCloudSpacing, clampNodeSpacing } from "./layout/layoutTunables";
@@ -171,11 +171,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   selectedNodeIds = new Set<string>();
   pan = { x: 0, y: 0 };
   zoom = 1;
-  isDraggingPan = false;
-  isDraggingLasso = false;
-  dragStart = { x: 0, y: 0 };
-  lassoPath: { x: number; y: number }[] = [];
-  lassoSelectMode = false;
+  readonly interaction = createInteractionState();
   hoveredNode: ScatterNode | null = null;
   hoveredEdge: RelationEdge | null = null;
   showEdges = true;
@@ -731,8 +727,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       selectedNodeIds: this.selectedNodeIds,
       hoveredNode: this.hoveredNode,
       hoveredEdge: this.hoveredEdge,
-      isDraggingLasso: this.isDraggingLasso,
-      lassoPath: this.lassoPath,
+      isDraggingLasso: this.interaction.isDraggingLasso,
+      lassoPath: this.interaction.lassoPath,
       scatterVisualStyle: this.settings.scatterVisualStyle,
       unselectedLabelOpacity: this.settings.unselectedLabelOpacity ?? 0.35,
     });

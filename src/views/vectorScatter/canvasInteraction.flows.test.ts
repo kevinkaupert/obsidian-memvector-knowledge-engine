@@ -64,11 +64,7 @@ function setup() {
     pan: { x: 50, y: 40 },
     nodes,
     selectedNodeIds: new Set<string>(),
-    isDraggingPan: false,
-    isDraggingLasso: false,
-    dragStart: { x: 0, y: 0 },
-    lassoPath: [] as { x: number; y: number }[],
-    lassoSelectMode: false,
+    interaction: { isDraggingPan: false, isDraggingLasso: false, dragStart: { x: 0, y: 0 }, lassoPath: [] as { x: number; y: number }[], lassoSelectMode: false },
     hoveredNode: null as ScatterNode | null,
     hoveredEdge: null as RelationEdge | null,
     showEdges: true,
@@ -110,21 +106,21 @@ describe("canvas interaction flows (#77)", () => {
     const h = setup();
     const { a, b } = { a: h.at(h.nodes[0]), b: h.at(h.nodes[1]) };
     h.handlers.mousedown(h.ev({ clientX: a.clientX - 10, clientY: a.clientY - 10, shiftKey: true }));
-    expect(h.ctx.isDraggingLasso).toBe(true);
+    expect(h.ctx.interaction.isDraggingLasso).toBe(true);
     for (const p of [[b.clientX + 10, a.clientY - 10], [b.clientX + 10, a.clientY + 10], [a.clientX - 10, a.clientY + 10]]) {
       h.handlers.mousemove(h.ev({ clientX: p[0], clientY: p[1] }));
     }
     h.w.fire("mouseup");
     expect([...h.ctx.selectedNodeIds].sort()).toEqual(["a", "b"]);
-    expect(h.ctx.lassoPath).toEqual([]);
-    expect(h.ctx.isDraggingLasso).toBe(false);
+    expect(h.ctx.interaction.lassoPath).toEqual([]);
+    expect(h.ctx.interaction.isDraggingLasso).toBe(false);
     h.handlers.click(h.ev({ clientX: 700, clientY: 500 }));
     expect([...h.ctx.selectedNodeIds].sort()).toEqual(["a", "b"]);
   });
 
   it("a second lasso in lasso mode adds to the selection", () => {
     const h = setup();
-    h.ctx.lassoSelectMode = true;
+    h.ctx.interaction.lassoSelectMode = true;
     h.ctx.selectedNodeIds.add("b");
     const c = h.at(h.nodes[2]);
     h.handlers.mousedown(h.ev({ clientX: c.clientX - 10, clientY: c.clientY - 10 }));
@@ -169,19 +165,19 @@ describe("canvas interaction flows (#77)", () => {
   it("panning tracks the mouse; a release outside the canvas and after a window move ends it", () => {
     const h = setup();
     h.handlers.mousedown(h.ev({ clientX: 300, clientY: 300 }));
-    expect(h.ctx.isDraggingPan).toBe(true);
+    expect(h.ctx.interaction.isDraggingPan).toBe(true);
     h.handlers.mousemove(h.ev({ clientX: 330, clientY: 280 }));
     expect(h.ctx.pan).toEqual({ x: 80, y: 20 });
     h.w.fire("mouseup");
-    expect(h.ctx.isDraggingPan).toBe(false);
+    expect(h.ctx.interaction.isDraggingPan).toBe(false);
     h.handlers.click(h.ev({ clientX: 330, clientY: 280 }));
     expect(h.ctx.selectedNodeIds.size).toBe(0);
 
-    h.ctx.lassoSelectMode = true;
-    h.ctx.isDraggingPan = true; // a pan that started before switching to lasso mode
+    h.ctx.interaction.lassoSelectMode = true;
+    h.ctx.interaction.isDraggingPan = true; // a pan that started before switching to lasso mode
     h.migrate();
     h.w.fire("mouseup");
-    expect(h.ctx.isDraggingPan).toBe(false);
+    expect(h.ctx.interaction.isDraggingPan).toBe(false);
     expect(h.classes).toEqual(["+is-grabbing", "-is-grabbing", "-is-crosshair", "-is-grabbing", "+is-crosshair"]);
   });
 });
