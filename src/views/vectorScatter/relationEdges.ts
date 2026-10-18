@@ -157,8 +157,11 @@ export async function loadRelationFilesResult(
   return { edges, hasErrors, errorPaths };
 }
 
-/** Loads every explicit relation file, retaining duplicate identities for save conflict checks. */
-export async function loadRelationFiles(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
+/**
+ * Loads one edge record per relation note, without deduplication, so save conflict checks see every file and its
+ * identity (#129). Rendering and graph sync use the deduplicated loadRelationEdges.
+ */
+export async function loadRelationEdgeRecords(app: App, exclusions = "", relationsFolder = DEFAULT_RELATIONS_FOLDER): Promise<RelationEdge[]> {
   const result = await loadRelationFilesResult(app, exclusions, relationsFolder);
   return result.edges;
 }

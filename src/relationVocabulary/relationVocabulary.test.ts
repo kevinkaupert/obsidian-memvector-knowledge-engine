@@ -136,11 +136,11 @@ describe("relationVocabulary", () => {
     const defs = [{ key: "backwards", label: "REVERSED", term: "backwards", category: "Test", reversed: true, bidirectional: false }];
 
     // Changed from REQUIRES to REVERSED: applies reversed direction
-    const [changed] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "REQUIRES");
+    const [changed] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "REQUIRES", 0);
     expect([changed.src.id, changed.tgt.id]).toEqual(["b", "a"]);
 
     // Unchanged (even when editedCanonicalLabel was the legacy key): retains existing endpoints
-    const [unchanged] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "backwards");
+    const [unchanged] = resolveEdgesForSave(defs, edges, { 0: "REVERSED" }, "", "backwards", 0);
     expect([unchanged.src.id, unchanged.tgt.id]).toEqual(["a", "b"]);
   });
 
