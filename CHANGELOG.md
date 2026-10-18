@@ -8,6 +8,26 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-10-18
+
+### Changed
+- No user-visible change. The 2D view is split (#273): vault watchers (`vaultWatchers.ts`), stored vector and position
+  loading with the map gates (`nodeHydration.ts`) and search (`searchController.ts`) leave `VectorScatterView.ts`
+  (1,145 -> 984 lines); "Calculate vectors" leaves `toolbar.ts` (`toolbar/calcVectors.ts`). `vaultIndexPipeline.ts`
+  is one class with one job and stays as it is.
+- `applyGraphVectorProjection` is split into its placement and simulation steps; `drawNodes` and `drawEdges` take an
+  options object instead of 12 and 13 positional arguments; the sidebar radar is split into geometry, canvas and DOM
+  parts (#76).
+- The gesture state of the 2D view (pan drag, lasso) is one `InteractionState`, and `ScatterViewContext` documents who
+  owns each field (#77).
+- `resolveEdgesForSave` gets the index of the edited edge explicitly; `loadRelationFiles` is now
+  `loadRelationEdgeRecords`; the per-edge batch save is kept and its guarantees are documented (#129).
+
+### Tests
+- Characterization tests recorded before the split: golden layout snapshots for every placement and simulation path,
+  full call logs of 2D frames and of the radar, the radar's and the 2D view's mouse flows, search cycling and pulse
+  across windows, watchers reading live state, the indexer subscription and the hydration gates.
+
 ## [0.3.3] - 2026-10-18
 
 ### Fixed
