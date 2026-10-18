@@ -7,6 +7,7 @@ import { MATH_VECTOR_SCATTER_VIEW_TYPE, MATH_WIKI_VIEW_TYPE } from "./constants"
 import { MathWikiSidebarView } from "./views/sidebar/MathWikiSidebarView";
 import { VectorScatterView } from "./views/vectorScatter/VectorScatterView";
 import { setPluginId, setPluginDir, closeLocalDb } from "./sync/sqlite/sqliteDb";
+import { setNoteWriterClientVersion } from "./noteWriter/noteWriter";
 import { getTranslation } from "./i18n";
 import { resolveEmbeddingTarget } from "./sync/embeddingTarget";
 import { VaultIndexingPipeline } from "./sync/vaultIndexPipeline";
@@ -37,6 +38,7 @@ export default class MemVectorPlugin extends Plugin {
       setPluginDir(this.manifest.dir);
     }
     setPluginId(this.manifest.id);
+    setNoteWriterClientVersion(this.manifest.version);
     await this.loadSettings();
     this.addSettingTab(new MathWikiSettingTab(this.app, this));
 

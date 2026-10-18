@@ -21,6 +21,16 @@ The settings menu is organized into 3 focused sections:
   - **Synthesis notes folder (`synthesisFolder`, default `wiki/synthesis`):** Saved synthesis notes go here.
   - **Vocabulary presets folder (`presetsFolder`, default `wiki/presets`):** User presets are listed from and created in this folder.
   Values are trimmed and stripped of leading/trailing slashes; an empty value falls back to the default. The field is applied on blur or Enter, not on every keystroke.
+- **Write through Jovian (`writeViaJovian`, default off) and Jovian command (`jovianCommand`, default empty):**
+  Saves synthesis and relation notes through [Jovian](https://github.com/kevinkaupert/jovian)'s write gate
+  (`jovian gate`, protocol 1) instead of Obsidian's vault API, for users who run Jovian. The gate locks the note, refuses
+  a write when the note changed since MemVector read it (and keeps the content in `.jovian/conflicts/`), and records
+  each write in `.jovian/journal.jsonl` with `client.component: "memvector"`. The command is the `jovian` CLI (e.g.
+  `~/venv/bin/jovian`, `~` is expanded); empty runs `python3 -m jovian.gate`. "Test gate" runs `jovian gate --version`.
+  Before each save MemVector checks the gate; if it does not answer, the note is saved directly and a notice says so.
+  After a gate call started there is no direct fallback: on a refusal, timeout or unclear answer nothing is written and
+  the usual save error appears. Folders are still created by Obsidian. Deleting a newly created relation note after a
+  failed graph write stays direct, since the gate cannot delete. Desktop only (the plugin is desktop only anyway).
 - **Path & File Exclusions (`vectorSearchExclusions`):** Global exclusion rules for 2D Graph, vector indexing, graph sync, and GraphRAG context enrichment (default `""`, e.g. `-path:schema -file:index -file:log -file:README`). Same syntax as Obsidian Graph View. An open 2D view rescans its notes shortly after the field changes; changing the knowledge domain or "WikiLinks as relations" updates its layout right away.
 - **Unselected Label Opacity:** Opacity for title labels of non-selected, non-connected notes in the graph view (default `35%`).
 - **Mini-Radar Note Count ($X$):** Number of nearest vector neighbors framed in the sidebar radar view (default `10`).

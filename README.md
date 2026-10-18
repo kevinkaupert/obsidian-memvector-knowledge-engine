@@ -126,6 +126,11 @@ labels are stored as plain strings.
 - **Flexible AI providers.** Ollama (local), Anthropic Claude, OpenAI,
   DeepSeek, OpenRouter, or any custom OpenAI-compatible endpoint. API keys
   are stored in Obsidian's secure Secret Storage — never in plain text.
+- **Optional writes through Jovian.** If you run
+  [Jovian](https://github.com/kevinkaupert/jovian), the setting "Write
+  through Jovian" (off by default) saves synthesis and relation notes
+  through its write gate: per-note lock, stale check and a journal of
+  every write. See `docs/CONFIGURATION.md`. Without it, nothing changes.
 
 ---
 

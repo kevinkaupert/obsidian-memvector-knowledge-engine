@@ -60,6 +60,13 @@ export interface TranslationKeys {
   wikiLinksAsRelationsDesc: string;
   autoIndexVaultOnChangesName: string;
   autoIndexVaultOnChangesDesc: string;
+  secJovian: string;
+  writeViaJovianName: string;
+  writeViaJovianDesc: string;
+  jovianCommandName: string;
+  jovianCommandDesc: string;
+  jovianTestBtn: string;
+  jovianTestFailed: string;
   agentsPathsName: string;
   agentsPathsDesc: string;
   agentsIncludeDesc: string;
