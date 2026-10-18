@@ -100,7 +100,9 @@ export function createJovianWriter(options: JovianWriterOptions): NoteWriter {
       } catch (err) {
         throw new NoteWriteError(`Could not read ${file.path}: ${errorText(err)}`, "READ_FAILED");
       }
-      const request = base(file.path, compute(current.content), current.hash);
+      // Obsidian's vault.read() drops a byte order mark; the merge sees the same text on both paths. The hash covers the raw bytes.
+      const text = current.content.startsWith("\uFEFF") ? current.content.slice(1) : current.content;
+      const request = base(file.path, compute(text), current.hash);
       // The user asked for this change in MemVector's dialog, so the units it replaces are declared as reviewed.
       // The gate still refuses the write when the note changed since it was read (STALE_HASH).
       const checked = await call("check", request);

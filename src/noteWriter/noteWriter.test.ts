@@ -164,6 +164,16 @@ describe("relation notes through the gate", () => {
     expect(viaGate.modify).not.toHaveBeenCalled();
   });
 
+  it("merges a note with a byte order mark like the native read does", async () => {
+    const gate = fakeGate(ok(), ok());
+    const f = vaultApp(new Map([[path, old]]));
+    await writeRelationFile(f.app, path, generated, path, jovian(gate, { [path]: `\uFEFF${old}` }));
+    const native = vaultApp(new Map([[path, old]]));
+    await writeRelationFile(native.app, path, generated, path);
+    expect(gate.requests[1].request.content).toBe(native.modify.mock.calls[0][1]);
+    expect(gate.requests[1].request.content).toContain("custom: keep");
+  });
+
   it("does not fall back to a native create when the gate refuses", async () => {
     const f = vaultApp(new Map());
     await expect(writeRelationFile(f.app, path, generated, undefined, jovian(fakeGate(error("TARGET_EXISTS")))))
