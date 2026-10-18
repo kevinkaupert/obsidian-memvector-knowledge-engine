@@ -108,21 +108,24 @@ function drawArrowhead(ctx: CanvasRenderingContext2D, tip: Point, direction: Poi
  * fan state (no node grows extra visual "points") - only the curve's middle
  * ever moves.
  */
-export function drawEdges(
-  ctx: CanvasRenderingContext2D,
-  nodeMap: Map<string, ScatterNode>,
-  relationEdges: RelationEdge[],
-  selectedNodeIds: Set<string>,
-  hoveredNode: ScatterNode | null,
-  hoveredEdge: RelationEdge | null,
-  hops: number,
-  zoom: number,
-  pan: PanState,
-  themeTextNormal: string,
-  themeAccent: string,
-  style: ScatterVisualStyle,
-  viewport?: ViewportBounds
-): void {
+export interface DrawEdgesOptions {
+  nodeMap: Map<string, ScatterNode>;
+  relationEdges: RelationEdge[];
+  selectedNodeIds: Set<string>;
+  hoveredNode: ScatterNode | null;
+  hoveredEdge: RelationEdge | null;
+  /** 0 shows every edge. */
+  hops: number;
+  zoom: number;
+  pan: PanState;
+  themeTextNormal: string;
+  themeAccent: string;
+  style: ScatterVisualStyle;
+  viewport?: ViewportBounds;
+}
+
+export function drawEdges(ctx: CanvasRenderingContext2D, options: DrawEdgesOptions): void {
+  const { nodeMap, relationEdges, selectedNodeIds, hoveredNode, hoveredEdge, hops, zoom, pan, themeTextNormal, themeAccent, style, viewport } = options;
   const activeNodeIds = new Set(selectedNodeIds);
   if (hoveredNode) activeNodeIds.add(hoveredNode.id);
   if (hops !== 0 && activeNodeIds.size === 0) return;

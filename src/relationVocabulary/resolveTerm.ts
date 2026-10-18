@@ -38,14 +38,17 @@ export interface ResolvedRelationEdge {
 /**
  * Purpose: Resolves draft edges to their final Cypher label and directionality.
  * Always saves canonical Cypher labels. When editing an existing edge, resolves the initial relation
- * to its canonical label so direction is never mistakenly inverted on unchanged saves (Issue #108).
+ * to its canonical label so direction is never mistakenly inverted on unchanged saves (Issue #108). Only the edge at
+ * `editedEdgeIndex` keeps its direction (#129).
  */
 export function resolveEdgesForSave(
   defs: RelationTermDef[],
   edges: RelationEdgeDraft[],
   edgeRelTypes: Record<number, string>,
   customType: string,
-  editedCanonicalLabel?: string
+  editedCanonicalLabel?: string,
+  /** Index of the edge being edited (the edit dialog has exactly one, at 0); undefined when creating relations. */
+  editedEdgeIndex?: number
 ): ResolvedRelationEdge[] {
   const upperEdited = (editedCanonicalLabel || "").toUpperCase();
   const canonicalEdited = upperEdited
@@ -63,7 +66,7 @@ export function resolveEdgesForSave(
       return { src: e.src, tgt: e.tgt, label, bidirectional: false, originalTerm: customType || label };
     }
 
-    const retainsEditedDirection = idx === 0 && Boolean(canonicalEdited) && def.label === canonicalEdited;
+    const retainsEditedDirection = idx === editedEdgeIndex && Boolean(canonicalEdited) && def.label === canonicalEdited;
     return def.reversed && !retainsEditedDirection
       ? { src: e.tgt, tgt: e.src, label: def.label, bidirectional: def.bidirectional, originalTerm: def.label }
       : { src: e.src, tgt: e.tgt, label: def.label, bidirectional: def.bidirectional, originalTerm: def.label };

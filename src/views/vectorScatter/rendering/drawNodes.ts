@@ -56,22 +56,40 @@ enum LabelTier {
  * Purpose: Renders scatter nodes, halos, and priority labels on the 2D canvas, skipping off-screen nodes when viewport bounds are provided (Issue #158).
  * Architecture: Employs viewport culling to avoid canvas context calls and label measuring for off-screen nodes in dense graphs.
  */
-export function drawNodes(
-  ctx: CanvasRenderingContext2D,
-  nodes: ScatterNode[],
-  selectedNodeIds: Set<string>,
-  hoveredNode: ScatterNode | null,
-  zoom: number,
-  pan: PanState,
-  themeTextNormal: string,
-  themeTextMuted: string,
-  themeAccent: string,
-  style: ScatterVisualStyle,
-  relationTallies: Map<string, RelationTally> = new Map(),
-  unselectedLabelOpacity = 1,
-  labels: LabelPlacer = createLabelPlacer(),
-  viewport?: ViewportBounds
-): void {
+export interface DrawNodesOptions {
+  nodes: ScatterNode[];
+  selectedNodeIds: Set<string>;
+  hoveredNode: ScatterNode | null;
+  zoom: number;
+  pan: PanState;
+  themeTextNormal: string;
+  themeTextMuted: string;
+  themeAccent: string;
+  style: ScatterVisualStyle;
+  relationTallies?: Map<string, RelationTally>;
+  /** 0 is valid (labels of unfocused nodes hidden); only a missing value defaults to 1. */
+  unselectedLabelOpacity?: number;
+  /** Defaults to a fresh placer per call, so no reservation survives into the next frame. */
+  labels?: LabelPlacer;
+  viewport?: ViewportBounds;
+}
+
+export function drawNodes(ctx: CanvasRenderingContext2D, options: DrawNodesOptions): void {
+  const {
+    nodes,
+    selectedNodeIds,
+    hoveredNode,
+    zoom,
+    pan,
+    themeTextNormal,
+    themeTextMuted,
+    themeAccent,
+    style,
+    relationTallies = new Map<string, RelationTally>(),
+    unselectedLabelOpacity = 1,
+    labels = createLabelPlacer(),
+    viewport,
+  } = options;
   const hasFocus = selectedNodeIds.size > 0 || hoveredNode !== null;
 
   /**

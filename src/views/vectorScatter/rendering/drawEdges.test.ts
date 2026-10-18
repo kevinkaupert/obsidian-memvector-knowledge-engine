@@ -140,7 +140,7 @@ describe("drawEdges color resolution (Issue #62)", () => {
       const vp = { minX: 0, maxX: 500, minY: 0, maxY: 500 };
       const { ctx, getStrokes } = fakeEdgeCtx();
 
-      drawEdges(ctx, nodeMap, edges, new Set(), null, null, 0, 1, { x: 0, y: 0 }, "#fff", "#0af", "monochrome", vp);
+      drawEdges(ctx, { nodeMap, relationEdges: edges, selectedNodeIds: new Set(), hoveredNode: null, hoveredEdge: null, hops: 0, zoom: 1, pan: { x: 0, y: 0 }, themeTextNormal: "#fff", themeAccent: "#0af", style: "monochrome", viewport: vp });
       expect(getStrokes()).toBe(0);
     });
 
@@ -152,7 +152,7 @@ describe("drawEdges color resolution (Issue #62)", () => {
       const vp = { minX: 0, maxX: 500, minY: 0, maxY: 500 };
       const { ctx, getStrokes } = fakeEdgeCtx();
 
-      drawEdges(ctx, nodeMap, edges, new Set(), null, null, 0, 1, { x: 0, y: 0 }, "#fff", "#0af", "monochrome", vp);
+      drawEdges(ctx, { nodeMap, relationEdges: edges, selectedNodeIds: new Set(), hoveredNode: null, hoveredEdge: null, hops: 0, zoom: 1, pan: { x: 0, y: 0 }, themeTextNormal: "#fff", themeAccent: "#0af", style: "monochrome", viewport: vp });
       expect(getStrokes()).toBeGreaterThan(0);
     });
 
@@ -163,7 +163,7 @@ describe("drawEdges color resolution (Issue #62)", () => {
       const edges: RelationEdge[] = [makeEdge("a", "b", "REQUIRES")];
       const { ctx, getStrokes } = fakeEdgeCtx();
 
-      drawEdges(ctx, nodeMap, edges, new Set(), null, null, 0, 1, { x: 0, y: 0 }, "#fff", "#0af", "monochrome");
+      drawEdges(ctx, { nodeMap, relationEdges: edges, selectedNodeIds: new Set(), hoveredNode: null, hoveredEdge: null, hops: 0, zoom: 1, pan: { x: 0, y: 0 }, themeTextNormal: "#fff", themeAccent: "#0af", style: "monochrome" });
       expect(getStrokes()).toBeGreaterThan(0);
     });
   });

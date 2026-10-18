@@ -74,9 +74,7 @@ function wire(canvas: HTMLCanvasElement) {
     pan: { x: 0, y: 0 },
     nodes: [],
     selectedNodeIds: new Set<string>(),
-    isDraggingPan: false,
-    isDraggingLasso: false,
-    lassoSelectMode: false,
+    interaction: { isDraggingPan: false, isDraggingLasso: false, dragStart: { x: 0, y: 0 }, lassoPath: [], lassoSelectMode: false },
     redraw: vi.fn(),
     settings: { language: "en" },
   } as unknown as ScatterViewContext;

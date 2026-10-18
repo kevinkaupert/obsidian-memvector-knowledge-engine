@@ -1,14 +1,14 @@
-import { Notice, ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { ItemView, TFile, type App, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { getTranslation } from "../../i18n";
 import { RelationBuilderModal, type RelationChange } from "../../modals/relationBuilder/RelationBuilderModal";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
-import { relationsFolder, resolveVocabularyPath } from "../../vaultLayout";
+import { relationsFolder } from "../../vaultLayout";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import type { MemVectorSettings, OpenViewSettingsChange } from "../../settings/types";
 import { MATH_VECTOR_SCATTER_VIEW_TYPE } from "../../constants";
 import { wireCanvasInteraction } from "./canvasInteraction";
-import type { ScatterViewContext } from "./context";
+import { createInteractionState, type ScatterViewContext } from "./context";
 import { hitTest as hitTestPure, hitTestEdge as hitTestEdgePure, type PanState } from "./hitTesting";
 import { LayoutEngine, type LayoutMode } from "./layout/layoutEngine";
 import { clampCloudSpacing, clampNodeSpacing } from "./layout/layoutTunables";
@@ -16,22 +16,19 @@ import type { ProjectionMode } from "./layout/projections";
 import { draw } from "./rendering/drawOrchestrator";
 import { drawSearchPulse } from "./rendering/drawSearchPulse";
 import { loadRelationEdges as loadRelationEdgesPure } from "./relationEdges";
-import { buildLinkKeys, confirmedEdges, hasLinkKeys } from "../../frontmatterLinks";
-import { findNodesByQuery } from "./search";
+import { confirmedEdges } from "../../frontmatterLinks";
+import { SearchController } from "./searchController";
 import { runSynthesis } from "./synthesis";
-import { getVectorStore } from "../../sync/storeFactory";
-import { resolveEmbeddingTarget } from "../../sync/embeddingTarget";
-import { getStoredNodePositions, saveNodePositions } from "../../sync/sqlite/nodePositions";
+import { saveNodePositions } from "../../sync/sqlite/nodePositions";
 import { PositionPersister } from "./positionPersistence";
+import { NodeHydration } from "./nodeHydration";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
-import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { buildScatterNode, cachedFrontmatterType, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { registerScatterVaultWatchers } from "./vaultWatchers";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
-import { isRelationNote } from "../../relationNotes";
 import type { VaultIndexingPipeline } from "../../sync/vaultIndexPipeline";
-
-const SEARCH_PULSE_DURATION_MS = 1800;
 
 export interface VectorScatterHost {
   app: App;
@@ -139,9 +136,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         this.hoveredNode = null;
       }
 
-      this.lastSearchQuery = null;
-      this.lastSearchMatches = [];
-      this.lastSearchIndex = -1;
+      this.search.resetMatches();
 
       if (this.searchHighlight) {
         const match = this.nodes.find((n) => n.id === this.searchHighlight?.nodeId);
@@ -171,11 +166,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   selectedNodeIds = new Set<string>();
   pan = { x: 0, y: 0 };
   zoom = 1;
-  isDraggingPan = false;
-  isDraggingLasso = false;
-  dragStart = { x: 0, y: 0 };
-  lassoPath: { x: number; y: number }[] = [];
-  lassoSelectMode = false;
+  readonly interaction = createInteractionState();
   hoveredNode: ScatterNode | null = null;
   hoveredEdge: RelationEdge | null = null;
   showEdges = true;
@@ -187,7 +178,24 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   cloudSpacing = 800;
   projectionMode: ProjectionMode = "graphvector";
 
-  private positionsHydrated = false;
+  // Accessors, not values: the constructor sets `app` after the field initializers ran
+  private readonly hydration = new NodeHydration({
+    app: () => this.app,
+    settings: () => this.settings,
+    markPositionsPersisted: (positions) => this.positionWriter.markPersisted(positions),
+  });
+  private get positionsHydrated(): boolean {
+    return this.hydration.positionsHydrated;
+  }
+  private set positionsHydrated(value: boolean) {
+    this.hydration.positionsHydrated = value;
+  }
+  private get embeddingHydrationFailed(): boolean {
+    return this.hydration.embeddingHydrationFailed;
+  }
+  private set embeddingHydrationFailed(value: boolean) {
+    this.hydration.embeddingHydrationFailed = value;
+  }
   private readonly layoutEngine = new LayoutEngine();
   /**
    * Writes moved positions in batches. Gated by positionsHydrated so a failed hydration never lets computed positions
@@ -207,17 +215,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private resizeObserver: ResizeObserver | null = null;
   private interactionCleanup: (() => void) | null = null;
   private toolbarHandles: ToolbarHandles | null = null;
-  private searchHighlight: { nodeId: string; startedAt: number } | null = null;
-  /**
-   * Pending search-pulse frame, kept together with the window that issued it. The view can be
-   * dragged into an Obsidian popout, which has its own window object; a bare `window.` prefix
-   * resolves to the window the plugin was loaded in, so the pulse would be scheduled on - and
-   * cancelled against - a window the view no longer lives in.
-   */
-  private searchAnim: { win: Window; handle: number } | null = null;
-  private lastSearchQuery: string | null = null;
-  private lastSearchMatches: ScatterNode[] = [];
-  private lastSearchIndex = -1;
+  private readonly search = new SearchController({
+    visibleNodes: () => this.getVisibleNodes(),
+    viewportSize: () => ({ width: this.canvasWrap.clientWidth, height: this.canvasWrap.clientHeight }),
+    pan: () => this.pan,
+    zoom: () => this.zoom,
+    redraw: () => this.redraw(),
+    win: () => this.containerEl.win,
+    settings: () => this.settings,
+  });
+  private get searchHighlight(): { nodeId: string; startedAt: number } | null {
+    return this.search.highlight;
+  }
+  private set searchHighlight(value: { nodeId: string; startedAt: number } | null) {
+    this.search.highlight = value;
+  }
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -393,10 +405,6 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   private initialScanPending = false;
   /** Vault changes arrived while the view was hidden and are waiting in the queue. */
   private staleWhileHidden = false;
-  /** The last vector read failed: layout and position writes are frozen until a complete read succeeds (#191). */
-  private embeddingHydrationFailed = false;
-  /** Embedding fingerprint the in-memory node vectors were loaded for; null before the first complete read. */
-  private embeddingsFingerprint: string | null = null;
   /** Settings changes that arrived while the view was hidden, merged; null when none are pending. */
   private deferredSettings: OpenViewSettingsChange | null = null;
 
@@ -410,66 +418,17 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * old path of a rename, where no frontmatter is left - by the paths of the loaded relation edges.
    */
   registerVaultWatchers(): void {
-    if (!this.app?.vault?.on) return;
-
-    const isVocabulary = (p?: string) => Boolean(p && p === resolveVocabularyPath(this.settings));
-    const fmType = (file: { path: string }) => (file instanceof TFile ? cachedFrontmatterType(this.app, file) : undefined);
-    // A deleted file has no frontmatter left, so a relation note outside the relations folder is only recognizable
-    // by the paths of the relation edges loaded from it.
-    const linkKeys = () => buildLinkKeys(this.vocabulary.map((t) => t.label));
-    const isRel = (path: string, type?: string) =>
-      isRelationNote(path, type, relationsFolder(this.settings)) || this.relationEdges.some((e) => e.path === path);
-    // A note whose frontmatter carries typed-link keys contributes edges too (#243).
-    const hasLinks = (file: { path: string }) =>
-      file instanceof TFile && hasLinkKeys(this.app.metadataCache.getFileCache(file)?.frontmatter, linkKeys());
-    const isMd = (p?: string) => Boolean(p && p.endsWith(".md"));
-    const isShown = (path: string) => this.nodes.some((n) => n.path === path);
-    const inScope = (path: string, type?: string) => isInScanScope(fileRefFromPath(path), type, this.scanScope());
-
-    const handleFileEvent = (file: { path: string }, kind: "create" | "modify" | "delete") => {
-      if (!file?.path) return;
-      if (isVocabulary(file.path)) {
-        this.triggerRelationsReload();
-        return;
-      }
-      if (!isMd(file.path)) return;
-      const type = kind === "delete" ? undefined : fmType(file);
-      if (isRel(file.path, type) || (kind !== "delete" && hasLinks(file))) this.triggerRelationsReload();
-      if (kind === "delete") {
-        if (isShown(file.path)) this.triggerVaultRescan({ kind: "delete", path: file.path });
-      } else if (isShown(file.path) || inScope(file.path, type)) {
-        this.triggerVaultRescan({ kind: "upsert", path: file.path });
-      }
-    };
-
-    const handleRenameEvent = (file: { path: string }, oldPath: string) => {
-      if (isVocabulary(file?.path) || isVocabulary(oldPath)) {
-        this.triggerRelationsReload();
-        return;
-      }
-      if (!isMd(file?.path) && !isMd(oldPath)) return;
-      const type = fmType(file);
-      if (isRel(file.path, type) || isRel(oldPath) || hasLinks(file)) this.triggerRelationsReload();
-      if (isShown(oldPath) || inScope(file.path, type)) {
-        this.triggerVaultRescan({ kind: "rename", path: file.path, oldPath });
-      }
-    };
-
-    this.registerEvent(this.app.vault.on("create", (file) => handleFileEvent(file, "create")));
-    this.registerEvent(this.app.vault.on("modify", (file) => handleFileEvent(file, "modify")));
-    this.registerEvent(this.app.vault.on("delete", (file) => handleFileEvent(file, "delete")));
-    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => handleRenameEvent(file, oldPath)));
-    // `modify` can arrive before Obsidian re-parses the frontmatter; the parsed cache catches the first typed-link key
-    // added to a note and the last one removed from it (#243).
-    if (this.app.metadataCache?.on) {
-      this.registerEvent(
-        this.app.metadataCache.on("changed", (file, _data, cache) => {
-          if (hasLinkKeys(cache?.frontmatter, linkKeys()) || this.relationEdges.some((e) => e.path === file.path)) {
-            this.triggerRelationsReload();
-          }
-        })
-      );
-    }
+    registerScatterVaultWatchers({
+      app: this.app,
+      settings: () => this.settings,
+      nodes: () => this.nodes,
+      relationEdges: () => this.relationEdges,
+      vocabulary: () => this.vocabulary,
+      scanScope: () => this.scanScope(),
+      triggerRelationsReload: () => this.triggerRelationsReload(),
+      triggerVaultRescan: (change) => this.triggerVaultRescan(change),
+      registerEvent: (ref) => this.registerEvent(ref),
+    });
   }
 
   /**
@@ -731,8 +690,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       selectedNodeIds: this.selectedNodeIds,
       hoveredNode: this.hoveredNode,
       hoveredEdge: this.hoveredEdge,
-      isDraggingLasso: this.isDraggingLasso,
-      lassoPath: this.lassoPath,
+      isDraggingLasso: this.interaction.isDraggingLasso,
+      lassoPath: this.interaction.lassoPath,
       scatterVisualStyle: this.settings.scatterVisualStyle,
       unselectedLabelOpacity: this.settings.unselectedLabelOpacity ?? 0.35,
     });
@@ -852,96 +811,19 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       if (!visible.has(id)) this.selectedNodeIds.delete(id);
     }
     this.hoveredNode = this.hoveredNode ? (visible.get(this.hoveredNode.id) ?? null) : null;
-    this.lastSearchQuery = null;
-    this.lastSearchMatches = [];
-    this.lastSearchIndex = -1;
+    this.search.resetMatches();
   }
 
-  /**
-   * Purpose: Loads each scanned node's embedding from the vector store, so a reopened/rescanned graph uses the existing
-   * semantic index instead of recomputing it through a provider.
-   * Architecture: The store is the source of truth - it holds vectors re-indexed from Settings or another view, and is
-   * scoped to the active embedding model. When it cannot be read, the in-memory vectors of the previous scan
-   * (`fallback`) are only used if they belong to the current embedding fingerprint, and layout and position writes
-   * stay frozen until a complete read (`full`) succeeds again, so fallback data never rearranges or overwrites the
-   * map. Returns false on a failed read.
-   */
-  private async hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>, full = false): Promise<boolean> {
-    const fingerprint = resolveEmbeddingTarget(this.settings).fingerprint;
-    if (nodes.length === 0) {
-      if (full) this.markEmbeddingsHydrated(fingerprint);
-      return true;
-    }
-    let stored: Map<string, number[]>;
-    try {
-      const store = getVectorStore(this.app, this.settings);
-      stored = await store.getVectors([...nodes.map((n) => n.path), ...nodes.map((n) => n.id)]);
-    } catch (err) {
-      this.markEmbeddingHydrationFailed(err);
-      // In-memory vectors only stand in when they belong to the current model; otherwise none are better than foreign ones.
-      if (this.embeddingsFingerprint === fingerprint) {
-        for (const n of nodes) {
-          const v = fallback.get(n.path) ?? fallback.get(n.id);
-          if (v) n.embedding = v;
-        }
-      }
-      return false;
-    }
-    for (const n of nodes) {
-      const v = stored.get(n.path) ?? stored.get(n.id);
-      if (v) n.embedding = v;
-    }
-    if (full) this.markEmbeddingsHydrated(fingerprint);
-    return true;
+
+
+  /** Loads stored vectors into `nodes` (see NodeHydration.embeddings); false on a failed read. */
+  private hydrateStoredEmbeddings(nodes: ScatterNode[], fallback: Map<string, number[]>, full = false): Promise<boolean> {
+    return this.hydration.embeddings(nodes, fallback, full);
   }
 
-  /** Records a failed vector read: the map is frozen and the user is told once per failure period (Issue #191). */
-  private markEmbeddingHydrationFailed(err: unknown): void {
-    console.error("MemVector: Failed to load stored vectors; keeping the 2D map unchanged until they can be read:", err);
-    if (!this.embeddingHydrationFailed) {
-      const t = getTranslation(this.settings.language || "de");
-      new Notice(`[ERROR] ${t.noticeEmbeddingHydrationFailed}`, 8000);
-    }
-    this.embeddingHydrationFailed = true;
-  }
-
-  /** A complete, successful vector read: layout updates resume and the in-memory vectors belong to `fingerprint`. */
-  private markEmbeddingsHydrated(fingerprint: string): void {
-    this.embeddingHydrationFailed = false;
-    this.embeddingsFingerprint = fingerprint;
-  }
-
-  /**
-   * Purpose: Loads the persisted 2D coordinates of unplaced nodes from SQLite.
-   * Architecture: Preserves the user's mental map across restarts (ADR-0006). Fails safe by gating position
-   * persistence so transient read errors never overwrite stored coordinates (Issue #184). A full scan (`full`)
-   * re-opens the gate on success; an incremental update for a few new notes can only close it.
-   */
-  private async hydrateStoredPositions(nodes: ScatterNode[], full = false): Promise<void> {
-    if (nodes.length === 0) {
-      if (full) this.positionsHydrated = true;
-      return;
-    }
-    try {
-      const queryKeys = [...nodes.map((n) => n.path), ...nodes.map((n) => n.id)];
-      const stored = await getStoredNodePositions(this.app, queryKeys);
-      const inStorage: { id: string; x: number; y: number }[] = [];
-      nodes.forEach((n) => {
-        const pos = stored.get(n.id) ?? stored.get(n.path);
-        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) inStorage.push({ id: n.id, x: pos.x, y: pos.y });
-      });
-      this.positionWriter.markPersisted(inStorage);
-      nodes.forEach((n) => {
-        if (!isPlaced(n)) {
-          const pos = stored.get(n.id) ?? stored.get(n.path);
-          if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) placeNode(n, pos.x, pos.y);
-        }
-      });
-      if (full) this.positionsHydrated = true;
-    } catch (err) {
-      this.positionsHydrated = false;
-      console.warn("MemVector: Failed to hydrate stored node positions, aborting position persistence to protect mental map:", err);
-    }
+  /** Loads stored positions of unplaced nodes (see NodeHydration.positions). */
+  private hydrateStoredPositions(nodes: ScatterNode[], full = false): Promise<void> {
+    return this.hydration.positions(nodes, full);
   }
 
   /**
@@ -1085,57 +967,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     ).open();
   }
 
-  /** Repeated Enter on the same query cycles through every match (looping back to the first) instead of jumping to the best match each time. */
+  /** Repeated Enter on the same query cycles through every match (see SearchController.search). */
   searchNote(query: string): void {
-    const normalized = query.trim().toLowerCase();
-    const isSameQuery = normalized === this.lastSearchQuery && this.lastSearchMatches.length > 0;
-
-    if (isSameQuery) {
-      this.lastSearchIndex = (this.lastSearchIndex + 1) % this.lastSearchMatches.length;
-    } else {
-      this.lastSearchQuery = normalized;
-      this.lastSearchMatches = findNodesByQuery(this.getVisibleNodes(), query);
-      this.lastSearchIndex = 0;
-    }
-
-    const match = this.lastSearchMatches[this.lastSearchIndex];
-    if (!match) {
-      const t = getTranslation(this.settings.language || "de");
-      new Notice(`${t.searchNotFound} "${query}"`);
-      return;
-    }
-
-    this.pan.x = this.canvasWrap.clientWidth / 2 - match.x * this.zoom;
-    this.pan.y = this.canvasWrap.clientHeight / 2 - match.y * this.zoom;
-
-    this.cancelSearchAnim();
-    const startedAt = performance.now();
-    this.searchHighlight = { nodeId: match.id, startedAt };
-
-    const tick = (): void => {
-      this.redraw();
-      if (performance.now() - startedAt < SEARCH_PULSE_DURATION_MS) {
-        this.scheduleSearchAnim(tick);
-      } else {
-        this.searchHighlight = null;
-        this.searchAnim = null;
-        this.redraw();
-      }
-    };
-    this.scheduleSearchAnim(tick);
-  }
-
-  /** Schedules the next pulse frame on the window the view currently lives in. */
-  private scheduleSearchAnim(tick: () => void): void {
-    const win = this.containerEl.win;
-    this.searchAnim = { win, handle: win.requestAnimationFrame(tick) };
+    this.search.search(query);
   }
 
   /** Cancels a pending pulse frame against the window that issued it. */
   private cancelSearchAnim(): void {
-    if (this.searchAnim === null) return;
-    this.searchAnim.win.cancelAnimationFrame(this.searchAnim.handle);
-    this.searchAnim = null;
+    this.search.cancelPulse();
   }
 
   async runSynthesis(setHoverText: (text: string) => void, customQuestion?: string, excludedContextIds?: ReadonlySet<string>): Promise<void> {

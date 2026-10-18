@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScatterNode } from "../types";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
 import { LayoutEngine, type LayoutRunInput } from "./layoutEngine";
+import { applyVectorLayout, copyNodesInPathOrder } from "./applyVectorLayout";
 
 vi.mock("./projections", async (importOriginal) => {
   const mod = await importOriginal<typeof import("./projections")>();
@@ -69,8 +70,9 @@ describe("LayoutEngine (#209)", () => {
 
   it("simulates on the first request when nodes are unplaced", () => {
     const engine = new LayoutEngine();
-    expect(engine.run(input(makeNodes(false))).simulated).toBe(true);
-    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    const result = engine.run(input(makeNodes(false)));
+    expect(result.simulated).toBe(true);
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1 + result.settle!.passes);
   });
 
   it("re-applies clusters to fresh node objects without simulating when nothing changed", () => {
@@ -134,5 +136,96 @@ describe("LayoutEngine (#209)", () => {
     fresh[0].content = "modified content to trigger bounded";
     const result = engine.run(input(fresh));
     expect(result.kind).toBe("bounded");
+  });
+});
+
+/** Two topic groups plus relation edges between notes the initial spread puts far apart (#282 review). */
+function relatedNodes(count: number): { nodes: ScatterNode[]; edges: LayoutRunInput["relationEdges"] } {
+  const nodes = Array.from({ length: count }, (_, i) => ({
+    id: `r${i}`,
+    basenameKey: `r${i}`,
+    title: `R ${i}`,
+    type: "concept" as const,
+    path: `r/${String(i).padStart(4, "0")}.md`,
+    x: 0,
+    y: 0,
+    latexFormulas: [],
+    links: [],
+    content: `text ${i}`,
+    embedding: Array.from({ length: 8 }, (_, d) => Math.sin((i + 1) * (d + 1) * 1.7) + (i % 2 ? 0.8 : -0.8)),
+  }));
+  const edges = Array.from({ length: Math.min(10, count >> 1) }, (_, k) => ({
+    srcId: `r${k}`,
+    tgtId: `r${count - 1 - k}`,
+    relType: "IMPLIES",
+    desc: "",
+    title: "",
+    path: `rel${k}.md`,
+    bidirectional: false,
+  }));
+  return { nodes, edges };
+}
+
+const edgeLengths = (nodes: ScatterNode[], edges: LayoutRunInput["relationEdges"]) => {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  return edges.map((e) => Math.hypot(byId.get(e.srcId)!.x - byId.get(e.tgtId)!.x, byId.get(e.srcId)!.y - byId.get(e.tgtId)!.y));
+};
+
+describe("LayoutEngine settles a layout built from scratch (#282 review)", () => {
+  it("rearranging runs extra passes until nodes stop moving and pulls related notes closer than one pass", () => {
+    const { nodes, edges } = relatedNodes(30);
+    const single = clone(nodes);
+    const engine = new LayoutEngine();
+    const result = engine.run(input(nodes, { relationEdges: edges, nodeSpacing: 120, cloudSpacing: 750 }), "rearrange");
+    expect(result.settle!.passes).toBeGreaterThan(0);
+
+    // Reference: exactly one projection from scratch, as before this change
+    applyVectorLayout(copyNodesInPathOrder(single), { ...DEFAULT_SETTINGS }, 120, 750, edges, []);
+    const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+    expect(sum(edgeLengths(nodes, edges))).toBeLessThan(sum(edgeLengths(single, edges)));
+
+    if (result.settle!.converged) {
+      const before = nodes.map((n) => [n.x, n.y]);
+      engine.run(input(nodes, { relationEdges: edges, nodeSpacing: 120, cloudSpacing: 750 }), "global");
+      const moved = Math.max(...nodes.map((n, i) => Math.hypot(n.x - before[i][0], n.y - before[i][1])));
+      expect(moved).toBeLessThan(120 * 0.05 * 20);
+    }
+  });
+
+  it("stops at the pass cap when spacing keeps nodes moving, and is deterministic", () => {
+    const a = relatedNodes(34);
+    const b = relatedNodes(34);
+    const ra = new LayoutEngine().run(input(a.nodes, { relationEdges: a.edges, nodeSpacing: 120, cloudSpacing: 3000 }), "rearrange");
+    new LayoutEngine().run(input([...b.nodes].reverse(), { relationEdges: b.edges, nodeSpacing: 120, cloudSpacing: 3000 }), "rearrange");
+    expect(ra.settle!.passes).toBeLessThanOrEqual(6);
+    if (!ra.settle!.converged) expect(ra.settle!.passes).toBe(6);
+    expect(b.nodes.map((n) => [n.x, n.y])).toEqual(a.nodes.map((n) => [n.x, n.y]));
+  });
+
+  it("large vaults get no extra passes (work budget)", () => {
+    const { nodes } = relatedNodes(501);
+    const result = new LayoutEngine().run(input(nodes), "rearrange");
+    expect(result.settle).toEqual({ passes: 0, converged: false });
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+  });
+
+  it("after a rearrange an unchanged auto request does not move anything; warm free and bounded passes stay single", () => {
+    const { nodes, edges } = relatedNodes(12);
+    const engine = new LayoutEngine();
+    engine.run(input(nodes, { relationEdges: edges }), "rearrange");
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    expect(engine.run(input(nodes, { relationEdges: edges })).simulated).toBe(false);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+
+    const global = engine.run(input(nodes, { relationEdges: edges, nodeSpacing: 400 }), "global");
+    expect(global.settle).toBeUndefined();
+    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    nodes[3].content = "changed";
+    nodes[3].embedding = nodes[3].embedding!.map((v) => -v);
+    const bounded = engine.run(input(nodes, { relationEdges: edges, nodeSpacing: 400 }));
+    if (bounded.kind === "bounded") expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
+    expect(bounded.settle).toBeUndefined();
   });
 });

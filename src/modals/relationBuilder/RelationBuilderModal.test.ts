@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TFile, type App } from "obsidian";
 import { RelationBuilderModal, type InitialRelationEdge } from "./RelationBuilderModal";
 import { buildRelationFileContent } from "./relationFileTemplate";
-import { loadRelationEdges, loadRelationFiles } from "../../views/vectorScatter/relationEdges";
+import { loadRelationEdges, loadRelationEdgeRecords } from "../../views/vectorScatter/relationEdges";
 import { loadRelationVocabulary } from "../../relationVocabulary/loadRelationVocabulary";
 import { getGraphStore } from "../../sync/storeFactory";
 import { DEFAULT_SETTINGS } from "../../settings/defaults";
@@ -126,7 +126,7 @@ describe("Relation Builder save integration", () => {
       select.onchange!();
     }
     await ui.save();
-    const [saved] = await loadRelationFiles(f.app);
+    const [saved] = await loadRelationEdgeRecords(f.app);
     expect([saved.srcId, saved.tgtId, saved.relType]).toEqual(["b", "a", reversed.label]);
     expect(f.store.upsertTypedEdges).toHaveBeenCalledWith([expect.objectContaining({ src: b, tgt: a })]);
   });
@@ -143,14 +143,14 @@ describe("Relation Builder save integration", () => {
     const path = "wiki/relations/existing.md";
     f.contents.set(path, buildRelationFileContent({ src: b, tgt: a, label: reversed.label, bidirectional: false, originalTerm: reversed.label }, "Original", getTranslation("en")));
     for (let attempt = 0; attempt < 2; attempt++) {
-      const [stored] = await loadRelationFiles(f.app);
+      const [stored] = await loadRelationEdgeRecords(f.app);
       const nodes = stored.srcId === "b" ? [b, a] : [a, b];
       const ui = await f.open(nodes, { ...stored, description: stored.desc });
       if (swap && attempt === 0) await ui.root.find((el) => el.cls === "memvector-flow-swap-btn")!.onclick!();
       const preview = ui.root.find((el) => el.cls === "memvector-cypher-box")!.text;
       expect(preview).toContain(`source_path: "${swap ? a.path : b.path}", target_path: "${swap ? b.path : a.path}"`);
       await ui.save();
-      const [saved] = await loadRelationFiles(f.app);
+      const [saved] = await loadRelationEdgeRecords(f.app);
       expect([saved.srcId, saved.tgtId]).toEqual(swap ? ["a", "b"] : ["b", "a"]);
       expect(f.store.upsertTypedEdges).toHaveBeenLastCalledWith([expect.objectContaining({ src: swap ? a : b, tgt: swap ? b : a })]);
     }
@@ -166,14 +166,14 @@ describe("Relation Builder save integration", () => {
     const path = "wiki/relations/legacy-edge.md";
     // File was saved with legacy key "relDerivedFrom"
     f.contents.set(path, buildRelationFileContent({ src: b, tgt: a, label: reversed.key, bidirectional: false, originalTerm: reversed.key }, "Original", getTranslation("en")));
-    const [stored] = await loadRelationFiles(f.app);
+    const [stored] = await loadRelationEdgeRecords(f.app);
     expect(stored.relType).toBe("RELDERIVEDFROM");
 
     // Open modal to edit without modifying direction
     const ui = await f.open([b, a], { ...stored, description: stored.desc });
     await ui.save();
 
-    const [saved] = await loadRelationFiles(f.app);
+    const [saved] = await loadRelationEdgeRecords(f.app);
     // Endpoints must not flip
     expect([saved.srcId, saved.tgtId]).toEqual(["b", "a"]);
     // Must be migrated to canonical label
@@ -186,7 +186,7 @@ describe("Relation Builder save integration", () => {
     const content = buildRelationFileContent({ src: a, tgt: b, label: reversed.label, bidirectional: false, originalTerm: reversed.label }, "Original", getTranslation("en"));
     for (const name of ["first", "second"]) f.contents.set(`wiki/relations/${name}.md`, content);
     expect(await loadRelationEdges(f.app)).toHaveLength(1);
-    expect(await loadRelationFiles(f.app)).toHaveLength(2);
+    expect(await loadRelationEdgeRecords(f.app)).toHaveLength(2);
     const before = [...f.contents];
     const ui = await f.open([a, b], { path: `wiki/relations/${edited}.md`, relType: reversed.label, srcId: "a", tgtId: "b", description: "Edited" });
     await ui.save();

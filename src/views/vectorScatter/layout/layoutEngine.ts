@@ -3,7 +3,7 @@ import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
 import { applyVectorLayout, copyNodesInPathOrder, prepareLayoutModel, type LayoutModel } from "./applyVectorLayout";
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutDiff, type LayoutSnapshot } from "./layoutInputs";
-import { LARGE_CHANGE_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
+import { LARGE_CHANGE_RATIO, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
 import { applyGraphVectorProjection } from "./projections";
 
 /**
@@ -28,6 +28,8 @@ export interface LayoutRunResult {
   /** True when the force simulation ran and positions may have changed. */
   simulated: boolean;
   kind: LayoutRunKind;
+  /** Extra passes of a layout built from scratch and whether they stopped below the movement threshold. */
+  settle?: { passes: number; converged: boolean };
 }
 
 /**
@@ -90,6 +92,7 @@ export class LayoutEngine {
       }
     }
 
+    const fromScratch = mode === "rearrange" || nodes.every((n) => !isPlaced(n));
     if (mode === "rearrange") {
       for (const n of nodes) {
         n.x = 0;
@@ -98,8 +101,38 @@ export class LayoutEngine {
       }
     }
     const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input.relationEdges, input.vocabulary);
+    const settle = fromScratch && nodes.length > 0 && model.matrix.length === nodes.length ? this.settle(nodes, model.matrix, input) : undefined;
     this.remember(nodes, model, next);
-    return { simulated: nodes.length > 0, kind: "free" };
+    return { simulated: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
+  }
+
+  /**
+   * Purpose: Lets a layout built from scratch settle with further free passes on the same matrix and node order.
+   * Architecture: Bounded best effort: at most SETTLE_MAX_PASSES and SETTLE_PAIR_BUDGET / n^2 passes, stopping once the
+   * largest move of a pass is below SETTLE_STOP_RATIO of node spacing. Deterministic; no wall clock.
+   */
+  private settle(nodes: ScatterNode[], matrix: number[][], input: LayoutRunInput): { passes: number; converged: boolean } {
+    const maxPasses = Math.min(SETTLE_MAX_PASSES, Math.floor(SETTLE_PAIR_BUDGET / (nodes.length * nodes.length)));
+    const nodeSpacing = input.nodeSpacing || input.settings.scatterNodeSpacing || 350;
+    const stopAt = SETTLE_STOP_RATIO * nodeSpacing;
+    for (let passes = 1; passes <= maxPasses; passes++) {
+      const before = nodes.map((n) => ({ x: n.x, y: n.y }));
+      applyGraphVectorProjection({
+        nodes,
+        matrix,
+        nodeSpacing,
+        cloudSpacing: input.cloudSpacing || input.settings.scatterCloudSpacing || 800,
+        relationEdges: input.relationEdges,
+        includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
+        vocabulary: input.vocabulary,
+      });
+      let largest = 0;
+      nodes.forEach((n, i) => {
+        largest = Math.max(largest, Math.hypot(n.x - before[i].x, n.y - before[i].y));
+      });
+      if (largest < stopAt) return { passes, converged: true };
+    }
+    return { passes: maxPasses, converged: false };
   }
 
   /**

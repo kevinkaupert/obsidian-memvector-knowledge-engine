@@ -42,7 +42,7 @@ function render(
   tallies: Map<string, RelationTally> = new Map()
 ) {
   const ctx = fakeCtx();
-  drawNodes(ctx, nodes, selected, hovered, 1, pan, "#fff", "#999", "#0af", "monochrome", tallies, 0.35, createLabelPlacer());
+  drawNodes(ctx, { nodes, selectedNodeIds: selected, hoveredNode: hovered, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: tallies, unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
   return ctx.drawnLabels.map((l) => l.text);
 }
 
@@ -116,22 +116,22 @@ describe("drawNodes label decluttering (PR #130)", () => {
 
   it("hides all labels below the zoom threshold unless a node is focused", () => {
     const ctx = fakeCtx();
-    drawNodes(ctx, [node("alpha", 0, 0)], new Set(), null, 0.1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+    drawNodes(ctx, { nodes: [node("alpha", 0, 0)], selectedNodeIds: new Set(), hoveredNode: null, zoom: 0.1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
     expect(ctx.drawnLabels).toEqual([]);
 
     const focusedCtx = fakeCtx();
-    drawNodes(focusedCtx, [node("alpha", 0, 0)], new Set(["alpha"]), null, 0.1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+    drawNodes(focusedCtx, { nodes: [node("alpha", 0, 0)], selectedNodeIds: new Set(["alpha"]), hoveredNode: null, zoom: 0.1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
     expect(focusedCtx.drawnLabels.map((l) => l.text)).toEqual(["alpha"]);
   });
 
   it("truncates a long title only for unfocused nodes at low zoom", () => {
     const long = node("a-really-long-note-title-here", 0, 0);
     const ctx = fakeCtx();
-    drawNodes(ctx, [long], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+    drawNodes(ctx, { nodes: [long], selectedNodeIds: new Set(), hoveredNode: null, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
     expect(ctx.drawnLabels[0].text).toBe("a-really-long-note-t…");
 
     const selectedCtx = fakeCtx();
-    drawNodes(selectedCtx, [long], new Set([long.id]), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+    drawNodes(selectedCtx, { nodes: [long], selectedNodeIds: new Set([long.id]), hoveredNode: null, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
     expect(selectedCtx.drawnLabels[0].text).toBe("a-really-long-note-title-here");
   });
 
@@ -141,7 +141,7 @@ describe("drawNodes label decluttering (PR #130)", () => {
     const target = node("alpha", 0, 0);
     // Reserve the exact area the label would occupy (y = 13 for zoom 1, fontH 10).
     placer.tryPlace({ x1: -100, x2: 100, y1: 10, y2: 30 }, true);
-    drawNodes(ctx, [target], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, placer);
+    drawNodes(ctx, { nodes: [target], selectedNodeIds: new Set(), hoveredNode: null, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: placer });
     expect(ctx.drawnLabels).toEqual([]);
   });
 
@@ -152,7 +152,7 @@ describe("drawNodes label decluttering (PR #130)", () => {
       const outside = node("outside", 2000, 2000);
       const vp = { minX: 0, maxX: 500, minY: 0, maxY: 500 };
 
-      drawNodes(ctx, [inside, outside], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer(), vp);
+      drawNodes(ctx, { nodes: [inside, outside], selectedNodeIds: new Set(), hoveredNode: null, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer(), viewport: vp });
 
       expect(ctx.drawnLabels.map((l) => l.text)).toEqual(["inside"]);
     });
@@ -162,7 +162,7 @@ describe("drawNodes label decluttering (PR #130)", () => {
       const a = node("a", 100, 100);
       const b = node("b", 2000, 2000);
 
-      drawNodes(ctx, [a, b], new Set(), null, 1, pan, "#fff", "#999", "#0af", "monochrome", new Map(), 0.35, createLabelPlacer());
+      drawNodes(ctx, { nodes: [a, b], selectedNodeIds: new Set(), hoveredNode: null, zoom: 1, pan, themeTextNormal: "#fff", themeTextMuted: "#999", themeAccent: "#0af", style: "monochrome", relationTallies: new Map(), unselectedLabelOpacity: 0.35, labels: createLabelPlacer() });
 
       expect(ctx.drawnLabels.map((l) => l.text).sort()).toEqual(["a", "b"]);
     });

@@ -14,7 +14,7 @@ import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
 import { chooseNoteWriter } from "../../noteWriter/noteWriter";
 import { deleteEdgeUnlessAsserted, loadAssertedEdgeKeys } from "../../sync/assertedEdges";
-import { loadRelationFiles } from "../../views/vectorScatter/relationEdges";
+import { loadRelationEdgeRecords } from "../../views/vectorScatter/relationEdges";
 
 export interface InitialRelationEdge {
   relType: string;
@@ -130,7 +130,7 @@ export class RelationBuilderModal extends Modal {
     const generate = (): RelationEdgeDraft[] => generateEdges(this.selectedNodes, this.topology, this.focalIndex);
 
     const updateCypherPreview = () => {
-      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType);
+      const resolved = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType, this.initialEdge ? 0 : undefined);
       cypherBox.setText(buildRelationCypherPreview(resolved, this.relDesc));
     };
 
@@ -306,13 +306,13 @@ export class RelationBuilderModal extends Modal {
       saveBtn.disabled = true;
       saveBtn.setText(t.relSaving);
 
-      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType);
+      const resolvedEdges = resolveEdgesForSave(defs, generate(), this.edgeRelTypes, this.relType, this.initialEdge?.relType, this.initialEdge ? 0 : undefined);
 
       let paths: string[];
       try {
         // Include excluded relation files too: they still own their paths and identities.
         const folder = relationsFolder(this.host.settings);
-        paths = await relationFilePaths(resolvedEdges, await loadRelationFiles(this.app, "", folder), this.initialEdge?.path, folder);
+        paths = await relationFilePaths(resolvedEdges, await loadRelationEdgeRecords(this.app, "", folder), this.initialEdge?.path, folder);
       } catch (err) {
         console.error(t.relSaveError, err);
         new Notice(t.relSaveError, 8000);
@@ -333,6 +333,10 @@ export class RelationBuilderModal extends Modal {
 
       const store = getGraphStore(this.app, this.host.settings);
       const writer = await chooseNoteWriter(this.app, this.host.settings);
+      // Saved edge by edge, not as one transaction (#129): a failed graph write removes its own relation file again,
+      // and the others stay valid. Not covered: a revert that fails itself (logged, the file stays), and a failing
+      // cleanup of the previous edge or file after the new one was written (that entry is reported as failed although
+      // its new file exists). The notice below names every entry that failed.
       for (let idx = 0; idx < resolvedEdges.length; idx++) {
         const e = resolvedEdges[idx];
         const previous = this.initialEdge && idx === 0 ? {
@@ -348,7 +352,6 @@ export class RelationBuilderModal extends Modal {
           }, previous, (ignoredPaths) => this.loadAssertedEdges(ignoredPaths), writer);
           createdCount++;
         } catch (err) {
-          // saveRelation undoes its own partial write, so a failed entry leaves nothing behind and the others stay valid.
           failedPaths.push(paths[idx]);
           console.error(`${t.relSaveError} ${paths[idx]}:`, err);
         }
