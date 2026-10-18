@@ -1,7 +1,7 @@
 import type { App } from "obsidian";
-import { getLocalDb, persistLocalDb } from "./sqliteDb";
+import { getLocalDb, persistLocalDb, storedKeyAt } from "./sqliteDb";
 import { listIndexableFiles } from "../../vaultFilter";
-import { pathToId } from "../../noteSlug";
+import { noteKeys, noteKey } from "../../noteKey";
 
 export interface StoredNodePosition {
   id: string;
@@ -108,7 +108,8 @@ export async function reconcileNodePositions(
  * its old coordinates.
  */
 export async function reconcileNodePositionsWithVault(app: App, exclusions: string): Promise<{ removed: number }> {
-  return reconcileNodePositions(app, listIndexableFiles(app, exclusions).map((f) => pathToId(f.path)));
+  const keys = noteKeys(app);
+  return reconcileNodePositions(app, listIndexableFiles(app, exclusions).map((f) => keys.keyOf(f.path)));
 }
 
 /**
@@ -116,8 +117,8 @@ export async function reconcileNodePositionsWithVault(app: App, exclusions: stri
  */
 export async function moveNodePosition(app: App, oldPath: string, newPath: string): Promise<boolean> {
   const db = await getLocalDb(app);
-  const oldId = pathToId(oldPath);
-  const newId = pathToId(newPath);
+  const oldId = storedKeyAt(db, "node_positions", oldPath);
+  const newId = noteKey(app, newPath);
   const check = db.exec("SELECT id FROM node_positions WHERE id = ? OR path = ?", [oldId, oldPath]);
   if (check.length === 0 || check[0].values.length === 0) return false;
 
@@ -138,7 +139,7 @@ export async function moveNodePosition(app: App, oldPath: string, newPath: strin
  */
 export async function deleteNodePosition(app: App, pathOrId: string): Promise<boolean> {
   const db = await getLocalDb(app);
-  const id = pathToId(pathOrId);
+  const id = storedKeyAt(db, "node_positions", pathOrId);
   db.run("DELETE FROM node_positions WHERE id = ? OR path = ?", [id, pathOrId]);
   const modified = db.getRowsModified() > 0;
   if (modified) {

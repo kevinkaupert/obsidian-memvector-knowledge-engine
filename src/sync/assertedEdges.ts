@@ -1,6 +1,6 @@
 import type { App } from "obsidian";
 import { buildLinkKeys, confirmedEdges, loadFrontmatterLinkEdges } from "../frontmatterLinks";
-import { pathToId } from "../noteSlug";
+import { noteKey } from "../noteKey";
 import { readRelationLabels } from "../relationVocabulary/presets";
 import type { MemVectorSettings } from "../settings/types";
 import { relationsFolder } from "../vaultLayout";
@@ -34,7 +34,7 @@ export async function loadAssertedEdgeKeys(
     app,
     buildLinkKeys(await readRelationLabels(app, settings)),
     (linkText, sourcePath) => resolveLinkTextToId(app, linkText, sourcePath, exclusions),
-    pathToId,
+    (path) => noteKey(app, path),
     exclusions,
     folder
   );

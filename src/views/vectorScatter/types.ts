@@ -10,7 +10,7 @@ export type ScatterNoteType =
   | "source";
 
 export interface ScatterNode {
-  /** Canonical, path-based, collision-free storage/retrieval identity - see noteSlug.ts::pathToId. Never write this as literal WikiLink text. */
+  /** Storage/retrieval key of the note - see noteKey.ts (frontmatter ULID, else noteSlug.ts::pathToId). Never write this as literal WikiLink text. */
   id: string;
   /** Lowercased file basename, for matching against raw WikiLink target text extracted from note bodies (`links` below) - WikiLinks target basenames, not the canonical `id`. */
   basenameKey: string;

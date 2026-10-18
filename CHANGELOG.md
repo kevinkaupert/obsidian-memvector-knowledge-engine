@@ -8,6 +8,18 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-18
+
+### Changed
+- **Stable Note Identity** (#271, ADR-0007): A note with a valid ULID `id` in its frontmatter is now stored under that
+  id instead of a key derived from its path. Renaming or moving such a note keeps its vector, 2D position and graph
+  edges, also when it happened while Obsidian or MemVector was not running, on another device, or outside Obsidian:
+  the next full re-index finds the note by its id and moves the rows without re-embedding. When a note gains or loses
+  an `id`, its rows move to the new key the same way. Notes without `id` keep exactly their previous keys, so
+  upgrading changes nothing for them. If two notes share an id, the one whose path sorts first keeps it and a warning
+  is logged. MemVector does not add or change `id` in your notes. Going back to an older version re-embeds notes with
+  an `id` once; no vault file is affected.
+
 ## [0.3.1] - 2026-10-18
 
 ### Added

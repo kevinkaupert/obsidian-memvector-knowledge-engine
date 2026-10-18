@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import initSqlJs, { type Database } from "sql.js";
 import { getEmbeddedWasmBinary } from "./embeddedWasm";
+import { pathToId } from "../../noteSlug";
 const DB_FILENAME = "memvector-local.sqlite";
 const WASM_FILENAME = "sql-wasm.wasm";
 
@@ -179,4 +180,10 @@ export async function closeLocalDb(): Promise<void> {
       console.warn("MemVector: Error closing SQLite database:", err);
     }
   }
+}
+
+/** The key a table stores the note at `path` under: the row's own id when one exists, else the path key. */
+export function storedKeyAt(db: Database, table: "notes" | "vectors" | "node_positions", path: string): string {
+  const result = db.exec(`SELECT id FROM ${table} WHERE path = ? LIMIT 1`, [path]);
+  return result.length > 0 && result[0].values.length > 0 ? String(result[0].values[0][0]) : pathToId(path);
 }
