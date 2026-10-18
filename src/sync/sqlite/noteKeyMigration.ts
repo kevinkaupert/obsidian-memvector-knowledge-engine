@@ -120,5 +120,5 @@ export async function migrateVaultNoteKeys(app: App, exclusions: string, files?:
   const keys = noteKeys(app);
   // A note the metadata cache has not parsed yet (startup) would look id-less; its rows stay where they are.
   const notes = (files ?? listIndexableFiles(app, exclusions)).filter((f) => keys.isKnown(f.path));
-  return migrateNoteKeys(app, notes.map((f) => ({ path: f.path, key: keys.keyOf(f.path), title: f.basename })), keys.carriesId);
+  return migrateNoteKeys(app, notes.map((f) => ({ path: f.path, key: keys.keyOf(f.path), title: f.basename })), (path, key) => keys.carriesId(path, key));
 }
