@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BASELINE_WEIGHT, computeGraphTopologyWeights } from "./graphTopologyWeights";
+import { relationSignal } from "./signals";
 import type { RelationEdge, ScatterNode } from "../types";
 
 function node(id: string, links: string[] = []): ScatterNode {
@@ -10,102 +10,54 @@ function edge(srcId: string, tgtId: string, relType: string): RelationEdge {
   return { srcId, tgtId, relType, desc: "", title: "", path: "", bidirectional: false };
 }
 
-describe("computeGraphTopologyWeights", () => {
-  it("weights a direct typed relation higher than a plain WikiLink", () => {
-    // chain: a -[REQUIRES]-> b -(wikilink)- c
-    const nodes = [node("a"), node("b", ["c"]), node("c")];
-    const edges = [edge("a", "b", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges, true);
-    expect(conn[0][1]).toBe(1.0);
-    expect(conn[1][2]).toBe(0.7);
-  });
+describe("relationSignal (Plan 0005: typed relations only, no WikiLinks, no hops)", () => {
+
 
   it("pulls EQUIVALENT_TO and ANALOGOUS_TO closer than a default relation", () => {
     const nodes = [node("a"), node("b"), node("c")];
     const edges = [edge("a", "b", "EQUIVALENT_TO")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
-    expect(conn[0][1]).toBeGreaterThan(1.0);
+    const { weight } = relationSignal(nodes, edges);
+    expect(weight[0][1]).toBeGreaterThan(1.0);
   });
 
-  it("gives a decayed but real attraction to a note two hops away instead of the baseline", () => {
-    const nodes = [node("a"), node("b"), node("c")];
-    const edges = [edge("a", "b", "REQUIRES"), edge("b", "c", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
-    expect(conn[0][2]).toBeGreaterThan(BASELINE_WEIGHT);
-    expect(conn[0][2]).toBeLessThan(conn[0][1]);
-  });
 
-  it("keeps multi-hop decay strictly below the spring attraction threshold (0.15) to prevent cluster collapse", () => {
-    const nodes = [node("a"), node("b"), node("c"), node("d")];
-    const edges = [edge("a", "b", "REQUIRES"), edge("b", "c", "REQUIRES"), edge("c", "d", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
-    // 2-hop (a to c)
-    expect(conn[0][2]).toBeLessThan(0.15);
-    // 3-hop (a to d)
-    expect(conn[0][3]).toBeLessThan(0.15);
-  });
 
-  it("falls back to the baseline weight beyond the hop cap or when unreachable", () => {
-    const nodes = [node("a"), node("b"), node("far")];
-    const edges = [edge("a", "b", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
-    expect(conn[0][2]).toBe(BASELINE_WEIGHT);
-  });
+
+
+
 
   it("marks a direct CONFLICTS_WITH edge for repulsion instead of attraction", () => {
     const nodes = [node("a"), node("b")];
     const edges = [edge("a", "b", "CONFLICTS_WITH")];
-    const { conn, repel } = computeGraphTopologyWeights(nodes, edges);
+    const { weight, repel } = relationSignal(nodes, edges);
     expect(repel.has("0-1")).toBe(true);
-    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+    expect(weight[0][1]).toBe(0);
   });
 
-  it("uses the stronger of a WikiLink and a typed relation when both exist between the same pair", () => {
-    const nodes = [node("a", ["b"]), node("b")];
-    const edges = [edge("a", "b", "EQUIVALENT_TO")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges, true);
-    expect(conn[0][1]).toBeCloseTo(1.3);
-  });
+
 
   it("matches relation edges case-insensitively when node IDs or paths have capital letters", () => {
     const nodes = [node("Math/LinearAlgebra.md"), node("Math/VectorSpaces.md")];
     const edges = [edge("Math/LinearAlgebra.md", "Math/VectorSpaces.md", "REQUIRES")];
-    const { conn } = computeGraphTopologyWeights(nodes, edges);
-    expect(conn[0][1]).toBe(1.0);
+    const { weight } = relationSignal(nodes, edges);
+    expect(weight[0][1]).toBe(1.0);
   });
 
-  it("treats INDEPENDENT_OF as baseline neutral weight instead of strong attraction (#68)", () => {
+  it("treats INDEPENDENT_OF as a near-neutral weight instead of strong attraction (#68)", () => {
     const nodes = [node("a"), node("b")];
     const edges = [edge("a", "b", "INDEPENDENT_OF")];
-    const { conn, repel } = computeGraphTopologyWeights(nodes, edges);
-    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+    const { weight, repel } = relationSignal(nodes, edges);
+    expect(weight[0][1]).toBe(0.05); // bundled near-neutral weight, below the 0.15 attraction threshold
     expect(repel.has("0-1")).toBe(false);
   });
 
-  it("omits WikiLink attraction by default (Issue #100)", () => {
-    const nodes = [node("a", ["b"]), node("b")];
-    const { conn } = computeGraphTopologyWeights(nodes, []);
-    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
-  });
 
-  it("omits WikiLink attraction when the toggle is explicitly off (Issue #100)", () => {
-    const nodes = [node("a", ["b"]), node("b")];
-    const { conn } = computeGraphTopologyWeights(nodes, [], false);
-    expect(conn[0][1]).toBe(BASELINE_WEIGHT);
-  });
 
-  it("applies WikiLink attraction when the toggle is on (Issue #100)", () => {
-    const nodes = [node("a", ["b"]), node("b")];
-    const { conn } = computeGraphTopologyWeights(nodes, [], true);
-    expect(conn[0][1]).toBe(0.7);
-  });
 
-  it("keeps typed relation weights independent of the WikiLink toggle (Issue #100)", () => {
-    const nodes = [node("a", ["b"]), node("b")];
-    const edges = [edge("a", "b", "REQUIRES")];
-    expect(computeGraphTopologyWeights(nodes, edges, false).conn[0][1]).toBe(1.0);
-    expect(computeGraphTopologyWeights(nodes, edges, true).conn[0][1]).toBe(1.0);
-  });
+
+
+
+
 
   describe("vocabulary-driven weights (Issue #119, ADR-0002)", () => {
     const vocab = [
@@ -122,40 +74,40 @@ describe("computeGraphTopologyWeights", () => {
         edge("a", "c", "MY_NEUTRAL"),
         edge("a", "d", "MY_PLAIN"),
       ];
-      const { conn } = computeGraphTopologyWeights(nodes, edges, false, vocab);
-      expect(conn[0][1]).toBe(2.5);
-      expect(conn[0][2]).toBe(0.05);
-      expect(conn[0][3]).toBe(1.0);
+      const { weight } = relationSignal(nodes, edges, vocab);
+      expect(weight[0][1]).toBe(2.5);
+      expect(weight[0][2]).toBe(0.05);
+      expect(weight[0][3]).toBe(1.0);
     });
 
     it("marks repels: true labels for repulsion and does not attract", () => {
       const nodes = [node("a"), node("b")];
       const edges = [edge("a", "b", "MY_REPEL")];
-      const { conn, repel } = computeGraphTopologyWeights(nodes, edges, false, vocab);
+      const { weight, repel } = relationSignal(nodes, edges, vocab);
       expect(repel.has("0-1")).toBe(true);
-      expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+      expect(weight[0][1]).toBe(0);
     });
 
     it("overrides the bundled default when the vault vocabulary redefines a label", () => {
       const nodes = [node("a"), node("b")];
       const edges = [edge("a", "b", "EQUIVALENT_TO")];
       const overridden = [{ key: "k", label: "EQUIVALENT_TO", term: "equivalent to", category: "Test", bidirectional: true, reversed: false, weight: 0.2 }];
-      const { conn } = computeGraphTopologyWeights(nodes, edges, false, overridden);
-      expect(conn[0][1]).toBe(0.2);
+      const { weight } = relationSignal(nodes, edges, overridden);
+      expect(weight[0][1]).toBe(0.2);
     });
 
     it("resolves labels case-insensitively against the vocabulary", () => {
       const nodes = [node("a"), node("b")];
       const edges = [edge("a", "b", "my_close")];
-      const { conn } = computeGraphTopologyWeights(nodes, edges, false, vocab);
-      expect(conn[0][1]).toBe(2.5);
+      const { weight } = relationSignal(nodes, edges, vocab);
+      expect(weight[0][1]).toBe(2.5);
     });
 
     it("falls back to the default weight for labels absent from the vocabulary", () => {
       const nodes = [node("a"), node("b")];
       const edges = [edge("a", "b", "UNKNOWN_LABEL")];
-      const { conn, repel } = computeGraphTopologyWeights(nodes, edges, false, vocab);
-      expect(conn[0][1]).toBe(1.0);
+      const { weight, repel } = relationSignal(nodes, edges, vocab);
+      expect(weight[0][1]).toBe(1.0);
       expect(repel.has("0-1")).toBe(false);
     });
   });
@@ -168,21 +120,21 @@ describe("computeGraphTopologyWeights", () => {
 
     it("keeps CONFLICTS_WITH repelling after a preset switch drops the label", () => {
       const nodes = [node("a"), node("b")];
-      const { conn, repel } = computeGraphTopologyWeights(nodes, [edge("a", "b", "CONFLICTS_WITH")], false, lawOnly);
+      const { weight, repel } = relationSignal(nodes, [edge("a", "b", "CONFLICTS_WITH")], lawOnly);
       expect(repel.has("0-1")).toBe(true);
-      expect(conn[0][1]).toBe(BASELINE_WEIGHT);
+      expect(weight[0][1]).toBe(0);
     });
 
     it("keeps INDEPENDENT_OF at the neutral baseline instead of a full pull (Issue #68)", () => {
       const nodes = [node("a"), node("b")];
-      const { conn } = computeGraphTopologyWeights(nodes, [edge("a", "b", "INDEPENDENT_OF")], false, lawOnly);
-      expect(conn[0][1]).toBe(0.05);
+      const { weight } = relationSignal(nodes, [edge("a", "b", "INDEPENDENT_OF")], lawOnly);
+      expect(weight[0][1]).toBe(0.05);
     });
 
     it("keeps EQUIVALENT_TO's close pull after a preset switch drops the label", () => {
       const nodes = [node("a"), node("b")];
-      const { conn } = computeGraphTopologyWeights(nodes, [edge("a", "b", "EQUIVALENT_TO")], false, lawOnly);
-      expect(conn[0][1]).toBe(1.3);
+      const { weight } = relationSignal(nodes, [edge("a", "b", "EQUIVALENT_TO")], lawOnly);
+      expect(weight[0][1]).toBe(1.3);
     });
 
     it("still lets the active vocabulary override a bundled label it does define", () => {
@@ -191,9 +143,9 @@ describe("computeGraphTopologyWeights", () => {
         ...lawOnly,
         { key: "k", label: "CONFLICTS_WITH", term: "conflicts with", category: "Legal", bidirectional: true, reversed: false, weight: 0.9 },
       ];
-      const { conn, repel } = computeGraphTopologyWeights(nodes, [edge("a", "b", "CONFLICTS_WITH")], false, redefined);
+      const { weight, repel } = relationSignal(nodes, [edge("a", "b", "CONFLICTS_WITH")], redefined);
       expect(repel.has("0-1")).toBe(false);
-      expect(conn[0][1]).toBe(0.9);
+      expect(weight[0][1]).toBe(0.9);
     });
   });
 });

@@ -5,6 +5,8 @@ import { applyVectorLayout, copyNodesInPathOrder, prepareLayoutModel, type Layou
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutDiff, type LayoutSnapshot } from "./layoutInputs";
 import { LARGE_CHANGE_RATIO, NEIGHBOR_MOVE_LIMIT, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
 import { applyGraphVectorProjection } from "./projections";
+import { buildLabelIndex, resolveRelationForce } from "./graphTopologyWeights";
+import { layoutWeightsFrom, type LayoutSignals, type ResolvedLinks } from "./signals";
 
 /**
  * "auto": data updates - nothing moves unless a layout input changed, and then only the affected area.
@@ -19,6 +21,8 @@ export interface LayoutRunInput {
   nodes: ScatterNode[];
   relationEdges: RelationEdge[];
   vocabulary?: RelationTermDef[];
+  /** Resolved WikiLink targets per note path (Obsidian's metadataCache.resolvedLinks); the link signal's only source. */
+  links?: ResolvedLinks;
   settings: MemVectorSettings;
   nodeSpacing: number;
   cloudSpacing: number;
@@ -95,21 +99,19 @@ export class LayoutEngine {
   private runLayout(input: LayoutRunInput, mode: LayoutMode): LayoutRunResult {
     const { nodes } = input;
     const next = captureLayoutSnapshot(nodes, input.relationEdges, input.vocabulary, {
-      nodeSpacing: input.nodeSpacing,
-      cloudSpacing: input.cloudSpacing,
-      knowledgeDomain: input.settings.knowledgeDomain,
-      includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
+      weights: layoutWeightsFrom(input.settings),
+      links: input.links,
     });
 
     if (mode === "auto" || mode === "relations") {
       if (this.snapshot === null) {
         const unplaced = nodes.filter((n) => !isPlaced(n)).map((n) => n.id);
         if (unplaced.length === 0) {
-          this.remember(nodes, prepareLayoutModel(nodes, input.settings), next);
+          this.remember(nodes, prepareLayoutModel(nodes, input.settings, input), next);
           return { simulated: false, moved: false, kind: "none" };
         }
         if (unplaced.length < nodes.length) {
-          this.model = prepareLayoutModel(nodes, input.settings);
+          this.model = prepareLayoutModel(nodes, input.settings, input);
           this.rememberClusters(nodes);
           const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set() };
           if (this.runBounded(input, added, mode === "relations")) {
@@ -140,8 +142,8 @@ export class LayoutEngine {
         n.placed = false;
       }
     }
-    const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input.relationEdges, input.vocabulary);
-    const settle = fromScratch && nodes.length > 0 && model.matrix.length === nodes.length ? this.settle(nodes, model.matrix, input) : undefined;
+    const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input);
+    const settle = fromScratch && nodes.length > 0 && model.affinity.length === nodes.length ? this.settle(nodes, model, input) : undefined;
     this.remember(nodes, model, next);
     return { simulated: nodes.length > 0, moved: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
   }
@@ -151,20 +153,20 @@ export class LayoutEngine {
    * Architecture: Bounded best effort: at most SETTLE_MAX_PASSES and SETTLE_PAIR_BUDGET / n^2 passes, stopping once the
    * largest move of a pass is below SETTLE_STOP_RATIO of node spacing. Deterministic; no wall clock.
    */
-  private settle(nodes: ScatterNode[], matrix: number[][], input: LayoutRunInput): { passes: number; converged: boolean } {
+  private settle(nodes: ScatterNode[], signals: LayoutSignals, input: LayoutRunInput): { passes: number; converged: boolean } {
     const maxPasses = Math.min(SETTLE_MAX_PASSES, Math.floor(SETTLE_PAIR_BUDGET / (nodes.length * nodes.length)));
     const nodeSpacing = input.nodeSpacing || input.settings.scatterNodeSpacing || 350;
     const stopAt = SETTLE_STOP_RATIO * nodeSpacing;
     for (let passes = 1; passes <= maxPasses; passes++) {
       const before = nodes.map((n) => ({ x: n.x, y: n.y }));
+      const semantic = layoutWeightsFrom(input.settings).semantic > 0;
       applyGraphVectorProjection({
         nodes,
-        matrix,
+        signals,
         nodeSpacing,
         cloudSpacing: input.cloudSpacing || input.settings.scatterCloudSpacing || 800,
-        relationEdges: input.relationEdges,
-        includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
-        vocabulary: input.vocabulary,
+        embeddingPca: semantic,
+        preferEmbeddedCentroids: semantic,
       });
       let largest = 0;
       nodes.forEach((n, i) => {
@@ -187,9 +189,9 @@ export class LayoutEngine {
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
-    const prepared = prepareLayoutModel(nodes, input.settings, { fixedBounds: model.bounds, assignClusters: centroidMissing });
+    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: model.bounds, assignClusters: centroidMissing });
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
-    const mobileIds = this.mobileSet(nodes, seeds, prepared.matrix, input);
+    const mobileIds = this.mobileSet(nodes, seeds, prepared.affinity, input);
 
     if (centroidMissing) {
       // A centroid left the node set: re-cluster for display, positions are unaffected.
@@ -203,7 +205,7 @@ export class LayoutEngine {
         let best = 0;
         let bestSim = -Infinity;
         centroidIdx.forEach((c, cloudId) => {
-          const sim = prepared.matrix[i][c];
+          const sim = prepared.affinity[i][c];
           if (sim > bestSim) {
             bestSim = sim;
             best = cloudId;
@@ -217,12 +219,11 @@ export class LayoutEngine {
     const before = new Map(nodes.filter((n) => mobileIds.has(n.id) && !seeds.has(n.id)).map((n) => [n.id, { x: n.x, y: n.y }]));
     applyGraphVectorProjection({
       nodes,
-      matrix: prepared.matrix,
+      signals: prepared,
       nodeSpacing: input.nodeSpacing || input.settings.scatterNodeSpacing || 350,
       cloudSpacing: input.cloudSpacing || input.settings.scatterCloudSpacing || 800,
-      relationEdges: input.relationEdges,
-      includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
-      vocabulary: input.vocabulary,
+      embeddingPca: layoutWeightsFrom(input.settings).semantic > 0,
+      preferEmbeddedCentroids: layoutWeightsFrom(input.settings).semantic > 0,
       bounded: { mobileIds },
     });
     // Hard bound (Plan 0005 S3): a note that only moved along ends at most NEIGHBOR_MOVE_LIMIT x node spacing away.
@@ -245,24 +246,38 @@ export class LayoutEngine {
    * Purpose: The notes a bounded adjustment may move: the changed notes, their relation (and, when enabled, WikiLink)
    * neighbors, and their SIMILAR_NEIGHBORS_MOBILE most similar notes.
    */
-  private mobileSet(nodes: ScatterNode[], seeds: Set<string>, matrix: number[][], input: LayoutRunInput): Set<string> {
+  /**
+   * Purpose: The notes a bounded adjustment may move: the changed notes, their link neighbors (link weight > 0), their
+   * attracting relation neighbors (relation weight > 0), their repelling relation neighbors (always, conflict repulsion
+   * stays active), and their SIMILAR_NEIGHBORS_MOBILE notes with the highest combined affinity.
+   */
+  private mobileSet(nodes: ScatterNode[], seeds: Set<string>, affinity: number[][], input: LayoutRunInput): Set<string> {
+    const weights = layoutWeightsFrom(input.settings);
     const mobile = new Set(seeds);
     const byLower = new Map(nodes.map((n) => [n.id.toLowerCase(), n.id]));
+    const labelIndex = buildLabelIndex(input.vocabulary);
     for (const e of input.relationEdges) {
       const src = byLower.get(e.srcId.toLowerCase());
       const tgt = byLower.get(e.tgtId.toLowerCase());
       if (!src || !tgt) continue;
+      if (!resolveRelationForce(e.relType, labelIndex).repels && weights.relations <= 0) continue;
       if (seeds.has(src)) mobile.add(tgt);
       if (seeds.has(tgt)) mobile.add(src);
     }
-    nodes.forEach((seed, i) => {
-      if (!seeds.has(seed.id)) return;
-      if (input.settings.includeWikiLinksAsRelations) {
-        for (const other of nodes) {
-          if (other.links?.includes(seed.basenameKey) || seed.links?.includes(other.basenameKey)) mobile.add(other.id);
+    if (weights.links > 0 && input.links) {
+      const idByPath = new Map(nodes.map((n) => [n.path, n.id]));
+      for (const node of nodes) {
+        for (const target of input.links.get(node.path) ?? []) {
+          const other = idByPath.get(target);
+          if (!other) continue;
+          if (seeds.has(node.id)) mobile.add(other);
+          if (seeds.has(other)) mobile.add(node.id);
         }
       }
-      const row = matrix[i];
+    }
+    nodes.forEach((seed, i) => {
+      if (!seeds.has(seed.id)) return;
+      const row = affinity[i];
       nodes
         .map((n, j) => ({ id: n.id, sim: j === i ? -Infinity : row[j] }))
         .sort((a, b) => (b.sim - a.sim) || a.id.localeCompare(b.id, "en"))

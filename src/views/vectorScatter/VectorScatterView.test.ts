@@ -78,8 +78,8 @@ vi.mock("./canvasInteraction", () => ({
 
 vi.mock("./layout/applyVectorLayout", async (importOriginal) => ({
   ...await importOriginal<typeof import("./layout/applyVectorLayout")>(),
-  applyVectorLayout: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
-  prepareLayoutModel: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
+  applyVectorLayout: vi.fn(() => ({ affinity: [], weightFactor: [], repel: new Set(), nodePaths: [], bounds: null, centroidIds: [] })),
+  prepareLayoutModel: vi.fn(() => ({ affinity: [], weightFactor: [], repel: new Set(), nodePaths: [], bounds: null, centroidIds: [] })),
 }));
 
 vi.mock("./rendering/drawOrchestrator", () => ({
@@ -1093,7 +1093,7 @@ describe("VectorScatterView watchers read live state (characterization before th
   it("the metadata handler sees vocabulary and edges replaced after registration", () => {
     const changed: Function[] = [];
     const host = createMockHost();
-    (host.app as any).metadataCache = { on: vi.fn((_e: string, cb: Function) => (changed.push(cb), {})), getFileCache: vi.fn(() => null) };
+    (host.app as any).metadataCache = { on: vi.fn((e: string, cb: Function) => (e === "changed" && changed.push(cb), {})), getFileCache: vi.fn(() => null) };
     const view = new VectorScatterView({} as WorkspaceLeaf, host);
     view.registerVaultWatchers();
     view.triggerRelationsReload = vi.fn();

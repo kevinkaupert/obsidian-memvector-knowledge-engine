@@ -432,6 +432,37 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       triggerVaultRescan: (change) => this.triggerVaultRescan(change),
       registerEvent: (ref) => this.registerEvent(ref),
     });
+    // Resolved WikiLinks are the link signal's source (Plan 0005): when Obsidian finishes resolving links (also after
+    // a link target was created or renamed), lay out again; nothing moves unless a link of a laid-out note changed.
+    const metadataCache = this.app.metadataCache as (typeof this.app.metadataCache & { on?: unknown }) | undefined;
+    if (metadataCache && typeof metadataCache.on === "function") {
+      this.registerEvent(
+        this.app.metadataCache.on("resolved", () => {
+          if (this.linksResolvedTimer !== null) window.clearTimeout(this.linksResolvedTimer);
+          this.linksResolvedTimer = window.setTimeout(() => {
+            this.linksResolvedTimer = null;
+            if (!this.isVisible() || this.nodes.length === 0) return;
+            void this.runExclusive(async () => {
+              this.applyLayout();
+              this.redraw();
+            });
+          }, 500);
+        })
+      );
+    }
+  }
+
+  private linksResolvedTimer: number | null = null;
+
+  /** Resolved WikiLink targets of the laid-out notes, from Obsidian's metadata cache (the link signal's only source). */
+  private resolvedLinks(): Map<string, string[]> {
+    const resolved = (this.app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined)?.resolvedLinks ?? {};
+    const links = new Map<string, string[]>();
+    for (const node of this.nodes) {
+      const targets = Object.keys(resolved[node.path] ?? {});
+      if (targets.length > 0) links.set(node.path, targets);
+    }
+    return links;
   }
 
   /**
@@ -862,6 +893,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         // Unconfirmed suggestions are drawn but do not pull notes together (#243).
         relationEdges: confirmedEdges(this.relationEdges),
         vocabulary: this.vocabulary,
+        links: this.resolvedLinks(),
         settings: this.settings,
         nodeSpacing: this.nodeSpacing,
         cloudSpacing: this.cloudSpacing,

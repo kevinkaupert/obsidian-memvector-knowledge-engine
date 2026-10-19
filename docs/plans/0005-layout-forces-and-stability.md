@@ -1,6 +1,6 @@
 # 0005 - Layout forces and stability
 
-Status: Draft - steps 1-3 done (inventory reviewed by Codex, characterization, stabilization); target signal model decided (section 7); step 4 open
+Status: Implemented - steps 1-4 done (inventory, characterization, stabilization, signal model ADR-0008); owner check of step 4 pending
 Date: 2026-10-19
 Issues: #284 (stable 2D view, configurable forces), #283 (cloud spacing also spaces unrelated points)
 Decision: successor of ADR-0006 once steps 3 and 4 are decided
@@ -196,6 +196,7 @@ asserted, measured values are rounded inline snapshots. Fixture: notes on four e
 | C6 several groups | three groups of five, cloud spacing 800 / 3000 | between groups 994 / 3699, within a group 164 / 164 |
 | C7 stability | settled vault of 18 notes with two relations | reopen with stored positions: nothing moves. Edit one note: bounded, 6 of 18 notes move, at most 26. Hide two notes: nobody moves; show them again with their positions: bounded, nothing moves. Delete a relation (builder, rearrange): untouched notes move up to 210. Node spacing slider 350 -> 500: free pass, up to 189. |
 | C7 after step 3 (reference for step 4) | same | reopen: nothing moves. Edit one note: unchanged (6 of 18, at most 26). Delete a relation: bounded, untouched notes at most 53 (`0.15s`). Node spacing 350 -> 500: no simulation, every position scaled exactly. Cloud spacing 800 -> 3000: nothing moves. |
+| After step 4 (signal model, defaults 1 / 0.3 / 1) | same | C1: no link 1098, link with weight 0 1098, 0.3: 435, 1: 359; a new note with only a link lands next to its partner at 309 (weight 1) vs. 632 (weight 0); clusters identical with weight 0. C2-C5 unchanged, C6 3699 -> 3700. C7 edit (now a vector change halfway to another topic): the edited note 356, untouched neighbors at most 42. |
 
 Not covered here, to check in the integration vault: positions of re-shown notes hydrated from the database
 instead of kept on the node objects, background indexing with two notifications, and large vaults.
@@ -270,7 +271,7 @@ Rules that follow:
 Step 2 records today's mixing explicitly (WikiLinks through `S`, graph weight, hops, mobile set, placement, clusters),
 so step 4 can show that with `w_link = 0` none of these paths is left.
 
-## 7a. Step 4 - implement the signal model (plan)
+## 7a. Step 4 - implement the signal model (done, ADR-0008)
 
 Revised after a Codex review of the first draft (PCA and centroids bypass the weights, signatures would still seed on
 disabled signals, resolved links need a refresh path, conflict neighbors, weight factor scope, rescale fallback,

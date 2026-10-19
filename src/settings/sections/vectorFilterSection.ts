@@ -1,3 +1,4 @@
+import { layoutWeightsFrom } from "../../views/vectorScatter/layout/signals";
 import { Notice, SecretComponent, Setting, type App } from "obsidian";
 import { fetchProviderModels } from "../../llm/fetchProviderModels";
 import type { TranslationKeys } from "../../i18n";
@@ -189,10 +190,27 @@ export function renderVectorFilterSection(containerEl: HTMLElement, app: App, ho
       toggle.setValue(settings.includeWikiLinksAsRelations).onChange(async (value) => {
         settings.includeWikiLinksAsRelations = value;
         await host.saveSettings();
-        // WikiLink forces are a layout input of open views.
-        host.applySettingsToOpenViews?.();
       })
     );
+
+  // Layout signal weights (Plan 0005, ADR-0008): 0-2 in steps of 0.1, 0 switches a signal off everywhere.
+  const weightSlider = (name: string, desc: string, key: "layoutWeightSemantic" | "layoutWeightLinks" | "layoutWeightRelations") =>
+    new Setting(containerEl)
+      .setName(name)
+      .setDesc(desc)
+      .addSlider((slider) =>
+        slider
+          .setLimits(0, 2, 0.1)
+          .setValue(layoutWeightsFrom(settings)[key === "layoutWeightSemantic" ? "semantic" : key === "layoutWeightLinks" ? "links" : "relations"])
+          .onChange(async (value) => {
+            settings[key] = Math.round(value * 10) / 10;
+            await host.saveSettings();
+            host.applySettingsToOpenViews?.();
+          })
+      );
+  weightSlider(t.layoutWeightSemanticName, t.layoutWeightSemanticDesc, "layoutWeightSemantic");
+  weightSlider(t.layoutWeightLinksName, t.layoutWeightLinksDesc, "layoutWeightLinks");
+  weightSlider(t.layoutWeightRelationsName, t.layoutWeightRelationsDesc, "layoutWeightRelations");
 
   new Setting(containerEl)
     .setName(t.autoIndexVaultOnChangesName)

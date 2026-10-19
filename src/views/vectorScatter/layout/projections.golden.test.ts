@@ -1,11 +1,12 @@
 /**
  * Purpose: Golden characterization of applyGraphVectorProjection (#76): exact coordinates, iterations, placed flags and
  * cloud fields for every placement and simulation path, recorded before the function was split. A split must
- * reproduce them bit for bit (same arithmetic, same in-place update order).
+ * reproduce them bit for bit (same arithmetic, same in-place update order). Re-recorded for the signal model (Plan 0005
+ * step 4): the two cases with relations changed (sum instead of max); the others are bit for bit unchanged.
  */
 import { describe, expect, it } from "vitest";
 import type { RelationEdge, ScatterNode } from "../types";
-import { applyGraphVectorProjection, type ProjectionParams } from "./projections";
+import { project, type MatrixProjectionParams } from "./projectionTestSupport";
 
 /** Deterministic pseudo-random numbers (LCG), so fixtures are stable across runs and platforms. */
 function rng(seed: number): () => number {
@@ -54,9 +55,9 @@ function edge(srcId: string, tgtId: string, relType: string): RelationEdge {
 }
 
 /** Runs a projection and returns everything a split could change, plus identity checks. */
-function run(nodes: ScatterNode[], params: Omit<ProjectionParams, "nodes">) {
+function run(nodes: ScatterNode[], params: Omit<MatrixProjectionParams, "nodes">) {
   const objects = [...nodes];
-  const result = applyGraphVectorProjection({ nodes, ...params });
+  const result = project({ nodes, ...params });
   expect(nodes.every((n, i) => n === objects[i])).toBe(true);
   return {
     iterations: result.iterations,
@@ -96,14 +97,14 @@ describe("applyGraphVectorProjection golden outputs (#76)", () => {
   it("warm free pass over placed nodes", () => {
     const nodes = topicNodes(6, 4);
     const matrix = cosineMatrix(nodes);
-    applyGraphVectorProjection({ nodes, matrix, ...BASE });
+    project({ nodes, matrix, ...BASE });
     expect(run(nodes, { ...BASE, matrix })).toMatchSnapshot();
   });
 
   it("incremental placement of several new nodes, including a tie between neighbors", () => {
     const nodes = topicNodes(7, 5);
     const matrix = cosineMatrix(nodes);
-    applyGraphVectorProjection({ nodes: nodes.slice(0, 5), matrix: matrix.slice(0, 5).map((r) => r.slice(0, 5)), ...BASE });
+    project({ nodes: nodes.slice(0, 5), matrix: matrix.slice(0, 5).map((r) => r.slice(0, 5)), ...BASE });
     matrix[5][0] = matrix[0][5] = 0.7;
     matrix[5][1] = matrix[1][5] = 0.7; // tie: the first neighbor wins
     nodes[6].embedding = undefined;
@@ -113,7 +114,7 @@ describe("applyGraphVectorProjection golden outputs (#76)", () => {
   it("bounded pass with an existing mobile node, a new mobile node and fixed nodes", () => {
     const nodes = topicNodes(7, 6);
     const matrix = cosineMatrix(nodes);
-    applyGraphVectorProjection({ nodes: nodes.slice(0, 6), matrix: matrix.slice(0, 6).map((r) => r.slice(0, 6)), ...BASE });
+    project({ nodes: nodes.slice(0, 6), matrix: matrix.slice(0, 6).map((r) => r.slice(0, 6)), ...BASE });
     const result = run(nodes, { ...BASE, matrix, bounded: { mobileIds: new Set(["n2", "n6"]) } });
     expect(result.iterations).toBeLessThan(60); // stops early once settled
     expect(result).toMatchSnapshot();

@@ -63,10 +63,10 @@ describe("bounded projection (#185)", () => {
   it("never moves nodes outside the mobile set and keeps mobile ones near their previous position", () => {
     const { nodes } = settledVault();
     const before = positions(nodes);
-    const model = prepareLayoutModel(nodes, { ...DEFAULT_SETTINGS }, { assignClusters: false });
+    const model = prepareLayoutModel(nodes, { ...DEFAULT_SETTINGS }, { relationEdges: [] }, { assignClusters: false });
     const mobileIds = new Set(["t0/n0", "t0/n1", "t1/n0"]);
 
-    const result = applyGraphVectorProjection({ nodes, matrix: model.matrix, nodeSpacing: 350, cloudSpacing: 800, relationEdges: [], bounded: { mobileIds } });
+    const result = applyGraphVectorProjection({ nodes, signals: model, nodeSpacing: 350, cloudSpacing: 800, bounded: { mobileIds } });
 
     for (const n of nodes) {
       if (mobileIds.has(n.id)) expect(displacement(before, n)).toBeLessThan(350);
@@ -77,8 +77,8 @@ describe("bounded projection (#185)", () => {
 
   it("stops early once a settled layout no longer moves", () => {
     const { nodes } = settledVault();
-    const model = prepareLayoutModel(nodes, { ...DEFAULT_SETTINGS }, { assignClusters: false });
-    const params = { nodes, matrix: model.matrix, nodeSpacing: 350, cloudSpacing: 800, relationEdges: [], bounded: { mobileIds: new Set(nodes.map((n) => n.id)) } };
+    const model = prepareLayoutModel(nodes, { ...DEFAULT_SETTINGS }, { relationEdges: [] }, { assignClusters: false });
+    const params = { nodes, signals: model, nodeSpacing: 350, cloudSpacing: 800, bounded: { mobileIds: new Set(nodes.map((n) => n.id)) } };
     applyGraphVectorProjection(params);
     applyGraphVectorProjection(params);
     expect(applyGraphVectorProjection(params).iterations).toBeLessThan(60);
@@ -89,9 +89,9 @@ describe("bounded projection (#185)", () => {
     const twin = nodes[5];
     const fresh: ScatterNode = { ...twin, id: "new", path: "new.md", x: 0, y: 0, placed: false, cloudId: undefined };
     const all = [...nodes, fresh];
-    const model = prepareLayoutModel(all, { ...DEFAULT_SETTINGS }, { assignClusters: false });
+    const model = prepareLayoutModel(all, { ...DEFAULT_SETTINGS }, { relationEdges: [] }, { assignClusters: false });
 
-    applyGraphVectorProjection({ nodes: all, matrix: model.matrix, nodeSpacing: 350, cloudSpacing: 800, relationEdges: [], bounded: { mobileIds: new Set(["new"]) } });
+    applyGraphVectorProjection({ nodes: all, signals: model, nodeSpacing: 350, cloudSpacing: 800, bounded: { mobileIds: new Set(["new"]) } });
 
     expect(Math.hypot(fresh.x - twin.x, fresh.y - twin.y)).toBeLessThan(350);
     expect(fresh.placed).toBe(true);
@@ -180,7 +180,7 @@ describe("LayoutEngine bounded adjustment (#185)", () => {
 
   it("repeated unchanged runs after a bounded adjustment move nothing", () => {
     const { engine, nodes } = settledVault();
-    nodes[0].content = "other words";
+    nodes[0].embedding = nodes[0].embedding!.map((v, k) => (k === 0 ? v + 0.05 : v));
     engine.run(input(nodes));
     const before = positions(nodes);
     for (let i = 0; i < 5; i++) expect(engine.run(input(nodes)).kind).toBe("none");
@@ -196,7 +196,7 @@ describe("placed flag (#190)", () => {
     origin.y = 0;
     origin.placed = true;
     // A change in another topic: the origin node is not part of the adjustment.
-    nodes.find((n) => n.id === "t3/n9")!.content = "unrelated change";
+    { const n9 = nodes.find((n) => n.id === "t3/n9")!; n9.embedding = n9.embedding!.map((v, k) => (k === 0 ? v + 0.05 : v)); };
 
     engine.run(input(nodes));
 

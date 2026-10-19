@@ -114,7 +114,7 @@ describe("S5 cloud spacing waits for an explicit rearrange", () => {
     expect(run(eb, b, [], "auto", 350, 3000).kind).toBe("none");
     for (const n of b) expect(moved(before, n)).toBe(0);
     // The same edit in both vaults: with the cloud spacing still applied at 800, the result is identical.
-    for (const nodes of [a, b]) nodes.find((n) => n.id === "t1n2")!.content = "edited words";
+    for (const nodes of [a, b]) { const edited = nodes.find((n) => n.id === "t1n2")!; edited.embedding = edited.embedding!.map((v, k) => (k === 0 ? v + 0.05 : v)); };
     run(ea, a, [], "auto", 350, 800);
     run(eb, b, [], "auto", 350, 3000);
     expect(snapshot(b)).toEqual(snapshot(a));

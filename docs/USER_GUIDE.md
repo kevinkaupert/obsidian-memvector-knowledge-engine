@@ -33,13 +33,13 @@ Note positions are kept across edits and restarts; the map only changes where so
 | What happened | Effect on the map |
 |---|---|
 | Reopening the view or restarting Obsidian | Stored positions are shown unchanged. |
-| Editing a note without changing its first 800 characters of words, its links, its formulas (math domain), its folder or its vector | Nothing moves. |
+| Editing a note without changing its WikiLinks or its vector | Nothing moves. Words, formulas and the folder do not place notes. |
 | Editing a title, a type or a relation's description | Labels update, nothing moves. |
 | A new note, a changed note or a new, changed or deleted relation | Only that note, its relation neighbors and its most similar notes move; a note that only moves along moves at most 0.15 x node spacing. The rest of the map stays where it is. |
 | Point spacing slider (Punkt-Abstand) | The map is scaled as a whole; its shape stays the same and nothing is recalculated. |
 | Cloud spacing slider (Wolken-Abstand) | Nothing moves; the value takes effect at the next **Layout neu anordnen**. |
 | Filter | Notes are only hidden; they keep their place and keep shaping the layout. |
-| Vectors recalculated for most notes, the knowledge domain or "WikiLinks as relations" changed | The whole layout is recalculated from the current positions. |
+| Vectors recalculated for most notes, or a layout weight changed (Settings: Layout: Bedeutungsnähe / WikiLinks / Typisierte Relationen) | The whole layout is recalculated from the current positions. |
 | **Layout neu anordnen** | A fresh layout from scratch. |
 
 Note and settings changes are collected while the view is in a background tab and applied once when it is shown again. Positions are saved only when they actually moved; a failed save is retried with the next one.

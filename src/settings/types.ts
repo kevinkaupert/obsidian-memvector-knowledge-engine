@@ -42,11 +42,19 @@ export interface MemVectorSettings {
   /**
    * Index standard Obsidian [[WikiLinks]] as LINKS_TO graph relations (Issue #100).
    * Default false: the graph store indexes only explicit typed relations from the
-   * Relation Builder, so GraphRAG multi-hop traversal and 2D topology weights follow
-   * the pure MemVector paradigm (semantic vectors + intentional typed relations).
+   * Relation Builder, so GraphRAG multi-hop traversal follows semantic vectors and
+   * intentional typed relations. Graph store only: the 2D layout uses layoutWeightLinks.
    * Takes effect on the next full vault re-index.
    */
   includeWikiLinksAsRelations: boolean;
+
+  /**
+   * 2D layout signal weights (Plan 0005, ADR-0008), 0-2: embedding similarity, resolved WikiLinks, typed relations.
+   * 0 switches a signal off everywhere in the layout. Missing values take the defaults in layout/signals.ts.
+   */
+  layoutWeightSemantic?: number;
+  layoutWeightLinks?: number;
+  layoutWeightRelations?: number;
 
   /**
    * Continuously update embeddings and graph index on vault changes in the background (Issue #250).

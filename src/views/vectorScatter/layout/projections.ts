@@ -1,8 +1,7 @@
-import type { RelationTermDef } from "../../../relationVocabulary/types";
-import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
+import { isPlaced, type ScatterNode } from "../types";
 import { assignClouds } from "./cloudAssignment";
-import { computeGraphTopologyWeights } from "./graphTopologyWeights";
-import { ANCHOR_STIFFNESS, BOUNDED_START_ALPHA, BOUNDED_STOP_MOVEMENT, MAX_RELATION_WEIGHT_FACTOR } from "./layoutTunables";
+import { ANCHOR_STIFFNESS, BOUNDED_START_ALPHA, BOUNDED_STOP_MOVEMENT } from "./layoutTunables";
+import type { LayoutSignals } from "./signals";
 
 export type ProjectionMode = "graphvector";
 
@@ -14,14 +13,14 @@ const MIN_PAIR_CLEARANCE_RATIO = 0.12;
 
 export interface ProjectionParams {
   nodes: ScatterNode[];
-  matrix: number[][];
+  /** Pair signals of this pass (signals.ts): combined affinity, weight factor, repelling pairs. */
+  signals: Pick<LayoutSignals, "affinity" | "weightFactor" | "repel">;
   nodeSpacing: number;
   cloudSpacing: number;
-  relationEdges: RelationEdge[];
-  /** Opt-in WikiLink attraction edges in topology weights (Issue #100) - defaults to off. */
-  includeWikiLinksAsRelations?: boolean;
-  /** Loaded relation vocabulary driving per-label attraction/repulsion (ADR-0002) - defaults to the bundled STEM vocabulary. */
-  vocabulary?: RelationTermDef[];
+  /** Place a layout from scratch by a PCA of the embeddings; only while the semantic weight is above 0 (Plan 0005). */
+  embeddingPca?: boolean;
+  /** Whether clusters prefer embedded notes as centroids; only while the semantic weight is above 0. */
+  preferEmbeddedCentroids?: boolean;
   /**
    * Bounded adjustment (ADR-0006): only nodes whose id is in `mobileIds` move; all others stay fixed and only exert
    * forces. Mobile nodes that were placed before are softly pulled back toward that position. Omitted for a free
@@ -234,34 +233,33 @@ export function compute2DProjectionFromMatrix(nodes: ScatterNode[], matrix: numb
  */
 export function applyGraphVectorProjection({
   nodes,
-  matrix,
+  signals,
   nodeSpacing,
   cloudSpacing,
-  relationEdges,
-  includeWikiLinksAsRelations,
-  vocabulary,
+  embeddingPca = true,
+  preferEmbeddedCentroids = true,
   bounded,
 }: ProjectionParams): ProjectionResult {
   const n = nodes.length;
   if (n === 0) return { iterations: 0 };
+  const matrix = signals.affinity;
 
   if (nodes.some((n) => n.cloudId === undefined)) {
-    assignClouds(nodes, matrix);
+    assignClouds(nodes, matrix, preferEmbeddedCentroids);
   }
 
   const targetSpacing = nodeSpacing || 350;
   const clusterRadius = cloudSpacing || 800;
-  const { conn, repel } = computeGraphTopologyWeights(nodes, relationEdges, includeWikiLinksAsRelations, vocabulary);
-  const isRepelled = buildRepelMask(n, repel);
+  const isRepelled = buildRepelMask(n, signals.repel);
 
   // Positions before this pass: anchors for mobile nodes in a bounded pass.
   const wasPlaced = nodes.map((node) => isPlaced(node));
   const anchors = nodes.map((node) => ({ x: node.x, y: node.y }));
 
-  // 1. Initial placement: use 2D PCA or spectral matrix projection, or center spiral fallback
+  // 1. Initial placement: 2D PCA of the embeddings (semantic weight > 0) or a projection of the affinity matrix, else a spiral
   const needsPlacement = wasPlaced.every((placed) => !placed);
   if (needsPlacement) {
-    placeInitial(nodes, matrix, targetSpacing, clusterRadius);
+    placeInitial(nodes, matrix, targetSpacing, clusterRadius, embeddingPca);
   } else {
     placeIncremental(nodes, matrix, wasPlaced, targetSpacing);
   }
@@ -272,7 +270,7 @@ export function applyGraphVectorProjection({
   const ran = simulateForces({
     nodes,
     matrix,
-    conn,
+    weightFactor: signals.weightFactor,
     isRepelled,
     wasPlaced,
     anchors,
@@ -287,7 +285,7 @@ export function applyGraphVectorProjection({
 }
 
 /** Pair mask (row-major n x n) of node index pairs joined by a repelling relation such as CONFLICTS_WITH. */
-function buildRepelMask(n: number, repel: ReturnType<typeof computeGraphTopologyWeights>["repel"]): Uint8Array {
+function buildRepelMask(n: number, repel: ReadonlySet<string>): Uint8Array {
   const isRepelled = new Uint8Array(n * n);
   if (repel && repel.size > 0) {
     for (const key of repel) {
@@ -306,10 +304,10 @@ function buildRepelMask(n: number, repel: ReturnType<typeof computeGraphTopology
   return isRepelled;
 }
 
-/** First placement of a layout without any placed node: PCA, else the matrix projection, else a spiral. */
-function placeInitial(nodes: ScatterNode[], matrix: number[][], targetSpacing: number, clusterRadius: number): void {
+/** First placement of a layout without any placed node: PCA (if allowed), else the affinity projection, else a spiral. */
+function placeInitial(nodes: ScatterNode[], matrix: number[][], targetSpacing: number, clusterRadius: number, embeddingPca: boolean): void {
   const n = nodes.length;
-  const hasPca = compute2DPcaProjection(nodes, clusterRadius);
+  const hasPca = embeddingPca && compute2DPcaProjection(nodes, clusterRadius);
   const hasMatrixProj = !hasPca && compute2DProjectionFromMatrix(nodes, matrix, clusterRadius);
   if (!hasPca && !hasMatrixProj) {
     nodes.forEach((node, i) => {
@@ -373,7 +371,8 @@ function placeIncremental(nodes: ScatterNode[], matrix: number[][], wasPlaced: b
 interface ForceSimulationInput {
   nodes: ScatterNode[];
   matrix: number[][];
-  conn: ReturnType<typeof computeGraphTopologyWeights>["conn"];
+  /** Weight factor per pair (signals.ts relationWeightFactor). */
+  weightFactor: Float64Array[];
   isRepelled: Uint8Array;
   wasPlaced: boolean[];
   anchors: { x: number; y: number }[];
@@ -389,7 +388,7 @@ interface ForceSimulationInput {
  * nodes in the same iteration see the new position (the layout depends on this order).
  */
 function simulateForces(input: ForceSimulationInput): number {
-  const { nodes, matrix, conn, isRepelled, wasPlaced, anchors, mobile, bounded, targetSpacing, clusterRadius } = input;
+  const { nodes, matrix, weightFactor: weightFactors, isRepelled, wasPlaced, anchors, mobile, bounded, targetSpacing, clusterRadius } = input;
   const n = nodes.length;
   const collisionDist = Math.max(60, targetSpacing * 0.45);
   const iterations = 60;
@@ -438,17 +437,11 @@ function simulateForces(input: ForceSimulationInput): number {
           continue;
         }
 
-        const sim = matrix[i][j];
-        const graphWeight = conn[i][j];
-        // Affinity selects the base target distance and stays in [0, 1]: the mapping below
-        // subtracts it from a constant, so a value above 1 would invert the target.
-        const topWeight = Math.min(1.0, graphWeight);
-
-        // A declared relation stronger than the generic 1.0 pulls its pair closer than the
-        // generic target and holds them there against competing forces. That range was
-        // previously clamped away, which made every weight >= 1 behave identically.
-        // Weights at or below 1.0 keep weightFactor 1 and are therefore unaffected.
-        const weightFactor = Math.min(MAX_RELATION_WEIGHT_FACTOR, Math.max(1, graphWeight));
+        // Combined affinity of the pair (signals.ts combineAffinity): the only place signals enter the forces.
+        const affinity = matrix[i][j];
+        // A declared relation stronger than the generic 1.0 pulls its pair closer than the generic target and holds
+        // them there against competing forces; 1 for every other pair.
+        const weightFactor = weightFactors[i][j];
         // Strongly related nodes are allowed to sit closer than the generic clearance,
         // down to a hard floor that still keeps them visually distinct.
         const pairClearance = Math.max(targetSpacing * MIN_PAIR_CLEARANCE_RATIO, collisionDist / weightFactor);
@@ -459,10 +452,6 @@ function simulateForces(input: ForceSimulationInput): number {
           fx -= ux * pushMag;
           fy -= uy * pushMag;
         }
-
-        // Non-linear semantic strength to filter out background noise
-        const semStrength = Math.pow(sim, 2);
-        const affinity = Math.max(topWeight, semStrength);
 
         const repelRadius = Math.max(targetSpacing * 1.5, clusterRadius * 0.7);
         if (affinity < 0.15 && dist < repelRadius) {

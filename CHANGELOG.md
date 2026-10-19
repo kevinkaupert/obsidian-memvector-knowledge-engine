@@ -17,6 +17,7 @@ Releases are cut only when the maintainer explicitly asks for one.
   - the node spacing slider scales the existing map instead of re-running the layout, and the scaled positions are saved;
   - the cloud spacing slider only stores the value; it takes effect at the next "Layout neu anordnen" (#283 is redefined in step 4);
   - the filter in the view only hides notes: hidden notes keep their place and keep shaping the layout, so changing the filter never moves the map.
+- **Layout signal model** (Plan 0005 step 4, ADR-0008): notes are placed by three signals with one weight each in the settings - semantic similarity, WikiLinks and typed relations (0-2, defaults 1 / 0.3 / 1; 0 switches a signal off everywhere). The signals add up instead of the strongest winning, so a relation between similar notes now pulls them closer. WikiLinks come from Obsidian's resolved links and can be switched off completely (before, they always pulled through the similarity). Folder, word and formula overlap and the pull of notes 2-4 hops away no longer place notes. "WikiLinks as graph relations" now only controls the graph index used by synthesis; the knowledge domain only affects synthesis.
 - **Edge line style shows where an edge comes from:** solid for a relation note, dashed for a typed link written only in a note's frontmatter, dotted for an unconfirmed `<label>_suggested` link (was dashed). A frontmatter-only edge no longer looks like a stored relation.
 
 ### Documentation

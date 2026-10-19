@@ -73,6 +73,8 @@ vi.mock("../../sync/sqlite/nodePositions", () => ({
 }));
 
 const vectors = new Map<string, number[]>();
+/** Obsidian's resolved WikiLinks (source path -> target path -> count), the layout's link source (Plan 0005). */
+const resolvedLinks: Record<string, Record<string, number>> = {};
 vi.mock("../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(() => ({
     getVectors: vi.fn(async (keys: string[]) => {
@@ -112,7 +114,7 @@ function createFixture(notes: FakeNote[]) {
       },
       on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(event, cb), { event, cb })),
     },
-    metadataCache: { getFileCache: () => undefined },
+    metadataCache: { getFileCache: () => undefined, resolvedLinks },
     workspace: { on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(`workspace:${event}`, cb), { event, cb })) },
   };
   const host: VectorScatterHost = {
@@ -150,6 +152,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   storedPositions.clear();
   vectors.clear();
+  for (const key of Object.keys(resolvedLinks)) delete resolvedLinks[key];
   relationEdges = [];
   vi.mocked(applyGraphVectorProjection).mockClear();
   vi.mocked(saveNodePositions).mockClear();
@@ -202,6 +205,8 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     vi.mocked(applyGraphVectorProjection).mockClear();
 
     notes[0].content = "completely different vocabulary inserted here";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
     fire("modify", toFile(notes[0]));
     await settle();
 
@@ -231,7 +236,7 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
     view.applyExternalSettingsChange();
     expect(applyGraphVectorProjection).not.toHaveBeenCalled();
 
-    view.settings.includeWikiLinksAsRelations = !view.settings.includeWikiLinksAsRelations;
+    view.settings.layoutWeightSemantic = 0.5;
     view.applyExternalSettingsChange();
     expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
   });
@@ -421,9 +426,13 @@ describe("VectorScatterView position writes (#211)", () => {
     vi.mocked(saveNodePositions).mockClear();
 
     notes[0].content = "first change of words";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
     fire("modify", toFile(notes[0]));
     await vi.advanceTimersByTimeAsync(900);
     notes[1].content = "second change of words";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[notes[1].path] = { "geometry/note5.md": 1 };
     fire("modify", toFile(notes[1]));
     await vi.advanceTimersByTimeAsync(900);
     expect(saveNodePositions).not.toHaveBeenCalled();
@@ -451,6 +460,8 @@ describe("VectorScatterView defers work while hidden (#212)", () => {
     const f = await openHideable();
     f.setVisible(false);
     f.notes[0].content = "changed words while hidden";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[f.notes[0].path] = { "geometry/note5.md": 1 };
     f.fire("modify", f.toFile(f.notes[0]));
     await settle();
     f.fire("modify", f.toFile(f.notes[1]));
@@ -576,7 +587,7 @@ describe("VectorScatterView review follow-ups", () => {
     const before = positionsOf(fixture.view);
 
     visible = false;
-    fixture.view.settings.knowledgeDomain = fixture.view.settings.knowledgeDomain === "math" ? "general" : "math";
+    fixture.view.settings.layoutWeightSemantic = 0.5; // a layout setting (Plan 0005); the knowledge domain no longer is one
     fixture.view.applyExternalSettingsChange();
     fixture.view.applyExternalSettingsChange({ embeddings: true });
     await settle(2000);
@@ -629,6 +640,8 @@ describe("VectorScatterView keeps the map when stored vectors cannot be read (#1
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     notes[0].content = "a layout-relevant change while the store is locked";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
     await failVectorsOnce();
     await view.scanVaultNotes();
     await settle(2000);
@@ -676,6 +689,8 @@ describe("VectorScatterView keeps the map when stored vectors cannot be read (#1
     // Still unreadable on the next event.
     await failVectorsOnce();
     notes[1].content = "another relevant change";
+    // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
+    resolvedLinks[notes[1].path] = { "geometry/note5.md": 1 };
     fire("modify", toFile(notes[1]));
     await settle(2000);
 

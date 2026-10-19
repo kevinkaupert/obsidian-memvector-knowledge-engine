@@ -3,15 +3,14 @@
  * layout does now, including behavior Plan 0005 section 7 will change (WikiLinks through the similarity, max instead
  * of sum, hops, cloud spacing as point repulsion). Distances are asserted as relations; measured values are recorded as
  * rounded inline snapshots so step 3 and 4 show exactly what changed. Since step 3 (stabilization) C7 records the
- * stabilized behavior; it is the reference for step 4.
+ * stabilized behavior. Since step 4 (signal model) every case is recorded with the signal model; C1 shows that a
+ * WikiLink has no effect anywhere with its weight at 0. Earlier values are listed in Plan 0005 section 6.
  */
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
 import type { MemVectorSettings } from "../../../settings/types";
 import type { RelationTermDef } from "../../../relationVocabulary/types";
 import type { RelationEdge, ScatterNode } from "../types";
-import { calcSimilarity, normalizeWeights } from "./similarity";
-import { computeGraphTopologyWeights } from "./graphTopologyWeights";
 import { LayoutEngine, type LayoutMode } from "./layoutEngine";
 
 /** Deterministic pseudo-random numbers (LCG). */
@@ -69,6 +68,7 @@ const VOCAB: RelationTermDef[] = [
 interface Run {
   nodes: ScatterNode[];
   edges?: RelationEdge[];
+  links?: Map<string, string[]>;
   settings?: Partial<MemVectorSettings>;
   nodeSpacing?: number;
   cloudSpacing?: number;
@@ -80,6 +80,7 @@ function layout(engine: LayoutEngine, run: Run, mode: LayoutMode = "rearrange") 
       nodes: run.nodes,
       relationEdges: run.edges ?? [],
       vocabulary: VOCAB,
+      links: run.links,
       settings: { ...DEFAULT_SETTINGS, ...run.settings },
       nodeSpacing: run.nodeSpacing ?? 350,
       cloudSpacing: run.cloudSpacing ?? 800,
@@ -114,67 +115,55 @@ function maxMove(before: Map<string, { x: number; y: number }>, nodes: ScatterNo
 
 const round = (v: number) => Math.round(v);
 
-describe("C1 linked pair: every path a WikiLink takes today", () => {
-  const weights = normalizeWeights({ vector: 0.5, wikiLinks: 0.3, folder: 0.1, semantics: 0.1 });
+describe("C1 linked pair: a WikiLink acts only through its weight", () => {
+  const link = new Map([["t0n0.md", ["t1n0.md"]]]);
 
-  it("raises the hybrid similarity S regardless of the WikiLink setting (path 1)", () => {
-    const r = rng(1);
-    const a = note("a", 0, r);
-    const b = note("b", 1, r);
-    const plain = calcSimilarity(a, b, weights, false);
-    const linked = calcSimilarity({ ...a, links: ["b"] }, b, weights, false);
-    expect(linked - plain).toBeCloseTo(0.75 * 0.3, 5);
-  });
-
-  it("adds graph weight 0.7 and hop weights only with the setting on (paths 2 and 3)", () => {
-    const r = rng(2);
-    const nodes = [note("a", 0, r, { links: ["b"] }), note("b", 1, r, { links: ["c"] }), note("c", 2, r)];
-    const off = computeGraphTopologyWeights(nodes, [], false);
-    const on = computeGraphTopologyWeights(nodes, [], true);
-    expect([off.conn[0][1], off.conn[0][2]]).toEqual([0.05, 0.05]);
-    expect([on.conn[0][1], on.conn[0][2]]).toEqual([0.7, 0.12]);
-  });
-
-  it("pulls a linked pair closer even with the setting off, and closer still with it on", () => {
-    const base = () => vault(2, 6);
-    const unlinked = base();
-    layout(new LayoutEngine(), { nodes: unlinked });
-    const linkedOff = base();
-    byId(linkedOff, "t0n0").links = ["t1n0"];
-    layout(new LayoutEngine(), { nodes: linkedOff });
-    const linkedOn = base();
-    byId(linkedOn, "t0n0").links = ["t1n0"];
-    layout(new LayoutEngine(), { nodes: linkedOn, settings: { includeWikiLinksAsRelations: true } });
-
-    const d = [dist(unlinked, "t0n0", "t1n0"), dist(linkedOff, "t0n0", "t1n0"), dist(linkedOn, "t0n0", "t1n0")].map(round);
-    expect(d[1]).toBeLessThan(d[0]);
-    expect(d[2]).toBeLessThanOrEqual(d[1]);
+  it("does nothing with the link weight at 0, and pulls with a weight above 0", () => {
+    const d = [undefined, 0, 0.3, 1].map((w) => {
+      const nodes = vault(2, 6);
+      const settings = w === undefined ? {} : { layoutWeightLinks: w };
+      layout(new LayoutEngine(), { nodes, links: w === undefined ? undefined : link, settings });
+      return round(dist(nodes, "t0n0", "t1n0"));
+    });
+    expect(d[1]).toBe(d[0]);
+    expect(d[2]).toBeLessThan(d[1]);
+    expect(d[3]).toBeLessThanOrEqual(d[2]);
     expect(d).toMatchInlineSnapshot(`
       [
         1098,
-        385,
-        385,
+        1098,
+        435,
+        359,
       ]
     `);
   });
 
-  it("places a new linked note next to its link partner with the setting off (path 5: placement through S)", () => {
-    const nodes = vault(2, 6);
-    const engine = new LayoutEngine();
-    layout(engine, { nodes });
-    const r = rng(3);
-    // Topic 3 has no other note, so only the link can make t1n0 its most similar placed note.
-    const fresh = note("new", 3, r, { links: ["t1n0"] });
-    const withNew = [...nodes, fresh];
-    layout(engine, { nodes: withNew }, "auto");
-    const toPartner = round(dist(withNew, "new", "t1n0"));
-    const toOthers = round(Math.min(...nodes.filter((n) => n.id !== "t1n0").map((n) => dist(withNew, "new", n.id))));
-    expect([toPartner, toOthers]).toMatchInlineSnapshot(`
+  it("places a new linked note next to its partner only while the link weight is above 0", () => {
+    const placed = [0, 1].map((w) => {
+      const nodes = vault(2, 6);
+      const engine = new LayoutEngine();
+      layout(engine, { nodes, settings: { layoutWeightLinks: w } });
+      const fresh = note("new", 3, rng(3));
+      const withNew = [...nodes, fresh];
+      layout(engine, { nodes: withNew, links: new Map([["new.md", ["t1n0.md"]]]), settings: { layoutWeightLinks: w } }, "auto");
+      return round(dist(withNew, "new", "t1n0"));
+    });
+    expect(placed[1]).toBeLessThan(placed[0]);
+    expect(placed).toMatchInlineSnapshot(`
       [
-        343,
-        440,
+        632,
+        309,
       ]
     `);
+  });
+
+  it("leaves the clusters unchanged with the link weight at 0", () => {
+    const clusters = (links?: Map<string, string[]>) => {
+      const nodes = vault(3, 4);
+      layout(new LayoutEngine(), { nodes, links, settings: { layoutWeightLinks: 0 } });
+      return nodes.map((n) => n.cloudId);
+    };
+    expect(clusters(new Map([["t0n0.md", ["t2n0.md"]], ["t1n1.md", ["t2n2.md"]]]))).toEqual(clusters());
   });
 });
 
@@ -305,7 +294,7 @@ describe("C6 several groups", () => {
           "inner": 164,
         },
         {
-          "cross": 3699,
+          "cross": 3700,
           "inner": 164,
         },
       ]
@@ -334,14 +323,22 @@ describe("C7 stability per trigger", () => {
   it("edit one note: only the bounded area moves, by a recorded amount", () => {
     const { nodes, edges, engine } = settled();
     const before = positions(nodes);
-    byId(nodes, "t2n3").content = "rewritten words";
+    {
+      // The note moves halfway towards another topic: a real content change for the semantic signal.
+      const edited = byId(nodes, "t2n3");
+      const other = byId(nodes, "t1n3").embedding!;
+      edited.embedding = edited.embedding!.map((v, k) => (v + other[k]) / 2);
+    };
     expect(layout(engine, { nodes, edges }, "auto").kind).toBe("bounded");
     const moved = nodes.filter((n) => maxMove(before, [n]) > 0).length;
-    expect({ moved, of: nodes.length, max: round(maxMove(before, nodes)) }).toMatchInlineSnapshot(`
+    const untouched = new Set(nodes.filter((n) => n.id !== "t2n3").map((n) => n.id));
+    expect(maxMove(before, nodes, untouched)).toBeLessThanOrEqual(0.15 * 350 + 1e-9);
+    expect({ moved, of: nodes.length, edited: round(maxMove(before, nodes)), untouched: round(maxMove(before, nodes, untouched)) }).toMatchInlineSnapshot(`
       {
-        "max": 26,
+        "edited": 356,
         "moved": 6,
         "of": 18,
+        "untouched": 42,
       }
     `);
   });

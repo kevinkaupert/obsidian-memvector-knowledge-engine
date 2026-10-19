@@ -4,13 +4,13 @@ import type { ScatterNode } from "../types";
  * Purpose: Assigns each node to a semantic cluster centroid without over-partitioning coherent vaults.
  * Returns the ids of the centroid nodes, in cloud id order, so the assignment can be kept and re-applied.
  */
-export function assignClouds(nodes: ScatterNode[], matrix: number[][]): string[] {
+export function assignClouds(nodes: ScatterNode[], matrix: number[][], preferEmbedded = true): string[] {
   const n = nodes.length;
   if (n === 0) return [];
 
   const numClouds = Math.max(2, Math.min(8, Math.floor(Math.sqrt(n))));
   if (n <= numClouds) {
-    const firstEmbedded = nodes.findIndex((node) => (node.embedding?.length ?? 0) > 0);
+    const firstEmbedded = preferEmbedded ? nodes.findIndex((node) => (node.embedding?.length ?? 0) > 0) : -1;
     const centroidIdx = firstEmbedded >= 0 ? firstEmbedded : 0;
     nodes.forEach((node) => {
       node.cloudId = 0;
@@ -21,7 +21,8 @@ export function assignClouds(nodes: ScatterNode[], matrix: number[][]): string[]
 
   // Pick diverse centroids (k-means++ style by least similarity to already picked centroids).
   // Prefer nodes with embeddings as centroids so cluster anchors represent real topic vectors (Issue #224).
-  const hasEmbedded = nodes.some((node) => (node.embedding?.length ?? 0) > 0);
+  // Embedded notes anchor clusters only while the semantic signal counts (Plan 0005).
+  const hasEmbedded = preferEmbedded && nodes.some((node) => (node.embedding?.length ?? 0) > 0);
   const firstCentroid = hasEmbedded ? nodes.findIndex((node) => (node.embedding?.length ?? 0) > 0) : 0;
   const centroidIndices: number[] = [firstCentroid >= 0 ? firstCentroid : 0];
 
