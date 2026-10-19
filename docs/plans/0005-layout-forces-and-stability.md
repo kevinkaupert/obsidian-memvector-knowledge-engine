@@ -1,6 +1,6 @@
 # 0005 - Layout forces and stability
 
-Status: Draft - step 1 (inventory) done and reviewed by Codex, steps 2-4 open
+Status: Draft - step 1 (inventory) done and reviewed by Codex; target signal model decided (section 7); steps 2-4 open
 Date: 2026-10-19
 Issues: #284 (stable 2D view, configurable forces), #283 (cloud spacing also spaces unrelated points)
 Decision: successor of ADR-0006 once steps 3 and 4 are decided
@@ -187,7 +187,7 @@ case for regression:
 
 | Case | Setup | Observed today (to record) |
 |---|---|---|
-| C1 linked pair | two notes with a WikiLink, setting off / on | distance vs. an unlinked pair; effect of the setting |
+| C1 linked pair | two notes with a WikiLink, setting off / on | distance vs. an unlinked pair; effect of the setting; each path a link takes today (share in `S`, graph weight, hops, mobile set, placement, clusters) |
 | C2 similar pair | two notes with close vectors, no link | distance vs. a dissimilar pair |
 | C3 relation pair | typed relation weight 1, 3, 6 | distance per weight; relation vs. similarity when both apply (`max`) |
 | C4 conflict pair | CONFLICTS_WITH between similar notes | distance >= 2.5s? |
@@ -198,12 +198,49 @@ case for regression:
 C7 measures the stability definition of #284: maximum movement of untouched notes per event, and reopen = identical
 positions.
 
-## 7. Open decisions (before step 4)
+## 7. Target signal model (owner, 2026-10-19)
 
-- Combination rule of graph and similarity: keep `max`, switch to a (weighted) sum, or separate springs. A sum
-  changes the layout by itself, so it is decided against the step 3 reference.
-- Which forces become settings: candidates are similarity (and its parts), typed relations, WikiLinks (one path, not
-  two), repulsion of unrelated notes, centering, collision. 0 must remove a force entirely, including its share in `S`.
+Every force is defined once and comes from one source. Nothing is mixed outside one function, so a weight of 0 removes
+a signal everywhere.
+
+```
+signals per pair (one source each)            weight (setting, 0 = off)
+  semantic  embedding cosine, rescaled            w_sem
+  link      resolved WikiLink, 0 or 1             w_link
+  relation  typed relation, weight per type       w_rel (x type weight; repels stays separate)
+
+combineAffinity(signals, weights) -> a(i,j) = min(1, w_sem*semantic + w_link*link + w_rel*relation)
+```
+
+Decided (owner, 2026-10-19):
+
+1. **Sum, not max.** Signals are added and capped at 1, so each weight acts proportionally and a relation plus
+   similarity reinforce each other. This changes the layout by itself; the change is checked against the step 3
+   reference.
+2. **Folder and word/formula overlap are removed** as signals (today `folder` 0.1 and `semantics` 0.1 in `S`). The
+   word overlap duplicates the embeddings on the first 800 characters only.
+3. **Hop forces are removed** (`HOP_DECAY`, `BASELINE_WEIGHT`): only direct links and relations attract.
+
+Rules that follow:
+
+- **One source per signal.** WikiLinks come only from Obsidian's resolved links (`metadataCache.resolvedLinks`), no
+  longer from the regex in vaultScan.ts and no longer from both `S` and the graph weights.
+- **Every proximity consumer uses `a`:** the spring, placement of new notes next to their closest note, the mobile
+  neighbors of a bounded pass and the cluster assignment. With `w_link = 0` a WikiLink has no effect anywhere.
+- **The WikiLink toggle becomes the weight `w_link`**, 0 meaning off; this supersedes ADR-0001's opt-in switch.
+- **Without vectors** a note has `semantic = 0`; it is placed by links and relations only (today the vector weight
+  is redistributed onto words and links).
+- **Repulsion stays separate** from `a`: conflict relations (`repels`) and the repulsion of unrelated notes are their
+  own forces with their own settings, decided in step 4.
+
+Step 2 records today's mixing explicitly (WikiLinks through `S`, graph weight, hops, mobile set, placement, clusters),
+so step 4 can show that with `w_link = 0` none of these paths is left.
+
+## 8. Open decisions (before step 4)
+
+- Default values of `w_sem`, `w_link`, `w_rel` that come closest to the step 3 reference.
+- Which of the remaining forces become settings besides the three signal weights: repulsion of unrelated notes,
+  centering, collision.
 - Meaning of node and cloud spacing afterwards (#283): cloud spacing as distance between clusters needs clusters to
   exert a force; otherwise it may be dropped in favor of a repulsion setting.
 - Movement bound: a hard maximum distance per event for untouched notes, or a stronger anchor.
