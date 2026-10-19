@@ -30,7 +30,7 @@ export function layoutWeightsFrom(settings: Partial<Pick<MemVectorSettings, "lay
   };
 }
 
-/** Resolved WikiLink targets per note path (Obsidian's metadataCache.resolvedLinks, reduced to the laid-out notes). */
+/** Resolved targets of the WikiLinks in each note's text (metadata cache `links`, resolved by Obsidian; frontmatter links excluded). */
 export type ResolvedLinks = ReadonlyMap<string, readonly string[]>;
 
 function cosine(a: number[], b: number[]): number {

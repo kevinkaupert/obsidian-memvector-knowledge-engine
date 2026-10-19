@@ -258,7 +258,7 @@ Decided (owner, 2026-10-19):
 
 Rules that follow:
 
-- **One source per signal.** WikiLinks come only from Obsidian's resolved links (`metadataCache.resolvedLinks`), no
+- **One source per signal.** WikiLinks come only from the links in the note text, resolved by Obsidian, no
   longer from the regex in vaultScan.ts and no longer from both `S` and the graph weights.
 - **Every proximity consumer uses `a`:** the spring, placement of new notes next to their closest note, the mobile
   neighbors of a bounded pass and the cluster assignment. With `w_link = 0` a WikiLink has no effect anywhere.
@@ -282,7 +282,7 @@ other consumers of the removed features, test and settings checklist).
      (computed on the cosine alone, kept fixed by bounded passes as today), then squared - the noise filter that
      `S^2` applies today. Values are always clamped to [0,1]; when the bounds cannot stretch (fewer than two
      embedded notes or a negligible spread) the cosine is mapped by `(cos + 1) / 2`. 0 when either note has no vector.
-   - `link[i][j]`: 1 if either note links the other in Obsidian's `metadataCache.resolvedLinks`, else 0. The view
+   - `link[i][j]`: 1 if either note links the other through the WikiLinks in the note text (metadata cache `links`, resolved by `getFirstLinkpathDest`; frontmatter links are relations or suggestions and do not count), else 0 (frontmatter excluded after a Codex review). The view
      passes the resolved links of the laid-out notes with every layout request, so the engine stays free of Obsidian,
      and re-runs the layout (`auto`, debounced) on the metadata cache's `resolved` event, which covers a target created
      or renamed after its source was read.

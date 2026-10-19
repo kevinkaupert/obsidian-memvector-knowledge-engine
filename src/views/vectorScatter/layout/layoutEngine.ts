@@ -21,7 +21,7 @@ export interface LayoutRunInput {
   nodes: ScatterNode[];
   relationEdges: RelationEdge[];
   vocabulary?: RelationTermDef[];
-  /** Resolved WikiLink targets per note path (Obsidian's metadataCache.resolvedLinks); the link signal's only source. */
+  /** Resolved targets of the WikiLinks in each note's text (Obsidian's metadata cache); the link signal's only source. */
   links?: ResolvedLinks;
   settings: MemVectorSettings;
   nodeSpacing: number;

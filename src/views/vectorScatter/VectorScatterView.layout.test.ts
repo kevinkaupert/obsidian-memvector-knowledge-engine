@@ -73,8 +73,8 @@ vi.mock("../../sync/sqlite/nodePositions", () => ({
 }));
 
 const vectors = new Map<string, number[]>();
-/** Obsidian's resolved WikiLinks (source path -> target path -> count), the layout's link source (Plan 0005). */
-const resolvedLinks: Record<string, Record<string, number>> = {};
+/** WikiLinks in the text of each note (path -> link texts); the metadata cache fake resolves them by basename (Plan 0005). */
+const bodyLinks: Record<string, string[]> = {};
 vi.mock("../../sync/storeFactory", () => ({
   getVectorStore: vi.fn(() => ({
     getVectors: vi.fn(async (keys: string[]) => {
@@ -114,7 +114,13 @@ function createFixture(notes: FakeNote[]) {
       },
       on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(event, cb), { event, cb })),
     },
-    metadataCache: { getFileCache: () => undefined, resolvedLinks },
+    metadataCache: {
+      getFileCache: (f: { path: string }) => (bodyLinks[f.path] ? { links: bodyLinks[f.path].map((link) => ({ link })) } : undefined),
+      getFirstLinkpathDest: (link: string) => {
+        const n = notes.find((x) => x.path.replace(/^.*\//, "").replace(/\.md$/, "") === link);
+        return n ? toFile(n) : null;
+      },
+    },
     workspace: { on: vi.fn((event: string, cb: (...args: any[]) => void) => (callbacks.set(`workspace:${event}`, cb), { event, cb })) },
   };
   const host: VectorScatterHost = {
@@ -152,7 +158,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   storedPositions.clear();
   vectors.clear();
-  for (const key of Object.keys(resolvedLinks)) delete resolvedLinks[key];
+  for (const key of Object.keys(bodyLinks)) delete bodyLinks[key];
   relationEdges = [];
   vi.mocked(applyGraphVectorProjection).mockClear();
   vi.mocked(saveNodePositions).mockClear();
@@ -206,7 +212,7 @@ describe("VectorScatterView layout with the real simulation (#208)", () => {
 
     notes[0].content = "completely different vocabulary inserted here";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
+    bodyLinks[notes[0].path] = ["note5"];
     fire("modify", toFile(notes[0]));
     await settle();
 
@@ -427,12 +433,12 @@ describe("VectorScatterView position writes (#211)", () => {
 
     notes[0].content = "first change of words";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
+    bodyLinks[notes[0].path] = ["note5"];
     fire("modify", toFile(notes[0]));
     await vi.advanceTimersByTimeAsync(900);
     notes[1].content = "second change of words";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[notes[1].path] = { "geometry/note5.md": 1 };
+    bodyLinks[notes[1].path] = ["note5"];
     fire("modify", toFile(notes[1]));
     await vi.advanceTimersByTimeAsync(900);
     expect(saveNodePositions).not.toHaveBeenCalled();
@@ -461,7 +467,7 @@ describe("VectorScatterView defers work while hidden (#212)", () => {
     f.setVisible(false);
     f.notes[0].content = "changed words while hidden";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[f.notes[0].path] = { "geometry/note5.md": 1 };
+    bodyLinks[f.notes[0].path] = ["note5"];
     f.fire("modify", f.toFile(f.notes[0]));
     await settle();
     f.fire("modify", f.toFile(f.notes[1]));
@@ -641,7 +647,7 @@ describe("VectorScatterView keeps the map when stored vectors cannot be read (#1
 
     notes[0].content = "a layout-relevant change while the store is locked";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[notes[0].path] = { "geometry/note5.md": 1 };
+    bodyLinks[notes[0].path] = ["note5"];
     await failVectorsOnce();
     await view.scanVaultNotes();
     await settle(2000);
@@ -690,7 +696,7 @@ describe("VectorScatterView keeps the map when stored vectors cannot be read (#1
     await failVectorsOnce();
     notes[1].content = "another relevant change";
     // A new WikiLink is what the layout reads (Plan 0005); words alone are no layout input.
-    resolvedLinks[notes[1].path] = { "geometry/note5.md": 1 };
+    bodyLinks[notes[1].path] = ["note5"];
     fire("modify", toFile(notes[1]));
     await settle(2000);
 

@@ -1129,6 +1129,25 @@ describe("VectorScatterView watchers read live state (characterization before th
   });
 });
 
+describe("VectorScatterView link signal source (Plan 0005 review)", () => {
+  it("takes only WikiLinks in the note text, resolved by Obsidian; frontmatter links (also _suggested) do not count", () => {
+    const host = createMockHost();
+    const files: Record<string, any> = {};
+    for (const p of ["A.md", "B.md", "C.md"]) files[p] = Object.assign(new TFile(), { path: p, basename: p.replace(".md", "") });
+    (host.app as any).vault.getAbstractFileByPath = (p: string) => files[p] ?? null;
+    (host.app as any).metadataCache = {
+      on: vi.fn(() => ({})),
+      // Obsidian lists both in resolvedLinks; only `links` (the text) is the link signal
+      resolvedLinks: { "A.md": { "B.md": 1, "C.md": 1 } },
+      getFileCache: (f: { path: string }) => (f.path === "A.md" ? { links: [{ link: "B#Heading" }], frontmatterLinks: [{ link: "C", key: "requires_suggested" }] } : null),
+      getFirstLinkpathDest: (link: string) => files[`${link}.md`] ?? null,
+    };
+    const view = new VectorScatterView({} as WorkspaceLeaf, host);
+    view.nodes = ["A.md", "B.md", "C.md"].map((p) => ({ ...makeNode(p.replace(".md", ""), p, "concept") }));
+    expect([...(view as any).resolvedLinks()]).toEqual([["A.md", ["B.md"]]]);
+  });
+});
+
 describe("VectorScatterView hydration gates (characterization before the split, #273)", () => {
   it("a write scheduled before a failed position read writes nothing", async () => {
     const { getStoredNodePositions, saveNodePositions } = await import("../../sync/sqlite/nodePositions");

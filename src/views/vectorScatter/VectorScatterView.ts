@@ -461,16 +461,30 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
 
   private linksResolvedTimer: number | null = null;
 
-  /** Resolved WikiLink targets of the laid-out notes, from Obsidian's metadata cache (the link signal's only source). */
+  /**
+   * Resolved WikiLink targets of the laid-out notes: the links in the note text (metadata cache `links`), resolved by
+   * Obsidian (`getFirstLinkpathDest`). Frontmatter links are left out: confirmed ones are typed relations and
+   * `_suggested` ones must not pull (#243), so neither counts twice or unconfirmed (Plan 0005 review).
+   */
   private resolvedLinks(): Map<string, string[]> {
-    const resolved = (this.app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined)?.resolvedLinks ?? {};
+    const cache = this.app.metadataCache;
     const links = new Map<string, string[]>();
+    if (!cache?.getFileCache || !cache.getFirstLinkpathDest) return links;
     for (const node of this.nodes) {
-      const targets = Object.keys(resolved[node.path] ?? {});
-      if (targets.length > 0) links.set(node.path, targets);
+      const file = this.app.vault.getAbstractFileByPath(node.path);
+      if (!(file instanceof TFile)) continue;
+      const targets = new Set<string>();
+      for (const link of cache.getFileCache(file)?.links ?? []) {
+        const linkpath = link.link.split("#")[0].trim();
+        if (!linkpath) continue;
+        const dest = cache.getFirstLinkpathDest(linkpath, node.path);
+        if (dest && dest.path !== node.path) targets.add(dest.path);
+      }
+      if (targets.size > 0) links.set(node.path, [...targets]);
     }
     return links;
   }
+
 
   /**
    * Purpose: Tells whether the view is currently on screen.

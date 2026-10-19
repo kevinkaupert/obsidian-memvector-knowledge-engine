@@ -95,7 +95,7 @@ Vault events reach the view through one queue (`vaultEventQueue.ts`): events per
 **Signal model** (`layout/signals.ts`, ADR-0008): three pair signals with one source each, mixed only in `combineAffinity`:
 
 1. **Semantic:** embedding cosine, rescaled to [0,1] by the vault's 1st/99th percentile (kept fixed during local adjustments), squared; 0 for a note without a vector.
-2. **Link:** 1 when either note links the other in Obsidian's `metadataCache.resolvedLinks` (passed in by the view, refreshed on the `resolved` event).
+2. **Link:** 1 when either note links the other through the WikiLinks in the note text (metadata cache `links`, resolved by `getFirstLinkpathDest`; frontmatter links are relations or suggestions and do not count) (passed in by the view, refreshed on the `resolved` event).
 3. **Relation:** the strongest attracting typed-relation weight between the pair, read from the active vocabulary's `weight` (ADR-0002, bundled fallback for labels the vocabulary does not define, `layoutDefaults.ts`); `repels` labels such as `CONFLICTS_WITH` become a repulsion within `2.5×` node spacing instead.
 
 `a = min(1, w_sem·semantic + w_link·link + w_rel·min(1, relation))` with the weights `layoutWeightSemantic`, `layoutWeightLinks`, `layoutWeightRelations` (0-2, defaults 1 / 0.3 / 1; 0 = off everywhere). A relation weight above 1 also shortens the pair's target distance and stiffens its spring (weight factor, capped at 6). The spring, placement, the notes a local adjustment may move and the clusters all use `a`. There are no hop weights; folder and word overlap are not layout inputs.

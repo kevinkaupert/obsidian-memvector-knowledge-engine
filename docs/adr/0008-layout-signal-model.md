@@ -20,7 +20,7 @@ WikiLinks (0.3), folder (0.1) and word or formula overlap (0.1); a graph weight 
 1. **Three signals, one source each** (`layout/signals.ts`):
    - `semantic`: embedding cosine, rescaled to [0,1] by the vault's 1st/99th percentile (fixed during local
      adjustments, ADR-0006), squared; `(cos + 1) / 2` when the bounds cannot stretch; 0 without vectors.
-   - `link`: 1 when either note links the other in Obsidian's `metadataCache.resolvedLinks`, else 0. The view passes
+   - `link`: 1 when either note links the other through the WikiLinks in the note text (metadata cache `links`, resolved by `getFirstLinkpathDest`; frontmatter links are relations or suggestions and do not count), else 0. The view passes
      the resolved links and lays out again on the metadata cache's `resolved` event.
    - `relation`: the strongest attracting typed-relation weight (vocabulary, bundled fallback); repelling relations
      stay a separate repulsion.
