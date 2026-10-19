@@ -3,15 +3,17 @@ import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
 import { applyVectorLayout, copyNodesInPathOrder, prepareLayoutModel, type LayoutModel } from "./applyVectorLayout";
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutDiff, type LayoutSnapshot } from "./layoutInputs";
-import { LARGE_CHANGE_RATIO, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
+import { LARGE_CHANGE_RATIO, NEIGHBOR_MOVE_LIMIT, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
 import { applyGraphVectorProjection } from "./projections";
 
 /**
  * "auto": data updates - nothing moves unless a layout input changed, and then only the affected area.
  * "global": a free pass over all nodes from their current positions (e.g. the spacing sliders).
  * "rearrange": a free layout from scratch, ignoring current positions (the explicit rearrange action).
+ * "relations": a relation change from the relation builder - like "auto", but never a free pass because of the size
+ *   of the change (Plan 0005 S1).
  */
-export type LayoutMode = "auto" | "global" | "rearrange";
+export type LayoutMode = "auto" | "global" | "rearrange" | "relations";
 
 export interface LayoutRunInput {
   nodes: ScatterNode[];
@@ -27,6 +29,8 @@ export type LayoutRunKind = "none" | "bounded" | "free";
 export interface LayoutRunResult {
   /** True when the force simulation ran and positions may have changed. */
   simulated: boolean;
+  /** True when positions may have changed, by a simulation or by scaling to a new node spacing (Plan 0005 S4). */
+  moved: boolean;
   kind: LayoutRunKind;
   /** Extra passes of a layout built from scratch and whether they stopped below the movement threshold. */
   settle?: { passes: number; converged: boolean };
@@ -50,9 +54,45 @@ export class LayoutEngine {
   private snapshot: LayoutSnapshot | null = null;
   private model: Pick<LayoutModel, "bounds" | "centroidIds"> | null = null;
   private clusterOf = new Map<string, number>();
+  /** Node spacing the current positions were laid out with; a new value scales them (Plan 0005 S4). */
+  private appliedNodeSpacing: number | undefined;
+  /** Cloud spacing the passes use; a new value is applied at the next rearrange only (Plan 0005 S5). */
+  private appliedCloudSpacing: number | undefined;
 
   run(input: LayoutRunInput, mode: LayoutMode = "auto"): LayoutRunResult {
     input = { ...input, nodes: copyNodesInPathOrder(input.nodes) };
+    const scaled = this.applySpacing(input, mode);
+    input = { ...input, nodeSpacing: this.appliedNodeSpacing ?? input.nodeSpacing, cloudSpacing: this.appliedCloudSpacing ?? input.cloudSpacing };
+    const result = this.runLayout(input, mode);
+    return { ...result, moved: result.moved || scaled };
+  }
+
+  /**
+   * Purpose: Applies the spacing values before a pass. A rearrange or the first run takes both values as given. Later,
+   * a new node spacing scales every placed position by new / old around the origin (no simulation, bounds and
+   * clusters kept), and a new cloud spacing is only remembered until the next rearrange. Returns whether positions
+   * were scaled.
+   */
+  private applySpacing(input: LayoutRunInput, mode: LayoutMode): boolean {
+    if (mode === "rearrange" || this.appliedNodeSpacing === undefined || this.appliedCloudSpacing === undefined) {
+      this.appliedNodeSpacing = input.nodeSpacing;
+      this.appliedCloudSpacing = input.cloudSpacing;
+      return false;
+    }
+    if (input.nodeSpacing === this.appliedNodeSpacing || !(input.nodeSpacing > 0) || !(this.appliedNodeSpacing > 0)) return false;
+    const ratio = input.nodeSpacing / this.appliedNodeSpacing;
+    this.appliedNodeSpacing = input.nodeSpacing;
+    let any = false;
+    for (const n of input.nodes) {
+      if (!isPlaced(n)) continue;
+      n.x *= ratio;
+      n.y *= ratio;
+      any = true;
+    }
+    return any;
+  }
+
+  private runLayout(input: LayoutRunInput, mode: LayoutMode): LayoutRunResult {
     const { nodes } = input;
     const next = captureLayoutSnapshot(nodes, input.relationEdges, input.vocabulary, {
       nodeSpacing: input.nodeSpacing,
@@ -61,33 +101,33 @@ export class LayoutEngine {
       includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
     });
 
-    if (mode === "auto") {
+    if (mode === "auto" || mode === "relations") {
       if (this.snapshot === null) {
         const unplaced = nodes.filter((n) => !isPlaced(n)).map((n) => n.id);
         if (unplaced.length === 0) {
           this.remember(nodes, prepareLayoutModel(nodes, input.settings), next);
-          return { simulated: false, kind: "none" };
+          return { simulated: false, moved: false, kind: "none" };
         }
         if (unplaced.length < nodes.length) {
           this.model = prepareLayoutModel(nodes, input.settings);
           this.rememberClusters(nodes);
           const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set() };
-          if (this.runBounded(input, added)) {
+          if (this.runBounded(input, added, mode === "relations")) {
             this.snapshot = next;
             this.rememberClusters(nodes);
-            return { simulated: true, kind: "bounded" };
+            return { simulated: true, moved: true, kind: "bounded" };
           }
         }
       } else {
         const diff = diffLayoutSnapshots(this.snapshot, next);
         if (isLayoutUnchanged(diff)) {
           this.applyClusters(nodes);
-          return { simulated: false, kind: "none" };
+          return { simulated: false, moved: false, kind: "none" };
         }
-        if (this.runBounded(input, diff)) {
+        if (this.runBounded(input, diff, mode === "relations")) {
           this.snapshot = next;
           this.rememberClusters(nodes);
-          return { simulated: true, kind: "bounded" };
+          return { simulated: true, moved: true, kind: "bounded" };
         }
       }
     }
@@ -103,7 +143,7 @@ export class LayoutEngine {
     const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input.relationEdges, input.vocabulary);
     const settle = fromScratch && nodes.length > 0 && model.matrix.length === nodes.length ? this.settle(nodes, model.matrix, input) : undefined;
     this.remember(nodes, model, next);
-    return { simulated: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
+    return { simulated: nodes.length > 0, moved: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
   }
 
   /**
@@ -138,12 +178,12 @@ export class LayoutEngine {
   /**
    * Purpose: Runs a bounded adjustment for a local change; returns false when the change is too large for one.
    */
-  private runBounded(input: LayoutRunInput, diff: LayoutDiff): boolean {
+  private runBounded(input: LayoutRunInput, diff: LayoutDiff, ignoreSize = false): boolean {
     const { nodes } = input;
     const model = this.model;
     if (diff.settingsChanged || !model || !model.bounds) return false;
     const seeds = new Set<string>([...diff.addedIds, ...diff.changedIds, ...diff.edgeEndpointIds]);
-    if (seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
+    if (!ignoreSize && seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
@@ -174,6 +214,7 @@ export class LayoutEngine {
       });
     }
 
+    const before = new Map(nodes.filter((n) => mobileIds.has(n.id) && !seeds.has(n.id)).map((n) => [n.id, { x: n.x, y: n.y }]));
     applyGraphVectorProjection({
       nodes,
       matrix: prepared.matrix,
@@ -184,6 +225,19 @@ export class LayoutEngine {
       vocabulary: input.vocabulary,
       bounded: { mobileIds },
     });
+    // Hard bound (Plan 0005 S3): a note that only moved along ends at most NEIGHBOR_MOVE_LIMIT x node spacing away.
+    const limit = NEIGHBOR_MOVE_LIMIT * (input.nodeSpacing || input.settings.scatterNodeSpacing || 350);
+    for (const n of nodes) {
+      const start = before.get(n.id);
+      if (!start) continue;
+      const dx = n.x - start.x;
+      const dy = n.y - start.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > limit) {
+        n.x = start.x + (dx / distance) * limit;
+        n.y = start.y + (dy / distance) * limit;
+      }
+    }
     return true;
   }
 

@@ -262,7 +262,7 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     expect(view.nodes).toHaveLength(6);
   });
 
-  it("ignores events for notes excluded from indexing or outside the view filter", async () => {
+  it("ignores events for notes excluded from indexing, but keeps notes outside the view filter in the layout (Plan 0005 S2)", async () => {
     const notes = [...sixNotes(), { path: "archive/old.md", content: "archived" }];
     const fixture = createFixture(notes);
     fixture.view.settings.vectorSearchExclusions = "-path:archive";
@@ -276,9 +276,11 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     fixture.fire("modify", fixture.toFile(notes[4]));
     await settle();
 
-    expect(fixture.vault.cachedRead).not.toHaveBeenCalled();
+    // The excluded note is never read; the filtered-out note is read because it stays a layout node.
+    expect(vi.mocked(fixture.vault.cachedRead).mock.calls.map((c) => c[0].path)).toEqual(["geometry/note4.md"]);
     expect(applyGraphVectorProjection).not.toHaveBeenCalled();
-    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
+    expect(fixture.view.nodes).toHaveLength(6);
+    expect(fixture.view.getVisibleNodes().map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
   });
 
   it("still reloads edges for relation notes and the vocabulary file outside the view filter", async () => {
@@ -380,7 +382,8 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     const newer = fixture.view.scanVaultNotes("geometry");
     await Promise.all([older, newer]);
 
-    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
+    expect(fixture.view.viewFilterQuery).toBe("geometry");
+    expect(fixture.view.getVisibleNodes().map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
   });
 
   it("drops a queued incremental update that a newer full scan supersedes", async () => {
@@ -389,7 +392,7 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     await fixture.view.scanVaultNotes("geometry");
     await settle();
 
-    expect(fixture.view.nodes.map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
+    expect(fixture.view.getVisibleNodes().map((n) => n.path)).toEqual(["geometry/note3.md", "geometry/note4.md", "geometry/note5.md"]);
   });
 
   it("falls back to a full rescan when an incremental update fails", async () => {
@@ -716,10 +719,12 @@ describe("VectorScatterView picks up settings changed outside the view (#189)", 
     for (const n of view.nodes) expect(before.get(n.path)).toBeDefined();
   });
 
-  it("re-reads the spacing from settings and lays out with it", async () => {
+  it("re-reads the spacing from settings and scales the map to it without a simulation (Plan 0005 S4, S5)", async () => {
     const { view } = createFixture(sixNotes());
     await view.scanVaultNotes();
     await settle(2000);
+    const before = view.nodes.map((n) => ({ x: n.x, y: n.y }));
+    const spacingBefore = view.nodeSpacing;
     vi.mocked(applyGraphVectorProjection).mockClear();
 
     view.settings.scatterNodeSpacing = 600;
@@ -728,8 +733,13 @@ describe("VectorScatterView picks up settings changed outside the view (#189)", 
 
     expect(view.nodeSpacing).toBe(600);
     expect(view.cloudSpacing).toBe(3000);
-    expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(applyGraphVectorProjection).mock.calls[0][0].nodeSpacing).toBe(600);
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    view.nodes.forEach((n, i) => {
+      expect(n.x).toBeCloseTo((before[i].x * 600) / spacingBefore, 6);
+      expect(n.y).toBeCloseTo((before[i].y * 600) / spacingBefore, 6);
+    });
+    await settle(2000);
+    expect(storedPositions.get(view.nodes[1].path)).toEqual({ x: view.nodes[1].x, y: view.nodes[1].y });
   });
 
   it("lets other open views know when its own toolbar changed a setting", () => {

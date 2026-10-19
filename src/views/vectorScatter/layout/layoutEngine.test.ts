@@ -112,12 +112,15 @@ describe("LayoutEngine (#209)", () => {
     expect(engine.run(input(fresh)).simulated).toBe(true);
   });
 
-  it("simulates when the spacing changes, as the sliders do", () => {
+  it("scales instead of simulating when node spacing changes, and only stores a new cloud spacing (Plan 0005 S4, S5)", () => {
     const engine = new LayoutEngine();
     const nodes = makeNodes(true);
     engine.run(input(nodes));
 
-    expect(engine.run(input(nodes, { nodeSpacing: 500 })).simulated).toBe(true);
+    const scaled = engine.run(input(nodes, { nodeSpacing: 500 }));
+    expect([scaled.simulated, scaled.moved]).toEqual([false, true]);
+    const stored = engine.run(input(nodes, { nodeSpacing: 500, cloudSpacing: 2000 }));
+    expect([stored.simulated, stored.moved]).toEqual([false, false]);
   });
 
   it("simulates on an explicit global request even without changes", () => {

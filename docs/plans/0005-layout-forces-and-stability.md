@@ -1,6 +1,6 @@
 # 0005 - Layout forces and stability
 
-Status: Draft - step 1 (inventory, reviewed by Codex) and step 2 (characterization) done; target signal model decided (section 7); steps 3-4 open
+Status: Draft - steps 1-3 done (inventory reviewed by Codex, characterization, stabilization); target signal model decided (section 7); step 4 open
 Date: 2026-10-19
 Issues: #284 (stable 2D view, configurable forces), #283 (cloud spacing also spaces unrelated points)
 Decision: successor of ADR-0006 once steps 3 and 4 are decided
@@ -195,9 +195,42 @@ asserted, measured values are rounded inline snapshots. Fixture: notes on four e
 | C5 unrelated points | four single notes of different topics, cloud spacing 300 / 3000 | mean distance 350 / 1021: cloud spacing spreads single points that form no cloud (#283) |
 | C6 several groups | three groups of five, cloud spacing 800 / 3000 | between groups 994 / 3699, within a group 164 / 164 |
 | C7 stability | settled vault of 18 notes with two relations | reopen with stored positions: nothing moves. Edit one note: bounded, 6 of 18 notes move, at most 26. Hide two notes: nobody moves; show them again with their positions: bounded, nothing moves. Delete a relation (builder, rearrange): untouched notes move up to 210. Node spacing slider 350 -> 500: free pass, up to 189. |
+| C7 after step 3 (reference for step 4) | same | reopen: nothing moves. Edit one note: unchanged (6 of 18, at most 26). Delete a relation: bounded, untouched notes at most 53 (`0.15s`). Node spacing 350 -> 500: no simulation, every position scaled exactly. Cloud spacing 800 -> 3000: nothing moves. |
 
 Not covered here, to check in the integration vault: positions of re-shown notes hydrated from the database
 instead of kept on the node objects, background indexing with two notifications, and large vaults.
+
+## 6a. Step 3 - stabilize (done)
+
+Goal: no automatic action moves notes that were not touched by more than a fixed bound, and a global rearrangement
+happens only on explicit request. Forces and their combination stay as they are (that is step 4). The characterization
+from step 2 is updated to the stabilized behavior and becomes the reference for step 4. Revised after a Codex review
+of the first draft (relation edges re-seed returning notes, cluster and position history of hidden notes, spacing
+kept in the snapshot, cloud spacing still used by bounded passes, no position write without a simulation).
+
+| # | Change | Today (step 2) | After |
+|---|---|---|---|
+| S1 | A relation change from the relation builder (save, edit, delete) is always a bounded pass: `relationChangeLayoutMode` returns `auto`, and the engine does not fall back to a free pass for a change that consists only of relation endpoints (`LayoutMode` `relations`). A free pass remains only when no rescale bounds exist yet. | delete: rearrange from scratch, untouched notes up to 210; save in a 2-3 note vault: free pass | bounded pass around the endpoints, capped by S3 |
+| S2 | The view filter query is visibility only. The layout node set ignores it (`scanScope` without `filterQuery`); `getVisibleNodes` applies it for drawing, hit testing and search. Filtered notes keep their position, take part in scaling (S4) and keep exerting forces. | the filter changes the node set; returning notes are "added" seeds, their relation edges re-seed both endpoints, clusters and unsaved positions of hidden notes are lost | changing the filter moves nothing |
+| S3 | Hard movement bound per bounded pass: mobile notes that are not seeds are moved back onto the circle of radius `NEIGHBOR_MOVE_LIMIT x s` (new tunable 0.15) around their position before the pass, before positions are scheduled for writing. Seeds are the changed, added and relation-endpoint notes. | soft anchor only, up to about 366 per pass | untouched notes at most 0.15s (52 at s = 350) per pass |
+| S4 | The engine keeps the node spacing it last applied. When only node spacing changed, it scales every node position by `new / old` around the origin and reports that positions changed (written like a simulation); no simulation, bounds and clusters unchanged. Each open view has its own engine and applies the change once. | free pass, up to 189 | every distance scales by the ratio |
+| S5 | The engine keeps the cloud spacing it last applied and uses it for bounded and free passes; a changed cloud spacing is only stored and becomes the applied value at the next "Layout neu anordnen". Cloud spacing no longer counts as a settings change. | free pass | nothing moves |
+
+Known limits, accepted for step 3:
+
+- Relation notes hidden by the relation-note toggle are still outside the node set. If node spacing changes while they
+  are hidden, they return at their stored (old-scale) positions; as unchanged notes they are not adjusted.
+- Background indexing notifies twice for one edit (change, then new vector); each is its own bounded pass, so an
+  untouched note can move up to 0.30s for one edit.
+- The applied cloud spacing lives in the engine, so it is per session: after reopening, the stored value is applied
+  to later passes (positions are not moved on reopening).
+- Free passes stay uncapped: "Layout neu anordnen", more than 50% of notes changed (e.g. the first vector
+  calculation), a change of knowledge domain or of the WikiLink setting.
+- Clamping a neighbor can undo part of a collision push; seeds are not clamped, so a new note still finds space.
+
+Done: `layout/stabilization.test.ts` (7 tests, 5 failing on 7492ce1) first, then S1-S5; tests that asserted the
+old behavior were rewritten to the new rules (spacing as settings change, relation delete as rearrange, filter as
+node set); C7 re-recorded as the reference. Owner check in the integration vault pending.
 
 ## 7. Target signal model (owner, 2026-10-19)
 

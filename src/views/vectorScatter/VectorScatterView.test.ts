@@ -225,9 +225,9 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     expect(view.refreshRelationEdges).toHaveBeenCalled();
   });
 
-  it("rearranges after a deleted relation and adjusts locally after a saved one", () => {
-    expect(relationChangeLayoutMode("deleted")).toBe("rearrange");
-    expect(relationChangeLayoutMode("saved")).toBe("auto");
+  it("adjusts locally after every relation change, including a delete (Plan 0005 S1)", () => {
+    expect(relationChangeLayoutMode("deleted")).toBe("relations");
+    expect(relationChangeLayoutMode("saved")).toBe("relations");
   });
 
   it.each(["auto", "rearrange"] as const)("lays out with mode %s after reloading the relation edges", async (mode) => {

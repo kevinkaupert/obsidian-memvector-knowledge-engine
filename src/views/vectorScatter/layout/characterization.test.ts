@@ -2,7 +2,8 @@
  * Purpose: Characterization of today's layout forces and triggers (Plan 0005 step 2, #284, #283). Records what the
  * layout does now, including behavior Plan 0005 section 7 will change (WikiLinks through the similarity, max instead
  * of sum, hops, cloud spacing as point repulsion). Distances are asserted as relations; measured values are recorded as
- * rounded inline snapshots so step 3 and 4 show exactly what changed.
+ * rounded inline snapshots so step 3 and 4 show exactly what changed. Since step 3 (stabilization) C7 records the
+ * stabilized behavior; it is the reference for step 4.
  */
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../../../settings/defaults";
@@ -361,23 +362,49 @@ describe("C7 stability per trigger", () => {
     `);
   });
 
-  it("delete a relation in the relation builder: rearranges everything from scratch", () => {
+  it("delete a relation in the relation builder: a bounded pass around the endpoints (S1)", () => {
     const { nodes, edges, engine } = settled();
     const before = positions(nodes);
-    layout(engine, { nodes, edges: edges.slice(1) }, "rearrange");
+    const result = layout(engine, { nodes, edges: edges.slice(1) }, "relations");
     const untouched = new Set(nodes.filter((n) => !["t0n0", "t1n0"].includes(n.id)).map((n) => n.id));
-    expect(round(maxMove(before, nodes, untouched))).toMatchInlineSnapshot(`210`);
-  });
-
-  it("move the node spacing slider: a free pass over all notes", () => {
-    const { nodes, edges, engine } = settled();
-    const before = positions(nodes);
-    const result = layout(engine, { nodes, edges, nodeSpacing: 500 }, "auto");
-    expect({ kind: result.kind, max: round(maxMove(before, nodes)) }).toMatchInlineSnapshot(`
+    expect(round(maxMove(before, nodes, untouched))).toBeLessThanOrEqual(round(0.15 * 350));
+    expect({ kind: result.kind, max: round(maxMove(before, nodes, untouched)) }).toMatchInlineSnapshot(`
       {
-        "kind": "free",
-        "max": 189,
+        "kind": "bounded",
+        "max": 53,
       }
     `);
   });
+
+  it("move the node spacing slider: the map scales, nothing is simulated (S4)", () => {
+    const { nodes, edges, engine } = settled();
+    const before = positions(nodes);
+    const result = layout(engine, { nodes, edges, nodeSpacing: 500 }, "auto");
+    let worst = 0;
+    for (const n of nodes) {
+      const p = before.get(n.id)!;
+      worst = Math.max(worst, Math.hypot(n.x - (p.x * 500) / 350, n.y - (p.y * 500) / 350));
+    }
+    expect({ kind: result.kind, simulated: result.simulated, moved: result.moved, offScale: worst < 1e-9 }).toMatchInlineSnapshot(`
+      {
+        "kind": "none",
+        "moved": true,
+        "offScale": true,
+        "simulated": false,
+      }
+    `);
+  });
+
+  it("move the cloud spacing slider: nothing moves until the next rearrange (S5)", () => {
+    const { nodes, edges, engine } = settled();
+    const before = positions(nodes);
+    const result = layout(engine, { nodes, edges, cloudSpacing: 3000 }, "auto");
+    expect({ kind: result.kind, max: maxMove(before, nodes) }).toMatchInlineSnapshot(`
+      {
+        "kind": "none",
+        "max": 0,
+      }
+    `);
+  });
+;
 });

@@ -102,7 +102,9 @@ export function captureLayoutSnapshot(
   return {
     nodes: nodeSigs,
     edges: edgeForceSignatures(nodes, relationEdges, vocabulary),
-    settings: [settings.nodeSpacing, settings.cloudSpacing, isMath ? "math" : "text", settings.includeWikiLinksAsRelations ? "wl" : "-"].join("|"),
+    // Node and cloud spacing are not compared here: the engine scales for node spacing and keeps the applied cloud
+    // spacing until a rearrange (Plan 0005 S4, S5).
+    settings: [isMath ? "math" : "text", settings.includeWikiLinksAsRelations ? "wl" : "-"].join("|"),
   };
 }
 

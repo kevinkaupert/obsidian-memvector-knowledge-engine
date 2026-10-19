@@ -24,7 +24,7 @@ import { PositionPersister } from "./positionPersistence";
 import { NodeHydration } from "./nodeHydration";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
-import { buildScatterNode, cachedFrontmatterType, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
 import { registerScatterVaultWatchers } from "./vaultWatchers";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
@@ -46,11 +46,11 @@ export interface NodePositionProvider {
 
 /**
  * Purpose: Layout mode after a relation change in the relation builder.
- * Architecture: Deleting a relation is an explicit user action, so it may rearrange freely (ADR-0006). The free layout
- * is deterministic, so the arrangement from before the relation existed returns when nothing else changed since.
+ * Architecture: Every change, including a delete, is a bounded adjustment around the endpoints (Plan 0005 S1); a
+ * global rearrangement happens only through "Layout neu anordnen".
  */
-export function relationChangeLayoutMode(change: RelationChange): LayoutMode {
-  return change === "deleted" ? "rearrange" : "auto";
+export function relationChangeLayoutMode(_change: RelationChange): LayoutMode {
+  return "relations";
 }
 
 export class VectorScatterView extends ItemView implements ScatterViewContext, NodePositionProvider {
@@ -66,7 +66,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Returns the currently visible scatter nodes according to display toggles.
    */
   getVisibleNodes(): ScatterNode[] {
-    return filterVisibleNodes(this.nodes, this.showRelationNotes, relationsFolder(this.settings));
+    const shown = filterVisibleNodes(this.nodes, this.showRelationNotes, relationsFolder(this.settings));
+    // The filter only hides notes; they stay in the layout (Plan 0005 S2).
+    if (!this.viewFilterQuery.trim()) return shown;
+    return shown.filter((n) => shouldIncludeFile(fileRefFromPath(n.path), this.viewFilterQuery));
   }
 
   /**
@@ -494,10 +497,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
-  /** The scope the scan and incremental updates use to decide which notes are nodes. */
+  /**
+   * The scope the scan and incremental updates use to decide which notes are nodes. The view filter is not part of
+   * it: it only hides notes (getVisibleNodes), so changing it never moves the map (Plan 0005 S2).
+   */
   private scanScope(): ScanScope {
     return {
-      filterQuery: this.viewFilterQuery,
       exclusions: this.settings.vectorSearchExclusions,
       relationsDir: relationsFolder(this.settings),
       showRelationNotes: this.showRelationNotes,
@@ -851,7 +856,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Vectors could not be read: laying out on fallback data would rearrange and overwrite the existing map (#191).
     if (this.embeddingHydrationFailed) return;
     this.pruneDeletedNodes();
-    const { simulated } = this.layoutEngine.run(
+    const { moved } = this.layoutEngine.run(
       {
         nodes: this.nodes,
         // Unconfirmed suggestions are drawn but do not pull notes together (#243).
@@ -863,7 +868,8 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       },
       mode
     );
-    if (simulated) this.positionWriter.schedule();
+    // Positions also change without a simulation when node spacing scales the map (Plan 0005 S4).
+    if (moved) this.positionWriter.schedule();
   }
 
   /**

@@ -10,6 +10,14 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [0.3.6] - 2026-10-19
 
+### Changed
+- **The 2D map no longer jumps on routine actions** (Plan 0005 step 3, #284):
+  - deleting a relation in the relation builder adjusts only the area around its notes instead of rearranging the whole map; every relation change from the builder stays a local adjustment, also in very small vaults;
+  - a note that moves only because a nearby note changed moves at most 0.15 x node spacing per adjustment;
+  - the node spacing slider scales the existing map instead of re-running the layout, and the scaled positions are saved;
+  - the cloud spacing slider only stores the value; it takes effect at the next "Layout neu anordnen" (#283 is redefined in step 4);
+  - the filter in the view only hides notes: hidden notes keep their place and keep shaping the layout, so changing the filter never moves the map.
+
 ### Documentation
 - Plan 0005 (layout forces and stability, #284, #283), step 1: inventory of every force, its formula, reach and setting, and of every trigger that moves notes, with findings (WikiLinks act twice, graph and similarity combined by `max`, cloud spacing is a point repulsion radius, filters are layout inputs), and the target signal model decided by the owner: semantic, WikiLink and relation signals with one source each, added in one function with a weight each (0 = off everywhere); folder and word overlap and hop forces removed. No behavior change.
 

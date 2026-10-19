@@ -106,11 +106,16 @@ describe("layout-input signatures (#209)", () => {
   });
 
   it.each<[string, Partial<LayoutSettingsInputs>]>([
-    ["node spacing", { nodeSpacing: 400 }],
-    ["cloud spacing", { cloudSpacing: 900 }],
     ["knowledge domain", { knowledgeDomain: "math" }],
     ["WikiLinks as relations", { includeWikiLinksAsRelations: true }],
   ])("reports a settings change for %s", (_label, patch) => {
     expect(diffAfter(() => ({ settings: { ...settings, ...patch } })).settingsChanged).toBe(true);
+  });
+
+  it.each([
+    ["node spacing", { nodeSpacing: 400 }],
+    ["cloud spacing", { cloudSpacing: 900 }],
+  ])("does not report %s as a settings change: the engine scales or waits (Plan 0005 S4, S5)", (_label, patch) => {
+    expect(diffAfter(() => ({ settings: { ...settings, ...patch } })).settingsChanged).toBe(false);
   });
 });
