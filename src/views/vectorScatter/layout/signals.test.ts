@@ -80,6 +80,15 @@ describe("buildLayoutSignals", () => {
   });
 });
 
+describe("semantic weight 0 computes no cosine", () => {
+  it("leaves the semantic contribution and the bounds empty", () => {
+    const nodes = [node("a", [1, 0]), node("b", [0.9, 0.1]), node("c", [0, 1])];
+    const signals = buildLayoutSignals(nodes, [], undefined, undefined, { semantic: 0, links: 1, relations: 1 });
+    expect(signals.affinity[0][1]).toBe(0);
+    expect(signals.bounds).toBeNull();
+  });
+});
+
 describe("layoutWeightsFrom (settings)", () => {
   it("takes the defaults for missing values and keeps an explicit 0", () => {
     expect(layoutWeightsFrom({})).toEqual(DEFAULT_LAYOUT_WEIGHTS);

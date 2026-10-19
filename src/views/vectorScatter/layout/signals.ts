@@ -166,7 +166,11 @@ export function buildLayoutSignals(
   fixedBounds?: RescaleBounds | null
 ): LayoutSignals {
   const n = nodes.length;
-  const semantic = semanticSignal(nodes, fixedBounds);
+  // With the semantic weight at 0 no cosine is computed: it would only cost time on the UI thread (Plan 0005 review).
+  const semantic =
+    weights.semantic > 0
+      ? semanticSignal(nodes, fixedBounds)
+      : { matrix: nodes.map((_, i) => nodes.map((__, j) => (i === j ? 1 : 0))), bounds: fixedBounds ?? null };
   const link = linkSignal(nodes, links);
   const relation = relationSignal(nodes, relationEdges, vocabulary);
   const affinity: number[][] = nodes.map(() => new Array<number>(n).fill(0));
