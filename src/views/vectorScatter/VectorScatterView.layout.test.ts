@@ -282,8 +282,10 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     vi.mocked(applyGraphVectorProjection).mockClear();
     fixture.view.selectedNodeIds.add(fixture.view.nodes.find((n) => n.path.startsWith("geometry/"))!.id);
 
+    const resetMatches = vi.spyOn((fixture.view as any).search, "resetMatches");
     fixture.view.setViewFilter("algebra");
 
+    expect(resetMatches).toHaveBeenCalledTimes(1);
     expect(fixture.vault.cachedRead).not.toHaveBeenCalled();
     expect(applyGraphVectorProjection).not.toHaveBeenCalled();
     expect(positionsOf(fixture.view)).toEqual(before);
