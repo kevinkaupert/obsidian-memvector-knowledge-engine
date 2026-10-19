@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-19
+
+### Documentation
+- Plan 0005 (layout forces and stability, #284, #283), step 1: inventory of every force, its formula, reach and setting, and of every trigger that moves notes, with findings (WikiLinks act twice, graph and similarity combined by `max`, cloud spacing is a point repulsion radius, filters are layout inputs). No behavior change.
+
 ## [0.3.5] - 2026-10-19
 
 ### Fixed
