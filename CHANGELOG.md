@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-10-19
+
+### Documentation
+- Release notes for everything since 0.3.0: `docs/release-notes-0.3.7.md`. No behavior change.
+
 ## [0.3.6] - 2026-10-19
 
 ### Changed
