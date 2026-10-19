@@ -31,7 +31,8 @@ export async function runCalcVectors(ctx: ScatterViewContext, btn: HTMLButtonEle
     await ctx.scanVaultNotes();
   }
 
-  const workNodes = [...ctx.nodes];
+  // Only the notes the filter shows: filtered notes stay in the layout (Plan 0005 S2) but are not embedded on request.
+  const workNodes = [...ctx.getVisibleNodes()];
   if (workNodes.length === 0) {
     setHoverBarText(hoverBar, `[WARN] ${vT.warnNoNotesForVectors}`, "warning");
     return;
@@ -70,7 +71,7 @@ async function calcAndPersistVectors(ctx: ScatterViewContext, workNodes: Scatter
     await migrateVaultNoteKeys(ctx.app, ctx.settings.vectorSearchExclusions);
     result = await runVectorPipeline(ctx.app, ctx.settings, getVectorStore(ctx.app, ctx.settings), {
       paths: workNodes.map((n) => n.path),
-      // Reconcile against the whole indexable vault, not ctx.nodes: the node list honours the transient view
+      // Reconcile against the whole indexable vault, not the visible nodes: the work list honours the transient view
       // filter, and reconciling against it would delete the vectors of every note filtered out of the view.
       reconcilePaths: listIndexableFiles(ctx.app, ctx.settings.vectorSearchExclusions).map((f) => f.path),
       collectVectors: true,
