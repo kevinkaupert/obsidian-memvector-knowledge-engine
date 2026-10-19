@@ -13,6 +13,9 @@ Releases are cut only when the maintainer explicitly asks for one.
 ### Documentation
 - Plan 0005 (layout forces and stability, #284, #283), step 1: inventory of every force, its formula, reach and setting, and of every trigger that moves notes, with findings (WikiLinks act twice, graph and similarity combined by `max`, cloud spacing is a point repulsion radius, filters are layout inputs), and the target signal model decided by the owner: semantic, WikiLink and relation signals with one source each, added in one function with a weight each (0 = off everywhere); folder and word overlap and hop forces removed. No behavior change.
 
+### Tests
+- Characterization of today's layout (Plan 0005 step 2): every path a WikiLink takes, similar pair, relation weights and `max`, conflict pair, cloud spacing on single points (#283), groups, and movement per trigger (reopen, edit, hide/show, relation delete, spacing slider), with measured distances as inline snapshots.
+
 ## [0.3.5] - 2026-10-19
 
 ### Fixed

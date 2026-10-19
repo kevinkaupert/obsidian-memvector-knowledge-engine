@@ -1,6 +1,6 @@
 # 0005 - Layout forces and stability
 
-Status: Draft - step 1 (inventory) done and reviewed by Codex; target signal model decided (section 7); steps 2-4 open
+Status: Draft - step 1 (inventory, reviewed by Codex) and step 2 (characterization) done; target signal model decided (section 7); steps 3-4 open
 Date: 2026-10-19
 Issues: #284 (stable 2D view, configurable forces), #283 (cloud spacing also spaces unrelated points)
 Decision: successor of ADR-0006 once steps 3 and 4 are decided
@@ -180,23 +180,24 @@ A free pass after a settings change recomputes the rescale bounds and clusters f
 9. **Placement matters.** PCA/spiral start and incremental placement next to the most similar note shape the result
    before any force acts, and 60 capped iterations do not always undo them.
 
-## 6. Characterization cases for step 2
+## 6. Characterization (step 2)
 
-Each case fixes inputs and asserts relations between distances (not exact coordinates), plus one golden snapshot per
-case for regression:
+`src/views/vectorScatter/layout/characterization.test.ts` records today's behavior: relations between distances are
+asserted, measured values are rounded inline snapshots. Fixture: notes on four embedding topic axes, `s = 350`,
+`c = 800` unless stated, layouts built from scratch (`rearrange`) unless a trigger says otherwise.
 
-| Case | Setup | Observed today (to record) |
+| Case | Setup | Observed at 7492ce1 |
 |---|---|---|
-| C1 linked pair | two notes with a WikiLink, setting off / on | distance vs. an unlinked pair; effect of the setting; each path a link takes today (share in `S`, graph weight, hops, mobile set, placement, clusters) |
-| C2 similar pair | two notes with close vectors, no link | distance vs. a dissimilar pair |
-| C3 relation pair | typed relation weight 1, 3, 6 | distance per weight; relation vs. similarity when both apply (`max`) |
-| C4 conflict pair | CONFLICTS_WITH between similar notes | distance >= 2.5s? |
-| C5 unrelated points | several unrelated notes, cloud spacing 300 / 3000 | pairwise distances scale with cloud spacing (#283) |
-| C6 several groups | two groups of similar notes | group separation vs. cloud spacing |
-| C7 stability | open again, filter hide/show, edit one note, delete a relation, move a slider | per trigger: maximum movement of untouched notes |
+| C1 linked pair | cross-topic pair; no link / link, setting off / link, setting on | 1098 / 385 / 385. The link pulls the pair together **with the setting off** (through `S`, +0.225); turning the setting on adds nothing because `max(0.7, S^2)` is already reached. Graph weight 0.05 -> 0.7 and hop weight 0.05 -> 0.12 only with the setting on. A new note with only a link is placed next to its partner (343 vs. 440 to the next note) with the setting off. |
+| C2 similar pair | same topic vs. different topic | 142 vs. 1098 |
+| C3 relation pair | cross-topic relation weight 1 / 3 / 6 | 359 / 243 / 243: weights above 3 have no further effect here. A weight-1 relation on an already similar pair changes nothing (142 / 142): `max` hides it. |
+| C4 conflict pair | CONFLICTS_WITH between two similar notes | 547, pushed apart from 142 but below the 2.5s = 875 the conflict force aims for |
+| C5 unrelated points | four single notes of different topics, cloud spacing 300 / 3000 | mean distance 350 / 1021: cloud spacing spreads single points that form no cloud (#283) |
+| C6 several groups | three groups of five, cloud spacing 800 / 3000 | between groups 994 / 3699, within a group 164 / 164 |
+| C7 stability | settled vault of 18 notes with two relations | reopen with stored positions: nothing moves. Edit one note: bounded, 6 of 18 notes move, at most 26. Hide two notes: nobody moves; show them again with their positions: bounded, nothing moves. Delete a relation (builder, rearrange): untouched notes move up to 210. Node spacing slider 350 -> 500: free pass, up to 189. |
 
-C7 measures the stability definition of #284: maximum movement of untouched notes per event, and reopen = identical
-positions.
+Not covered here, to check in the integration vault: positions of re-shown notes hydrated from the database
+instead of kept on the node objects, background indexing with two notifications, and large vaults.
 
 ## 7. Target signal model (owner, 2026-10-19)
 
