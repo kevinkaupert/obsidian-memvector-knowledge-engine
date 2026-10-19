@@ -8,6 +8,19 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-10-19
+
+### Fixed
+- **Synthesis note file name nests folders and keeps `%20`**: the name came from the selected notes' path-based ids,
+  so a synthesis of `Daily Notes/2026-10-03-Inbox/Roche-Limit Skizze` was saved as
+  `synthese-daily%20notes/2026-10-03-inbox/roche-limit-skizze-1.md` in subfolders. It is now one flat file in the
+  synthesis folder named from the note titles (e.g. `synthese-roche-limit-skizze.md`), still shortened to 50
+  characters and made unique (#277).
+- **Duplicate frontmatter `id`: a rename that hands the id to another note lost the previous owner's data**: when two
+  notes share an `id` and a rename makes the other note sort first, the previous owner's vector, 2D position and graph
+  node were overwritten. Its rows now move to its path key before the rename takes the id. Open scatter views re-read
+  every note of a duplicated id on each change batch, so two nodes never share a key until a full rescan (#279).
+
 ## [0.3.4] - 2026-10-18
 
 ### Fixed

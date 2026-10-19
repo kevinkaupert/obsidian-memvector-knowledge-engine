@@ -6,7 +6,7 @@ import type { MemVectorSettings } from "../settings/types";
 import { synthesisFolder, uniqueNotePath } from "../vaultLayout";
 import { renderRetrievalWarning } from "../retrievalStatus";
 import { serializeFrontmatter } from "../frontmatterYaml";
-import { synthesisFrontmatter, type SynthesisNode } from "../synthesisNote";
+import { synthesisBaseName, synthesisFrontmatter, type SynthesisNode } from "../synthesisNote";
 import { chooseNoteWriter } from "../noteWriter/noteWriter";
 
 export class SynthesisResultModal extends Modal {
@@ -56,11 +56,7 @@ export class SynthesisResultModal extends Modal {
     saveBtn.onclick = async () => {
       saveBtn.disabled = true;
       saveBtn.setText(t.synthSaving);
-      const slug = this.selectedNodes
-        .map((n) => n.id)
-        .join("-")
-        .slice(0, 50)
-      const finalPath = uniqueNotePath(synthesisFolder(this.settings ?? {}), `synthese-${slug}`, (p) => Boolean(this.app.vault.getAbstractFileByPath(p)));
+      const finalPath = uniqueNotePath(synthesisFolder(this.settings ?? {}), synthesisBaseName(this.selectedNodes), (p) => Boolean(this.app.vault.getAbstractFileByPath(p)));
 
       const synthTitlePrefix = lang === "de" ? "Synthese:" : "Synthesis:";
       const synthTitle = `${synthTitlePrefix} ${this.selectedNodes.map((n) => n.title).join(" & ")}`;

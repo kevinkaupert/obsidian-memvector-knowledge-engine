@@ -80,6 +80,19 @@ export function duplicateIdPaths(app: App): string[] {
   return [...new Set(indexes.flatMap((i) => i.duplicates.flatMap((d) => d.paths)))];
 }
 
+/**
+ * Paths that owned a duplicated id at the last invalidation and lost it since (#279): another note with the same id
+ * now sorts first, e.g. after a rename. Their rows must move to the path key before the new owner's rows take the id.
+ */
+export function lostDuplicateIdPaths(app: App): string[] {
+  const previous = cache.get(app)?.previous;
+  if (!previous) return [];
+  const current = noteKeys(app);
+  return previous.duplicates
+    .map((d) => d.paths[0])
+    .filter((path) => current.isKnown(path) && current.keyOf(path) !== previous.keyOf(path));
+}
+
 /** The current key index of `app`; duplicated ids are reported once per index build. */
 export function noteKeys(app: App): NoteKeyIndex {
   const entry = cache.get(app);
