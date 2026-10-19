@@ -7,7 +7,7 @@ import { buildLinkKeys, hasLinkKeys } from "../frontmatterLinks";
 import { isRelationNote } from "../relationNotes";
 import { shouldIncludeFile } from "../vaultFilter";
 import { toSlug } from "../noteSlug";
-import { duplicateIdPaths, invalidateNoteKeys, noteKey } from "../noteKey";
+import { duplicateIdPaths, invalidateNoteKeys, lostDuplicateIdPaths, noteKey } from "../noteKey";
 import { buildEmbeddingInput, parseEmbeddingFrontmatterKeys } from "./embeddingText";
 import { embeddingTargetChanged, resolveEmbeddingTarget } from "./embeddingTarget";
 import { resolveEmbeddingApiKey } from "../settings/secrets";
@@ -247,8 +247,10 @@ export class VaultIndexingPipeline {
 
   private processQueue(): void {
     const changes = this.queue.take();
-    // 1. Immediately deliver view updates so scatter views react without waiting for network requests
-    this.notifySubscribers(changes);
+    // 1. Immediately deliver view updates so scatter views react without waiting for network requests. Notes of a
+    // duplicated id can change key without an event of their own (#279): views re-read them too.
+    const duplicates = changes.fullScan ? [] : duplicateIdPaths(this.app).filter((p) => !changes.removals.has(p));
+    this.notifySubscribers(duplicates.length > 0 ? { ...changes, upserts: new Set([...changes.upserts, ...duplicates]) } : changes);
 
     const settings = this.getSettings();
     if (settings.autoIndexVaultOnChanges) {
@@ -334,6 +336,17 @@ export class VaultIndexingPipeline {
       }
       if (isCancelled()) return null;
       return { updatedVectors, fullScanCompleted: true };
+    }
+
+    // 0. A note that lost a duplicated id (#279) first moves its rows to its path key, so a renamed note that takes the
+    // id below does not overwrite them (the moves delete rows already stored under the destination key)
+    const renamedPaths = new Set([...changes.renamedFrom.keys(), ...changes.renamedFrom.values()]);
+    const lostOwners = lostDuplicateIdPaths(this.app)
+      .filter((p) => !renamedPaths.has(p))
+      .map((p) => this.app.vault.getAbstractFileByPath(p))
+      .filter((f): f is TFile => f instanceof TFile && shouldIncludeFile(f, settings.vectorSearchExclusions));
+    if (changes.renamedFrom.size > 0 && lostOwners.length > 0) {
+      await migrateVaultNoteKeys(this.app, settings.vectorSearchExclusions, lostOwners);
     }
 
     // 1. Process Renames: move existing vectors, node positions, and graph nodes without re-embedding

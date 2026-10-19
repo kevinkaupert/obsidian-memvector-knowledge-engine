@@ -27,6 +27,7 @@ import { getStoredNodePositions, saveNodePositions } from "./sqlite/nodePosition
 import { pathToId } from "../noteSlug";
 import { closeLocalDb, getLocalDb } from "./sqlite/sqliteDb";
 import { SqliteGraphStore } from "./sqlite/sqliteGraphStore";
+import { enableNoteKeyCache, noteKeys } from "../noteKey";
 
 interface FakeFile {
   path: string;
@@ -187,6 +188,73 @@ describe("VaultIndexingPipeline (Issue #250)", () => {
     const isIndexed = await graphStore.isIndexed?.();
     expect(isIndexed).toBe(true);
 
+    pipeline.dispose();
+  });
+
+  it("keeps the previous owner's rows when a rename hands it a duplicated id (#279)", async () => {
+    const U = "01J9Z8Q4M5N6P7R8S9T0V1W2X3";
+    const { app, fire, files } = fakeApp();
+    files.set("a.md", "# A");
+    files.set("z.md", "# Z");
+    vi.mocked(app.metadataCache.getFileCache).mockImplementation(
+      (f: { path: string }) => ({ frontmatter: { id: U }, links: [] }) as never
+    );
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, autoIndexVaultOnChanges: true };
+    enableNoteKeyCache(app);
+    expect(noteKeys(app).keyOf("a.md")).toBe(U); // a.md sorts first and owns U
+
+    const vectorStore = getVectorStore(app, settings);
+    await vectorStore.syncPoints([
+      { id: U, vector: [1, 1, 1], payload: { path: "a.md", title: "a", content: "A" }, contentHash: "ha", mtime: 1000 },
+      { id: pathToId("z.md"), vector: [2, 2, 2], payload: { path: "z.md", title: "z", content: "Z" }, contentHash: "hz", mtime: 1000 },
+    ]);
+    await saveNodePositions(app, [
+      { id: U, path: "a.md", x: 10, y: 10 },
+      { id: pathToId("z.md"), path: "z.md", x: 90, y: 90 },
+    ]);
+    vi.mocked(fetchEmbedding).mockClear();
+
+    const { timers, advanceTime } = createTestTimers();
+    const pipeline = new VaultIndexingPipeline(app, () => settings, timers);
+    pipeline.registerWatchers({ registerEvent: vi.fn() } as unknown as Component);
+
+    // z.md becomes 0.md, which now sorts first and takes U from a.md
+    files.delete("z.md");
+    files.set("0.md", "# Z");
+    fire("rename", { path: "0.md" }, "z.md");
+    await advanceTime(1000);
+    await pipeline.settle();
+
+    expect(noteKeys(app).keyOf("0.md")).toBe(U);
+    expect(await vectorStore.getVector("a.md")).toEqual([1, 1, 1]);
+    expect(await vectorStore.getVector("0.md")).toEqual([2, 2, 2]);
+    const positions = await getStoredNodePositions(app, [pathToId("a.md"), U]);
+    expect(positions.get(pathToId("a.md"))).toEqual({ x: 10, y: 10 });
+    expect(positions.get(U)).toEqual({ x: 90, y: 90 });
+    expect(fetchEmbedding).not.toHaveBeenCalled();
+    pipeline.dispose();
+  });
+
+  it("tells open views to re-read every note of a duplicated id (#279)", async () => {
+    const U = "01J9Z8Q4M5N6P7R8S9T0V1W2X3";
+    const { app, fire, files } = fakeApp();
+    files.set("a.md", "# A");
+    files.set("z.md", "# Z");
+    vi.mocked(app.metadataCache.getFileCache).mockImplementation(
+      (f: { path: string }) => ({ frontmatter: { id: U }, links: [] }) as never
+    );
+    enableNoteKeyCache(app);
+    const settings: MemVectorSettings = { ...DEFAULT_SETTINGS, autoIndexVaultOnChanges: false };
+    const { timers, advanceTime } = createTestTimers();
+    const pipeline = new VaultIndexingPipeline(app, () => settings, timers);
+    pipeline.registerWatchers({ registerEvent: vi.fn() } as unknown as Component);
+    const seen: PendingVaultChanges[] = [];
+    pipeline.subscribe((c) => seen.push(c));
+
+    fire("modify", { path: "a.md" });
+    await advanceTime(1000);
+
+    expect([...seen[0].upserts].sort()).toEqual(["a.md", "z.md"]);
     pipeline.dispose();
   });
 

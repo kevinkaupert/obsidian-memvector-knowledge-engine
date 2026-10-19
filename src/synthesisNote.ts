@@ -31,3 +31,20 @@ export function synthesisFrontmatter(
     generated: { by: generatedBy(provider, model), at: now.toISOString() },
   };
 }
+
+// Characters that cannot appear in a file name or break a [[link]]; also `%`, so nothing looks URL-encoded (#277).
+const INVALID_NAME_CHARS = /[\\/:*?"<>|#^[\]%]/g;
+
+/**
+ * Purpose: Base file name of a synthesis note from the selected notes' titles: one flat name, no folder
+ * separators or percent-encoding, at most 50 characters after the `synthese-` prefix (#277). The caller adds the
+ * folder, `.md` and a counter for uniqueness.
+ */
+export function synthesisBaseName(nodes: Pick<SynthesisNode, "title" | "path">[]): string {
+  const parts = nodes.map((n) => {
+    const name = n.title || (n.path.split("/").pop() ?? "").replace(/\.md$/i, "");
+    return name.replace(INVALID_NAME_CHARS, " ").trim().split(/\s+/).join("-").toLowerCase();
+  });
+  const slug = parts.filter(Boolean).join("-").slice(0, 50).replace(/^[-.]+|[-.]+$/g, "");
+  return `synthese-${slug || "notiz"}`;
+}
