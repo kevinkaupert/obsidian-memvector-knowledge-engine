@@ -1133,13 +1133,15 @@ describe("VectorScatterView link signal source (Plan 0005 review)", () => {
   it("takes only WikiLinks in the note text, resolved by Obsidian; frontmatter links (also _suggested) do not count", () => {
     const host = createMockHost();
     const files: Record<string, any> = {};
-    for (const p of ["A.md", "B.md", "C.md"]) files[p] = Object.assign(new TFile(), { path: p, basename: p.replace(".md", "") });
+    // Excluded.md exists in the vault but is not laid out: a link to it must not count either
+    for (const p of ["A.md", "B.md", "C.md", "Excluded.md"]) files[p] = Object.assign(new TFile(), { path: p, basename: p.replace(".md", "") });
     (host.app as any).vault.getAbstractFileByPath = (p: string) => files[p] ?? null;
     (host.app as any).metadataCache = {
       on: vi.fn(() => ({})),
       // Obsidian lists both in resolvedLinks; only `links` (the text) is the link signal
       resolvedLinks: { "A.md": { "B.md": 1, "C.md": 1 } },
-      getFileCache: (f: { path: string }) => (f.path === "A.md" ? { links: [{ link: "B#Heading" }], frontmatterLinks: [{ link: "C", key: "requires_suggested" }] } : null),
+      getFileCache: (f: { path: string }) =>
+        f.path === "A.md" ? { links: [{ link: "B#Heading" }, { link: "Excluded" }], frontmatterLinks: [{ link: "C", key: "requires_suggested" }] } : null,
       getFirstLinkpathDest: (link: string) => files[`${link}.md`] ?? null,
     };
     const view = new VectorScatterView({} as WorkspaceLeaf, host);

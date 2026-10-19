@@ -475,6 +475,9 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     const cache = this.app.metadataCache;
     const links = new Map<string, string[]>();
     if (!cache?.getFileCache || !cache.getFirstLinkpathDest) return links;
+    // Only targets that are laid out themselves: a link to an excluded or hidden note exerts no force, so it must not
+    // change a signature either (Plan 0005 review).
+    const laidOut = new Set(this.nodes.map((n) => n.path));
     for (const node of this.nodes) {
       const file = this.app.vault.getAbstractFileByPath(node.path);
       if (!(file instanceof TFile)) continue;
@@ -483,7 +486,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
         const linkpath = link.link.split("#")[0].trim();
         if (!linkpath) continue;
         const dest = cache.getFirstLinkpathDest(linkpath, node.path);
-        if (dest && dest.path !== node.path) targets.add(dest.path);
+        if (dest && dest.path !== node.path && laidOut.has(dest.path)) targets.add(dest.path);
       }
       if (targets.size > 0) links.set(node.path, [...targets]);
     }
