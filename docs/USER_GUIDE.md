@@ -35,8 +35,11 @@ Note positions are kept across edits and restarts; the map only changes where so
 | Reopening the view or restarting Obsidian | Stored positions are shown unchanged. |
 | Editing a note without changing its first 800 characters of words, its links, its formulas (math domain), its folder or its vector | Nothing moves. |
 | Editing a title, a type or a relation's description | Labels update, nothing moves. |
-| A new note, a changed note or a new/changed relation | Only that note, its relation neighbors and its most similar notes move, and only slightly; the rest of the map stays where it is. |
-| Vectors recalculated for most notes, the knowledge domain or "WikiLinks as relations" changed, or a spacing slider moved | The whole layout is recalculated from the current positions. |
+| A new note, a changed note or a new, changed or deleted relation | Only that note, its relation neighbors and its most similar notes move; a note that only moves along moves at most 0.15 x node spacing. The rest of the map stays where it is. |
+| Point spacing slider (Punkt-Abstand) | The map is scaled as a whole; its shape stays the same and nothing is recalculated. |
+| Cloud spacing slider (Wolken-Abstand) | Nothing moves; the value takes effect at the next **Layout neu anordnen**. |
+| Filter | Notes are only hidden; they keep their place and keep shaping the layout. |
+| Vectors recalculated for most notes, the knowledge domain or "WikiLinks as relations" changed | The whole layout is recalculated from the current positions. |
 | **Layout neu anordnen** | A fresh layout from scratch. |
 
 Note and settings changes are collected while the view is in a background tab and applied once when it is shown again. Positions are saved only when they actually moved; a failed save is retried with the next one.
@@ -65,9 +68,10 @@ The floating control panel is anchored to the top-right of the graph canvas and 
 1. **Header:** Shows active domain (`VEKTORRAUM` or `WISSENSRAUM`) and note count.
 2. **Filter:** Search bar for live path/filename inclusion & exclusion.
 3. **Darstellung (Visual & Layout Controls):**
-   - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for dynamic node spacing and semantic cluster spacing that adjust the organic force-directed 2D manifold simulation (blending dense BGE-M3 vector similarity and graph topology; see `docs/ARCHITECTURE.md` §2.1). Moving a slider re-runs the layout for all notes.
+   - **Layout-Abstände (Punkt- & Wolken-Abstand):** Sliders for node spacing and cluster spacing of the force-directed 2D layout (see `docs/ARCHITECTURE.md` §2.1). The point spacing slider scales the existing map; the cloud spacing slider takes effect at the next rearrange (Plan 0005).
    - **Layout neu anordnen (Rearrange layout):** Computes a fresh layout for all notes from scratch and fits the camera to it. Also available as the command `MemVector: 2D-Layout neu anordnen`. See "When the layout changes" below.
    - **Kanten-Radius:** Relationship edges are always rendered; this dropdown sets the hop radius (1/2/3 hops, "Alle", or "∞" for the whole path).
+   - **Line style of an edge** tells where it comes from: **solid** for a relation note, **dashed** for a typed link written only in a note's frontmatter (e.g. `equivalent_to: "[[Feld]]"`), **dotted** and muted for an unconfirmed `<label>_suggested` link. Dotted links do not pull notes together.
    - Visual style, relation-note visibility, and agent guidelines moved to the plugin **Settings** (see `docs/CONFIGURATION.md`).
 4. **Synthese (AI Co-Pilot & GraphRAG):**
    - **Frage / Anweisung:** Custom synthesis prompt field.

@@ -190,10 +190,11 @@ Use `testing/fixtures/smoke-test-vault/` with the current build (see its
 `README.md`). The notes in `typed-links/` cover every case. No embedding
 provider or LLM is needed; open the 2D graph with edges shown.
 
-1. **Confirmed and suggested.** Vektorraum -> Körper is a solid `REQUIRES`
-   edge. Vektorraum -> Abbildung is dashed and muted (`requires_suggested`).
-2. **Other labels.** Körper -> Feld is an `EQUIVALENT_TO` edge, read from the
-   `equivalent_to` key.
+1. **Confirmed and suggested.** Vektorraum -> Körper is a dashed `REQUIRES`
+   edge (frontmatter only). Vektorraum -> Abbildung is dotted and muted
+   (`requires_suggested`). Edges from relation notes are solid (0.3.6).
+2. **Other labels.** Körper -> Feld is a dashed `EQUIVALENT_TO` edge, read from
+   the `equivalent_to` key.
 3. **One edge per assertion.** Basis -> Vektorraum appears once. Hovering it
    shows the description of `Relation Basis requires Vektorraum.md`, so the
    relation note won over the frontmatter link.

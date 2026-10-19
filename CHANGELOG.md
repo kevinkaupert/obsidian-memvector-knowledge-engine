@@ -17,6 +17,7 @@ Releases are cut only when the maintainer explicitly asks for one.
   - the node spacing slider scales the existing map instead of re-running the layout, and the scaled positions are saved;
   - the cloud spacing slider only stores the value; it takes effect at the next "Layout neu anordnen" (#283 is redefined in step 4);
   - the filter in the view only hides notes: hidden notes keep their place and keep shaping the layout, so changing the filter never moves the map.
+- **Edge line style shows where an edge comes from:** solid for a relation note, dashed for a typed link written only in a note's frontmatter, dotted for an unconfirmed `<label>_suggested` link (was dashed). A frontmatter-only edge no longer looks like a stored relation.
 
 ### Documentation
 - Plan 0005 (layout forces and stability, #284, #283), step 1: inventory of every force, its formula, reach and setting, and of every trigger that moves notes, with findings (WikiLinks act twice, graph and similarity combined by `max`, cloud spacing is a point repulsion radius, filters are layout inputs), and the target signal model decided by the owner: semantic, WikiLink and relation signals with one source each, added in one function with a weight each (0 = off everywhere); folder and word overlap and hop forces removed. No behavior change.

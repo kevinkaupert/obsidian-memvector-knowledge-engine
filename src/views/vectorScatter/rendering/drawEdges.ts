@@ -158,12 +158,19 @@ export function drawEdges(ctx: CanvasRenderingContext2D, options: DrawEdgesOptio
     ctx.quadraticCurveTo(control.x, control.y, p2.x, p2.y);
     ctx.strokeStyle = edgeColor;
     ctx.lineWidth = isHovered ? 3 : 2;
-    // Unconfirmed `<label>_suggested` frontmatter links: dashed and muted (#243).
     const isSuggested = edge.confidence === "suggested";
-    if (isSuggested) ctx.setLineDash([6 * zoom, 4 * zoom]);
+    const lineStyle = edgeLineStyle(edge, zoom);
+    const patterned = lineStyle.dash.length > 0;
+    if (patterned) {
+      ctx.setLineDash(lineStyle.dash);
+      ctx.lineCap = lineStyle.cap;
+    }
     ctx.globalAlpha = isHovered ? 1 : isSuggested ? 0.55 : !isExpanded ? 1 : 0.8;
     ctx.stroke();
-    if (isSuggested) ctx.setLineDash([]);
+    if (patterned) {
+      ctx.setLineDash([]);
+      ctx.lineCap = "butt";
+    }
     ctx.globalAlpha = 1;
 
     drawArrowhead(ctx, p2, tangentOnCurve(p1, control, p2, 1), zoom, edgeColor);
@@ -192,4 +199,15 @@ export function drawEdges(ctx: CanvasRenderingContext2D, options: DrawEdgesOptio
     }
     ctx.restore();
   });
+}
+
+/**
+ * Purpose: Line style that tells where an edge comes from: solid for a relation note (stored in the relation index),
+ * dashed for a confirmed typed link written only in a note's frontmatter, dotted for an unconfirmed `<label>_suggested`
+ * frontmatter link (#243). Dash lengths scale with zoom.
+ */
+export function edgeLineStyle(edge: Pick<RelationEdge, "origin" | "confidence">, zoom: number): { dash: number[]; cap: CanvasLineCap } {
+  if (edge.confidence === "suggested") return { dash: [0.5 * zoom, 5 * zoom], cap: "round" };
+  if (edge.origin === "frontmatter") return { dash: [8 * zoom, 5 * zoom], cap: "butt" };
+  return { dash: [], cap: "butt" };
 }
