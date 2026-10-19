@@ -183,13 +183,16 @@ export class LayoutEngine {
   private runBounded(input: LayoutRunInput, diff: LayoutDiff, ignoreSize = false): boolean {
     const { nodes } = input;
     const model = this.model;
-    if (diff.settingsChanged || !model || !model.bounds) return false;
+    // A completed pass is enough; its semantic bounds may be null (fewer than two embedded notes, Plan 0005).
+    if (diff.settingsChanged || !model) return false;
     const seeds = new Set<string>([...diff.addedIds, ...diff.changedIds, ...diff.edgeEndpointIds]);
     if (!ignoreSize && seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
     const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: model.bounds, assignClusters: centroidMissing });
+    // A model that does not cover every node cannot drive a bounded pass; fall back to a free one.
+    if (prepared.affinity.length !== nodes.length) return false;
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
     const mobileIds = this.mobileSet(nodes, seeds, prepared.affinity, input);
 

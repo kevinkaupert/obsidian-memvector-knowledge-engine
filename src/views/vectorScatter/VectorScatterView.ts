@@ -378,6 +378,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.registerVaultWatchers();
     }
     this.registerVisibilityWatchers();
+    this.registerLinkResolutionWatcher();
   }
 
   onClose(): Promise<void> {
@@ -432,8 +433,14 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       triggerVaultRescan: (change) => this.triggerVaultRescan(change),
       registerEvent: (ref) => this.registerEvent(ref),
     });
-    // Resolved WikiLinks are the link signal's source (Plan 0005): when Obsidian finishes resolving links (also after
-    // a link target was created or renamed), lay out again; nothing moves unless a link of a laid-out note changed.
+  }
+
+  /**
+   * Purpose: Re-lays out when Obsidian has resolved links again (Plan 0005: resolved WikiLinks are the link signal's
+   * source). Registered on every view, also when the plugin's indexer replaces the vault watchers.
+   */
+  registerLinkResolutionWatcher(): void {
+    // Also after a link target was created or renamed; nothing moves unless a link of a laid-out note changed.
     const metadataCache = this.app.metadataCache as (typeof this.app.metadataCache & { on?: unknown }) | undefined;
     if (metadataCache && typeof metadataCache.on === "function") {
       this.registerEvent(

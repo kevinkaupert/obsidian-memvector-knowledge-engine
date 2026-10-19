@@ -1115,11 +1115,15 @@ describe("VectorScatterView watchers read live state (characterization before th
     const unsubscribe = vi.fn();
     const subscribe = vi.fn(() => unsubscribe);
     host.vaultIndexer = { subscribe } as any;
+    const metadataEvents: string[] = [];
+    (host.app as any).metadataCache = { on: vi.fn((e: string) => (metadataEvents.push(e), {})), getFileCache: vi.fn(() => null) };
     const view = new VectorScatterView({} as WorkspaceLeaf, host);
     view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
     await view.onOpen();
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(host.app.vault.on).not.toHaveBeenCalled();
+    // Resolved WikiLinks feed the layout also with the indexer (Plan 0005 review)
+    expect(metadataEvents).toEqual(["resolved"]);
     await view.onClose();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
   });

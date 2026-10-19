@@ -61,6 +61,15 @@ describe("S1 relation changes from the relation builder stay bounded", () => {
   });
 });
 
+describe("bounded passes without semantic bounds (Plan 0005 step 4 review)", () => {
+  it("keeps a relation change bounded in a vault without vectors", () => {
+    const nodes = vault(3, 4).map((n) => ({ ...n, embedding: undefined }));
+    const engine = new LayoutEngine();
+    run(engine, nodes, [rel("t0n0", "t0n1")], "rearrange");
+    expect(run(engine, nodes, [rel("t0n0", "t0n1"), rel("t1n0", "t2n0")], "relations").kind).toBe("bounded");
+  });
+});
+
 describe("S3 hard movement bound for untouched notes", () => {
   it("moves no note other than the changed one further than NEIGHBOR_MOVE_LIMIT x node spacing", () => {
     const nodes = vault(3, 6);
