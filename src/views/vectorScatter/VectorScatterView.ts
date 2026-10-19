@@ -706,6 +706,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   /**
    * Purpose: Adjusts pan and zoom to fit all currently visible scatter nodes within the canvas viewport.
    */
+  /**
+   * Purpose: Sets the view filter. Filtered notes stay laid out (Plan 0005 S2), so no scan and no layout run; hidden
+   * notes leave the selection, the camera fits the visible notes and the filter is saved with the workspace.
+   */
+  setViewFilter(query: string): void {
+    this.viewFilterQuery = query;
+    void this.app.workspace?.requestSaveLayout?.();
+    const visible = new Set(this.getVisibleNodes().map((n) => n.id));
+    for (const id of [...this.selectedNodeIds]) if (!visible.has(id)) this.selectedNodeIds.delete(id);
+    if (this.hoveredNode && !visible.has(this.hoveredNode.id)) this.hoveredNode = null;
+    this.fitToView();
+    this.hasFittedView = true;
+    this.redraw();
+  }
+
   fitToView(): void {
     const visibleNodes = this.getVisibleNodes();
     if (!this.canvasWrap || visibleNodes.length === 0) return;

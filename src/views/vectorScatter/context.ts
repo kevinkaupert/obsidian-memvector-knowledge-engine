@@ -63,6 +63,8 @@ export interface ScatterViewContext {
   setShowRelationNotes(show: boolean): void;
   redraw(): void;
   scanVaultNotes(filterOverride?: string, options?: { preserveView?: boolean }): Promise<void>;
+  /** Sets the view filter: hides and shows notes without a rescan or a layout change (Plan 0005 S2). */
+  setViewFilter(query: string): void;
   applyLayout(mode?: LayoutMode): void;
   rearrangeLayout(): Promise<void>;
   /** Reloads every vector from the store after a successful calculation and updates the layout. */

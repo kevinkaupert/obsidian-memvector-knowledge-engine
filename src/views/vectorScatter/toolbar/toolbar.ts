@@ -107,11 +107,9 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     if (filterDebounce) window.clearTimeout(filterDebounce);
     filterDebounce = window.setTimeout(() => {
       void (async () => {
-        const val = filterInput.value.trim();
-        ctx.viewFilterQuery = val;
-        await ctx.scanVaultNotes(val);
+        // The filter only hides notes; they stay laid out, so nothing is rescanned (Plan 0005 S2).
+        ctx.setViewFilter(filterInput.value.trim());
         updateSelectionUI();
-        ctx.redraw();
       })();
     }, 250);
   };

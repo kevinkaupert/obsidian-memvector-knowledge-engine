@@ -90,6 +90,26 @@ describe("semantic bounds once vectors arrive (Plan 0005 step 4 review)", () => 
   });
 });
 
+describe("bounds without spread keep being derived (Plan 0005 review)", () => {
+  it("replaces flat bounds from the first two vectors once the vectors spread", () => {
+    const withVectors = vault(3, 4);
+    const nodes: ScatterNode[] = withVectors.map((n) => ({ ...n, embedding: undefined }));
+    const engine = new LayoutEngine();
+    run(engine, nodes, [], "rearrange");
+    // The first two vectors are identical: their bounds have no spread.
+    nodes[0].embedding = withVectors[0].embedding;
+    run(engine, nodes, []);
+    nodes[1].embedding = withVectors[0].embedding;
+    run(engine, nodes, []);
+    for (let i = 2; i < nodes.length; i++) {
+      nodes[i].embedding = withVectors[i].embedding;
+      run(engine, nodes, []);
+    }
+    const bounds = (engine as any).model.bounds;
+    expect(bounds.high - bounds.low).toBeGreaterThan(1e-6);
+  });
+});
+
 describe("S3 hard movement bound for untouched notes", () => {
   it("moves no note other than the changed one further than NEIGHBOR_MOVE_LIMIT x node spacing", () => {
     const nodes = vault(3, 6);

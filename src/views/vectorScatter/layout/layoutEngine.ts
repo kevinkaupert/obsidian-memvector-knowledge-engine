@@ -191,8 +191,10 @@ export class LayoutEngine {
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
     // Bounds stay fixed once a vector distribution existed; until then they are derived as vectors arrive (Plan 0005).
-    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: model.bounds ?? undefined, assignClusters: centroidMissing });
-    const bounds = model.bounds ?? prepared.bounds;
+    // Bounds without spread (e.g. after the second vector) are not usable yet and keep being derived.
+    const usable = model.bounds && model.bounds.high - model.bounds.low > 1e-6 ? model.bounds : undefined;
+    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: usable, assignClusters: centroidMissing });
+    const bounds = usable ?? prepared.bounds;
     // A model that does not cover every node cannot drive a bounded pass; fall back to a free one.
     if (prepared.affinity.length !== nodes.length) return false;
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.

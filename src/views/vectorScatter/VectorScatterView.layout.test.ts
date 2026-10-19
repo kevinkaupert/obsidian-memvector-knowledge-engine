@@ -273,6 +273,24 @@ describe("VectorScatterView event queue and selective reads (#210)", () => {
     expect(view.nodes).toHaveLength(6);
   });
 
+  it("changing the filter hides notes without a rescan, a layout run or a move (Plan 0005 S2)", async () => {
+    const fixture = createFixture(sixNotes());
+    await fixture.view.scanVaultNotes();
+    await settle();
+    const before = positionsOf(fixture.view);
+    vi.mocked(fixture.vault.cachedRead).mockClear();
+    vi.mocked(applyGraphVectorProjection).mockClear();
+    fixture.view.selectedNodeIds.add(fixture.view.nodes.find((n) => n.path.startsWith("geometry/"))!.id);
+
+    fixture.view.setViewFilter("algebra");
+
+    expect(fixture.vault.cachedRead).not.toHaveBeenCalled();
+    expect(applyGraphVectorProjection).not.toHaveBeenCalled();
+    expect(positionsOf(fixture.view)).toEqual(before);
+    expect(fixture.view.getVisibleNodes().map((n) => n.path)).toEqual(["algebra/note0.md", "algebra/note1.md", "algebra/note2.md"]);
+    expect(fixture.view.selectedNodeIds.size).toBe(0);
+  });
+
   it("ignores events for notes excluded from indexing, but keeps notes outside the view filter in the layout (Plan 0005 S2)", async () => {
     const notes = [...sixNotes(), { path: "archive/old.md", content: "archived" }];
     const fixture = createFixture(notes);
