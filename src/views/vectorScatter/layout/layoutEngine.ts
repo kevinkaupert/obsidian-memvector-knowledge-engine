@@ -190,7 +190,9 @@ export class LayoutEngine {
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
-    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: model.bounds, assignClusters: centroidMissing });
+    // Bounds stay fixed once a vector distribution existed; until then they are derived as vectors arrive (Plan 0005).
+    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: model.bounds ?? undefined, assignClusters: centroidMissing });
+    const bounds = model.bounds ?? prepared.bounds;
     // A model that does not cover every node cannot drive a bounded pass; fall back to a free one.
     if (prepared.affinity.length !== nodes.length) return false;
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
@@ -198,7 +200,7 @@ export class LayoutEngine {
 
     if (centroidMissing) {
       // A centroid left the node set: re-cluster for display, positions are unaffected.
-      this.model = { bounds: model.bounds, centroidIds: prepared.centroidIds };
+      this.model = { bounds, centroidIds: prepared.centroidIds };
     } else {
       // Keep every existing cluster; only new or changed notes join the nearest kept centroid.
       const centroidIdx = model.centroidIds.map((id) => indexOf.get(id) as number);
@@ -219,6 +221,7 @@ export class LayoutEngine {
       });
     }
 
+    if (this.model) this.model = { bounds, centroidIds: this.model.centroidIds };
     const before = new Map(nodes.filter((n) => mobileIds.has(n.id) && !seeds.has(n.id)).map((n) => [n.id, { x: n.x, y: n.y }]));
     applyGraphVectorProjection({
       nodes,

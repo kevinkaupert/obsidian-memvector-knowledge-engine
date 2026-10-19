@@ -70,6 +70,26 @@ describe("bounded passes without semantic bounds (Plan 0005 step 4 review)", () 
   });
 });
 
+describe("semantic bounds once vectors arrive (Plan 0005 step 4 review)", () => {
+  it("derives the bounds when the vault gains vectors after a layout without them, and keeps them afterwards", () => {
+    const withVectors = vault(3, 4);
+    const nodes = withVectors.map((n) => ({ ...n, embedding: undefined }));
+    const engine = new LayoutEngine();
+    run(engine, nodes, [], "rearrange");
+    expect((engine as any).model.bounds).toBeNull();
+    // Vectors arrive one note at a time, as with background indexing: every update is a bounded pass.
+    nodes.forEach((n, i) => {
+      n.embedding = withVectors[i].embedding;
+      expect(run(engine, nodes, []).kind).not.toBe("free");
+    });
+    const bounds = (engine as any).model.bounds;
+    expect(bounds).not.toBeNull();
+    nodes[0].embedding = nodes[0].embedding!.map((v) => v * 0.5 + 0.1);
+    run(engine, nodes, []);
+    expect((engine as any).model.bounds).toEqual(bounds);
+  });
+});
+
 describe("S3 hard movement bound for untouched notes", () => {
   it("moves no note other than the changed one further than NEIGHBOR_MOVE_LIMIT x node spacing", () => {
     const nodes = vault(3, 6);

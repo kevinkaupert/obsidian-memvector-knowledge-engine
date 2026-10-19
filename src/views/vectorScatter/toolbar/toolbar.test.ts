@@ -858,6 +858,71 @@ describe("buildToolbar edgeHops persistence", () => {
   });
 });
 
+describe("buildToolbar status counts", () => {
+  it("counts only the notes the filter shows (Plan 0005 S2 review)", async () => {
+    const { getTranslation } = await import("../../../i18n");
+    const t = getTranslation("de");
+
+    const createdSelects: any[] = [];
+
+    function createMockDiv(): any {
+      const el: any = {
+        addClass: vi.fn(),
+        removeClass: vi.fn(),
+        toggleClass: vi.fn(),
+        setText: vi.fn(),
+        setAttribute: vi.fn(),
+        createDiv: vi.fn(() => createMockDiv()),
+        createSpan: vi.fn(() => createMockDiv()),
+        createEl: vi.fn((tag: string) => {
+          if (tag === "select") {
+            const sel: any = {
+              value: "1",
+              onchange: null,
+              createEl: vi.fn(() => ({ selected: false })),
+            };
+            createdSelects.push(sel);
+            return sel;
+          }
+          return createMockDiv();
+        }),
+      };
+      return el;
+    }
+
+    const mockCtx = {
+      edgeHops: 1,
+      settings: {
+        scatterEdgeHops: 1,
+      },
+      saveSettings: vi.fn().mockResolvedValue(undefined),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+      nodes: [],
+      selectedNodeIds: new Set(),
+      fitToView: vi.fn(),
+      openRelationBuilder: vi.fn(),
+      searchNote: vi.fn(),
+    } as any;
+
+    const refs = {
+      canvasWrap: createMockDiv(),
+      canvas: createMockDiv(),
+      toolbarEl: createMockDiv(),
+      hoverBar: createMockDiv(),
+    };
+
+    const embedded = { id: "v", path: "v.md", embedding: [1] };
+    const hidden = { id: "h", path: "h.md" };
+    mockCtx.nodes = [embedded, hidden];
+    mockCtx.getVisibleNodes = () => [embedded];
+    const handles = buildToolbar(mockCtx, refs, t);
+    handles.updateSelectionUI();
+    const calls = vi.mocked((handles.statusText as any).setText).mock.calls.map((c: unknown[]) => c[0]);
+    expect(calls.at(-1)).toBe(`1 | ${t.statusCacheActive}`);
+  });
+});
+
 describe("buildToolbar rearrange action (#214)", () => {
   it("places a rearrange button in the view section that triggers a free relayout", async () => {
     const { getTranslation } = await import("../../../i18n");
