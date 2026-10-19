@@ -1,6 +1,6 @@
 # 0001 — WikiLink Relation Extraction Is Opt-In
 
-Status: Accepted
+Status: Accepted for the graph store; superseded for the 2D layout by ADR-0008 (the layout uses the weight `layoutWeightLinks`)
 
 ## Context
 

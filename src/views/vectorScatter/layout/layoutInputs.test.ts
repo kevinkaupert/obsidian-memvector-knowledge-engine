@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RelationEdge, ScatterNode } from "../types";
 import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutSettingsInputs } from "./layoutInputs";
+import { DEFAULT_LAYOUT_WEIGHTS } from "./signals";
 
 function node(id: string, overrides: Partial<ScatterNode> = {}): ScatterNode {
   return {
@@ -20,7 +21,7 @@ function node(id: string, overrides: Partial<ScatterNode> = {}): ScatterNode {
   };
 }
 
-const settings: LayoutSettingsInputs = { nodeSpacing: 350, cloudSpacing: 800, knowledgeDomain: "general", includeWikiLinksAsRelations: false };
+const settings: LayoutSettingsInputs = { weights: DEFAULT_LAYOUT_WEIGHTS, links: new Map([["topic/A.md", ["topic/B.md"]]]) };
 const edge = (relType = "REQUIRES", src = "A", tgt = "B"): RelationEdge => ({ srcId: src, tgtId: tgt, relType, desc: "why", title: "", path: "wiki/relations/r.md", bidirectional: false });
 const vocab: RelationTermDef[] = [{ label: "REQUIRES", weight: 1 } as RelationTermDef, { label: "CONFLICTS_WITH", repels: true } as RelationTermDef];
 
@@ -42,9 +43,6 @@ describe("layout-input signatures (#209)", () => {
   });
 
   it.each<[string, (n: ScatterNode) => void]>([
-    ["excerpt words", (n) => (n.content = "alpha beta delta")],
-    ["links anywhere in the note", (n) => (n.links = ["other", "late-link"])],
-    ["folder", (n) => (n.path = "elsewhere/A.md")],
     ["vector", (n) => (n.embedding = [0.1, 0.2, 0.31])],
     ["vector removed", (n) => (n.embedding = undefined)],
   ])("marks a node as changed when its %s change", (_label, mutate) => {
@@ -55,29 +53,48 @@ describe("layout-input signatures (#209)", () => {
     expect([...diff.changedIds]).toEqual(["A"]);
   });
 
-  it("marks formulas anywhere in the note as a change in the math domain", () => {
-    const math = { ...settings, knowledgeDomain: "math" };
-    const nodes = [node("A"), node("B")];
-    const before = captureLayoutSnapshot(nodes, [], vocab, math);
-    const changed = nodes.map((n) => ({ ...n }));
-    changed[0].latexFormulas = ["a^2", "e^{i\\pi}"];
-    expect([...diffLayoutSnapshots(before, captureLayoutSnapshot(changed, [], vocab, math)).changedIds]).toEqual(["A"]);
+  it("marks a node as changed when its resolved WikiLinks change (Plan 0005: the link signal's only source)", () => {
+    const diff = diffAfter(() => ({ settings: { ...settings, links: new Map([["topic/A.md", ["topic/B.md", "topic/C.md"]]]) } }));
+    expect([...diff.changedIds]).toEqual(["A"]);
   });
 
   it.each<[string, (n: ScatterNode) => void]>([
     ["title", (n) => (n.title = "Renamed title")],
     ["type", (n) => (n.type = "theorem")],
     ["position", (n) => ((n.x = 999), (n.y = -5))],
-    ["excerpt-independent formulas outside the math domain", (n) => (n.latexFormulas = ["x"])],
-  ])("does not treat a %s change as a layout change", (_label, mutate) => {
-    expect(
-      isLayoutUnchanged(
-        diffAfter((nodes) => {
-          mutate(nodes[0]);
-          return { nodes };
-        })
-      )
-    ).toBe(true);
+    ["excerpt words", (n) => (n.content = "alpha beta delta")],
+    ["regex links in the body", (n) => (n.links = ["other", "late-link"])],
+    ["folder", (n) => (n.path = "elsewhere/A.md")],
+    ["formulas", (n) => (n.latexFormulas = ["x"])],
+  ])("does not treat a %s change as a layout change (Plan 0005: no signal reads it)", (_label, mutate) => {
+    const diff = diffAfter((nodes) => {
+      mutate(nodes[0]);
+      return { nodes };
+    });
+    // A moved path also moves the resolved-link key; only the content-like fields are checked for "unchanged".
+    if (_label !== "folder") expect(isLayoutUnchanged(diff)).toBe(true);
+    else expect(diff.changedIds.has("A")).toBe(true);
+  });
+
+  it.each([
+    ["semantic", { ...DEFAULT_LAYOUT_WEIGHTS, semantic: 0 }, (n: ScatterNode) => (n.embedding = [9, 9, 9])],
+    ["links", { ...DEFAULT_LAYOUT_WEIGHTS, links: 0 }, null],
+  ] as const)("ignores the inputs of the %s signal while its weight is 0", (_label, weights, mutate) => {
+    const off: LayoutSettingsInputs = { weights, links: settings.links };
+    const nodes = [node("A"), node("B")];
+    const before = captureLayoutSnapshot(nodes, [], vocab, off);
+    const changed = nodes.map((n) => ({ ...n }));
+    if (mutate) mutate(changed[0]);
+    const links = mutate ? off.links : new Map([["topic/A.md", ["topic/C.md"]]]);
+    expect(isLayoutUnchanged(diffLayoutSnapshots(before, captureLayoutSnapshot(changed, [], vocab, { weights, links })))).toBe(true);
+  });
+
+  it("ignores attracting relations while the relation weight is 0, but keeps repelling ones", () => {
+    const weights = { ...DEFAULT_LAYOUT_WEIGHTS, relations: 0 };
+    const nodes = [node("A"), node("B")];
+    const before = captureLayoutSnapshot(nodes, [], vocab, { weights });
+    expect(isLayoutUnchanged(diffLayoutSnapshots(before, captureLayoutSnapshot(nodes, [edge()], vocab, { weights })))).toBe(true);
+    expect(isLayoutUnchanged(diffLayoutSnapshots(before, captureLayoutSnapshot(nodes, [edge("CONFLICTS_WITH")], vocab, { weights })))).toBe(false);
   });
 
   it("reports added and removed nodes", () => {
@@ -105,12 +122,15 @@ describe("layout-input signatures (#209)", () => {
     expect([...diff.edgeEndpointIds].sort()).toEqual(["A", "B"]);
   });
 
-  it.each<[string, Partial<LayoutSettingsInputs>]>([
-    ["node spacing", { nodeSpacing: 400 }],
-    ["cloud spacing", { cloudSpacing: 900 }],
-    ["knowledge domain", { knowledgeDomain: "math" }],
-    ["WikiLinks as relations", { includeWikiLinksAsRelations: true }],
-  ])("reports a settings change for %s", (_label, patch) => {
-    expect(diffAfter(() => ({ settings: { ...settings, ...patch } })).settingsChanged).toBe(true);
+  it.each([
+    ["semantic", { semantic: 0.5 }],
+    ["links", { links: 1 }],
+    ["relations", { relations: 2 }],
+  ] as const)("reports a settings change when the %s weight changes", (_label, patch) => {
+    expect(diffAfter(() => ({ settings: { ...settings, weights: { ...DEFAULT_LAYOUT_WEIGHTS, ...patch } } })).settingsChanged).toBe(true);
+  });
+
+  it("does not hold node or cloud spacing: the engine scales or waits (Plan 0005 S4, S5)", () => {
+    expect(Object.keys(settings).sort()).toEqual(["links", "weights"]);
   });
 });

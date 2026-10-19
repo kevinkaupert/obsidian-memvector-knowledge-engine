@@ -96,7 +96,7 @@ describe("retrieval warnings at the user boundary (#192, #193)", () => {
   it("shows failed-channel feedback alongside preview seeds and updates the restored filter input", async () => {
     vi.useFakeTimers();
     const toolbarEl = new Element();
-    const ctx = { app, settings, nodes: [selected], selectedNodeIds: new Set([selected.id]), redraw: vi.fn(), viewFilterQuery: "tag:#active" } as unknown as ScatterViewContext;
+    const ctx = { app, settings, nodes: [selected], getVisibleNodes: () => [selected], selectedNodeIds: new Set([selected.id]), redraw: vi.fn(), viewFilterQuery: "tag:#active" } as unknown as ScatterViewContext;
     const refs = { toolbarEl, canvas: new Element(), canvasWrap: new Element(), hoverBar: new Element() };
     const handles = buildToolbar(ctx, refs as unknown as Parameters<typeof buildToolbar>[1], t);
     handles.updateFilterQuery!("-path:archive");

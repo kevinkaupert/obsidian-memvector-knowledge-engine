@@ -78,8 +78,8 @@ vi.mock("./canvasInteraction", () => ({
 
 vi.mock("./layout/applyVectorLayout", async (importOriginal) => ({
   ...await importOriginal<typeof import("./layout/applyVectorLayout")>(),
-  applyVectorLayout: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
-  prepareLayoutModel: vi.fn(() => ({ matrix: [], bounds: null, centroidIds: [] })),
+  applyVectorLayout: vi.fn(() => ({ affinity: [], weightFactor: [], repel: new Set(), nodePaths: [], bounds: null, centroidIds: [] })),
+  prepareLayoutModel: vi.fn(() => ({ affinity: [], weightFactor: [], repel: new Set(), nodePaths: [], bounds: null, centroidIds: [] })),
 }));
 
 vi.mock("./rendering/drawOrchestrator", () => ({
@@ -225,9 +225,9 @@ describe("VectorScatterView.applyExternalSettingsChange", () => {
     expect(view.refreshRelationEdges).toHaveBeenCalled();
   });
 
-  it("rearranges after a deleted relation and adjusts locally after a saved one", () => {
-    expect(relationChangeLayoutMode("deleted")).toBe("rearrange");
-    expect(relationChangeLayoutMode("saved")).toBe("auto");
+  it("adjusts locally after every relation change, including a delete (Plan 0005 S1)", () => {
+    expect(relationChangeLayoutMode("deleted")).toBe("relations");
+    expect(relationChangeLayoutMode("saved")).toBe("relations");
   });
 
   it.each(["auto", "rearrange"] as const)("lays out with mode %s after reloading the relation edges", async (mode) => {
@@ -1093,7 +1093,7 @@ describe("VectorScatterView watchers read live state (characterization before th
   it("the metadata handler sees vocabulary and edges replaced after registration", () => {
     const changed: Function[] = [];
     const host = createMockHost();
-    (host.app as any).metadataCache = { on: vi.fn((_e: string, cb: Function) => (changed.push(cb), {})), getFileCache: vi.fn(() => null) };
+    (host.app as any).metadataCache = { on: vi.fn((e: string, cb: Function) => (e === "changed" && changed.push(cb), {})), getFileCache: vi.fn(() => null) };
     const view = new VectorScatterView({} as WorkspaceLeaf, host);
     view.registerVaultWatchers();
     view.triggerRelationsReload = vi.fn();
@@ -1115,13 +1115,63 @@ describe("VectorScatterView watchers read live state (characterization before th
     const unsubscribe = vi.fn();
     const subscribe = vi.fn(() => unsubscribe);
     host.vaultIndexer = { subscribe } as any;
+    const metadataEvents: string[] = [];
+    (host.app as any).metadataCache = { on: vi.fn((e: string) => (metadataEvents.push(e), {})), getFileCache: vi.fn(() => null) };
     const view = new VectorScatterView({} as WorkspaceLeaf, host);
     view.scanVaultNotes = vi.fn().mockResolvedValue(undefined);
     await view.onOpen();
     expect(subscribe).toHaveBeenCalledTimes(1);
     expect(host.app.vault.on).not.toHaveBeenCalled();
+    // Resolved WikiLinks feed the layout also with the indexer (Plan 0005 review)
+    expect(metadataEvents).toEqual(["resolved"]);
     await view.onClose();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VectorScatterView link signal source (Plan 0005 review)", () => {
+  it("takes only WikiLinks in the note text, resolved by Obsidian; frontmatter links (also _suggested) do not count", () => {
+    const host = createMockHost();
+    const files: Record<string, any> = {};
+    // Excluded.md exists in the vault but is not laid out: a link to it must not count either
+    for (const p of ["A.md", "B.md", "C.md", "Excluded.md"]) files[p] = Object.assign(new TFile(), { path: p, basename: p.replace(".md", "") });
+    (host.app as any).vault.getAbstractFileByPath = (p: string) => files[p] ?? null;
+    (host.app as any).metadataCache = {
+      on: vi.fn(() => ({})),
+      // Obsidian lists both in resolvedLinks; only `links` (the text) is the link signal
+      resolvedLinks: { "A.md": { "B.md": 1, "C.md": 1 } },
+      getFileCache: (f: { path: string }) =>
+        f.path === "A.md" ? { links: [{ link: "B#Heading" }, { link: "Excluded" }], frontmatterLinks: [{ link: "C", key: "requires_suggested" }] } : null,
+      getFirstLinkpathDest: (link: string) => files[`${link}.md`] ?? null,
+    };
+    const view = new VectorScatterView({} as WorkspaceLeaf, host);
+    view.nodes = ["A.md", "B.md", "C.md"].map((p) => ({ ...makeNode(p.replace(".md", ""), p, "concept") }));
+    expect([...(view as any).resolvedLinks()]).toEqual([["A.md", ["B.md"]]]);
+  });
+});
+
+describe("VectorScatterView link resolution while hidden (Plan 0005 review)", () => {
+  it("defers the re-layout after resolved links while hidden and applies it once shown", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = createMockHost();
+      const events = new Map<string, Function>();
+      (host.app as any).metadataCache = { on: vi.fn((e: string, cb: Function) => (events.set(e, cb), {})), getFileCache: vi.fn(() => null) };
+      const view = new VectorScatterView({} as WorkspaceLeaf, host);
+      let visible = false;
+      (view as any).containerEl.isShown = () => visible;
+      view.nodes = [{ ...makeNode("a", "a.md", "concept") }];
+      view.applyExternalSettingsChange = vi.fn();
+      view.registerLinkResolutionWatcher();
+      events.get("resolved")!();
+      await vi.advanceTimersByTimeAsync(600);
+      expect(view.applyExternalSettingsChange).not.toHaveBeenCalled();
+      visible = true;
+      (view as any).resumeIfVisible();
+      expect(view.applyExternalSettingsChange).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

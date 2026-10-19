@@ -149,6 +149,9 @@ describe("runCalcVectors persistence error reporting (#9)", () => {
           folder: "",
         },
       ],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn().mockResolvedValue(undefined),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -330,6 +333,9 @@ describe("runCalcVectors shares embedding text with the Settings vault sync (#16
         { id: pathToId("Folder/Long Note.md"), path: "Folder/Long Note.md", title: "Display Title", content: longBody.slice(0, 800), x: 0, y: 0 },
         { id: pathToId("Short.md"), path: "Short.md", title: "Short", content: "Short body", x: 0, y: 0 },
       ],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -420,6 +426,9 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       app: { vault: createMockVault({ "Visible.md": "visible body", "Hidden.md": "hidden body" }) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST },
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "visible body", x: 0, y: 0 }],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -448,6 +457,9 @@ describe("runCalcVectors reconciles against the whole vault, not the filtered vi
       app: { vault: createMockVault({ "Visible.md": "a", "private/Secret.md": "b" }) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:private" },
       nodes: [{ id: pathToId("Visible.md"), path: "Visible.md", title: "Visible", content: "a", x: 0, y: 0 }],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -471,6 +483,9 @@ describe("runCalcVectors persists pending changes before reporting success (#166
       app: { vault: createMockVault({ "note-1.md": "Content of note 1" }) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST },
       nodes: [{ id: pathToId("note-1.md"), path: "note-1.md", title: "Note 1", content: "", x: 0, y: 0, embedding: [0.5, 0.5] }],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -536,6 +551,9 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       app: { vault: createMockVault(vaultFiles) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST },
       nodes: [node("A.md"), node("B.md"), node("C.md")],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -567,6 +585,9 @@ describe("runCalcVectors survives a live rescan and always re-enables the button
       app: { vault },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST },
       nodes: [node("A.md")],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -609,6 +630,9 @@ describe("runCalcVectors does not count notes deleted since the scan", () => {
         { id: pathToId("Kept.md"), path: "Kept.md", title: "Kept", content: "", x: 0, y: 0 },
         { id: pathToId("Gone.md"), path: "Gone.md", title: "Gone", content: "", x: 0, y: 0 },
       ],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -642,6 +666,9 @@ describe("runCalcVectors replaces stale in-memory vectors on cache hits (#175)",
       app: { vault: createMockVault({ "A.md": "a body" }) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST },
       nodes: [node],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -680,6 +707,9 @@ describe("runCalcVectors discards its vectors when the embedding target changes 
       app: { vault: createMockVault(vaultFiles) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST, embeddingModel: "model-a" },
       nodes: [node("A.md"), node("B.md"), node("C.md")],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),
@@ -828,6 +858,71 @@ describe("buildToolbar edgeHops persistence", () => {
   });
 });
 
+describe("buildToolbar status counts", () => {
+  it("counts only the notes the filter shows (Plan 0005 S2 review)", async () => {
+    const { getTranslation } = await import("../../../i18n");
+    const t = getTranslation("de");
+
+    const createdSelects: any[] = [];
+
+    function createMockDiv(): any {
+      const el: any = {
+        addClass: vi.fn(),
+        removeClass: vi.fn(),
+        toggleClass: vi.fn(),
+        setText: vi.fn(),
+        setAttribute: vi.fn(),
+        createDiv: vi.fn(() => createMockDiv()),
+        createSpan: vi.fn(() => createMockDiv()),
+        createEl: vi.fn((tag: string) => {
+          if (tag === "select") {
+            const sel: any = {
+              value: "1",
+              onchange: null,
+              createEl: vi.fn(() => ({ selected: false })),
+            };
+            createdSelects.push(sel);
+            return sel;
+          }
+          return createMockDiv();
+        }),
+      };
+      return el;
+    }
+
+    const mockCtx = {
+      edgeHops: 1,
+      settings: {
+        scatterEdgeHops: 1,
+      },
+      saveSettings: vi.fn().mockResolvedValue(undefined),
+      applyLayout: vi.fn(),
+      redraw: vi.fn(),
+      nodes: [],
+      selectedNodeIds: new Set(),
+      fitToView: vi.fn(),
+      openRelationBuilder: vi.fn(),
+      searchNote: vi.fn(),
+    } as any;
+
+    const refs = {
+      canvasWrap: createMockDiv(),
+      canvas: createMockDiv(),
+      toolbarEl: createMockDiv(),
+      hoverBar: createMockDiv(),
+    };
+
+    const embedded = { id: "v", path: "v.md", embedding: [1] };
+    const hidden = { id: "h", path: "h.md" };
+    mockCtx.nodes = [embedded, hidden];
+    mockCtx.getVisibleNodes = () => [embedded];
+    const handles = buildToolbar(mockCtx, refs, t);
+    handles.updateSelectionUI();
+    const calls = vi.mocked((handles.statusText as any).setText).mock.calls.map((c: unknown[]) => c[0]);
+    expect(calls.at(-1)).toBe(`1 | ${t.statusCacheActive}`);
+  });
+});
+
 describe("buildToolbar rearrange action (#214)", () => {
   it("places a rearrange button in the view section that triggers a free relayout", async () => {
     const { getTranslation } = await import("../../../i18n");
@@ -892,6 +987,9 @@ describe("runCalcVectors removes stored positions of notes that left the vault (
       app: { vault: createMockVault({ "A.md": "a body" }) },
       settings: { ...DEFAULT_SETTINGS_FOR_TEST, vectorSearchExclusions: "-path:archive" },
       nodes: [node("A.md")],
+      getVisibleNodes(this: { nodes: unknown[] }) {
+        return this.nodes;
+      },
       scanVaultNotes: vi.fn(),
       applyLayout: vi.fn(),
       onVectorsCalculated: vi.fn(async () => {}),

@@ -3,20 +3,26 @@ import type { RelationTermDef } from "../../../relationVocabulary/types";
 import { isPlaced, type RelationEdge, type ScatterNode } from "../types";
 import { applyVectorLayout, copyNodesInPathOrder, prepareLayoutModel, type LayoutModel } from "./applyVectorLayout";
 import { captureLayoutSnapshot, diffLayoutSnapshots, isLayoutUnchanged, type LayoutDiff, type LayoutSnapshot } from "./layoutInputs";
-import { LARGE_CHANGE_RATIO, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
+import { LARGE_CHANGE_RATIO, NEIGHBOR_MOVE_LIMIT, SETTLE_MAX_PASSES, SETTLE_PAIR_BUDGET, SETTLE_STOP_RATIO, SIMILAR_NEIGHBORS_MOBILE } from "./layoutTunables";
 import { applyGraphVectorProjection } from "./projections";
+import { buildLabelIndex, resolveRelationForce } from "./graphTopologyWeights";
+import { layoutWeightsFrom, type LayoutSignals, type ResolvedLinks } from "./signals";
 
 /**
  * "auto": data updates - nothing moves unless a layout input changed, and then only the affected area.
  * "global": a free pass over all nodes from their current positions (e.g. the spacing sliders).
  * "rearrange": a free layout from scratch, ignoring current positions (the explicit rearrange action).
+ * "relations": a relation change from the relation builder - like "auto", but never a free pass because of the size
+ *   of the change (Plan 0005 S1).
  */
-export type LayoutMode = "auto" | "global" | "rearrange";
+export type LayoutMode = "auto" | "global" | "rearrange" | "relations";
 
 export interface LayoutRunInput {
   nodes: ScatterNode[];
   relationEdges: RelationEdge[];
   vocabulary?: RelationTermDef[];
+  /** Resolved targets of the WikiLinks in each note's text (Obsidian's metadata cache); the link signal's only source. */
+  links?: ResolvedLinks;
   settings: MemVectorSettings;
   nodeSpacing: number;
   cloudSpacing: number;
@@ -27,6 +33,8 @@ export type LayoutRunKind = "none" | "bounded" | "free";
 export interface LayoutRunResult {
   /** True when the force simulation ran and positions may have changed. */
   simulated: boolean;
+  /** True when positions may have changed, by a simulation or by scaling to a new node spacing (Plan 0005 S4). */
+  moved: boolean;
   kind: LayoutRunKind;
   /** Extra passes of a layout built from scratch and whether they stopped below the movement threshold. */
   settle?: { passes: number; converged: boolean };
@@ -50,44 +58,78 @@ export class LayoutEngine {
   private snapshot: LayoutSnapshot | null = null;
   private model: Pick<LayoutModel, "bounds" | "centroidIds"> | null = null;
   private clusterOf = new Map<string, number>();
+  /** Node spacing the current positions were laid out with; a new value scales them (Plan 0005 S4). */
+  private appliedNodeSpacing: number | undefined;
+  /** Cloud spacing the passes use; a new value is applied at the next rearrange only (Plan 0005 S5). */
+  private appliedCloudSpacing: number | undefined;
 
   run(input: LayoutRunInput, mode: LayoutMode = "auto"): LayoutRunResult {
     input = { ...input, nodes: copyNodesInPathOrder(input.nodes) };
+    const scaled = this.applySpacing(input, mode);
+    input = { ...input, nodeSpacing: this.appliedNodeSpacing ?? input.nodeSpacing, cloudSpacing: this.appliedCloudSpacing ?? input.cloudSpacing };
+    const result = this.runLayout(input, mode);
+    return { ...result, moved: result.moved || scaled };
+  }
+
+  /**
+   * Purpose: Applies the spacing values before a pass. A rearrange or the first run takes both values as given. Later,
+   * a new node spacing scales every placed position by new / old around the origin (no simulation, bounds and
+   * clusters kept), and a new cloud spacing is only remembered until the next rearrange. Returns whether positions
+   * were scaled.
+   */
+  private applySpacing(input: LayoutRunInput, mode: LayoutMode): boolean {
+    if (mode === "rearrange" || this.appliedNodeSpacing === undefined || this.appliedCloudSpacing === undefined) {
+      this.appliedNodeSpacing = input.nodeSpacing;
+      this.appliedCloudSpacing = input.cloudSpacing;
+      return false;
+    }
+    if (input.nodeSpacing === this.appliedNodeSpacing || !(input.nodeSpacing > 0) || !(this.appliedNodeSpacing > 0)) return false;
+    const ratio = input.nodeSpacing / this.appliedNodeSpacing;
+    this.appliedNodeSpacing = input.nodeSpacing;
+    let any = false;
+    for (const n of input.nodes) {
+      if (!isPlaced(n)) continue;
+      n.x *= ratio;
+      n.y *= ratio;
+      any = true;
+    }
+    return any;
+  }
+
+  private runLayout(input: LayoutRunInput, mode: LayoutMode): LayoutRunResult {
     const { nodes } = input;
     const next = captureLayoutSnapshot(nodes, input.relationEdges, input.vocabulary, {
-      nodeSpacing: input.nodeSpacing,
-      cloudSpacing: input.cloudSpacing,
-      knowledgeDomain: input.settings.knowledgeDomain,
-      includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
+      weights: layoutWeightsFrom(input.settings),
+      links: input.links,
     });
 
-    if (mode === "auto") {
+    if (mode === "auto" || mode === "relations") {
       if (this.snapshot === null) {
         const unplaced = nodes.filter((n) => !isPlaced(n)).map((n) => n.id);
         if (unplaced.length === 0) {
-          this.remember(nodes, prepareLayoutModel(nodes, input.settings), next);
-          return { simulated: false, kind: "none" };
+          this.remember(nodes, prepareLayoutModel(nodes, input.settings, input), next);
+          return { simulated: false, moved: false, kind: "none" };
         }
         if (unplaced.length < nodes.length) {
-          this.model = prepareLayoutModel(nodes, input.settings);
+          this.model = prepareLayoutModel(nodes, input.settings, input);
           this.rememberClusters(nodes);
           const added: LayoutDiff = { settingsChanged: false, addedIds: new Set(unplaced), removedIds: new Set(), changedIds: new Set(), edgeEndpointIds: new Set() };
-          if (this.runBounded(input, added)) {
+          if (this.runBounded(input, added, mode === "relations")) {
             this.snapshot = next;
             this.rememberClusters(nodes);
-            return { simulated: true, kind: "bounded" };
+            return { simulated: true, moved: true, kind: "bounded" };
           }
         }
       } else {
         const diff = diffLayoutSnapshots(this.snapshot, next);
         if (isLayoutUnchanged(diff)) {
           this.applyClusters(nodes);
-          return { simulated: false, kind: "none" };
+          return { simulated: false, moved: false, kind: "none" };
         }
-        if (this.runBounded(input, diff)) {
+        if (this.runBounded(input, diff, mode === "relations")) {
           this.snapshot = next;
           this.rememberClusters(nodes);
-          return { simulated: true, kind: "bounded" };
+          return { simulated: true, moved: true, kind: "bounded" };
         }
       }
     }
@@ -100,10 +142,10 @@ export class LayoutEngine {
         n.placed = false;
       }
     }
-    const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input.relationEdges, input.vocabulary);
-    const settle = fromScratch && nodes.length > 0 && model.matrix.length === nodes.length ? this.settle(nodes, model.matrix, input) : undefined;
+    const model = applyVectorLayout(nodes, input.settings, input.nodeSpacing, input.cloudSpacing, input);
+    const settle = fromScratch && nodes.length > 0 && model.affinity.length === nodes.length ? this.settle(nodes, model, input) : undefined;
     this.remember(nodes, model, next);
-    return { simulated: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
+    return { simulated: nodes.length > 0, moved: nodes.length > 0, kind: "free", ...(settle ? { settle } : {}) };
   }
 
   /**
@@ -111,20 +153,20 @@ export class LayoutEngine {
    * Architecture: Bounded best effort: at most SETTLE_MAX_PASSES and SETTLE_PAIR_BUDGET / n^2 passes, stopping once the
    * largest move of a pass is below SETTLE_STOP_RATIO of node spacing. Deterministic; no wall clock.
    */
-  private settle(nodes: ScatterNode[], matrix: number[][], input: LayoutRunInput): { passes: number; converged: boolean } {
+  private settle(nodes: ScatterNode[], signals: LayoutSignals, input: LayoutRunInput): { passes: number; converged: boolean } {
     const maxPasses = Math.min(SETTLE_MAX_PASSES, Math.floor(SETTLE_PAIR_BUDGET / (nodes.length * nodes.length)));
     const nodeSpacing = input.nodeSpacing || input.settings.scatterNodeSpacing || 350;
     const stopAt = SETTLE_STOP_RATIO * nodeSpacing;
     for (let passes = 1; passes <= maxPasses; passes++) {
       const before = nodes.map((n) => ({ x: n.x, y: n.y }));
+      const semantic = layoutWeightsFrom(input.settings).semantic > 0;
       applyGraphVectorProjection({
         nodes,
-        matrix,
+        signals,
         nodeSpacing,
         cloudSpacing: input.cloudSpacing || input.settings.scatterCloudSpacing || 800,
-        relationEdges: input.relationEdges,
-        includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
-        vocabulary: input.vocabulary,
+        embeddingPca: semantic,
+        preferEmbeddedCentroids: semantic,
       });
       let largest = 0;
       nodes.forEach((n, i) => {
@@ -138,22 +180,29 @@ export class LayoutEngine {
   /**
    * Purpose: Runs a bounded adjustment for a local change; returns false when the change is too large for one.
    */
-  private runBounded(input: LayoutRunInput, diff: LayoutDiff): boolean {
+  private runBounded(input: LayoutRunInput, diff: LayoutDiff, ignoreSize = false): boolean {
     const { nodes } = input;
     const model = this.model;
-    if (diff.settingsChanged || !model || !model.bounds) return false;
+    // A completed pass is enough; its semantic bounds may be null (fewer than two embedded notes, Plan 0005).
+    if (diff.settingsChanged || !model) return false;
     const seeds = new Set<string>([...diff.addedIds, ...diff.changedIds, ...diff.edgeEndpointIds]);
-    if (seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
+    if (!ignoreSize && seeds.size > LARGE_CHANGE_RATIO * nodes.length) return false;
 
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const centroidMissing = model.centroidIds.some((id) => !indexOf.has(id));
-    const prepared = prepareLayoutModel(nodes, input.settings, { fixedBounds: model.bounds, assignClusters: centroidMissing });
+    // Bounds stay fixed once a vector distribution existed; until then they are derived as vectors arrive (Plan 0005).
+    // Bounds without spread (e.g. after the second vector) are not usable yet and keep being derived.
+    const usable = model.bounds && model.bounds.high - model.bounds.low > 1e-6 ? model.bounds : undefined;
+    const prepared = prepareLayoutModel(nodes, input.settings, input, { fixedBounds: usable, assignClusters: centroidMissing });
+    const bounds = usable ?? prepared.bounds;
+    // A model that does not cover every node cannot drive a bounded pass; fall back to a free one.
+    if (prepared.affinity.length !== nodes.length) return false;
     // Neighbors may make every node of a small vault mobile; that is still a low-energy, anchored adjustment.
-    const mobileIds = this.mobileSet(nodes, seeds, prepared.matrix, input);
+    const mobileIds = this.mobileSet(nodes, seeds, prepared.affinity, input);
 
     if (centroidMissing) {
       // A centroid left the node set: re-cluster for display, positions are unaffected.
-      this.model = { bounds: model.bounds, centroidIds: prepared.centroidIds };
+      this.model = { bounds, centroidIds: prepared.centroidIds };
     } else {
       // Keep every existing cluster; only new or changed notes join the nearest kept centroid.
       const centroidIdx = model.centroidIds.map((id) => indexOf.get(id) as number);
@@ -163,7 +212,7 @@ export class LayoutEngine {
         let best = 0;
         let bestSim = -Infinity;
         centroidIdx.forEach((c, cloudId) => {
-          const sim = prepared.matrix[i][c];
+          const sim = prepared.affinity[i][c];
           if (sim > bestSim) {
             bestSim = sim;
             best = cloudId;
@@ -174,16 +223,30 @@ export class LayoutEngine {
       });
     }
 
+    if (this.model) this.model = { bounds, centroidIds: this.model.centroidIds };
+    const before = new Map(nodes.filter((n) => mobileIds.has(n.id) && !seeds.has(n.id)).map((n) => [n.id, { x: n.x, y: n.y }]));
     applyGraphVectorProjection({
       nodes,
-      matrix: prepared.matrix,
+      signals: prepared,
       nodeSpacing: input.nodeSpacing || input.settings.scatterNodeSpacing || 350,
       cloudSpacing: input.cloudSpacing || input.settings.scatterCloudSpacing || 800,
-      relationEdges: input.relationEdges,
-      includeWikiLinksAsRelations: input.settings.includeWikiLinksAsRelations,
-      vocabulary: input.vocabulary,
+      embeddingPca: layoutWeightsFrom(input.settings).semantic > 0,
+      preferEmbeddedCentroids: layoutWeightsFrom(input.settings).semantic > 0,
       bounded: { mobileIds },
     });
+    // Hard bound (Plan 0005 S3): a note that only moved along ends at most NEIGHBOR_MOVE_LIMIT x node spacing away.
+    const limit = NEIGHBOR_MOVE_LIMIT * (input.nodeSpacing || input.settings.scatterNodeSpacing || 350);
+    for (const n of nodes) {
+      const start = before.get(n.id);
+      if (!start) continue;
+      const dx = n.x - start.x;
+      const dy = n.y - start.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance > limit) {
+        n.x = start.x + (dx / distance) * limit;
+        n.y = start.y + (dy / distance) * limit;
+      }
+    }
     return true;
   }
 
@@ -191,24 +254,38 @@ export class LayoutEngine {
    * Purpose: The notes a bounded adjustment may move: the changed notes, their relation (and, when enabled, WikiLink)
    * neighbors, and their SIMILAR_NEIGHBORS_MOBILE most similar notes.
    */
-  private mobileSet(nodes: ScatterNode[], seeds: Set<string>, matrix: number[][], input: LayoutRunInput): Set<string> {
+  /**
+   * Purpose: The notes a bounded adjustment may move: the changed notes, their link neighbors (link weight > 0), their
+   * attracting relation neighbors (relation weight > 0), their repelling relation neighbors (always, conflict repulsion
+   * stays active), and their SIMILAR_NEIGHBORS_MOBILE notes with the highest combined affinity.
+   */
+  private mobileSet(nodes: ScatterNode[], seeds: Set<string>, affinity: number[][], input: LayoutRunInput): Set<string> {
+    const weights = layoutWeightsFrom(input.settings);
     const mobile = new Set(seeds);
     const byLower = new Map(nodes.map((n) => [n.id.toLowerCase(), n.id]));
+    const labelIndex = buildLabelIndex(input.vocabulary);
     for (const e of input.relationEdges) {
       const src = byLower.get(e.srcId.toLowerCase());
       const tgt = byLower.get(e.tgtId.toLowerCase());
       if (!src || !tgt) continue;
+      if (!resolveRelationForce(e.relType, labelIndex).repels && weights.relations <= 0) continue;
       if (seeds.has(src)) mobile.add(tgt);
       if (seeds.has(tgt)) mobile.add(src);
     }
-    nodes.forEach((seed, i) => {
-      if (!seeds.has(seed.id)) return;
-      if (input.settings.includeWikiLinksAsRelations) {
-        for (const other of nodes) {
-          if (other.links?.includes(seed.basenameKey) || seed.links?.includes(other.basenameKey)) mobile.add(other.id);
+    if (weights.links > 0 && input.links) {
+      const idByPath = new Map(nodes.map((n) => [n.path, n.id]));
+      for (const node of nodes) {
+        for (const target of input.links.get(node.path) ?? []) {
+          const other = idByPath.get(target);
+          if (!other) continue;
+          if (seeds.has(node.id)) mobile.add(other);
+          if (seeds.has(other)) mobile.add(node.id);
         }
       }
-      const row = matrix[i];
+    }
+    nodes.forEach((seed, i) => {
+      if (!seeds.has(seed.id)) return;
+      const row = affinity[i];
       nodes
         .map((n, j) => ({ id: n.id, sim: j === i ? -Infinity : row[j] }))
         .sort((a, b) => (b.sim - a.sim) || a.id.localeCompare(b.id, "en"))

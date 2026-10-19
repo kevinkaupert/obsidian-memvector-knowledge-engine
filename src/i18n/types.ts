@@ -57,6 +57,12 @@ export interface TranslationKeys {
   exclusionsName: string;
   exclusionsDesc: string;
   wikiLinksAsRelationsName: string;
+  layoutWeightSemanticName: string;
+  layoutWeightSemanticDesc: string;
+  layoutWeightLinksName: string;
+  layoutWeightLinksDesc: string;
+  layoutWeightRelationsName: string;
+  layoutWeightRelationsDesc: string;
   wikiLinksAsRelationsDesc: string;
   autoIndexVaultOnChangesName: string;
   autoIndexVaultOnChangesDesc: string;

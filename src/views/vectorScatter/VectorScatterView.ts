@@ -24,7 +24,7 @@ import { PositionPersister } from "./positionPersistence";
 import { NodeHydration } from "./nodeHydration";
 import { buildToolbar, type ToolbarHandles } from "./toolbar/toolbar";
 import { filterVisibleNodes, isPlaced, isRelationNode, placeNode, type RelationEdge, type ScatterNode } from "./types";
-import { buildScatterNode, cachedFrontmatterType, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
+import { buildScatterNode, cachedFrontmatterType, fileRefFromPath, isInScanScope, scanVaultNotes as scanVaultNotesPure, type ScanScope } from "./vaultScan";
 import { registerScatterVaultWatchers } from "./vaultWatchers";
 import { VaultEventQueue, type PendingVaultChanges, type VaultNoteChange } from "./vaultEventQueue";
 import { shouldIncludeFile } from "../../vaultFilter";
@@ -46,11 +46,11 @@ export interface NodePositionProvider {
 
 /**
  * Purpose: Layout mode after a relation change in the relation builder.
- * Architecture: Deleting a relation is an explicit user action, so it may rearrange freely (ADR-0006). The free layout
- * is deterministic, so the arrangement from before the relation existed returns when nothing else changed since.
+ * Architecture: Every change, including a delete, is a bounded adjustment around the endpoints (Plan 0005 S1); a
+ * global rearrangement happens only through "Layout neu anordnen".
  */
-export function relationChangeLayoutMode(change: RelationChange): LayoutMode {
-  return change === "deleted" ? "rearrange" : "auto";
+export function relationChangeLayoutMode(_change: RelationChange): LayoutMode {
+  return "relations";
 }
 
 export class VectorScatterView extends ItemView implements ScatterViewContext, NodePositionProvider {
@@ -66,7 +66,10 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
    * Purpose: Returns the currently visible scatter nodes according to display toggles.
    */
   getVisibleNodes(): ScatterNode[] {
-    return filterVisibleNodes(this.nodes, this.showRelationNotes, relationsFolder(this.settings));
+    const shown = filterVisibleNodes(this.nodes, this.showRelationNotes, relationsFolder(this.settings));
+    // The filter only hides notes; they stay in the layout (Plan 0005 S2).
+    if (!this.viewFilterQuery.trim()) return shown;
+    return shown.filter((n) => shouldIncludeFile(fileRefFromPath(n.path), this.viewFilterQuery));
   }
 
   /**
@@ -375,6 +378,7 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       this.registerVaultWatchers();
     }
     this.registerVisibilityWatchers();
+    this.registerLinkResolutionWatcher();
   }
 
   onClose(): Promise<void> {
@@ -430,6 +434,65 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
       registerEvent: (ref) => this.registerEvent(ref),
     });
   }
+
+  /**
+   * Purpose: Re-lays out when Obsidian has resolved links again (Plan 0005: resolved WikiLinks are the link signal's
+   * source). Registered on every view, also when the plugin's indexer replaces the vault watchers.
+   */
+  registerLinkResolutionWatcher(): void {
+    // Also after a link target was created or renamed; nothing moves unless a link of a laid-out note changed.
+    const metadataCache = this.app.metadataCache as (typeof this.app.metadataCache & { on?: unknown }) | undefined;
+    if (metadataCache && typeof metadataCache.on === "function") {
+      this.registerEvent(
+        this.app.metadataCache.on("resolved", () => {
+          if (this.linksResolvedTimer !== null) window.clearTimeout(this.linksResolvedTimer);
+          this.linksResolvedTimer = window.setTimeout(() => {
+            this.linksResolvedTimer = null;
+            if (this.nodes.length === 0) return;
+            // A hidden view re-lays out once it is shown again (resumeIfVisible applies deferred settings).
+            if (!this.isVisible()) {
+              this.deferSettingsChange();
+              return;
+            }
+            void this.runExclusive(async () => {
+              this.applyLayout();
+              this.redraw();
+            });
+          }, 500);
+        })
+      );
+    }
+  }
+
+  private linksResolvedTimer: number | null = null;
+
+  /**
+   * Resolved WikiLink targets of the laid-out notes: the links in the note text (metadata cache `links`), resolved by
+   * Obsidian (`getFirstLinkpathDest`). Frontmatter links are left out: confirmed ones are typed relations and
+   * `_suggested` ones must not pull (#243), so neither counts twice or unconfirmed (Plan 0005 review).
+   */
+  private resolvedLinks(): Map<string, string[]> {
+    const cache = this.app.metadataCache;
+    const links = new Map<string, string[]>();
+    if (!cache?.getFileCache || !cache.getFirstLinkpathDest) return links;
+    // Only targets that are laid out themselves: a link to an excluded or hidden note exerts no force, so it must not
+    // change a signature either (Plan 0005 review).
+    const laidOut = new Set(this.nodes.map((n) => n.path));
+    for (const node of this.nodes) {
+      const file = this.app.vault.getAbstractFileByPath(node.path);
+      if (!(file instanceof TFile)) continue;
+      const targets = new Set<string>();
+      for (const link of cache.getFileCache(file)?.links ?? []) {
+        const linkpath = link.link.split("#")[0].trim();
+        if (!linkpath) continue;
+        const dest = cache.getFirstLinkpathDest(linkpath, node.path);
+        if (dest && dest.path !== node.path && laidOut.has(dest.path)) targets.add(dest.path);
+      }
+      if (targets.size > 0) links.set(node.path, [...targets]);
+    }
+    return links;
+  }
+
 
   /**
    * Purpose: Tells whether the view is currently on screen.
@@ -494,10 +557,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     }
   }
 
-  /** The scope the scan and incremental updates use to decide which notes are nodes. */
+  /**
+   * The scope the scan and incremental updates use to decide which notes are nodes. The view filter is not part of
+   * it: it only hides notes (getVisibleNodes), so changing it never moves the map (Plan 0005 S2).
+   */
   private scanScope(): ScanScope {
     return {
-      filterQuery: this.viewFilterQuery,
       exclusions: this.settings.vectorSearchExclusions,
       relationsDir: relationsFolder(this.settings),
       showRelationNotes: this.showRelationNotes,
@@ -641,6 +706,20 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
   /**
    * Purpose: Adjusts pan and zoom to fit all currently visible scatter nodes within the canvas viewport.
    */
+  /**
+   * Purpose: Sets the view filter. Filtered notes stay laid out (Plan 0005 S2), so no scan and no layout run; hidden
+   * notes leave the selection and search matches, the camera fits the visible notes and the filter is saved.
+   */
+  setViewFilter(query: string): void {
+    this.viewFilterQuery = query;
+    void this.app.workspace?.requestSaveLayout?.();
+    // Selection, hover and cached search matches follow the visible notes, as after a scan.
+    this.reconcileTransientState();
+    this.fitToView();
+    this.hasFittedView = true;
+    this.redraw();
+  }
+
   fitToView(): void {
     const visibleNodes = this.getVisibleNodes();
     if (!this.canvasWrap || visibleNodes.length === 0) return;
@@ -851,19 +930,21 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
     // Vectors could not be read: laying out on fallback data would rearrange and overwrite the existing map (#191).
     if (this.embeddingHydrationFailed) return;
     this.pruneDeletedNodes();
-    const { simulated } = this.layoutEngine.run(
+    const { moved } = this.layoutEngine.run(
       {
         nodes: this.nodes,
         // Unconfirmed suggestions are drawn but do not pull notes together (#243).
         relationEdges: confirmedEdges(this.relationEdges),
         vocabulary: this.vocabulary,
+        links: this.resolvedLinks(),
         settings: this.settings,
         nodeSpacing: this.nodeSpacing,
         cloudSpacing: this.cloudSpacing,
       },
       mode
     );
-    if (simulated) this.positionWriter.schedule();
+    // Positions also change without a simulation when node spacing scales the map (Plan 0005 S4).
+    if (moved) this.positionWriter.schedule();
   }
 
   /**

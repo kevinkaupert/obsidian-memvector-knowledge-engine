@@ -79,8 +79,8 @@ An earlier version of this plugin exposed several independently selectable proje
 
 The simulation does not run on every data update. `LayoutEngine` compares signatures of the layout inputs (`layout/layoutInputs.ts`) with the last completed pass:
 
-- **Per note:** id, the basename WikiLinks match on, folder, link targets, the active semantic features (words of the 800-character excerpt, or formulas of the whole note in the math domain) and a hash of the vector. Title and type are labels only.
-- **Global:** the effective force per related note pair (resolved from the vocabulary exactly as the simulation does; description and direction do not count), node and cluster spacing, `knowledgeDomain` and `includeWikiLinksAsRelations`.
+- **Per note:** id, its resolved WikiLink targets while the link weight is above 0, and a hash of the vector while the semantic weight is above 0 (ADR-0008). Title, type, words, formulas and folder are not layout inputs.
+- **Global:** the effective force per related note pair (resolved from the vocabulary exactly as the simulation does; description and direction do not count; attracting pairs only while the relation weight is above 0, repelling pairs always) and the three signal weights. Node spacing scales the map and cloud spacing waits for a rearrange (Plan 0005 S4, S5).
 
 Depending on the difference:
 
@@ -92,12 +92,13 @@ If a cluster centroid leaves the node set (e.g. filtered out), only the cluster 
 
 Vault events reach the view through one queue (`vaultEventQueue.ts`): events per file are coalesced, a modify re-reads only that note, events for notes outside the view's scope are ignored (relation notes and the vocabulary file excepted), and all node-list updates run serialized so an older scan never overwrites a newer one. A view that is not shown collects vault events and settings changes and applies them once it is visible. Positions are written by `positionPersistence.ts` only when they moved, batched; nodes whose write failed stay pending until a write succeeds, even if a rescan reads the unsaved coordinates back from the in-memory database.
 
-**Graph-topology weighting in detail** (`graphTopologyWeights.ts`): this part of the blend ignores vector similarity and weighs notes by how they're *connected*.
+**Signal model** (`layout/signals.ts`, ADR-0008): three pair signals with one source each, mixed only in `combineAffinity`:
 
-1. Builds an undirected graph from typed relation edges (relation notes: frontmatter `type: relation` or the configured relations folder, default `wiki/relations/`; see `docs/adr/0004-relation-note-identification.md`) and - only when the `includeWikiLinksAsRelations` setting is enabled (default off, see `docs/adr/0001-wikilinks-opt-in-graph-relations.md`) - WikiLinks (`[[...]]`).
-2. Runs a BFS from every node, capped at 4 hops, to get a real graph-distance instead of a flat "linked vs. not" split - a note 2-3 hops away pulls in visibly closer than a wholly disconnected one, decaying with distance.
-3. Weights direct edges per relation label, read from the active vocabulary's `weight`/`repels` fields rather than any hardcoded type map (`docs/adr/0002-vocabulary-driven-layout-weights.md`). The bundled STEM defaults encode: `EQUIVALENT_TO` (`1.3`) / `ANALOGOUS_TO` (`1.1`) attract more strongly than a generic relation ("these are basically the same idea"), a plain WikiLink (when opted in) attracts less (`0.7`) than a typed relation, a `CONFLICTS_WITH` edge actively pushes the two notes apart (`repels`) instead of just failing to attract them, and `INDEPENDENT_OF` is neutral (baseline weight `0.05`), not repulsive - "independent" reads as a neutral statement, not an active opposition. A term that carries neither field, and a label the active vocabulary does not define at all, inherit these bundled semantics (`layoutDefaults.ts`), so a vault written before the fields existed and a preset switch both keep the intended layout instead of collapsing every label to `1.0`.
-4. Feeds the resulting per-pair weight into the force-simulation shape (attraction toward an ideal distance, or a fixed repulsion within `2.5×` node spacing for `CONFLICTS_WITH` pairs).
+1. **Semantic:** embedding cosine, rescaled to [0,1] by the vault's 1st/99th percentile (kept fixed during local adjustments), squared; 0 for a note without a vector.
+2. **Link:** 1 when either note links the other through the WikiLinks in the note text (metadata cache `links`, resolved by `getFirstLinkpathDest`; frontmatter links are relations or suggestions and do not count) (passed in by the view, refreshed on the `resolved` event).
+3. **Relation:** the strongest attracting typed-relation weight between the pair, read from the active vocabulary's `weight` (ADR-0002, bundled fallback for labels the vocabulary does not define, `layoutDefaults.ts`); `repels` labels such as `CONFLICTS_WITH` become a repulsion within `2.5×` node spacing instead.
+
+`a = min(1, w_sem·semantic + w_link·link + w_rel·min(1, relation))` with the weights `layoutWeightSemantic`, `layoutWeightLinks`, `layoutWeightRelations` (0-2, defaults 1 / 0.3 / 1; 0 = off everywhere). A relation weight above 1 also shortens the pair's target distance and stiffens its spring (weight factor, capped at 6). The spring, placement, the notes a local adjustment may move and the clusters all use `a`. There are no hop weights; folder and word overlap are not layout inputs.
 
 ### 2.2. Interactive HTML5 Canvas Renderers
 - **Main 2D Graph View (`MemVector Graph`):** High-performance HTML5 Canvas supporting panning, smooth trackpad zooming, node hover tooltips, and real-time query filtering.

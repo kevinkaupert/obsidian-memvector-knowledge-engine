@@ -49,7 +49,7 @@ describe("LayoutEngine (#209)", () => {
     Object.freeze(nodes);
     const engine = new LayoutEngine();
     expect(engine.run(input(nodes)).kind).toBe("none");
-    nodes[2].content = "changed geometry words";
+    nodes[2].embedding = nodes[2].embedding!.map((v, k) => (k === 0 ? v + 0.05 : v));
     expect(engine.run(input(nodes)).kind).toBe("bounded");
     expect(engine.run(input(nodes), "global").kind).toBe("free");
     expect(engine.run(input(nodes), "rearrange").kind).toBe("free");
@@ -107,17 +107,20 @@ describe("LayoutEngine (#209)", () => {
     const nodes = makeNodes(true);
     engine.run(input(nodes));
     const fresh = clone(nodes);
-    fresh[2].content = "completely different words";
+    fresh[2].embedding = fresh[2].embedding!.map((v, k) => (k === 0 ? v + 0.05 : v));
 
     expect(engine.run(input(fresh)).simulated).toBe(true);
   });
 
-  it("simulates when the spacing changes, as the sliders do", () => {
+  it("scales instead of simulating when node spacing changes, and only stores a new cloud spacing (Plan 0005 S4, S5)", () => {
     const engine = new LayoutEngine();
     const nodes = makeNodes(true);
     engine.run(input(nodes));
 
-    expect(engine.run(input(nodes, { nodeSpacing: 500 })).simulated).toBe(true);
+    const scaled = engine.run(input(nodes, { nodeSpacing: 500 }));
+    expect([scaled.simulated, scaled.moved]).toEqual([false, true]);
+    const stored = engine.run(input(nodes, { nodeSpacing: 500, cloudSpacing: 2000 }));
+    expect([stored.simulated, stored.moved]).toEqual([false, false]);
   });
 
   it("simulates on an explicit global request even without changes", () => {
@@ -133,7 +136,7 @@ describe("LayoutEngine (#209)", () => {
     const nodes = makeNodes(true);
     engine.run(input(nodes));
     const fresh = clone(nodes);
-    fresh[0].content = "modified content to trigger bounded";
+    fresh[0].embedding = fresh[0].embedding!.map((v, k) => (k === 0 ? v + 0.05 : v));
     const result = engine.run(input(fresh));
     expect(result.kind).toBe("bounded");
   });
@@ -180,7 +183,7 @@ describe("LayoutEngine settles a layout built from scratch (#282 review)", () =>
     expect(result.settle!.passes).toBeGreaterThan(0);
 
     // Reference: exactly one projection from scratch, as before this change
-    applyVectorLayout(copyNodesInPathOrder(single), { ...DEFAULT_SETTINGS }, 120, 750, edges, []);
+    applyVectorLayout(copyNodesInPathOrder(single), { ...DEFAULT_SETTINGS }, 120, 750, { relationEdges: edges, vocabulary: [] });
     const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
     expect(sum(edgeLengths(nodes, edges))).toBeLessThan(sum(edgeLengths(single, edges)));
 
@@ -222,7 +225,7 @@ describe("LayoutEngine settles a layout built from scratch (#282 review)", () =>
     expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);
 
     vi.mocked(applyGraphVectorProjection).mockClear();
-    nodes[3].content = "changed";
+    nodes[3].embedding = nodes[3].embedding!.map((v, k) => (k === 0 ? v + 0.05 : v));
     nodes[3].embedding = nodes[3].embedding!.map((v) => -v);
     const bounded = engine.run(input(nodes, { relationEdges: edges, nodeSpacing: 400 }));
     if (bounded.kind === "bounded") expect(applyGraphVectorProjection).toHaveBeenCalledTimes(1);

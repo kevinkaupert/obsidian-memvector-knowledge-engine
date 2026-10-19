@@ -111,7 +111,7 @@ describe("settings changes reach open 2D views (#189)", () => {
     expect(host.applySettingsToOpenViews).toHaveBeenCalledWith({ rescan: true });
   });
 
-  it("a changed knowledge domain and the WikiLinks-as-relations toggle notify open views", async () => {
+  it("a changed knowledge domain notifies open views; the WikiLinks toggle only feeds the graph index (Plan 0005)", async () => {
     const host = makeHost();
     renderVectorFilterSection(container(), { vault: {} } as unknown as App, host, t, () => undefined);
 
@@ -121,6 +121,15 @@ describe("settings changes reach open 2D views (#189)", () => {
 
     await handlers.get(t.wikiLinksAsRelationsName)!(true);
     expect(host.settings.includeWikiLinksAsRelations).toBe(true);
-    expect(host.applySettingsToOpenViews).toHaveBeenCalledTimes(2);
+    expect(host.applySettingsToOpenViews).toHaveBeenCalledTimes(1);
+  });
+
+  it("a changed layout weight is saved and re-lays out open views (Plan 0005)", async () => {
+    const host = makeHost();
+    renderVectorFilterSection(container(), { vault: {} } as unknown as App, host, t, () => undefined);
+    await handlers.get(t.layoutWeightLinksName)!(0);
+    expect(host.settings.layoutWeightLinks).toBe(0);
+    expect(host.saveSettings).toHaveBeenCalled();
+    expect(host.applySettingsToOpenViews).toHaveBeenCalledTimes(1);
   });
 });

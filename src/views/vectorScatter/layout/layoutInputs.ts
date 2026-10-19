@@ -1,15 +1,13 @@
 import type { RelationTermDef } from "../../../relationVocabulary/types";
 import type { RelationEdge, ScatterNode } from "../types";
 import { buildLabelIndex, resolveRelationForce } from "./graphTopologyWeights";
-import { prepareNodeTokens } from "./similarity";
+import type { LayoutWeights, ResolvedLinks } from "./signals";
 
-/** Settings that change the layout of every node at once. */
+/** Settings that change the layout of every node at once: the signal weights (Plan 0005). */
 export interface LayoutSettingsInputs {
-  nodeSpacing: number;
-  cloudSpacing: number;
-  /** "math" compares formulas instead of words (see calcSimilarity). */
-  knowledgeDomain: string;
-  includeWikiLinksAsRelations: boolean;
+  weights: LayoutWeights;
+  /** Resolved WikiLink targets per note path; part of a node's inputs while the link weight is above 0. */
+  links?: ResolvedLinks;
 }
 
 /**
@@ -49,15 +47,14 @@ const sortedJoin = (values: Iterable<string>): string => [...new Set(values)].so
 
 /**
  * Purpose: Signature of one note's own layout inputs.
- * Architecture: Built from the prepared inputs the similarity and topology code actually reads - identity and the
- * basename WikiLinks match on, folder, link targets and the active semantic features (formulas in the math domain,
- * otherwise the words of the excerpt), and the vector. Title and type only label the node and are left out, so editing
- * them is a display change. A hash of the whole Markdown content would also change on edits the layout never sees.
+ * Architecture: Only what an active signal reads (Plan 0005): the id, the resolved link targets while the link weight
+ * is above 0 and the vector while the semantic weight is above 0. Title, type, words, formulas and folder do not
+ * affect the layout, so editing them is a display change.
  */
-export function nodeLayoutSignature(node: ScatterNode, isMath: boolean): string {
-  const tokens = prepareNodeTokens(node);
-  const semantic = isMath ? tokens.formulas : tokens.words;
-  return [node.id, node.basenameKey, tokens.folder, sortedJoin(node.links ?? []), sortedJoin(semantic), hashVector(node.embedding)].join("\u0002");
+export function nodeLayoutSignature(node: ScatterNode, weights: LayoutWeights, links?: ResolvedLinks): string {
+  const linkPart = weights.links > 0 ? sortedJoin(links?.get(node.path) ?? []) : "-";
+  const vectorPart = weights.semantic > 0 ? hashVector(node.embedding) : "-";
+  return [node.id, linkPart, vectorPart].join("\u0002");
 }
 
 const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0003${b}` : `${b}\u0003${a}`);
@@ -67,7 +64,9 @@ const pairKey = (a: string, b: string): string => (a < b ? `${a}\u0003${b}` : `$
  * Architecture: The topology is undirected and keyed by endpoints, so direction and description do not count; only
  * whether the pair repels and the strongest attraction weight, resolved exactly as the simulation does.
  */
-export function edgeForceSignatures(nodes: ScatterNode[], relationEdges: RelationEdge[], vocabulary?: RelationTermDef[]): Map<string, string> {
+export function edgeForceSignatures(nodes: ScatterNode[], relationEdges: RelationEdge[], vocabulary?: RelationTermDef[], weights?: LayoutWeights): Map<string, string> {
+  // Attracting relations count only while the relation weight is above 0; repelling ones always (Plan 0005).
+  const attracts = !weights || weights.relations > 0;
   const ids = new Set(nodes.map((n) => n.id.toLowerCase()));
   const labelIndex = buildLabelIndex(vocabulary);
   const byPair = new Map<string, { repels: boolean; weight: number }>();
@@ -83,7 +82,10 @@ export function edgeForceSignatures(nodes: ScatterNode[], relationEdges: Relatio
     byPair.set(key, entry);
   }
   const out = new Map<string, string>();
-  byPair.forEach((f, key) => out.set(key, `${f.repels ? "R" : "A"}:${f.weight}`));
+  byPair.forEach((f, key) => {
+    if (f.repels) out.set(key, `R:${attracts ? f.weight : 0}`);
+    else if (attracts) out.set(key, `A:${f.weight}`);
+  });
   return out;
 }
 
@@ -96,13 +98,14 @@ export function captureLayoutSnapshot(
   vocabulary: RelationTermDef[] | undefined,
   settings: LayoutSettingsInputs
 ): LayoutSnapshot {
-  const isMath = settings.knowledgeDomain === "math";
   const nodeSigs = new Map<string, string>();
-  for (const n of nodes) nodeSigs.set(n.id, nodeLayoutSignature(n, isMath));
+  for (const n of nodes) nodeSigs.set(n.id, nodeLayoutSignature(n, settings.weights, settings.links));
   return {
     nodes: nodeSigs,
-    edges: edgeForceSignatures(nodes, relationEdges, vocabulary),
-    settings: [settings.nodeSpacing, settings.cloudSpacing, isMath ? "math" : "text", settings.includeWikiLinksAsRelations ? "wl" : "-"].join("|"),
+    edges: edgeForceSignatures(nodes, relationEdges, vocabulary, settings.weights),
+    // Node and cloud spacing are not compared here: the engine scales for node spacing and keeps the applied cloud
+    // spacing until a rearrange (Plan 0005 S4, S5).
+    settings: [settings.weights.semantic, settings.weights.links, settings.weights.relations].join("|"),
   };
 }
 

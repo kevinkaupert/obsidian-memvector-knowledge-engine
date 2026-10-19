@@ -8,6 +8,24 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-19
+
+### Changed
+- **The 2D map no longer jumps on routine actions** (Plan 0005 step 3, #284):
+  - deleting a relation in the relation builder adjusts only the area around its notes instead of rearranging the whole map; every relation change from the builder stays a local adjustment, also in very small vaults;
+  - a note that moves only because a nearby note changed moves at most 0.15 x node spacing per adjustment;
+  - the node spacing slider scales the existing map instead of re-running the layout, and the scaled positions are saved;
+  - the cloud spacing slider only stores the value; it takes effect at the next "Layout neu anordnen" (#283 is redefined in step 4);
+  - the filter in the view only hides notes: hidden notes keep their place and keep shaping the layout, so changing the filter never moves the map and no longer rescans the vault; note counts and "Calculate vectors" follow the visible notes.
+- **Layout signal model** (Plan 0005 step 4, ADR-0008): notes are placed by three signals with one weight each in the settings - semantic similarity, WikiLinks and typed relations (0-2, defaults 1 / 0.3 / 1; 0 switches a signal off everywhere). The signals add up instead of the strongest winning, so a relation between similar notes now pulls them closer. WikiLinks are the links in the note text, resolved by Obsidian (frontmatter links count as typed relations, `_suggested` ones not at all), and can be switched off completely (before, they always pulled through the similarity). Folder, word and formula overlap and the pull of notes 2-4 hops away no longer place notes. "WikiLinks as graph relations" now only controls the graph index used by synthesis; the knowledge domain only affects synthesis.
+- **Edge line style shows where an edge comes from:** solid for a relation note, dashed for a typed link written only in a note's frontmatter, dotted for an unconfirmed `<label>_suggested` link (was dashed). A frontmatter-only edge no longer looks like a stored relation.
+
+### Documentation
+- Plan 0005 (layout forces and stability, #284, #283), step 1: inventory of every force, its formula, reach and setting, and of every trigger that moves notes, with findings (WikiLinks act twice, graph and similarity combined by `max`, cloud spacing is a point repulsion radius, filters are layout inputs), and the target signal model decided by the owner: semantic, WikiLink and relation signals with one source each, added in one function with a weight each (0 = off everywhere); folder and word overlap and hop forces removed. No behavior change.
+
+### Tests
+- Characterization of today's layout (Plan 0005 step 2): every path a WikiLink takes, similar pair, relation weights and `max`, conflict pair, cloud spacing on single points (#283), groups, and movement per trigger (reopen, edit, hide/show, relation delete, spacing slider), with measured distances as inline snapshots.
+
 ## [0.3.5] - 2026-10-19
 
 ### Fixed

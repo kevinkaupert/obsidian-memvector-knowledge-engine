@@ -107,11 +107,9 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     if (filterDebounce) window.clearTimeout(filterDebounce);
     filterDebounce = window.setTimeout(() => {
       void (async () => {
-        const val = filterInput.value.trim();
-        ctx.viewFilterQuery = val;
-        await ctx.scanVaultNotes(val);
+        // The filter only hides notes; they stay laid out, so nothing is rescanned (Plan 0005 S2).
+        ctx.setViewFilter(filterInput.value.trim());
         updateSelectionUI();
-        ctx.redraw();
       })();
     }, 250);
   };
@@ -340,15 +338,17 @@ export function buildToolbar(ctx: ScatterViewContext, refs: ToolbarRefs, t: Tran
     setActionBtnEnabled(clearSelBtn, count > 0);
     clearSelBtn.hidden = count === 0;
 
+    // Counts follow what the filter shows, like "Calculate vectors" (Plan 0005 S2: filtered notes stay in the layout).
+    const shown = ctx.getVisibleNodes();
     if (count > 0) {
-      statusText.setText(`${ctx.nodes.length} | ${count} ${t.statusSelectedSuffix}`);
-    } else if (ctx.nodes.length > 0) {
-      const embeddedCount = ctx.nodes.filter((n) => n.embedding && n.embedding.length > 0).length;
-      if (embeddedCount === ctx.nodes.length) {
-        statusText.setText(`${ctx.nodes.length} | ${t.statusCacheActive}`);
+      statusText.setText(`${shown.length} | ${count} ${t.statusSelectedSuffix}`);
+    } else if (shown.length > 0) {
+      const embeddedCount = shown.filter((n) => n.embedding && n.embedding.length > 0).length;
+      if (embeddedCount === shown.length) {
+        statusText.setText(`${shown.length} | ${t.statusCacheActive}`);
       } else {
-        const uncalc = ctx.nodes.length - embeddedCount;
-        statusText.setText(`${ctx.nodes.length} | ${uncalc} ${t.statusUncalculated}`);
+        const uncalc = shown.length - embeddedCount;
+        statusText.setText(`${shown.length} | ${uncalc} ${t.statusUncalculated}`);
       }
     } else {
       statusText.setText("–");

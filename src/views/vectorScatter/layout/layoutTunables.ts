@@ -24,6 +24,12 @@ export const BOUNDED_STOP_MOVEMENT = 0.5;
  */
 export const ANCHOR_STIFFNESS = 0.08;
 
+/**
+ * Hard bound per bounded adjustment (Plan 0005 S3): a note that moves only because a nearby note changed ends at most
+ * this share of node spacing away from where it was before the pass. Changed and new notes are not bounded.
+ */
+export const NEIGHBOR_MOVE_LIMIT = 0.15;
+
 /** Per changed node, this many of its most similar nodes may move along in a bounded adjustment. */
 export const SIMILAR_NEIGHBORS_MOBILE = 5;
 

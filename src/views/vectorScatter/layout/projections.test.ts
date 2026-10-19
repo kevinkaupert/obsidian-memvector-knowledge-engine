@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { RelationEdge, ScatterNode } from "../types";
 import { applyGraphVectorProjection } from "./projections";
-import { rescaleSimilarityMatrix } from "./similarity";
+import { project } from "./projectionTestSupport";
+
+/** Min-max stretch of the off-diagonal values to [0, 1], as the semantic signal's rescale does. */
+function rescaleSimilarityMatrix(matrix: number[][]): number[][] {
+  const off = matrix.flatMap((row, i) => row.filter((_, j) => j !== i));
+  const low = Math.min(...off);
+  const spread = Math.max(...off) - low;
+  if (spread < 1e-6) return matrix;
+  return matrix.map((row, i) => row.map((v, j) => (i === j ? 1 : Math.max(0, Math.min(1, (v - low) / spread)))));
+}
 
 function makeNode(id: string): ScatterNode {
   return {
@@ -32,7 +41,7 @@ describe("applyGraphVectorProjection", () => {
       [0.0, 0.0, 1.0],
     ];
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 150,
@@ -67,7 +76,7 @@ describe("applyGraphVectorProjection", () => {
       [0.65, 0.65, 0.65, 0.85, 0.85, 1.0],
     ];
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 150,
@@ -99,7 +108,7 @@ describe("applyGraphVectorProjection", () => {
       }
     }
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix: rescaleSimilarityMatrix(matrix),
       nodeSpacing: 350,
@@ -155,7 +164,7 @@ describe("applyGraphVectorProjection", () => {
       },
     ];
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 150,
@@ -176,7 +185,7 @@ describe("applyGraphVectorProjection", () => {
       [0.4, 0.4, 0.4, 1.0],
     ];
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 1000,
@@ -198,7 +207,7 @@ describe("applyGraphVectorProjection", () => {
     const matrix = Array.from({ length: N }, () => Array(N).fill(0.25));
     for (let i = 0; i < N; i++) matrix[i][i] = 1.0;
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 1600,
@@ -237,7 +246,7 @@ describe("applyGraphVectorProjection", () => {
     matrix[16][8] = 0.8;
     matrix[8][16] = 0.8;
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 350,
@@ -291,7 +300,7 @@ describe("applyGraphVectorProjection", () => {
       },
     ];
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix,
       nodeSpacing: 200,
@@ -334,7 +343,7 @@ describe("relation weight strength", () => {
     a.y = 0;
     b.x = 400;
     b.y = 0;
-    applyGraphVectorProjection({
+    project({
       nodes: [a, b],
       matrix: [
         [1, 0],
@@ -394,7 +403,7 @@ describe("relation weight strength", () => {
       node.y = Math.sin((i / nodes.length) * Math.PI * 2) * 400;
     });
 
-    applyGraphVectorProjection({
+    project({
       nodes,
       matrix: [
         [1, 0.1, 0.4, 0.1],
@@ -472,7 +481,7 @@ describe("relation weight strength", () => {
         [0.05, 0.95, 1.0],
       ];
 
-      applyGraphVectorProjection({
+      project({
         nodes,
         matrix,
         nodeSpacing: 350,

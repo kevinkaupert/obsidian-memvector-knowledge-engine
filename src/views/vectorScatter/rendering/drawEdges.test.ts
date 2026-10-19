@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  edgeLineStyle,
   CANONICAL_EDGE_COLORS,
   EDGE_COLOR_PALETTE,
   NEUTRAL_EDGE,
@@ -166,5 +167,18 @@ describe("drawEdges color resolution (Issue #62)", () => {
       drawEdges(ctx, { nodeMap, relationEdges: edges, selectedNodeIds: new Set(), hoveredNode: null, hoveredEdge: null, hops: 0, zoom: 1, pan: { x: 0, y: 0 }, themeTextNormal: "#fff", themeAccent: "#0af", style: "monochrome" });
       expect(getStrokes()).toBeGreaterThan(0);
     });
+  });
+});
+
+describe("edgeLineStyle: where an edge comes from", () => {
+  it("draws relation notes solid, frontmatter links dashed and suggested links dotted", () => {
+    expect(edgeLineStyle({ origin: "relation-note" }, 1).dash).toEqual([]);
+    expect(edgeLineStyle({}, 1).dash).toEqual([]);
+    expect(edgeLineStyle({ origin: "frontmatter", confidence: "confirmed" }, 1)).toEqual({ dash: [8, 5], cap: "butt" });
+    expect(edgeLineStyle({ origin: "frontmatter", confidence: "suggested" }, 1)).toEqual({ dash: [0.5, 5], cap: "round" });
+  });
+
+  it("scales the pattern with zoom", () => {
+    expect(edgeLineStyle({ origin: "frontmatter" }, 2).dash).toEqual([16, 10]);
   });
 });
