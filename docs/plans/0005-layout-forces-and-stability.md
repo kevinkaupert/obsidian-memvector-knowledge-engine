@@ -270,9 +270,61 @@ Rules that follow:
 Step 2 records today's mixing explicitly (WikiLinks through `S`, graph weight, hops, mobile set, placement, clusters),
 so step 4 can show that with `w_link = 0` none of these paths is left.
 
+## 7a. Step 4 - implement the signal model (plan)
+
+Revised after a Codex review of the first draft (PCA and centroids bypass the weights, signatures would still seed on
+disabled signals, resolved links need a refresh path, conflict neighbors, weight factor scope, rescale fallback,
+other consumers of the removed features, test and settings checklist).
+
+1. **Signals** (new `layout/signals.ts`), computed once per pass into three n x n matrices:
+   - `semantic[i][j]`: cosine of the embeddings, rescaled to [0,1] with the vault-relative bounds of section 2.2
+     (computed on the cosine alone, kept fixed by bounded passes as today), then squared - the noise filter that
+     `S^2` applies today. Values are always clamped to [0,1]; when the bounds cannot stretch (fewer than two
+     embedded notes or a negligible spread) the cosine is mapped by `(cos + 1) / 2`. 0 when either note has no vector.
+   - `link[i][j]`: 1 if either note links the other in Obsidian's `metadataCache.resolvedLinks`, else 0. The view
+     passes the resolved links of the laid-out notes with every layout request, so the engine stays free of Obsidian,
+     and re-runs the layout (`auto`, debounced) on the metadata cache's `resolved` event, which covers a target created
+     or renamed after its source was read.
+   - `relation[i][j]`: the strongest non-repelling typed relation weight between the pair (vocabulary weight, bundled
+     fallback as today), else 0. Repelling relations go into the repel set, as today.
+2. **`combineAffinity`** (same file) is the only place signals are mixed:
+   `a = min(1, w_sem * semantic + w_link * link + w_rel * min(1, relation))`. The weight factor
+   `wf = min(6, max(1, w_rel * relation))` keeps its current role (target distance, spring stiffness and collision
+   clearance). A pair attracts only when `a >= 0.15`, as today; a weight that leaves `a` below it does not pull.
+3. **Every consumer uses `a`:**
+   - spring and unrelated-repulsion threshold (simulateForces);
+   - placement: from scratch by a 2D projection of the `a` matrix (PCA of the embeddings only while `w_sem > 0`,
+     since it is the semantic signal); incremental placement next to the placed note with the highest `a`;
+   - mobile set of a bounded pass: link neighbors when `w_link > 0`, attracting relation neighbors when `w_rel > 0`,
+     repelling relation neighbors always (conflict repulsion stays active), plus the 5 notes with the highest `a`;
+   - cluster assignment on `a`; embedded notes are preferred as centroids only while `w_sem > 0`.
+4. **Signatures follow the active signals:** a node's signature holds its id, its resolved link targets only while
+   `w_link > 0` and its vector hash only while `w_sem > 0`; attracting edge signatures count only while `w_rel > 0`,
+   repelling ones always. The three weights are part of the settings signature, so changing one is a settings change.
+5. **Removed from the layout:** the hybrid similarity `S` and its weights (folder, words, formulas), hop decay and
+   baseline weight, `knowledgeDomain` and `includeWikiLinksAsRelations` as layout inputs. **Kept for other
+   consumers:** `node.links` and `basenameKey` (hover and selection tallies in relatedNodes.ts, search),
+   `latexFormulas`, `content` and `knowledgeDomain` (synthesis), the sidebar radar (own vector search), canvas edge
+   hops and synthesis graph traversal. The domain description in the settings (de/en) no longer promises
+   formula-based clustering.
+6. **Settings:** `layoutWeightSemantic`, `layoutWeightLinks`, `layoutWeightRelations` (0-2, step 0.1) in the layout
+   section. Missing values take the defaults; an explicit 0 survives a reload. Defaults are chosen to come closest to
+   the step 3 reference (C1-C7 measured with candidates, then fixed). Changing a weight is an explicit settings
+   change: a free pass from the current positions.
+7. **`includeWikiLinksAsRelations`** keeps only its graph-store role: whether WikiLinks are indexed as `LINKS_TO`
+   edges used by synthesis (vaultGraphSync, vaultIndexPipeline), applied at the next full re-index as today. Its
+   settings text says so. (Owner to confirm.)
+8. **Tests first:** C1 rewritten so that with `layoutWeightLinks = 0` a link changes nothing (distance, placement,
+   mobile set, clusters, signature) and with weight 1 it pulls; per weight, 0 removes the signal everywhere and its
+   input changes create no seeds; relation and similarity add up; repelling neighbors stay mobile with `w_rel = 0`;
+   rescale fallback; settings persistence. Existing tests that require the removed behavior (folder and formula
+   signatures, domain and toggle relayouts, hybrid matrix, hop decay, embedding-preferred centroids) are rewritten
+   to the new rules. Then C1-C7 are re-recorded and the differences to the step 3 reference are listed in the PR.
+9. **Docs:** ADR-0008 (layout signal model) supersedes ADR-0001 for the layout and records section 7; USER_GUIDE,
+   CONFIGURATION and ARCHITECTURE describe the three weights.
+
 ## 8. Open decisions (before step 4)
 
-- Default values of `w_sem`, `w_link`, `w_rel` that come closest to the step 3 reference.
 - Which of the remaining forces become settings besides the three signal weights: repulsion of unrelated notes,
   centering, collision.
 - Meaning of node and cloud spacing afterwards (#283): cloud spacing as distance between clusters needs clusters to
