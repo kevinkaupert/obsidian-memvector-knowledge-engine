@@ -448,7 +448,12 @@ export class VectorScatterView extends ItemView implements ScatterViewContext, N
           if (this.linksResolvedTimer !== null) window.clearTimeout(this.linksResolvedTimer);
           this.linksResolvedTimer = window.setTimeout(() => {
             this.linksResolvedTimer = null;
-            if (!this.isVisible() || this.nodes.length === 0) return;
+            if (this.nodes.length === 0) return;
+            // A hidden view re-lays out once it is shown again (resumeIfVisible applies deferred settings).
+            if (!this.isVisible()) {
+              this.deferSettingsChange();
+              return;
+            }
             void this.runExclusive(async () => {
               this.applyLayout();
               this.redraw();

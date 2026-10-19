@@ -1148,6 +1148,31 @@ describe("VectorScatterView link signal source (Plan 0005 review)", () => {
   });
 });
 
+describe("VectorScatterView link resolution while hidden (Plan 0005 review)", () => {
+  it("defers the re-layout after resolved links while hidden and applies it once shown", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = createMockHost();
+      const events = new Map<string, Function>();
+      (host.app as any).metadataCache = { on: vi.fn((e: string, cb: Function) => (events.set(e, cb), {})), getFileCache: vi.fn(() => null) };
+      const view = new VectorScatterView({} as WorkspaceLeaf, host);
+      let visible = false;
+      (view as any).containerEl.isShown = () => visible;
+      view.nodes = [{ ...makeNode("a", "a.md", "concept") }];
+      view.applyExternalSettingsChange = vi.fn();
+      view.registerLinkResolutionWatcher();
+      events.get("resolved")!();
+      await vi.advanceTimersByTimeAsync(600);
+      expect(view.applyExternalSettingsChange).not.toHaveBeenCalled();
+      visible = true;
+      (view as any).resumeIfVisible();
+      expect(view.applyExternalSettingsChange).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("VectorScatterView hydration gates (characterization before the split, #273)", () => {
   it("a write scheduled before a failed position read writes nothing", async () => {
     const { getStoredNodePositions, saveNodePositions } = await import("../../sync/sqlite/nodePositions");

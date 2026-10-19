@@ -73,7 +73,7 @@ describe("bounded passes without semantic bounds (Plan 0005 step 4 review)", () 
 describe("semantic bounds once vectors arrive (Plan 0005 step 4 review)", () => {
   it("derives the bounds when the vault gains vectors after a layout without them, and keeps them afterwards", () => {
     const withVectors = vault(3, 4);
-    const nodes = withVectors.map((n) => ({ ...n, embedding: undefined }));
+    const nodes: ScatterNode[] = withVectors.map((n) => ({ ...n, embedding: undefined }));
     const engine = new LayoutEngine();
     run(engine, nodes, [], "rearrange");
     expect((engine as any).model.bounds).toBeNull();
