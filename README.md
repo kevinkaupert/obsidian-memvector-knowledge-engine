@@ -1,11 +1,11 @@
 # MemVector Knowledge Engine
 
-![Version](https://img.shields.io/badge/version-0.3.7-blue)
+![Version](https://img.shields.io/badge/version-0.3.8-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-997%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1002%20passing-brightgreen)
 
 **Map what you think connects — and why.**
 
@@ -131,6 +131,10 @@ labels are stored as plain strings.
   through Jovian" (off by default) saves synthesis and relation notes
   through its write gate: per-note lock, stale check and a journal of
   every write. See `docs/CONFIGURATION.md`. Without it, nothing changes.
+- **Search from the command line.** `node cli.js search --vault <path>
+  --query "<text>" --json` ranks your indexed notes by meaning without
+  opening Obsidian, so other tools (e.g. Jovian's prerequisite check) can
+  ask MemVector. Reads only. See `docs/runbook.md`.
 
 ---
 

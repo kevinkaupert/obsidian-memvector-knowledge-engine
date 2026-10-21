@@ -1,72 +1,26 @@
 import { requestUrl } from "../obsidianCompat";
+import { requestEmbedding, type EmbeddingResult } from "./embeddingRequest";
 
-export interface EmbeddingResult {
-  embedding: number[] | null;
-  error: string | null;
-}
+export type { EmbeddingResult };
 
-interface OpenAiEmbeddingResponse {
-  data?: Array<{ embedding?: number[] }>;
-  embedding?: number[];
-}
-
-interface OllamaEmbedResponse {
-  embeddings?: number[][];
-}
-
-export async function fetchEmbedding(
+/**
+ * Purpose: Fetches one embedding through Obsidian's requestUrl (no CORS limits in the app). The request itself lives in
+ * embeddingRequest.ts, so the command-line tool (src/cli) sends exactly the same requests through Node's fetch.
+ */
+export function fetchEmbedding(
   text: string,
   apiBase: string,
   apiKey: string,
   modelName = "bge-m3"
 ): Promise<EmbeddingResult> {
-  const cleanBase = (apiBase || "http://localhost:11434/v1").replace(/\/+$/, "");
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey && apiKey !== "ollama") {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
-
-  // 1. Standard OpenAI-compatible /v1/embeddings endpoint
-  const standardUrl = cleanBase.endsWith("/embeddings") ? cleanBase : `${cleanBase}/embeddings`;
-  try {
-    const res = await requestUrl({
-      url: standardUrl,
-      method: "POST",
-      headers,
-      body: JSON.stringify({ model: modelName, input: text }),
-      throwOnError: false,
-    });
-    if (res.status === 200) {
-      const data = res.json as OpenAiEmbeddingResponse | undefined;
-      const vec = data?.data?.[0]?.embedding ?? data?.embedding;
-      if (Array.isArray(vec) && vec.length > 0) return { embedding: vec, error: null };
-    }
-  } catch {
-    // fallback to Ollama native /api/embed if running locally
-  }
-
-  // 2. Ollama native fallback
-  if (cleanBase.includes("11434") || cleanBase.includes("localhost") || cleanBase.includes("127.0.0.1")) {
-    const rawOllamaBase = cleanBase.replace(/\/v1$/, "");
-    try {
-      const res = await requestUrl({
-        url: `${rawOllamaBase}/api/embed`,
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelName, input: text }),
-        throwOnError: false,
-      });
-      const data = res.json as OllamaEmbedResponse | undefined;
-      if (res.status === 200 && Array.isArray(data?.embeddings?.[0])) {
-        return { embedding: data.embeddings[0], error: null };
-      }
-    } catch {
-      // fallback
-    }
-  }
-
-  return {
-    embedding: null,
-    error: `Embedding failed for model '${modelName}' at '${cleanBase}'`,
-  };
+  return requestEmbedding(
+    async (req) => {
+      const res = await requestUrl({ ...req, throwOnError: false });
+      return { status: res.status, json: res.json as unknown };
+    },
+    text,
+    apiBase,
+    apiKey,
+    modelName
+  );
 }
