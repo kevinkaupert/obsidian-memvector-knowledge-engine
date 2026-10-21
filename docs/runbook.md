@@ -46,7 +46,7 @@ Link the build files individually instead of the whole folder. The plugin writes
 REPO="$PWD"
 PLUGIN=<vault>/.obsidian/plugins/memvector-knowledge-engine
 mkdir -p "$PLUGIN"
-for f in main.js manifest.json styles.css sql-wasm.wasm; do ln -sf "$REPO/$f" "$PLUGIN/$f"; done
+for f in main.js cli.js manifest.json styles.css sql-wasm.wasm; do ln -sf "$REPO/$f" "$PLUGIN/$f"; done
 ```
 
 `sql-wasm.wasm` is optional: `main.js` embeds a fallback copy and uses it when the file is missing.
@@ -103,6 +103,27 @@ sqlite3 "$DB" "select path, embedding_fingerprint from vectors where path like '
 The fingerprint is `<model>@<base URL>` of the embedding target that wrote the row. The table holds one row per note;
 re-indexing with another model overwrites that note's row.
 
+## Command-line search
+
+`cli.js` (built by `npm run build` from `src/cli/`) searches the index of a vault without Obsidian. It must sit in
+the plugin folder or be called with Node from anywhere; it reads `data.json` and `memvector-local.sqlite` from
+`<vault>/.obsidian/plugins/memvector-knowledge-engine/` and writes nothing.
+
+```sh
+node cli.js search --vault /path/to/vault --query "Kommutativ" --limit 5 --json
+node cli.js --version
+```
+
+`--instruction "<task>"` sends the query as `Instruct: <task>\nQuery: <query>`. Instruction-tuned embedding
+models (qwen3-embedding) rank much better with it: in the knowOS integration vault the query `Gruppe` found
+`Gruppe.md` first only with an instruction.
+
+Output: `{"outcome":"ok","query":...,"model":...,"fingerprint":...,"indexed":44,"results":[{"path":...,"title":...,"score":0.67}]}`.
+Errors are `{"outcome":"error","code":...,"error":...}` with exit 1: `INDEX_MISSING`, `INDEX_EMPTY` (no notes of the
+configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`, `DIMENSION_MISMATCH`. Usage errors
+exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key
+for a cloud endpoint. Contract: knowOS ADR-0010.
+
 ## Release
 
 Releases are cut only on the maintainer's explicit request. Only the patch version is raised (0.2.x), for
@@ -112,10 +133,10 @@ features as well as fixes.
    update the version and test badges in `README.md`, add a `CHANGELOG.md` section and `docs/release-notes-x.y.z.md`.
 2. Open a PR, wait for green CI, merge.
 3. Tag the merge commit with the bare version (no `v` prefix) and publish the GitHub release with the release notes
-   and the assets `main.js`, `manifest.json` and `styles.css`:
+   and the assets `main.js`, `cli.js`, `manifest.json` and `styles.css`:
 
 ```sh
 git checkout main && git pull --ff-only
 git tag x.y.z && git push origin x.y.z
-gh release create x.y.z main.js manifest.json styles.css --title x.y.z --notes-file docs/release-notes-x.y.z.md --verify-tag
+gh release create x.y.z main.js cli.js manifest.json styles.css --title x.y.z --notes-file docs/release-notes-x.y.z.md --verify-tag
 ```

@@ -1,15 +1,16 @@
 {
   "name": "obsidian-memvector-knowledge-engine",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Local-first 2D vector-space graph, SQLite graph engine, and hybrid GraphRAG AI co-pilot for Obsidian — powered by Ollama, Anthropic Claude, OpenAI, or DeepSeek.",
   "main": "main.js",
   "scripts": {
     "dev": "esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=browser --outfile=main.js --watch",
-    "build": "tsc --noEmit && esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=browser --outfile=main.js --minify",
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --external:obsidian --external:electron --format=cjs --target=es2020 --platform=browser --outfile=main.js --minify && npm run build:cli",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:cli": "esbuild src/cli/main.ts --bundle --platform=node --format=cjs --target=node18 --outfile=cli.js --minify --legal-comments=none --banner:js=\"#!/usr/bin/env node\" --define:MEMVECTOR_VERSION=\\\"$npm_package_version\\\""
   },
   "keywords": [
     "obsidian",

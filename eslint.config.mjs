@@ -23,6 +23,7 @@ export default defineConfig([
   {
     ignores: [
       "main.js",
+      "cli.js",
       "dist/**",
       "node_modules/**",
       "**/*.test.ts",

@@ -8,6 +8,14 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.8] - 2026-10-21
+
+### Added
+- **Command-line search** (#289, knowOS ADR-0010): `node cli.js search --vault <path> --query <text> [--limit 20] --json` ranks the indexed notes by semantic similarity to the query without Obsidian, e.g. for Jovian's prerequisite check (jovian#243). It reads the settings and index from the plugin folder and never writes; it uses the configured embedding model and compares only vectors of that model. A missing or empty index, an unreachable embedding model and a vector size that does not match the index are reported as JSON errors (exit 1). `cli.js` is built next to `main.js` and belongs in the plugin folder. An API key for a cloud embedding endpoint comes from `MEMVECTOR_EMBEDDING_API_KEY`. `--instruction <text>` sends the query as `Instruct: <text>\nQuery: <query>`, the form instruction-tuned embedding models such as qwen3-embedding expect.
+
+### Changed
+- The embedding request is shared by the plugin and the command-line tool (`src/llm/embeddingRequest.ts`); the plugin's requests are unchanged.
+
 ## [0.3.7] - 2026-10-19
 
 ### Documentation
