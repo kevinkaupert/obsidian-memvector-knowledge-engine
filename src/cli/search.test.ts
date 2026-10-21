@@ -73,6 +73,20 @@ describe("memvector search (CLI, #289)", () => {
     expect(result).toMatchObject({ outcome: "error", code: "DIMENSION_MISMATCH" });
   });
 
+  it("refuses an index whose vectors have mixed sizes", async () => {
+    const db = await indexBytes([["A", [1, 0]], ["B", [1, 0, 999]]]);
+    const result = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 5, answering([1, 0]));
+    expect(result).toMatchObject({ outcome: "error", code: "DIMENSION_MISMATCH" });
+  });
+
+  it("sends the query in the instruction form when an instruction is given", async () => {
+    const db = await indexBytes([["A", [1, 0]]]);
+    const bodies: string[] = [];
+    const post: EmbeddingPost = async (req) => { bodies.push(req.body); return { status: 200, json: { data: [{ embedding: [1, 0] }] } }; };
+    await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "Gruppe", 5, post, "", "retrieve the defining note");
+    expect(JSON.parse(bodies[0]).input).toBe("Instruct: retrieve the defining note\nQuery: Gruppe");
+  });
+
   it("reports a file that is not an index", async () => {
     const result = await searchIndex({ settings: SETTINGS, db: new TextEncoder().encode("kein sqlite"), wasm: WASM }, "x", 5, answering([1]));
     expect(result).toMatchObject({ outcome: "error", code: "INDEX_UNREADABLE" });

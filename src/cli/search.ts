@@ -37,7 +37,8 @@ export async function searchIndex(
   query: string,
   limit: number,
   post: EmbeddingPost,
-  apiKey = ""
+  apiKey = "",
+  instruction?: string
 ): Promise<SearchResult> {
   const target = resolveEmbeddingTarget({
     embeddingModel: source.settings.embeddingModel ?? "",
@@ -66,16 +67,19 @@ export async function searchIndex(
     };
   }
 
-  const embedded = await requestEmbedding(post, query, target.apiBase, apiKey, target.model);
+  // Instruction-tuned embedding models expect a query in this form; the notes themselves are embedded as they are
+  const text = instruction ? `Instruct: ${instruction}\nQuery: ${query}` : query;
+  const embedded = await requestEmbedding(post, text, target.apiBase, apiKey, target.model);
   if (!embedded.embedding) {
     return { outcome: "error", code: "EMBEDDING_FAILED", error: embedded.error ?? "Embedding failed." };
   }
-  const dims = rows[0].vector.length;
-  if (embedded.embedding.length !== dims) {
+  const dims = embedded.embedding.length;
+  const mismatched = rows.filter((r) => r.vector.length !== dims);
+  if (mismatched.length > 0) {
     return {
       outcome: "error",
       code: "DIMENSION_MISMATCH",
-      error: `The query embedding has ${embedded.embedding.length} dimensions, the index ${dims}; the model at ${target.apiBase} is not the one that built the index.`,
+      error: `The query embedding has ${dims} dimensions, ${mismatched.length} indexed note(s) another size (e.g. ${mismatched[0].path}: ${mismatched[0].vector.length}); re-index the vault with the configured model.`,
     };
   }
   const query_vector = embedded.embedding;

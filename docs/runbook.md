@@ -114,6 +114,10 @@ node cli.js search --vault /path/to/vault --query "Kommutativ" --limit 5 --json
 node cli.js --version
 ```
 
+`--instruction "<task>"` sends the query as `Instruct: <task>\nQuery: <query>`. Instruction-tuned embedding
+models (qwen3-embedding) rank much better with it: in the knowOS integration vault the query `Gruppe` found
+`Gruppe.md` first only with an instruction.
+
 Output: `{"outcome":"ok","query":...,"model":...,"fingerprint":...,"indexed":44,"results":[{"path":...,"title":...,"score":0.67}]}`.
 Errors are `{"outcome":"error","code":...,"error":...}` with exit 1: `INDEX_MISSING`, `INDEX_EMPTY` (no notes of the
 configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`, `DIMENSION_MISMATCH`. Usage errors

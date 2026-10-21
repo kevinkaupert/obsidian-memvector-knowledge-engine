@@ -6,9 +6,11 @@ import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 
 declare const MEMVECTOR_VERSION: string;
 
-const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--config-dir .obsidian] --json
+const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--instruction <text>] [--config-dir .obsidian] --json
        memvector --version
 
+--instruction is put before the query as "Instruct: <text>\\nQuery: <query>", the query form instruction-tuned
+embedding models such as qwen3-embedding expect; notes are embedded without it.
 Reads MemVector's index and settings from <vault>/<config-dir>/plugins/${PLUGIN_ID}/ and never writes.
 An API key for a cloud embedding endpoint comes from MEMVECTOR_EMBEDDING_API_KEY.
 Exit codes: 0 ok, 1 error (JSON on stdout), 2 usage.`;
@@ -62,7 +64,7 @@ export async function main(argv: string[]): Promise<number> {
   if (command !== "search") return usage(`unknown command '${command}'`);
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
-  const known = new Set(["vault", "query", "limit", "config-dir", "json"]);
+  const known = new Set(["vault", "query", "limit", "instruction", "config-dir", "json"]);
   const unknown = [...args.keys()].filter((k) => !known.has(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
@@ -72,6 +74,8 @@ export async function main(argv: string[]): Promise<number> {
   const limitRaw = args.get("limit") ?? "20";
   const limit = Number(limitRaw);
   if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
+  const instruction = args.get("instruction");
+  if (instruction !== undefined && (typeof instruction !== "string" || !instruction.trim())) return usage("--instruction needs a text");
   const configDir = args.get("config-dir");
   const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
 
@@ -99,13 +103,15 @@ export async function main(argv: string[]): Promise<number> {
     query.trim(),
     limit,
     nodePost,
-    process.env.MEMVECTOR_EMBEDDING_API_KEY ?? ""
+    process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
+    typeof instruction === "string" ? instruction.trim() : undefined
   );
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }
 
+// exitCode instead of process.exit(): the process ends after stdout is written, also when it is piped
 void main(process.argv.slice(2)).then(
-  (code) => process.exit(code),
-  (err: unknown) => process.exit(fail("INTERNAL", err instanceof Error ? err.message : String(err)))
+  (code) => { process.exitCode = code; },
+  (err: unknown) => { process.exitCode = fail("INTERNAL", err instanceof Error ? err.message : String(err)); }
 );
