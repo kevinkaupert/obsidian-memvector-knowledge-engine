@@ -134,7 +134,9 @@ labels are stored as plain strings.
 - **Search from the command line.** `node cli.js search --vault <path>
   --query "<text>" --json` ranks your indexed notes by meaning without
   opening Obsidian, so other tools (e.g. Jovian's prerequisite check) can
-  ask MemVector. Reads only. See `docs/runbook.md`.
+  ask MemVector. Reads only. `node cli.js relation add` creates the relation
+  note for one edge through Jovian's gate (Canvas Tutor uses it). See
+  `docs/runbook.md`.
 
 ---
 
