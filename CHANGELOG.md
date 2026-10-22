@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-10-22
+
+### Added
+- **Canvas handles in the settings** (#297, knowOS Plan 0015 step 2, part 2): Settings → Relation Types has a section "Canvas-Griffe (Canvas Tutor)", a compass of Canvas Tutor's handles (N ↑ Grundlage, S ↓ Folge, O ↗ allgemeiner, O ↘ Beispiel, W ↖ warum so, W ↙ warum nicht). Per handle you choose the type on it and its subject (source card or new card). Choosing a type takes the handle from its previous type; a type already on another handle moves there only after you confirm. The compass is built from the contract's slot list (`src/relationVocabulary/canvasSlots.ts`), so a new direction needs no UI change; handles of a newer contract are listed as unknown and kept. The type table stays narrow: a sign next to the label shows a type's handle (e.g. `REQUIRES ↑`), and a row menu `⋯` holds "Veraltet" and delete. A deprecated type gives up its handle and is no longer offered in the relation builder, except as the type of the relation being edited.
+
 ## [0.3.10] - 2026-10-22
 
 ### Added

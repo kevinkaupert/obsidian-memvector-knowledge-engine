@@ -1,4 +1,7 @@
-import { Modal, Notice, Setting, type App } from "obsidian";
+import { Menu, Modal, Notice, Setting, type App } from "obsidian";
+import { labelOnSlot, placeOnSlot, setDeprecated, slotOfLabel } from "../../relationVocabulary/canvasSlotEdits";
+import { CANVAS_SLOTS, canvasSlot, canvasSlotTitle } from "../../relationVocabulary/canvasSlots";
+import type { CanvasSlot, CanvasSlotId } from "../../relationVocabulary/types";
 import { withFolder, type TranslationKeys } from "../../i18n";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import { DEFAULT_RELATION_VOCABULARY_PATH } from "../../relationVocabulary/loadRelationVocabulary";
@@ -210,7 +213,12 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
       }
     };
 
-    // 4. Types of the active preset - collapsible so the settings tab stays tidy
+    // 4. Canvas handles: which type is on which Canvas Tutor handle (knowOS ADR-0011), thought from the canvas
+    const handlesDetails = sectionEl.createEl("details", { cls: "memvector-types-details" });
+    handlesDetails.createEl("summary", { text: t.relCanvasHandlesTitle });
+    renderCanvasHandles(handlesDetails.createDiv({ cls: "memvector-types-details-body" }), terms, () => activeVocabularyPath(host), app, host, t, rerender);
+
+    // 5. Types of the active preset - collapsible so the settings tab stays tidy
     const typesDetails = sectionEl.createEl("details", { cls: "memvector-types-details" });
     typesDetails.createEl("summary", { text: t.relTypesInPreset });
     const typesEl = typesDetails.createDiv({ cls: "memvector-types-details-body" });
@@ -232,6 +240,121 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
   });
 }
 
+/** Asks before a type moves from one canvas handle to another. */
+class ConfirmModal extends Modal {
+  private resolve: ((ok: boolean) => void) | null = null;
+
+  constructor(app: App, private readonly message: string, private readonly okText: string, private readonly cancelText: string) {
+    super(app);
+  }
+
+  ask(): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.resolve = resolve;
+      this.open();
+    });
+  }
+
+  onOpen(): void {
+    this.contentEl.empty();
+    this.contentEl.createEl("p", { text: this.message });
+    const row = this.contentEl.createDiv({ cls: "memvector-relation-footer" });
+    row.createEl("button", { text: this.okText, cls: "mod-cta" }).onclick = () => this.finish(true);
+    row.createEl("button", { text: this.cancelText }).onclick = () => this.finish(false);
+  }
+
+  private finish(ok: boolean): void {
+    const resolve = this.resolve;
+    this.resolve = null;
+    this.close();
+    resolve?.(ok);
+  }
+
+  onClose(): void {
+    const resolve = this.resolve;
+    this.resolve = null;
+    resolve?.(false);
+  }
+}
+
+/**
+ * Purpose: Renders the canvas handles as a compass: per handle the type on it and its subject (knowOS ADR-0011).
+ * Architecture: Built from the slot list (canvasSlots.ts), so a new direction needs no UI change. Thought from the
+ * canvas: choosing a type for a handle takes the handle from its previous type; a type already on another handle
+ * moves only after the user confirms. Handles of a newer contract are listed as unknown and kept. Exported so tests
+ * can drive the real handlers; `confirm` is injectable for them.
+ */
+export function renderCanvasHandles(
+  parent: HTMLElement,
+  terms: RelationTermDef[],
+  resolvePath: () => string,
+  app: App,
+  host: SettingsHost,
+  t: TranslationKeys,
+  rerender: () => void,
+  confirm: (message: string) => Promise<boolean> = (message) =>
+    new ConfirmModal(app, message, t.relCanvasMoveOk, t.relPresetNameModalCancel).ask()
+): void {
+  const lang = host.settings.language || "de";
+  parent.createEl("p", { text: t.relCanvasHandlesHint, cls: "setting-item-description" });
+  const mutator = createVocabularyMutator(app, resolvePath);
+  const write = async (transform: VocabularyTransform): Promise<void> => {
+    const outcome = await mutator.mutate(transform);
+    if (outcome.result === "written") host.applySettingsToOpenViews?.({ relayout: true });
+    else if (outcome.result !== "skipped") new Notice(`[ERROR] ${t.relTypeWriteError} (${resolvePath()})`);
+    rerender();
+  };
+  const labels = Array.from(new Set(terms.filter((x) => !x.deprecated).map((x) => x.label)));
+  const grid = parent.createDiv({ cls: "memvector-canvas-handles" });
+  const rows = Math.max(...CANVAS_SLOTS.map((s) => s.row)) + 1;
+  const cols = Math.max(...CANVAS_SLOTS.map((s) => s.col)) + 1;
+  grid.setAttribute("style", `grid-template-columns: repeat(${cols}, minmax(0, 1fr)); grid-template-rows: repeat(${rows}, auto);`);
+
+  for (const def of CANVAS_SLOTS) {
+    const cell = grid.createDiv({ cls: "memvector-canvas-handle" });
+    cell.setAttribute("style", `grid-row: ${def.row + 1}; grid-column: ${def.col + 1};`);
+    cell.createDiv({ text: canvasSlotTitle(def.id, lang), cls: "memvector-canvas-handle-title" });
+    const holder = labelOnSlot(terms, def.id);
+    const current = terms.find((x) => x.canvas?.slot === def.id)?.canvas;
+
+    const typeSelect = cell.createEl("select", { cls: "memvector-canvas-handle-type" });
+    typeSelect.createEl("option", { value: "", text: "—" });
+    for (const label of labels) typeSelect.createEl("option", { value: label, text: label });
+    typeSelect.value = holder ?? "";
+
+    const subjectRow = cell.createDiv({ cls: "memvector-canvas-handle-subject" });
+    subjectRow.createSpan({ text: `${t.relTypeColSubject}: ` });
+    const subjectSelect = subjectRow.createEl("select");
+    subjectSelect.createEl("option", { value: "source", text: t.relTypeSubjectSource });
+    subjectSelect.createEl("option", { value: "new", text: t.relTypeSubjectNew });
+    subjectSelect.value = current?.subject ?? "source";
+    subjectSelect.disabled = !holder;
+
+    const apply = async (): Promise<void> => {
+      const label = typeSelect.value || null;
+      const subject: CanvasSlot["subject"] = subjectSelect.value === "new" ? "new" : "source";
+      const elsewhere = label ? slotOfLabel(terms, label) : null;
+      if (label && elsewhere && elsewhere !== def.id) {
+        const ok = await confirm(`${label} ${t.relCanvasMoveConfirm} ${canvasSlotTitle(elsewhere, lang)}. ${t.relCanvasMoveQuestion}`);
+        if (!ok) {
+          rerender();
+          return;
+        }
+      }
+      await write((now) => placeOnSlot(now, def.id, label, subject));
+    };
+    typeSelect.onchange = () => void apply();
+    subjectSelect.onchange = () => void apply();
+  }
+
+  const unknown = terms.filter((x) => x.canvas && !canvasSlot(x.canvas.slot));
+  if (unknown.length > 0) {
+    parent.createEl("p", { text: t.relCanvasUnknown, cls: "setting-item-description" });
+    const list = parent.createEl("ul");
+    for (const x of unknown) list.createEl("li", { text: `${x.canvas!.slot}: ${x.label}` });
+  }
+}
+
 /**
  * Purpose: Renders the per-label type table and its add form, wiring each control to a
  * field-level vocabulary mutation.
@@ -246,6 +369,7 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
     head.createEl("th", { text: col });
   }
 
+  const lang = host.settings.language || "de";
   const tbody = table.createEl("tbody");
   // A vocabulary may hold several synonym entries per canonical label, but weight/repels
   // apply per label - group by label so each appears exactly once in the table.
@@ -306,7 +430,14 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
 
   for (const term of uniqueTerms) {
     const row = tbody.createEl("tr");
-    row.createEl("td", { text: term.label }).addClass("memvector-relation-type-label");
+    const labelCell = row.createEl("td", { text: term.label });
+    labelCell.addClass("memvector-relation-type-label");
+    // The handle this type has in Canvas Tutor, as a short sign; set in the canvas handles section above
+    const slot = slotOfLabel(terms, term.label);
+    if (slot) {
+      labelCell.createSpan({ text: ` ${canvasSlot(slot)?.short ?? "?"}`, cls: "memvector-type-slot-badge" }).title = canvasSlotTitle(slot, lang);
+    }
+    if (term.deprecated) labelCell.addClass("memvector-type-deprecated");
     row.createEl("td", { text: term.category });
 
     const weightCell = row.createEl("td");
@@ -337,11 +468,31 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
     repelsField.title = t.relTypeColRepels;
     repelsField.onchange = () => void updateLayout(term.label, { repels: repelsField.checked });
 
-    const delCell = row.createEl("td");
-    const delBtn = delCell.createEl("button", { text: "✕" });
-    delBtn.title = t.relTypeRemoveTitle;
-    delBtn.setAttribute("aria-label", t.relTypeRemoveTitle);
-    delBtn.onclick = () => void removeType(term.label);
+    // Less frequent actions in a row menu, so the table keeps its width (deprecate, delete)
+    const menuBtn = row.createEl("td").createEl("button", { text: "⋯", cls: "memvector-type-row-menu" });
+    menuBtn.title = t.relTypeRowMenu;
+    menuBtn.setAttribute("aria-label", t.relTypeRowMenu);
+    menuBtn.onclick = (ev: MouseEvent) => {
+      const menu = new Menu();
+      menu.addItem((item) =>
+        item.setTitle(t.relTypeColDeprecated).setChecked(term.deprecated === true).onClick(() => {
+          let freed: CanvasSlotId | null = null;
+          void applyMutation(
+            (current) => {
+              const edit = setDeprecated(current, term.label, term.deprecated !== true);
+              freed = edit.freedSlot;
+              return edit.terms;
+            },
+            () => {
+              if (freed) new Notice(`[INFO] ${t.relTypeDeprecatedSlotRemoved} ${canvasSlotTitle(freed, lang)}`, 8000);
+              rerender();
+            }
+          );
+        })
+      );
+      menu.addItem((item) => item.setTitle(t.relTypeRemoveTitle).setIcon("trash").onClick(() => void removeType(term.label)));
+      menu.showAtMouseEvent(ev);
+    };
   }
 
   // 4. Add-type form - the table's last row, each control under the column it fills, so it

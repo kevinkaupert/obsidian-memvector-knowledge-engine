@@ -97,7 +97,7 @@ export class RelationBuilderModal extends Modal {
     const lang = this.host.settings.language || "de";
     const t = getTranslation(lang);
     const count = this.selectedNodes.length;
-    const categories = buildRelationCategories(defs, t.relCustom);
+    const categories = buildRelationCategories(defs, t.relCustom, this.initialEdge?.relType);
 
     this.renderHeader(contentEl, t, count);
 

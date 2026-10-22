@@ -1119,3 +1119,53 @@
   color: var(--text-warning);
   font-style: italic;
 }
+
+/* Canvas handles: a compass of Canvas Tutor's handles (knowOS ADR-0011), built from the slot list */
+.memvector-canvas-handles {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.memvector-canvas-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.memvector-canvas-handle-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+}
+
+.memvector-canvas-handle select {
+  width: 100%;
+  min-width: 0;
+}
+
+.memvector-canvas-handle-subject {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.memvector-canvas-handle-subject select {
+  flex: 1;
+}
+
+.memvector-type-slot-badge {
+  color: var(--text-accent);
+  font-weight: normal;
+}
+
+.memvector-type-deprecated {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
