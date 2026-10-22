@@ -12,7 +12,7 @@ import { buildRelationCypherPreview } from "./relationCypherPreview";
 import { buildRelationFileContent, relationFilePaths } from "./relationFileTemplate";
 import { findRelationBatchConflict } from "./relationFileWriter";
 import { saveRelation } from "./relationSave";
-import { chooseNoteWriter } from "../../noteWriter/noteWriter";
+import { chooseNoteWriter, type NoteWriter } from "../../noteWriter/noteWriter";
 import { deleteEdgeUnlessAsserted, loadAssertedEdgeKeys } from "../../sync/assertedEdges";
 import { loadRelationEdgeRecords } from "../../views/vectorScatter/relationEdges";
 
@@ -332,7 +332,16 @@ export class RelationBuilderModal extends Modal {
       const failedPaths: string[] = [];
 
       const store = getGraphStore(this.app, this.host.settings);
-      const writer = await chooseNoteWriter(this.app, this.host.settings);
+      let writer: NoteWriter;
+      try {
+        writer = await chooseNoteWriter(this.app, this.host.settings);
+      } catch (err) {
+        // Gate on but Jovian not usable (#292): nothing is written, the dialog stays open for another try
+        new Notice(`[ERROR] ${err instanceof Error ? err.message : String(err)}`, 10000);
+        saveBtn.disabled = false;
+        saveBtn.setText(t.relSaveBtn);
+        return;
+      }
       // Saved edge by edge, not as one transaction (#129): a failed graph write removes its own relation file again,
       // and the others stay valid. Not covered: a revert that fails itself (logged, the file stays), and a failing
       // cleanup of the previous edge or file after the new one was written (that entry is reported as failed although
