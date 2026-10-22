@@ -1,9 +1,10 @@
-import { TFile, type App } from "obsidian";
+import { Notice, TFile, type App } from "obsidian";
 import { ensureParentFolder } from "../ensureFolder";
 import type { MemVectorSettings, SettingsHost } from "../settings/types";
 import { LAW_VOCABULARY, MEDICINE_VOCABULARY, PHILOSOPHY_VOCABULARY } from "./bundledPresets";
 import { DEFAULT_RELATION_VOCABULARY } from "./defaultVocabulary";
 import { isValidTerm } from "./loadRelationVocabulary";
+import { serializeVocabulary, VOCABULARY_SCHEMA, writeKnowosVocabulary } from "./suiteContract";
 import { DEFAULT_PRESETS_FOLDER, DEFAULT_RELATION_VOCABULARY_PATH, presetsFolder, resolveVocabularyPath } from "../vaultLayout";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 
@@ -79,13 +80,22 @@ export async function listPresets(app: App, folder: string = DEFAULT_PRESETS_FOL
   return presets;
 }
 
-/** Writes the given terms to a vocabulary file, creating parent folders as needed. */
+/**
+ * Writes the given terms to a vocabulary file, creating parent folders as needed. An existing file keeps its other
+ * top-level fields (`schema`, `name`, …); a new file is written as contract version 1.
+ */
 export async function writeVocabularyFile(app: App, path: string, terms: RelationTermDef[]): Promise<void> {
-  const content = JSON.stringify({ terms } satisfies RelationVocabularyFile, null, 2);
   const existing = app.vault.getAbstractFileByPath(path);
   if (existing instanceof TFile) {
-    await app.vault.modify(existing, content);
+    let previous: unknown = null;
+    try {
+      previous = JSON.parse(await app.vault.read(existing));
+    } catch {
+      previous = null;
+    }
+    await app.vault.modify(existing, serializeVocabulary(previous, terms));
   } else {
+    const content = serializeVocabulary({ schema: VOCABULARY_SCHEMA }, terms);
     await ensureParentFolder(app, path);
     await app.vault.create(path, content);
   }
@@ -147,6 +157,13 @@ export async function activatePreset(app: App, host: SettingsHost, key: string):
 
   host.settings.relationVocabularyPath = path;
   await host.saveSettings();
+  // Record the switch for Canvas Tutor (knowOS relation-vocabulary contract section 6); the switch itself already
+  // happened, so a failure here is reported but does not undo it
+  try {
+    await writeKnowosVocabulary(app, path);
+  } catch (err) {
+    new Notice(`MemVector: ${err instanceof Error ? err.message : String(err)}`, 10000);
+  }
 }
 
 /** Creates a new user preset seeded with the active vocabulary's terms (an empty vocabulary stays empty) and activates it. */

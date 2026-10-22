@@ -1,4 +1,6 @@
-import { Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import { Plugin, TFile, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import { activeVocabularyFromKnowos, KNOWOS_FILE, migrateActiveVocabulary } from "./relationVocabulary/suiteContract";
+import { resolveVocabularyPath } from "./vaultLayout";
 import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSecretsToSecretStorage, migrateSettings } from "./settings/secrets";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
@@ -46,6 +48,15 @@ export default class MemVectorPlugin extends Plugin {
 
     this.vaultIndexer = new VaultIndexingPipeline(this.app, () => this.settings);
     this.vaultIndexer.registerWatchers(this);
+
+    // knowOS relation-vocabulary contract (ADR-0011): follow the preset named in knowos.json and complete a vocabulary
+    // file made before the contract once, so Canvas Tutor and MemVector use the same types
+    this.app.workspace.onLayoutReady(() => void this.syncRelationVocabulary());
+    const onKnowos = (file: TAbstractFile): void => {
+      if (file.path === KNOWOS_FILE) void this.syncRelationVocabulary();
+    };
+    this.registerEvent(this.app.vault.on("create", onKnowos));
+    this.registerEvent(this.app.vault.on("modify", onKnowos));
 
     this.registerView(MATH_WIKI_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
       const view = new MathWikiSidebarView(leaf, () => this.settings);
@@ -125,6 +136,27 @@ export default class MemVectorPlugin extends Plugin {
   /** Lets the graph's click handler show a note's radar in the sidebar without switching the actual editor tab. */
   focusSidebarNote(file: TFile): void {
     void this.sidebarView?.renderView(file);
+  }
+
+  /**
+   * Purpose: Applies the active preset named in `knowos.json` and migrates the active vocabulary file once.
+   * Architecture: Without `knowos.json` (or when it names no existing file) the setting stays as it is: MemVector
+   * keeps working standalone. A failure is reported once in the console and never blocks the plugin.
+   */
+  private async syncRelationVocabulary(): Promise<void> {
+    try {
+      let changed = false;
+      const fromSuite = await activeVocabularyFromKnowos(this.app);
+      if (fromSuite && fromSuite !== this.settings.relationVocabularyPath) {
+        this.settings.relationVocabularyPath = fromSuite;
+        await this.saveSettings();
+        changed = true;
+      }
+      const migrated = await migrateActiveVocabulary(this.app, resolveVocabularyPath(this.settings));
+      if (changed || migrated === "migrated") this.applySettingsToOpenViews({ relayout: true });
+    } catch (err) {
+      console.warn("MemVector: could not apply knowos.json / migrate the relation vocabulary:", err);
+    }
   }
 
   async loadSettings(): Promise<void> {

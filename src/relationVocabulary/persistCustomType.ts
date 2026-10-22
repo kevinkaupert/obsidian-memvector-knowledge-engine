@@ -36,7 +36,7 @@ export async function persistCustomRelationTypes(
   if (!(existing instanceof TFile)) {
     try {
       await ensureParentFolder(app, path);
-      const seed: RelationVocabularyFile = { terms: DEFAULT_RELATION_VOCABULARY };
+      const seed: RelationVocabularyFile = { schema: 1, name: "STEM", terms: DEFAULT_RELATION_VOCABULARY };
       await app.vault.create(path, JSON.stringify(seed, null, 2));
     } catch {
       // Vault may already have the file (race) or be read-only - check if file now exists

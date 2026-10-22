@@ -8,6 +8,14 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.10] - 2026-10-22
+
+### Added
+- **Relation vocabulary shared with Canvas Tutor** (#297, knowOS ADR-0011, Plan 0015 step 2): vocabulary files follow the knowOS relation-vocabulary contract. A term may carry a canvas slot (`canvas: {slot, subject}`) and `deprecated`; the default STEM vocabulary and the bundled presets carry slots. Switching the preset records it in `knowos.json` at the vault root, and a preset named there is used at startup and when the file changes. A vocabulary file made before the contract and based on STEM is completed once (adds `DEFINED_BY` and `EXAMPLE_OF`, sets the slots, `"schema": 1`) after saving a backup `<name>.pre-schema1.json`; a notice says what changed. Without `knowos.json` everything works as before.
+
+### Fixed
+- Rewriting a vocabulary file (type table edits, custom types from the relation builder, preset copy) no longer drops top-level fields such as `schema` and `name`, unknown term fields, or entries MemVector cannot read.
+
 ## [0.3.9] - 2026-10-22
 
 ### Changed
