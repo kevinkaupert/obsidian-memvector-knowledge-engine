@@ -82,7 +82,7 @@ export const de: TranslationKeys = {
   autoIndexVaultOnChangesDesc: "Hält Embeddings und Graph-Verbindungen bei Notizänderungen automatisch im Hintergrund aktuell, auch wenn die 2D-Ansicht geschlossen ist.",
   secJovian: "Schreiben über Jovian",
   writeViaJovianName: "Über Jovian schreiben",
-  writeViaJovianDesc: "Speichert Synthese- und Beziehungsnotizen über Jovians Schreib-Gate (Sperre, Änderungsprüfung, Journal). Ist Jovian nicht erreichbar, wird direkt gespeichert und ein Hinweis gezeigt. Aus: Obsidian schreibt direkt.",
+  writeViaJovianDesc: "Speichert Synthese- und Beziehungsnotizen über Jovians Schreib-Gate (Sperre, Änderungsprüfung, Journal). Ist Jovian dann nicht erreichbar, wird nichts gespeichert und der Grund angezeigt. Aus: Obsidian schreibt direkt.",
   jovianCommandName: "Jovian-Befehl",
   jovianCommandDesc: "Die jovian-CLI, z. B. ~/venv/bin/jovian. Leer: python3 -m jovian.gate.",
   jovianTestBtn: "Gate testen",

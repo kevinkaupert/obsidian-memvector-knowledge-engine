@@ -7,7 +7,7 @@
  * writes notes only.
  */
 
-import { FileSystemAdapter, Notice, type App, type TFile } from "obsidian";
+import { FileSystemAdapter, type App, type TFile } from "obsidian";
 import type { MemVectorSettings } from "../settings/types";
 import {
   JOVIAN_GATE_CALL_TIMEOUT_MS,
@@ -151,13 +151,14 @@ function errorText(err: unknown): string {
 
 export interface ChooseNoteWriterDeps {
   probe?: (jovianCommand: string) => Promise<GateProbeResult>;
-  notify?: (message: string) => void;
   jovianWriter?: (options: JovianWriterOptions) => NoteWriter;
 }
 
 /**
- * Chooses the writer for one save: native unless `writeViaJovian` is on and `jovian gate --version` answers with
- * protocol 1. When Jovian was requested but is not reachable, the save is native and the user is told.
+ * Chooses the writer for one save: native when `writeViaJovian` is off (standalone use, Jovian not needed); with it
+ * on, Jovian's gate when `jovian gate --version` answers with protocol 1. With it on and Jovian not usable (no local
+ * vault path, command not startable, wrong protocol) nothing is written: a NoteWriteError ("GATE_UNAVAILABLE")
+ * names the cause, and the caller keeps the content for another try (#292). There is no direct-write fallback.
  */
 export async function chooseNoteWriter(
   app: App,
@@ -165,17 +166,18 @@ export async function chooseNoteWriter(
   deps: ChooseNoteWriterDeps = {}
 ): Promise<NoteWriter> {
   if (!settings?.writeViaJovian) return createNativeWriter(app);
-  const notify = deps.notify ?? ((message: string) => new Notice(message, 8000));
   const de = (settings.language || "de") === "de";
   const adapter = app.vault.adapter;
   if (!(adapter instanceof FileSystemAdapter)) {
-    notify(de ? "MemVector: Jovian braucht einen lokalen Vault; direkt gespeichert." : "MemVector: Jovian needs a local vault; saved directly.");
-    return createNativeWriter(app);
+    throw new NoteWriteError(de
+      ? "Jovian braucht einen lokalen Vault; nichts gespeichert. Einstellungen > Über Jovian schreiben ausschalten, um direkt zu speichern."
+      : "Jovian needs a local vault; nothing saved. Turn off Settings > Write through Jovian to save directly.", "GATE_UNAVAILABLE");
   }
   const probe = await (deps.probe ?? ((command: string) => probeGate(command)))(settings.jovianCommand ?? "");
   if (!probe.ok) {
-    notify(de ? `MemVector: Jovian nicht erreichbar (${probe.message}); direkt gespeichert.` : `MemVector: Jovian not reachable (${probe.message}); saved directly.`);
-    return createNativeWriter(app);
+    throw new NoteWriteError(de
+      ? `Jovian nicht erreichbar (${probe.message}); nichts gespeichert. Einstellungen > Jovian-Befehl prüfen und erneut speichern.`
+      : `Jovian not reachable (${probe.message}); nothing saved. Check Settings > Jovian command and save again.`, "GATE_UNAVAILABLE");
   }
   return (deps.jovianWriter ?? createJovianWriter)({
     vaultPath: adapter.getBasePath(),

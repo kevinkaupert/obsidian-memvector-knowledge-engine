@@ -130,13 +130,21 @@ describe("chooseNoteWriter", () => {
     expect(probe).not.toHaveBeenCalled();
   });
 
-  it("falls back to native with a notice when the gate does not answer", async () => {
-    const notify = vi.fn();
-    const writer = await chooseNoteWriter(vaultApp(new Map(), new FileSystemAdapter()).app,
-      { writeViaJovian: true, jovianCommand: "", language: "en" },
-      { probe: async () => ({ ok: false, message: "command not found" }), notify });
-    expect(writer.id).toBe("native");
-    expect(notify).toHaveBeenCalledWith(expect.stringContaining("command not found"));
+  it("writes nothing with the gate on and Jovian not reachable (#292)", async () => {
+    const files = new Map<string, string>();
+    const env = vaultApp(files, new FileSystemAdapter());
+    const result = chooseNoteWriter(env.app, { writeViaJovian: true, jovianCommand: "/x/components/jovian", language: "de" },
+      { probe: async () => ({ ok: false, message: "spawn /x/components/jovian EACCES" }) });
+    await expect(result).rejects.toMatchObject({ code: "GATE_UNAVAILABLE" });
+    await expect(result).rejects.toThrow(/Jovian nicht erreichbar \(spawn \/x\/components\/jovian EACCES\); nichts gespeichert/);
+    expect(files.size).toBe(0);
+  });
+
+  it("writes nothing with the gate on and no local vault path (#292)", async () => {
+    const probe = vi.fn();
+    await expect(chooseNoteWriter(vaultApp(new Map()).app, { writeViaJovian: true, jovianCommand: "", language: "en" }, { probe }))
+      .rejects.toMatchObject({ code: "GATE_UNAVAILABLE" });
+    expect(probe).not.toHaveBeenCalled();
   });
 
   it("uses Jovian when the gate answers with protocol 1", async () => {

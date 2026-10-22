@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.9] - 2026-10-22
+
+### Changed
+- **Write through Jovian has no direct-write fallback** (#292): with "Über Jovian schreiben" on and Jovian not usable (command not startable, wrong protocol, no local vault path), a relation or synthesis is not saved; the error names the cause and the setting to fix, and the dialog stays open to save again. Before, the note was saved directly with a notice, without Jovian's lock, change check and journal. With the setting off, MemVector saves directly as before.
+
 ## [0.3.8] - 2026-10-21
 
 ### Added
