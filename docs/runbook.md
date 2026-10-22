@@ -124,6 +124,21 @@ configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`
 exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key
 for a cloud endpoint. Contract: knowOS ADR-0010.
 
+### `relation add`
+
+```sh
+echo '{"v":1,"from":"Fragmente/Gruppe (Definition).md","to":"Fragmente/Menge (Begriff).md","relation":"REQUIRES","text":"Eine Gruppe ist zuerst eine Menge."}' \
+  | node cli.js relation add --vault /path/to/vault --json
+```
+
+Builds the relation note the Relation Builder would make for this edge (same frontmatter and file name in the
+relations folder; `text` becomes the reason) and writes it through Jovian's gate with `create_new`, using the
+**Jovian command** setting. It writes nothing itself and has no fallback: without Jovian it answers
+`GATE_UNAVAILABLE`. An existing relation note for the same (from, relation, to) is answered with its path:
+`{"outcome":"ok","path":"relations/rel-…md","created":false}`; a new one with `"created":true`. Errors:
+`INVALID_REQUEST`, `NOTE_NOT_FOUND`, `SETTINGS_UNREADABLE` and the gate's codes. Used by Canvas Tutor's edge menu
+**Gedanken zur Beziehung** (knowOS ADR-0013 §5, Plan 0016 block C).
+
 ## Release
 
 Releases are cut only on the maintainer's explicit request. Only the patch version is raised (0.2.x), for

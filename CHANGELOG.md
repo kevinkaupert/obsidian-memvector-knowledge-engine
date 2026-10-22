@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.12] - 2026-10-22
+
+### Added
+- `node cli.js relation add --vault <V> --json` (knowOS ADR-0013 §5, Plan 0016 block C): builds the relation note for one edge with the Relation Builder's template (same frontmatter and file name; the request's `text` is the reason) and writes it through Jovian's gate with `create_new` (the **Jovian command** setting; no direct write, no fallback). An existing relation note for the same (from, relation, to) is answered with its path. Note keys follow the plugin's rule (unique frontmatter ULID, else the path key); the term and direction come from the active vocabulary named in `knowos.json`. The CLI bundle maps Obsidian's YAML functions to the `yaml` package. Used by Canvas Tutor's edge menu "Gedanken zur Beziehung".
+
 ## [0.3.11] - 2026-10-22
 
 ### Added

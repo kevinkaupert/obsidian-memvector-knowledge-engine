@@ -1,17 +1,23 @@
+import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getEmbeddedWasmBinary } from "../sync/sqlite/embeddedWasm";
 import type { EmbeddingPost } from "../llm/embeddingRequest";
+import type { GateSpawn } from "../noteWriter/jovianGate";
+import { relationAdd } from "./relation";
 import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 
 declare const MEMVECTOR_VERSION: string;
 
 const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--instruction <text>] [--config-dir .obsidian] --json
+       memvector relation add --vault <path> [--config-dir .obsidian] --json   (one JSON request on stdin)
        memvector --version
 
 --instruction is put before the query as "Instruct: <text>\\nQuery: <query>", the query form instruction-tuned
 embedding models such as qwen3-embedding expect; notes are embedded without it.
-Reads MemVector's index and settings from <vault>/<config-dir>/plugins/${PLUGIN_ID}/ and never writes.
+search reads MemVector's index and settings from <vault>/<config-dir>/plugins/${PLUGIN_ID}/ and never writes.
+relation add builds the relation note for {"v":1,"from":"<note>.md","to":"<note>.md","relation":"REQUIRES","text":"..."}
+and writes it through Jovian's gate (the plugin's "Jovian command" setting); an existing one is answered with its path.
 An API key for a cloud embedding endpoint comes from MEMVECTOR_EMBEDDING_API_KEY.
 Exit codes: 0 ok, 1 error (JSON on stdout), 2 usage.`;
 
@@ -54,13 +60,14 @@ function fail(code: string, error: string): number {
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
   if (command === "--version") {
-    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search"] })}\n`);
+    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add"] })}\n`);
     return 0;
   }
   if (command === undefined || command === "--help" || command === "-h") {
     process.stdout.write(`${USAGE}\n`);
     return command === undefined ? 2 : 0;
   }
+  if (command === "relation") return relationCommand(rest);
   if (command !== "search") return usage(`unknown command '${command}'`);
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
@@ -106,6 +113,48 @@ export async function main(argv: string[]): Promise<number> {
     process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
     typeof instruction === "string" ? instruction.trim() : undefined
   );
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+  return result.outcome === "ok" ? 0 : 1;
+}
+
+/** Node's spawn for the gate, with the CLI's own environment under the extra bin folders runGate adds. */
+const gateSpawn: GateSpawn = (command, args, options) =>
+  nodeSpawn(command, args, { env: { ...process.env, ...options.env, PATH: [options.env.PATH, process.env.PATH].filter(Boolean).join(":") } });
+
+async function readStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function relationCommand(argv: string[]): Promise<number> {
+  // The gate runner uses window timers (Obsidian popout rule); Node has them on globalThis
+  (globalThis as { window?: unknown }).window ??= globalThis;
+  const [sub, ...rest] = argv;
+  if (sub !== "add") return usage(`unknown relation command '${sub ?? ""}'`);
+  const args = parseArgs(rest);
+  if (!args) return usage("arguments must be --key value pairs");
+  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json"].includes(k));
+  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+  const vault = args.get("vault");
+  if (typeof vault !== "string" || !vault) return usage("--vault is required");
+  const configDir = args.get("config-dir");
+  const dataPath = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID, "data.json");
+  let settings: Record<string, unknown> = {};
+  if (existsSync(dataPath)) {
+    try {
+      settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
+    } catch (err) {
+      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  let request: unknown;
+  try {
+    request = JSON.parse(await readStdin());
+  } catch {
+    return fail("INVALID_REQUEST", "stdin is not one JSON request.");
+  }
+  const result = await relationAdd(vault, request, settings, { spawn: gateSpawn, clientVersion: MEMVECTOR_VERSION });
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }
