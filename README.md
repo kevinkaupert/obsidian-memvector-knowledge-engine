@@ -5,7 +5,7 @@
 ![Obsidian](https://img.shields.io/badge/Obsidian-%E2%89%A51.11.4-7c3aed)
 ![Platform](https://img.shields.io/badge/platform-desktop--only-lightgrey)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/tests-1023%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-1025%20passing-brightgreen)
 
 **Map what you think connects — and why.**
 

@@ -1,38 +1,38 @@
 import type { CanvasSlot, CanvasSlotId, RelationTermDef } from "./types";
 
-/** The six canvas slots in table order (knowOS relation-vocabulary contract section 3). */
-export const CANVAS_SLOT_IDS: CanvasSlotId[] = ["N", "S", "E-up", "E-down", "W-up", "W-down"];
-
-export type SlotEdit = { terms: RelationTermDef[] } | { takenBy: string };
-
 function withoutCanvas(term: RelationTermDef): RelationTermDef {
   if (!term.canvas) return term;
   const { canvas: _canvas, ...rest } = term;
   return rest;
 }
 
-/**
- * Purpose: Gives a label's term a canvas slot (or removes it with `slot: null`), as the type table edits it.
- * Architecture: The table shows one row per label; the slot goes to the label's first term and is removed from its
- * synonyms, so the preset never holds a label twice on the canvas. A slot used by another label is refused
- * (`takenBy`) instead of moved: the contract allows each slot once, and silently taking it from the other type
- * would change its canvas handle without the user seeing it.
- */
-export function assignCanvasSlot(terms: RelationTermDef[], label: string, slot: CanvasSlotId | null, subject: CanvasSlot["subject"]): SlotEdit {
+/** The slot a label's terms hold, if any (the table shows one row per label). */
+export function slotOfLabel(terms: RelationTermDef[], label: string): CanvasSlotId | null {
   const key = label.toUpperCase();
-  if (slot) {
-    const holder = terms.find((t) => t.canvas?.slot === slot && t.label.toUpperCase() !== key);
-    if (holder) return { takenBy: holder.label };
-  }
+  return terms.find((t) => t.label.toUpperCase() === key && t.canvas)?.canvas?.slot ?? null;
+}
+
+/** The label holding a slot, if any. */
+export function labelOnSlot(terms: RelationTermDef[], slot: CanvasSlotId): string | null {
+  return terms.find((t) => t.canvas?.slot === slot)?.label ?? null;
+}
+
+/**
+ * Purpose: Puts a label on a slot (or empties the slot with `label: null`), as the canvas handles section edits it.
+ * Architecture: Thought from the slot: whoever held the slot gives it up; the chosen label leaves any other slot it
+ * held (it moves; the caller asks the user first) and the slot goes to the label's first non-deprecated term, so a
+ * label is never on two handles and a slot never holds two labels. A deprecated-only label takes no slot.
+ */
+export function placeOnSlot(terms: RelationTermDef[], slot: CanvasSlotId, label: string | null, subject: CanvasSlot["subject"]): RelationTermDef[] {
+  const key = label?.toUpperCase() ?? null;
   let placed = false;
-  return {
-    terms: terms.map((t) => {
-      if (t.label.toUpperCase() !== key) return t;
-      if (!slot || placed || t.deprecated) return withoutCanvas(t);
-      placed = true;
-      return { ...t, canvas: { slot, subject } };
-    }),
-  };
+  return terms.map((t) => {
+    const ofLabel = key !== null && t.label.toUpperCase() === key;
+    if (!ofLabel) return t.canvas?.slot === slot ? withoutCanvas(t) : t;
+    if (placed || t.deprecated) return withoutCanvas(t);
+    placed = true;
+    return { ...t, canvas: { slot, subject } };
+  });
 }
 
 /**

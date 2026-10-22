@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { App, TFile } from "obsidian";
-import { renderRelationTypesSection, renderTypeTable } from "./relationTypesSection";
+import { renderCanvasHandles, renderRelationTypesSection, renderTypeTable } from "./relationTypesSection";
 import { getTranslation } from "../../i18n";
 import type { SettingsHost } from "../types";
 import type { RelationTermDef } from "../../relationVocabulary/types";
 import { withBundledLayoutDefaults } from "../../relationVocabulary/layoutDefaults";
 
 const notices = vi.hoisted(() => [] as string[]);
+/** The menu the last ⋯ click opened: its items with title and click handler. */
+const menus = vi.hoisted(() => ({ last: null as null | { items: Array<{ title: string; click: (() => void) | null }> } }));
 
 const { MockTFile, textComponents } = vi.hoisted(() => {
   class MockTFile {
@@ -84,6 +86,25 @@ vi.mock("obsidian", () => {
     },
     Modal: class {},
     Setting: FakeSetting,
+    Menu: class {
+      items: Array<{ title: string; click: (() => void) | null }> = [];
+      addItem(cb: (item: unknown) => void) {
+        const item = {
+          title: "",
+          click: null as (() => void) | null,
+          setTitle(v: string) { item.title = v; return item; },
+          setChecked() { return item; },
+          setIcon() { return item; },
+          onClick(fn: () => void) { item.click = fn; return item; },
+        };
+        cb(item);
+        this.items.push(item);
+        return this;
+      }
+      showAtMouseEvent() {
+        menus.last = this;
+      }
+    },
   };
 });
 
@@ -199,8 +220,14 @@ function renderTable(app: App, terms: RelationTermDef[]) {
   return {
     weightInput: inputs.find((n) => n.type === "number")!,
     repelsInput: inputs.find((n) => n.type === "checkbox")!,
-    deleteButton: all.find((n) => n.tag === "button" && n.text === "✕")!,
+    deleteButton: { onclick: () => chooseFromRowMenu(all.find((n) => n.tag === "button" && n.text === "⋯")!, t.relTypeRemoveTitle) },
   };
+}
+
+/** Opens a row's ⋯ menu and clicks the item with this title. */
+function chooseFromRowMenu(button: FakeEl, title: string): void {
+  (button.onclick as unknown as (ev: unknown) => void)({});
+  menus.last!.items.find((i) => i.title === title)!.click!();
 }
 
 /** Renders the table and returns the add form's controls. */
@@ -446,11 +473,11 @@ describe("relation type table handlers", () => {
     renderTypeTable(asEl(parent), [a, b], () => PATH, env.app, host, t, () => undefined);
     const all = walk(parent);
     const numbers = all.filter((n) => n.tag === "input" && n.type === "number");
-    const deletes = all.filter((n) => n.tag === "button" && n.text === "✕");
+    const menuButtons = all.filter((n) => n.tag === "button" && n.text === "⋯");
 
     numbers[0].value = "2";
     numbers[0].onchange!();
-    deletes[1].onclick!();
+    chooseFromRowMenu(menuButtons[1], t.relTypeRemoveTitle);
     await settle();
 
     expect(env.saved().map((x) => x.label)).toEqual(["A"]);
@@ -632,62 +659,77 @@ describe("add form layout", () => {
 
     expect(footerCells.length).toBe(headerCells.length);
     const kinds = footerCells.map((cell) => walk(cell).find((n) => n.tag === "input" || n.tag === "button"));
-    // canvas slot, subject and deprecated (knowOS ADR-0011) stay empty in the add row; they are set on the new row
-    expect(kinds.map((n) => (n ? (n.tag === "button" ? "button" : n.type) : "empty"))).toEqual(
-      ["text", "text", "number", "checkbox", "checkbox", "empty", "empty", "empty", "button"]);
+    expect(kinds.map((n) => (n!.tag === "button" ? "button" : n!.type))).toEqual(["text", "text", "number", "checkbox", "checkbox", "button"]);
     // Nothing of the form is left outside the table.
     expect(parent.children.filter((n) => n.tag !== "table")).toEqual([]);
   });
 });
 
-describe("canvas slot, subject and deprecated columns (knowOS ADR-0011)", () => {
+describe("canvas handles and the row menu (knowOS ADR-0011)", () => {
   const term = (label: string, extra: Partial<RelationTermDef> = {}): RelationTermDef =>
     ({ key: label.toLowerCase(), label, term: label.toLowerCase(), category: "C", bidirectional: false, reversed: false, ...extra });
+  const host = () => ({ settings: { relationVocabularyPath: PATH, language: "de" }, saveSettings: async () => undefined, applySettingsToOpenViews: () => undefined } as unknown as SettingsHost);
 
-  function controls(app: App, terms: RelationTermDef[]) {
+  function handles(app: App, terms: RelationTermDef[], confirm: (m: string) => Promise<boolean> = async () => true) {
     const parent = el("div");
-    const host = { settings: { relationVocabularyPath: PATH }, saveSettings: async () => undefined, applySettingsToOpenViews: () => undefined } as unknown as SettingsHost;
-    renderTypeTable(asEl(parent), terms, () => PATH, app, host, t, () => undefined);
-    const rows = walk(parent).filter((n) => n.tag === "tbody")[0].children;
-    return rows.map((row) => {
-      const cells = row.children;
-      return {
-        slot: walk(cells[5]).find((n) => n.tag === "select")!,
-        subject: walk(cells[6]).find((n) => n.tag === "select")!,
-        deprecated: walk(cells[7]).find((n) => n.tag === "input")!,
-      };
-    });
+    renderCanvasHandles(asEl(parent), terms, () => PATH, app, host(), t, () => undefined, confirm);
+    // a handle cell: a title div, then the type select (the subject row starts with a span)
+    const cells = walk(parent).filter((n) => n.tag === "div" && n.children[0]?.tag === "div" && n.children.some((c) => c.tag === "select"));
+    return { parent, cells: cells.map((c) => { const sel = walk(c).filter((n) => n.tag === "select"); return { title: c.children[0].text, type: sel[0], subject: sel[1] }; }) };
   }
 
-  it("sets a slot and subject on the type and keeps it in the file", async () => {
-    const env = fakeApp([term("AUSNAHME")]);
-    const [row] = controls(env.app, [term("AUSNAHME")]);
-    row.slot.value = "W-down";
-    row.subject.value = "new";
-    row.slot.onchange!();
+  it("shows one cell per slot of the contract's list, with the type on it", () => {
+    const terms = [term("REQUIRES", { canvas: { slot: "N", subject: "source" } }), term("OLD", { deprecated: true })];
+    const { cells } = handles(fakeApp(terms).app, terms);
+    expect(cells.map((c) => c.title)).toEqual(["N ↑ Grundlage", "S ↓ Folge", "O ↗ allgemeiner", "O ↘ Beispiel", "W ↖ warum so", "W ↙ warum nicht"]);
+    expect(cells[0].type.value).toBe("REQUIRES");
+    expect(cells[1].subject.disabled).toBe(true);
+    expect(cells[0].type.children.map((o) => o.text)).toEqual(["—", "REQUIRES"]); // deprecated types are not offered
+  });
+
+  it("puts a type on a free handle with its subject", async () => {
+    const terms = [term("AUSNAHME")];
+    const env = fakeApp(terms);
+    const { cells } = handles(env.app, terms);
+    const wdown = cells.find((c) => c.title.startsWith("W ↙"))!;
+    wdown.type.value = "AUSNAHME";
+    wdown.subject.value = "new";
+    wdown.type.onchange!();
     await settle();
     expect(env.find("AUSNAHME")?.canvas).toEqual({ slot: "W-down", subject: "new" });
   });
 
-  it("refuses a slot another type holds and changes nothing", async () => {
-    const terms = [term("REQUIRES", { canvas: { slot: "N", subject: "source" } }), term("SETZT_VORAUS")];
+  it("moves a type from another handle only after confirming", async () => {
+    const terms = [term("REQUIRES", { canvas: { slot: "N", subject: "source" } })];
+    const asked: string[] = [];
     const env = fakeApp(terms);
-    const rows = controls(env.app, terms);
-    notices.length = 0;
-    rows[1].slot.value = "N";
-    rows[1].slot.onchange!();
+    const { cells } = handles(env.app, terms, async (m) => (asked.push(m), false));
+    cells[1].type.value = "REQUIRES";
+    cells[1].type.onchange!();
     await settle();
-    expect(env.find("SETZT_VORAUS")?.canvas).toBeUndefined();
+    expect(asked[0]).toContain("REQUIRES");
     expect(env.find("REQUIRES")?.canvas).toEqual({ slot: "N", subject: "source" });
-    expect(notices.some((n) => n.includes("REQUIRES"))).toBe(true);
+
+    const yes = handles(env.app, terms, async () => true);
+    yes.cells[1].type.value = "REQUIRES";
+    yes.cells[1].type.onchange!();
+    await settle();
+    expect(env.find("REQUIRES")?.canvas).toEqual({ slot: "S", subject: "source" });
   });
 
-  it("marking a type deprecated frees its slot", async () => {
+  it("lists handles of a newer contract as unknown and keeps them", () => {
+    const terms = [term("DIAGONAL", { canvas: { slot: "NE", subject: "new" } })];
+    const { parent } = handles(fakeApp(terms).app, terms);
+    expect(walk(parent).some((n) => n.tag === "li" && n.text === "NE: DIAGONAL")).toBe(true);
+  });
+
+  it("the row menu deprecates a type and frees its handle; the label shows the handle sign", async () => {
     const terms = [term("VERWEIS", { canvas: { slot: "E-up", subject: "new" } })];
     const env = fakeApp(terms);
-    const [row] = controls(env.app, terms);
-    row.deprecated.checked = true;
-    row.deprecated.onchange!();
+    const parent = el("div");
+    renderTypeTable(asEl(parent), terms, () => PATH, env.app, host(), t, () => undefined);
+    expect(walk(parent).some((n) => n.tag === "span" && n.text === " ↗")).toBe(true);
+    chooseFromRowMenu(walk(parent).find((n) => n.tag === "button" && n.text === "⋯")!, t.relTypeColDeprecated);
     await settle();
     expect(env.find("VERWEIS")).toMatchObject({ deprecated: true });
     expect(env.find("VERWEIS")?.canvas).toBeUndefined();

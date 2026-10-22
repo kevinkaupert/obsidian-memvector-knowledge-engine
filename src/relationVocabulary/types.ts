@@ -29,7 +29,8 @@ export interface RelationTermDef {
   canvas?: CanvasSlot;
 }
 
-export type CanvasSlotId = "N" | "S" | "E-up" | "E-down" | "W-up" | "W-down";
+/** A slot id of the contract's slot list (canvasSlots.ts); unknown ids from a newer contract are kept as they are. */
+export type CanvasSlotId = string;
 
 export interface CanvasSlot {
   slot: CanvasSlotId;
