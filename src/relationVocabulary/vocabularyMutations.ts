@@ -1,5 +1,6 @@
 import { TFile, type App } from "obsidian";
 import { isValidTerm } from "./loadRelationVocabulary";
+import { serializeVocabulary } from "./suiteContract";
 import type { RelationTermDef, RelationVocabularyFile } from "./types";
 
 /** Returns the terms to write, or null to abort the mutation without changing the file. */
@@ -71,7 +72,9 @@ export function createVocabularyMutator(app: App, resolvePath: () => string): Vo
             outcome = "skipped";
             return raw;
           }
-          return JSON.stringify({ terms: next } satisfies RelationVocabularyFile, null, 2);
+          // Keep `schema`, `name`, fields of later contract versions and entries this reader cannot use (knowOS
+          // relation-vocabulary contract section 5): a MemVector edit must not erase what Canvas Tutor reads.
+          return serializeVocabulary(parsed, next, parsed.terms.filter((t) => !isValidTerm(t)));
         });
       } catch (error) {
         return { result: "write-failed", error };

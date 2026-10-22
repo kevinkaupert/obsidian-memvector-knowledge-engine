@@ -23,8 +23,25 @@ export interface RelationTermDef {
   weight?: number;
   /** When true, this label actively pushes connected notes apart in the 2D layout instead of attracting (default false). */
   repels?: boolean;
+  /** No longer offered for new relations; existing relations keep it (knowOS relation-vocabulary contract). */
+  deprecated?: boolean;
+  /** The term's canvas handle in Canvas Tutor (knowOS ADR-0011): one of six slots and which card is the subject. */
+  canvas?: CanvasSlot;
 }
 
+export type CanvasSlotId = "N" | "S" | "E-up" | "E-down" | "W-up" | "W-down";
+
+export interface CanvasSlot {
+  slot: CanvasSlotId;
+  subject: "source" | "new";
+}
+
+/**
+ * A vocabulary file (a preset) as the knowOS relation-vocabulary contract defines it. Fields MemVector does not use
+ * (`schema`, `name` and anything later) are kept when the file is rewritten.
+ */
 export interface RelationVocabularyFile {
   terms: RelationTermDef[];
+  schema?: number;
+  name?: string;
 }
