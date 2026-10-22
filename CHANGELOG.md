@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.11] - 2026-10-22
+
+### Added
+- **Canvas slot, subject and deprecated in the type table** (#297, knowOS Plan 0015 step 2, part 2): each type has a canvas slot (none, N ↑ Grundlage, S ↓ Folge, O ↗ allgemeiner, O ↘ Beispiel, W ↖ warum so, W ↙ warum nicht), the subject (source card or new card) and a "deprecated" box. A slot another type holds is refused with a message naming that type; a deprecated type gives up its slot. Deprecated types are no longer offered in the relation builder, except as the type of the relation being edited.
+
 ## [0.3.10] - 2026-10-22
 
 ### Added

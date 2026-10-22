@@ -1,4 +1,6 @@
 import { Modal, Notice, Setting, type App } from "obsidian";
+import { assignCanvasSlot, CANVAS_SLOT_IDS, setDeprecated } from "../../relationVocabulary/canvasSlotEdits";
+import type { CanvasSlotId } from "../../relationVocabulary/types";
 import { withFolder, type TranslationKeys } from "../../i18n";
 import { DEFAULT_RELATION_VOCABULARY } from "../../relationVocabulary/defaultVocabulary";
 import { DEFAULT_RELATION_VOCABULARY_PATH } from "../../relationVocabulary/loadRelationVocabulary";
@@ -242,8 +244,10 @@ export function renderRelationTypesSection(containerEl: HTMLElement, app: App, h
 export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], resolvePath: () => string, app: App, host: SettingsHost, t: TranslationKeys, rerender: () => void): void {
   const table = parent.createEl("table", { cls: "memvector-relation-type-table" });
   const head = table.createEl("thead").createEl("tr");
-  for (const col of [t.relTypeColLabel, t.relTypeColCategory, t.relTypeColWeight, t.relTypeColDirection, t.relTypeColRepels, ""]) {
-    head.createEl("th", { text: col });
+  for (const col of [t.relTypeColLabel, t.relTypeColCategory, t.relTypeColWeight, t.relTypeColDirection, t.relTypeColRepels,
+    t.relTypeColCanvas, t.relTypeColSubject, t.relTypeColDeprecated, ""]) {
+    const th = head.createEl("th", { text: col });
+    if (col === t.relTypeColCanvas || col === t.relTypeColSubject) th.title = t.relTypeSlotHint;
   }
 
   const tbody = table.createEl("tbody");
@@ -337,6 +341,56 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
     repelsField.title = t.relTypeColRepels;
     repelsField.onchange = () => void updateLayout(term.label, { repels: repelsField.checked });
 
+    // Canvas slot and subject (knowOS relation-vocabulary contract section 3): the type's handle in Canvas Tutor
+    const slotSelect = row.createEl("td").createEl("select");
+    slotSelect.title = t.relTypeSlotHint;
+    for (const [value, text] of slotOptions(t)) slotSelect.createEl("option", { value, text });
+    slotSelect.value = term.canvas?.slot ?? "";
+    slotSelect.disabled = term.deprecated === true;
+    const subjectSelect = row.createEl("td").createEl("select");
+    subjectSelect.title = t.relTypeSlotHint;
+    subjectSelect.createEl("option", { value: "source", text: t.relTypeSubjectSource });
+    subjectSelect.createEl("option", { value: "new", text: t.relTypeSubjectNew });
+    subjectSelect.value = term.canvas?.subject ?? "source";
+    subjectSelect.disabled = !term.canvas;
+    const editSlot = (): void => {
+      const slot = (slotSelect.value || null) as CanvasSlotId | null;
+      const subject = subjectSelect.value === "new" ? "new" : "source";
+      void applyMutation(
+        (current) => {
+          const edit = assignCanvasSlot(current, term.label, slot, subject);
+          if ("takenBy" in edit) {
+            new Notice(`[WARN] ${t.relTypeSlotTaken} ${edit.takenBy}`, 8000);
+            return null;
+          }
+          return edit.terms;
+        },
+        rerender
+      ).then((outcome) => {
+        if (outcome.result === "skipped") rerender();
+      });
+    };
+    slotSelect.onchange = editSlot;
+    subjectSelect.onchange = editSlot;
+
+    const deprecatedField = row.createEl("td").createEl("input", { type: "checkbox" });
+    deprecatedField.checked = term.deprecated === true;
+    deprecatedField.title = t.relTypeColDeprecated;
+    deprecatedField.onchange = () => {
+      let freed: CanvasSlotId | null = null;
+      void applyMutation(
+        (current) => {
+          const edit = setDeprecated(current, term.label, deprecatedField.checked);
+          freed = edit.freedSlot;
+          return edit.terms;
+        },
+        () => {
+          if (freed) new Notice(`[INFO] ${t.relTypeDeprecatedSlotRemoved} ${freed}`, 8000);
+          rerender();
+        }
+      );
+    };
+
     const delCell = row.createEl("td");
     const delBtn = delCell.createEl("button", { text: "✕" });
     delBtn.title = t.relTypeRemoveTitle;
@@ -362,6 +416,8 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
   const repelsToggle = addRow.createEl("td").createEl("input", { type: "checkbox" });
   repelsToggle.title = t.relTypeAddRepels;
   repelsToggle.setAttribute("aria-label", t.relTypeAddRepels);
+  // canvas slot, subject and deprecated are set on the new row once it exists
+  for (let i = 0; i < 3; i++) addRow.createEl("td");
 
   const addBtn = addRow.createEl("td").createEl("button", { text: "+" });
   addBtn.title = t.relTypeAddBtn;
@@ -404,6 +460,15 @@ export function renderTypeTable(parent: HTMLElement, terms: RelationTermDef[], r
       }
     );
   };
+}
+
+/** The slot choices of the type table: none, then the six slots of the contract. */
+function slotOptions(t: TranslationKeys): Array<[string, string]> {
+  const names: Record<CanvasSlotId, string> = {
+    N: t.relTypeSlotN, S: t.relTypeSlotS, "E-up": t.relTypeSlotEUp, "E-down": t.relTypeSlotEDown,
+    "W-up": t.relTypeSlotWUp, "W-down": t.relTypeSlotWDown,
+  };
+  return [["", t.relTypeSlotNone], ...CANVAS_SLOT_IDS.map((id): [string, string] => [id, names[id]])];
 }
 
 /** Purpose: Formats the weight cap warning with the layout's actual cap. */

@@ -632,8 +632,64 @@ describe("add form layout", () => {
 
     expect(footerCells.length).toBe(headerCells.length);
     const kinds = footerCells.map((cell) => walk(cell).find((n) => n.tag === "input" || n.tag === "button"));
-    expect(kinds.map((n) => (n!.tag === "button" ? "button" : n!.type))).toEqual(["text", "text", "number", "checkbox", "checkbox", "button"]);
+    // canvas slot, subject and deprecated (knowOS ADR-0011) stay empty in the add row; they are set on the new row
+    expect(kinds.map((n) => (n ? (n.tag === "button" ? "button" : n.type) : "empty"))).toEqual(
+      ["text", "text", "number", "checkbox", "checkbox", "empty", "empty", "empty", "button"]);
     // Nothing of the form is left outside the table.
     expect(parent.children.filter((n) => n.tag !== "table")).toEqual([]);
+  });
+});
+
+describe("canvas slot, subject and deprecated columns (knowOS ADR-0011)", () => {
+  const term = (label: string, extra: Partial<RelationTermDef> = {}): RelationTermDef =>
+    ({ key: label.toLowerCase(), label, term: label.toLowerCase(), category: "C", bidirectional: false, reversed: false, ...extra });
+
+  function controls(app: App, terms: RelationTermDef[]) {
+    const parent = el("div");
+    const host = { settings: { relationVocabularyPath: PATH }, saveSettings: async () => undefined, applySettingsToOpenViews: () => undefined } as unknown as SettingsHost;
+    renderTypeTable(asEl(parent), terms, () => PATH, app, host, t, () => undefined);
+    const rows = walk(parent).filter((n) => n.tag === "tbody")[0].children;
+    return rows.map((row) => {
+      const cells = row.children;
+      return {
+        slot: walk(cells[5]).find((n) => n.tag === "select")!,
+        subject: walk(cells[6]).find((n) => n.tag === "select")!,
+        deprecated: walk(cells[7]).find((n) => n.tag === "input")!,
+      };
+    });
+  }
+
+  it("sets a slot and subject on the type and keeps it in the file", async () => {
+    const env = fakeApp([term("AUSNAHME")]);
+    const [row] = controls(env.app, [term("AUSNAHME")]);
+    row.slot.value = "W-down";
+    row.subject.value = "new";
+    row.slot.onchange!();
+    await settle();
+    expect(env.find("AUSNAHME")?.canvas).toEqual({ slot: "W-down", subject: "new" });
+  });
+
+  it("refuses a slot another type holds and changes nothing", async () => {
+    const terms = [term("REQUIRES", { canvas: { slot: "N", subject: "source" } }), term("SETZT_VORAUS")];
+    const env = fakeApp(terms);
+    const rows = controls(env.app, terms);
+    notices.length = 0;
+    rows[1].slot.value = "N";
+    rows[1].slot.onchange!();
+    await settle();
+    expect(env.find("SETZT_VORAUS")?.canvas).toBeUndefined();
+    expect(env.find("REQUIRES")?.canvas).toEqual({ slot: "N", subject: "source" });
+    expect(notices.some((n) => n.includes("REQUIRES"))).toBe(true);
+  });
+
+  it("marking a type deprecated frees its slot", async () => {
+    const terms = [term("VERWEIS", { canvas: { slot: "E-up", subject: "new" } })];
+    const env = fakeApp(terms);
+    const [row] = controls(env.app, terms);
+    row.deprecated.checked = true;
+    row.deprecated.onchange!();
+    await settle();
+    expect(env.find("VERWEIS")).toMatchObject({ deprecated: true });
+    expect(env.find("VERWEIS")?.canvas).toBeUndefined();
   });
 });
