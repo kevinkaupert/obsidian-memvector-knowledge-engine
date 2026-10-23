@@ -119,8 +119,8 @@ models (qwen3-embedding) rank much better with it: in the knowOS integration vau
 `Gruppe.md` first only with an instruction.
 
 Output: `{"outcome":"ok","query":...,"model":...,"fingerprint":...,"indexed":44,"results":[{"path":...,"title":...,"score":0.67,"excerpt":"..."}]}`.
-`excerpt` is the paragraph of the note sharing most word stems with the query (else its first paragraph, at most 300
-characters); notes are read only inside the vault. `--folder <folder>` and `--type <type>` filter before ranking.
+`excerpt` is the note's paragraphs, the ones sharing most word stems with the query first, joined with " … " up to 400
+characters; notes are read only inside the vault. `--folder <folder>` and `--type <type>` filter before ranking.
 Errors are `{"outcome":"error","code":...,"error":...}` with exit 1: `INDEX_MISSING`, `INDEX_EMPTY` (no notes of the
 configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`, `DIMENSION_MISMATCH`. Usage errors
 exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key

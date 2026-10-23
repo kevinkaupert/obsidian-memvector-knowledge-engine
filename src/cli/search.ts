@@ -25,7 +25,7 @@ export interface SearchFilters {
 /** Reads a note's text by its vault path; null when it cannot be read (then the index's stored start is used). */
 export type ReadNote = (path: string) => string | null;
 
-export const EXCERPT_CHARS = 300;
+export const EXCERPT_CHARS = 400;
 
 export type SearchResult =
   | { outcome: "ok"; query: string; model: string; fingerprint: string; indexed: number; results: SearchHit[] }
@@ -148,8 +148,9 @@ function stems(text: string): Set<string> {
 }
 
 /**
- * Purpose: The passage a model should see for a hit: the paragraph sharing most word stems with the query, else the
- * first paragraph; headings and empty lines are skipped, the text is cut to EXCERPT_CHARS with an ellipsis.
+ * Purpose: The passage a model should see for a hit: the note's paragraphs, those sharing most word stems with the
+ * query first (ties in note order), joined with " … " up to EXCERPT_CHARS; headings are skipped. A note with one
+ * matching sentence in its third paragraph thus shows that sentence even when the first paragraph matches better.
  */
 export function excerptFor(body: string, query: string): string {
   const paragraphs = body
@@ -161,12 +162,17 @@ export function excerptFor(body: string, query: string): string {
     .filter((p) => p);
   if (paragraphs.length === 0) return "";
   const wanted = stems(query);
-  let best = paragraphs[0];
-  let bestHits = 0;
-  for (const p of paragraphs) {
-    let hits = 0;
-    for (const s of stems(p)) if (wanted.has(s)) hits++;
-    if (hits > bestHits) { best = p; bestHits = hits; }
+  const ranked = paragraphs
+    .map((p, index) => ({ p, index, hits: [...stems(p)].filter((s) => wanted.has(s)).length }))
+    .sort((a, b) => (b.hits - a.hits) || (a.index - b.index));
+  let excerpt = "";
+  for (const { p } of ranked) {
+    const next = excerpt ? `${excerpt} … ${p}` : p;
+    if (next.length > EXCERPT_CHARS) {
+      if (!excerpt) excerpt = `${p.slice(0, EXCERPT_CHARS - 1).trimEnd()}…`;
+      break;
+    }
+    excerpt = next;
   }
-  return best.length > EXCERPT_CHARS ? `${best.slice(0, EXCERPT_CHARS - 1).trimEnd()}…` : best;
+  return excerpt;
 }

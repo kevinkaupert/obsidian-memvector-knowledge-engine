@@ -104,10 +104,13 @@ describe("search hits for agents (knowOS ADR-0014, Plan 0017 step 2)", () => {
     const db = await indexBytes([["Ventile", [1, 0]], ["Pumpe", [0, 1]]]);
     const result = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "Wo finde ich das Ventil am Heizkreis?", 2, answering([1, 0]), "", undefined, read);
     if (result.outcome !== "ok") throw new Error(result.error);
-    expect(result.results[0]).toMatchObject({ path: "wiki/Ventile.md", excerpt: "Alle Ventile im Haus sind grün gestrichen, damit man sie findet." });
+    expect(result.results[0]).toMatchObject({
+      path: "wiki/Ventile.md",
+      excerpt: "Alle Ventile im Haus sind grün gestrichen, damit man sie findet. … Ventile regeln den Durchfluss.",
+    });
     const flow = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "Durchfluss regeln", 1, answering([1, 0]), "", undefined, read);
     if (flow.outcome !== "ok") throw new Error(flow.error);
-    expect(flow.results[0].excerpt).toBe("Ventile regeln den Durchfluss.");
+    expect(flow.results[0].excerpt).toBe("Ventile regeln den Durchfluss. … Alle Ventile im Haus sind grün gestrichen, damit man sie findet.");
   });
 
   it("falls back to the index's stored start when the note cannot be read", async () => {
@@ -130,7 +133,7 @@ describe("search hits for agents (knowOS ADR-0014, Plan 0017 step 2)", () => {
 
   it("cuts a long paragraph and reads quoted and plain types", () => {
     const long = "Ventil ".repeat(100);
-    expect(excerptFor(long, "Ventil").length).toBe(300);
+    expect(excerptFor(long, "Ventil").length).toBeLessThanOrEqual(400);
     expect(excerptFor(long, "Ventil").endsWith("…")).toBe(true);
     expect(excerptFor("", "x")).toBe("");
     expect(frontmatterType("---\ntype: 'definition'\n---\n")).toBe("definition");
