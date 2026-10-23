@@ -6,6 +6,7 @@ import type { EmbeddingPost } from "../llm/embeddingRequest";
 import type { GateSpawn } from "../noteWriter/jovianGate";
 import { relationAdd } from "./relation";
 import { searchEnvelope, vaultReader } from "./agent";
+import { graphNeighbors } from "./graph";
 import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 import { toolList } from "./tools";
 
@@ -13,6 +14,7 @@ declare const MEMVECTOR_VERSION: string;
 
 const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--instruction <text>] [--folder <folder>] [--type <type>] [--config-dir .obsidian] --json [--envelope]
        memvector relation add --vault <path> [--config-dir .obsidian] --json   (one JSON request on stdin)
+       memvector graph neighbors --vault <path> --note <note.md> [--limit 100] [--config-dir .obsidian] --json
        memvector tools --json
        memvector --version
 
@@ -24,6 +26,8 @@ and writes it through Jovian's gate (the plugin's "Jovian command" setting); an 
 Each hit carries an excerpt: the paragraph of the note sharing most words with the query. --folder and --type
 (frontmatter type) filter before ranking. --envelope answers as {"v":1,"outcome":"ok","data":{...}} or
 {"v":1,"outcome":"error","error":{"code","message"}} (knowOS ADR-0014); without it the output is unchanged.
+graph neighbors lists the relations of one note from MemVector's graph (type, direction, the other note), always as
+the envelope; reads only.
 tools lists the commands offered to agents with their JSON schemas.
 An API key for a cloud embedding endpoint comes from MEMVECTOR_EMBEDDING_API_KEY.
 Exit codes: 0 ok, 1 error (JSON on stdout), 2 usage.`;
@@ -68,7 +72,7 @@ function fail(code: string, error: string, envelope = false): number {
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
   if (command === "--version") {
-    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "tools"] })}\n`);
+    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "graph neighbors", "tools"] })}\n`);
     return 0;
   }
   if (command === undefined || command === "--help" || command === "-h") {
@@ -76,6 +80,7 @@ export async function main(argv: string[]): Promise<number> {
     return command === undefined ? 2 : 0;
   }
   if (command === "relation") return relationCommand(rest);
+  if (command === "graph") return graphCommand(rest);
   if (command === "tools") {
     if (rest.some((a) => a !== "--json")) return usage("tools takes only --json");
     process.stdout.write(`${JSON.stringify(toolList(MEMVECTOR_VERSION))}\n`);
@@ -134,6 +139,30 @@ export async function main(argv: string[]): Promise<number> {
     { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
   );
   process.stdout.write(`${JSON.stringify(envelope ? searchEnvelope(result) : result)}\n`);
+  return result.outcome === "ok" ? 0 : 1;
+}
+
+async function graphCommand(argv: string[]): Promise<number> {
+  const [sub, ...rest] = argv;
+  if (sub !== "neighbors") return usage(`unknown graph command '${sub ?? ""}'`);
+  const args = parseArgs(rest);
+  if (!args) return usage("arguments must be --key value pairs");
+  const unknown = [...args.keys()].filter((k) => !["vault", "note", "limit", "config-dir", "json", "envelope"].includes(k));
+  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+  const vault = args.get("vault");
+  const note = args.get("note");
+  if (typeof vault !== "string" || !vault) return usage("--vault is required");
+  if (typeof note !== "string" || !note.trim()) return usage("--note is required");
+  const limitRaw = args.get("limit") ?? "100";
+  const limit = Number(limitRaw);
+  if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
+  const configDir = args.get("config-dir");
+  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const dbPath = join(pluginDir, DB_FILENAME);
+  if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
+  const wasmPath = join(pluginDir, "sql-wasm.wasm");
+  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim(), limit);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }
 

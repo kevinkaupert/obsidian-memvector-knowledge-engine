@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.14] - 2026-10-23
+
+### Added
+- `node cli.js graph neighbors --vault <V> --note <note.md> [--limit 100] --json` (knowOS ADR-0010, ADR-0014, Plan 0017 step 2): the relations of one note from MemVector's graph without Obsidian: type, direction (`out`/`in`), `bidirectional`, the other note's path and title, and the description; `truncated` when the limit cut the list. Always the agent envelope; `NOTE_NOT_INDEXED`, `INDEX_MISSING`, `INDEX_UNREADABLE`. Listed in `tools --json` as `graph.neighbors`.
+
 ## [0.3.13] - 2026-10-23
 
 ### Added
