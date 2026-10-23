@@ -6,13 +6,13 @@ import { closeLocalDb, flushLocalDb, localDbPath } from "../sync/sqlite/sqliteDb
 import { SqliteVectorStore } from "../sync/sqlite/sqliteVectorStore";
 import { resolveEmbeddingTarget } from "../sync/embeddingTarget";
 import type { EmbeddingPost } from "../llm/embeddingRequest";
-import { searchIndex } from "./search";
+import { excerptFor, frontmatterType, searchIndex } from "./search";
 
 const WASM = readFileSync(resolve(process.cwd(), "node_modules/sql.js/dist/sql-wasm.wasm"));
 const SETTINGS = { embeddingModel: "bge-m3", embeddingApiBaseUrl: "http://localhost:11434/v1" };
 
 /** Builds a real index file with the plugin's own store, so the CLI reads exactly what the plugin writes. */
-async function indexBytes(points: Array<[string, number[]]>, settings = SETTINGS): Promise<Uint8Array> {
+async function indexBytes(points: Array<[string, number[]]>, settings = SETTINGS, folder = "wiki"): Promise<Uint8Array> {
   const files = new Map<string, ArrayBuffer>();
   const app = {
     vault: {
@@ -26,7 +26,7 @@ async function indexBytes(points: Array<[string, number[]]>, settings = SETTINGS
     },
   } as unknown as App;
   const store = new SqliteVectorStore(app, resolveEmbeddingTarget(settings).fingerprint);
-  await store.syncPoints(points.map(([id, vector]) => ({ id, vector, payload: { path: `wiki/${id}.md`, title: id, content: "" } })));
+  await store.syncPoints(points.map(([id, vector]) => ({ id, vector, payload: { path: `${folder}/${id}.md`, title: id, content: `Gespeicherter Anfang von ${id}.` } })));
   await flushLocalDb(app);
   return new Uint8Array(files.get(localDbPath(app))!);
 }
@@ -90,5 +90,50 @@ describe("memvector search (CLI, #289)", () => {
   it("reports a file that is not an index", async () => {
     const result = await searchIndex({ settings: SETTINGS, db: new TextEncoder().encode("kein sqlite"), wasm: WASM }, "x", 5, answering([1]));
     expect(result).toMatchObject({ outcome: "error", code: "INDEX_UNREADABLE" });
+  });
+});
+
+describe("search hits for agents (knowOS ADR-0014, Plan 0017 step 2)", () => {
+  const notes: Record<string, string> = {
+    "wiki/Ventile.md": "---\ntype: \"concept\"\n---\n# Ventile\n\nVentile regeln den Durchfluss.\n\nAlle Ventile im Haus sind grün gestrichen, damit man sie findet.\n",
+    "wiki/Pumpe.md": "---\ntype: note\n---\nEine Pumpe fördert Wasser.\n",
+  };
+  const read = (path: string) => notes[path] ?? null;
+
+  it("adds the paragraph that matches the query best as excerpt", async () => {
+    const db = await indexBytes([["Ventile", [1, 0]], ["Pumpe", [0, 1]]]);
+    const result = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "Wo finde ich das Ventil am Heizkreis?", 2, answering([1, 0]), "", undefined, read);
+    if (result.outcome !== "ok") throw new Error(result.error);
+    expect(result.results[0]).toMatchObject({ path: "wiki/Ventile.md", excerpt: "Alle Ventile im Haus sind grün gestrichen, damit man sie findet." });
+    const flow = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "Durchfluss regeln", 1, answering([1, 0]), "", undefined, read);
+    if (flow.outcome !== "ok") throw new Error(flow.error);
+    expect(flow.results[0].excerpt).toBe("Ventile regeln den Durchfluss.");
+  });
+
+  it("falls back to the index's stored start when the note cannot be read", async () => {
+    const db = await indexBytes([["Fehlt", [1, 0]]]);
+    const result = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 1, answering([1, 0]));
+    if (result.outcome !== "ok") throw new Error(result.error);
+    expect(result.results[0].excerpt).toBe("Gespeicherter Anfang von Fehlt.");
+  });
+
+  it("filters by frontmatter type and by folder before ranking", async () => {
+    const db = await indexBytes([["Ventile", [1, 0]], ["Pumpe", [0.9, 0.1]]]);
+    const typed = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 5, answering([1, 0]), "", undefined, read, { type: "note" });
+    if (typed.outcome !== "ok") throw new Error(typed.error);
+    expect(typed.results.map((r) => r.path)).toEqual(["wiki/Pumpe.md"]);
+    expect(typed.indexed).toBe(2);
+    const other = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 5, answering([1, 0]), "", undefined, read, { folder: "Fragmente/" });
+    if (other.outcome !== "ok") throw new Error(other.error);
+    expect(other.results).toEqual([]);
+  });
+
+  it("cuts a long paragraph and reads quoted and plain types", () => {
+    const long = "Ventil ".repeat(100);
+    expect(excerptFor(long, "Ventil").length).toBe(300);
+    expect(excerptFor(long, "Ventil").endsWith("…")).toBe(true);
+    expect(excerptFor("", "x")).toBe("");
+    expect(frontmatterType("---\ntype: 'definition'\n---\n")).toBe("definition");
+    expect(frontmatterType("kein Frontmatter")).toBeNull();
   });
 });

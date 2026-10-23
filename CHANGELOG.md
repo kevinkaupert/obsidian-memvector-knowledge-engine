@@ -8,6 +8,14 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.13] - 2026-10-23
+
+### Added
+- `node cli.js tools --json` (knowOS ADR-0014 §2, Plan 0017 step 1): the commands MemVector offers to agents (an MCP server, Cortex) with call fields, a model-facing description and JSON schemas. Listed: `search`.
+- `search --envelope` answers as `{"v":1,"outcome":"ok","data":{...}}` or `{"v":1,"outcome":"error","error":{"code","message"}}`; without the flag the output keeps its shape (Jovian's prereq reads it).
+- `search` hits carry an `excerpt`: the paragraph of the note that shares most word stems with the query (headings skipped, at most 300 characters), else the note's first paragraph; when the note cannot be read inside the vault, the index's stored start. A note or symlink resolving outside the vault is never read.
+- `search --folder <folder>` and `--type <type>` (frontmatter `type`) filter before ranking.
+
 ## [0.3.12] - 2026-10-22
 
 ### Added
