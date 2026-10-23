@@ -118,11 +118,20 @@ node cli.js --version
 models (qwen3-embedding) rank much better with it: in the knowOS integration vault the query `Gruppe` found
 `Gruppe.md` first only with an instruction.
 
-Output: `{"outcome":"ok","query":...,"model":...,"fingerprint":...,"indexed":44,"results":[{"path":...,"title":...,"score":0.67}]}`.
+Output: `{"outcome":"ok","query":...,"model":...,"fingerprint":...,"indexed":44,"results":[{"path":...,"title":...,"score":0.67,"excerpt":"..."}]}`.
+`excerpt` is the note's paragraphs, the ones sharing most word stems with the query first, joined with " … " up to 400
+characters; notes are read only inside the vault. `--folder <folder>` and `--type <type>` filter before ranking.
 Errors are `{"outcome":"error","code":...,"error":...}` with exit 1: `INDEX_MISSING`, `INDEX_EMPTY` (no notes of the
 configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`, `DIMENSION_MISMATCH`. Usage errors
 exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key
 for a cloud endpoint. Contract: knowOS ADR-0010.
+
+### Agent tools
+
+`node cli.js tools --json` lists the commands offered to agents (knowOS ADR-0014): call fields (`argv`, `args`),
+`effect`, a description for the model and JSON schemas. A listed command is called with `--envelope` and answers
+`{"v":1,"outcome":"ok","data":{...}}` or `{"v":1,"outcome":"error","error":{"code","message"}}`. Without
+`--envelope` the output stays as above.
 
 ### `relation add`
 
