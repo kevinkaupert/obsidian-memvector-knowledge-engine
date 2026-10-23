@@ -126,6 +126,16 @@ configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`
 exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key
 for a cloud endpoint. Contract: knowOS ADR-0010.
 
+### `graph neighbors`
+
+```sh
+node cli.js graph neighbors --vault /path/to/vault --note concepts/Vektorraum.md --json
+```
+
+Answers `{"v":1,"outcome":"ok","data":{"note":...,"title":...,"neighbors":[{"type":"REQUIRES","direction":"out","bidirectional":false,"path":...,"title":...,"description":...}],"truncated":false}}`
+from the graph the plugin stored (relation notes and typed links); reads only. Errors: `NOTE_NOT_INDEXED`,
+`INDEX_MISSING`, `INDEX_UNREADABLE`.
+
 ### Agent tools
 
 `node cli.js tools --json` lists the commands offered to agents (knowOS ADR-0014): call fields (`argv`, `args`),

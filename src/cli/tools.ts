@@ -85,6 +85,50 @@ export const TOOLS: AgentTool[] = [
       },
     }),
   },
+  {
+    name: "graph.neighbors",
+    argv: ["graph", "neighbors", "--json"],
+    args: { note: "--note", limit: "--limit" },
+    stdin: false,
+    effect: "read",
+    description:
+      "List the relations of one note in the vault's knowledge graph: for each, the relation type (e.g. REQUIRES, " +
+      "IMPLIES, EXAMPLE_OF), its direction and the other note. Use it to follow what a note depends on or leads to, " +
+      "after search or note.read found the note.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["note"],
+      properties: {
+        note: { type: "string", description: "vault-relative path of the note, e.g. concepts/Vektorraum.md" },
+        limit: { type: "integer", minimum: 1, description: "number of relations, default 100" },
+      },
+    },
+    output: envelopeSchema({
+      type: "object",
+      required: ["note", "title", "neighbors", "truncated"],
+      properties: {
+        truncated: { type: "boolean" },
+        note: { type: "string" },
+        title: { type: "string" },
+        neighbors: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["type", "direction", "bidirectional", "path", "title", "description"],
+            properties: {
+              type: { type: "string" },
+              direction: { enum: ["out", "in"] },
+              bidirectional: { type: "boolean" },
+              path: { type: "string" },
+              title: { type: "string" },
+              description: { type: "string" },
+            },
+          },
+        },
+      },
+    }),
+  },
 ];
 
 /** The `tools --json` result: MemVector's version and its agent tools. */
