@@ -189,10 +189,10 @@ export async function relationAdd(
   }, options.timeoutMs ?? JOVIAN_GATE_CALL_TIMEOUT_MS, options.spawn);
   if (call.result?.outcome === "ok" && preview) {
     const data = call.result.data;
-    if (!data || typeof data !== "object" || (data as Record<string, unknown>).preview !== true) {
+    if (!data || typeof data !== "object" || data.preview !== true) {
       return fail("GATE_UNAVAILABLE", "Jovian's gate answered without a preview; it needs Jovian 0.25.27 or newer.");
     }
-    return { outcome: "ok", path, created: false, preview: data as Record<string, unknown> };
+    return { outcome: "ok", path, created: false, preview: data };
   }
   if (call.result?.outcome === "ok") return { outcome: "ok", path, created: true };
   const error = call.result?.error;
