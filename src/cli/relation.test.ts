@@ -87,4 +87,20 @@ describe("memvector relation add", () => {
     expect(keys.get("Fragmente/Gruppe (Definition).md")).toBe("01M5H6A265W0YEDVWW1CHSKAGS");
     expect(keys.get("Fragmente/Menge (Begriff).md")).toBe("fragmente/menge%20(begriff)");
   });
+
+  it("asks the gate for a preview and writes nothing itself (knowOS ADR-0014 §3)", async () => {
+    const preview = { preview: true, preview_id: "01M5PREVIEW", writes: [{ target: "relations/x.md", action: "create" }], result: {} };
+    const g = gate({ v: 1, outcome: "ok", data: preview });
+    const result = await relationAdd(vault(), { ...REQ, preview: true }, SETTINGS, { spawn: g.spawn, clientVersion: "0.3.15" });
+    expect(result).toMatchObject({ outcome: "ok", created: false, preview });
+    expect(g.requests[0]).toMatchObject({ preview: true, mode: "create_new" });
+  });
+
+  it("refuses a preview from a gate that does not know previews", async () => {
+    const g = gate({ v: 1, outcome: "ok", data: { target: "relations/x.md" } });
+    const result = await relationAdd(vault(), { ...REQ, preview: true }, SETTINGS, { spawn: g.spawn, clientVersion: "0.3.15" });
+    expect(result).toMatchObject({ outcome: "error", code: "GATE_UNAVAILABLE" });
+    const bad = await relationAdd(vault(), { ...REQ, preview: "ja" }, SETTINGS, { spawn: g.spawn, clientVersion: "0.3.15" });
+    expect(bad).toMatchObject({ outcome: "error", code: "INVALID_REQUEST" });
+  });
 });

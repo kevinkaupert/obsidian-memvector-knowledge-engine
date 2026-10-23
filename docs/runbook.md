@@ -126,6 +126,10 @@ configured model), `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`, `EMBEDDING_FAILED`
 exit 2. The embedding endpoint must be reachable (e.g. Ollama running); `MEMVECTOR_EMBEDDING_API_KEY` supplies a key
 for a cloud endpoint. Contract: knowOS ADR-0010.
 
+With `"preview": true` in the request (Jovian 0.25.27+) nothing is written: the answer carries Jovian's preview
+(`preview_id`, the planned note) as `preview`; `jovian gate apply` with that id writes it. `--envelope` answers
+`{"v":1,"outcome":"ok","data":{"path","created","preview"}}`.
+
 ### `graph neighbors`
 
 ```sh

@@ -8,6 +8,11 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.15] - 2026-10-23
+
+### Added
+- `cli.js relation add` takes `"preview": true` (knowOS ADR-0014 §3, Plan 0017 step 4; needs Jovian 0.25.27+): Jovian's gate plans the relation note, writes nothing and answers with a `preview_id`; the result carries it as `preview`. `jovian gate apply` with that id writes the note (journaled as `memvector.relation_save`). A gate without previews is `GATE_UNAVAILABLE`, never a silent write. `--envelope` answers in the agent envelope. Listed in `tools --json` as `relation.add` (`effect: write`, `preview: true`).
+
 ## [0.3.14] - 2026-10-23
 
 ### Added

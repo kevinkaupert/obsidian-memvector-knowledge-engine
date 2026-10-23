@@ -28,6 +28,8 @@ export interface RelationAddResult {
   outcome: "ok" | "error";
   path?: string;
   created?: boolean;
+  /** With `"preview": true`: Jovian's preview of the write (preview_id, writes); nothing is written (knowOS ADR-0014 §3). */
+  preview?: Record<string, unknown>;
   code?: string;
   error?: string;
 }
@@ -131,6 +133,8 @@ export async function relationAdd(
     if (typeof value !== "string" || !value.trim()) return fail("INVALID_REQUEST", `'${key}' must be a non-empty string.`);
   }
   if (req.text !== undefined && typeof req.text !== "string") return fail("INVALID_REQUEST", "'text' must be a string.");
+  if (req.preview !== undefined && typeof req.preview !== "boolean") return fail("INVALID_REQUEST", "'preview' must be true or false.");
+  const preview = req.preview === true;
   const relation = (req.relation as string).trim();
   if (!LABEL.test(relation)) return fail("INVALID_REQUEST", `'relation' must be a relation label such as REQUIRES, got ${JSON.stringify(relation)}.`);
   const label = relation.toUpperCase();
@@ -181,7 +185,15 @@ export async function relationAdd(
     declared_removals: [],
     operation: "memvector.relation_save",
     request_id: crypto.randomUUID(),
+    ...(preview ? { preview: true } : {}),
   }, options.timeoutMs ?? JOVIAN_GATE_CALL_TIMEOUT_MS, options.spawn);
+  if (call.result?.outcome === "ok" && preview) {
+    const data = call.result.data;
+    if (!data || typeof data !== "object" || (data as Record<string, unknown>).preview !== true) {
+      return fail("GATE_UNAVAILABLE", "Jovian's gate answered without a preview; it needs Jovian 0.25.27 or newer.");
+    }
+    return { outcome: "ok", path, created: false, preview: data as Record<string, unknown> };
+  }
   if (call.result?.outcome === "ok") return { outcome: "ok", path, created: true };
   const error = call.result?.error;
   if (error) return fail(typeof error.code === "string" ? error.code : "GATE_ERROR", typeof error.message === "string" ? error.message : "The gate refused the write.");
