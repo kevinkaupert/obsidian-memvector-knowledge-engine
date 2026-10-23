@@ -21,6 +21,8 @@ const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20
 --instruction is put before the query as "Instruct: <text>\\nQuery: <query>", the query form instruction-tuned
 embedding models such as qwen3-embedding expect; notes are embedded without it.
 search reads MemVector's index and settings from <vault>/<config-dir>/plugins/${PLUGIN_ID}/ and never writes.
+relation add takes "preview": true (Jovian 0.25.27+): the gate plans the note, writes nothing and answers with a
+preview_id that \`jovian gate apply\` writes; --envelope answers in the agent envelope.
 relation add builds the relation note for {"v":1,"from":"<note>.md","to":"<note>.md","relation":"REQUIRES","text":"..."}
 and writes it through Jovian's gate (the plugin's "Jovian command" setting); an existing one is answered with its path.
 Each hit carries an excerpt: the paragraph of the note sharing most words with the query. --folder and --type
@@ -183,7 +185,7 @@ async function relationCommand(argv: string[]): Promise<number> {
   if (sub !== "add") return usage(`unknown relation command '${sub ?? ""}'`);
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
-  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json"].includes(k));
+  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json", "envelope"].includes(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
@@ -204,6 +206,12 @@ async function relationCommand(argv: string[]): Promise<number> {
     return fail("INVALID_REQUEST", "stdin is not one JSON request.");
   }
   const result = await relationAdd(vault, request, settings, { spawn: gateSpawn, clientVersion: MEMVECTOR_VERSION });
+  if (args.get("envelope") === true) {
+    const { outcome, code, error, ...data } = result;
+    const body = outcome === "ok" ? { v: 1, outcome, data } : { v: 1, outcome, error: { code: code ?? "FAILED", message: error ?? "" } };
+    process.stdout.write(`${JSON.stringify(body)}\n`);
+    return outcome === "ok" ? 0 : 1;
+  }
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }

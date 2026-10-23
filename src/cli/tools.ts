@@ -9,6 +9,8 @@
 type Schema = Record<string, unknown>;
 
 export interface AgentTool {
+  /** A write tool that answers `"preview": true` with a preview instead of writing (knowOS ADR-0014 §3). */
+  preview?: boolean;
   name: string;
   argv: string[];
   args: Record<string, string>;
@@ -127,6 +129,35 @@ export const TOOLS: AgentTool[] = [
           },
         },
       },
+    }),
+  },
+  {
+    name: "relation.add",
+    argv: ["relation", "add", "--json", "--envelope"],
+    args: {},
+    stdin: true,
+    effect: "write",
+    preview: true,
+    description:
+      "Create the relation note for one typed relation between two existing notes (e.g. from REQUIRES to), with your " +
+      "reasoning as its text, so it appears in the vault's knowledge graph. An existing relation note for the same pair " +
+      "and type is answered with its path. It writes nothing: the answer is a preview with a preview_id. Show it to the " +
+      "user; only when they confirm, call jovian_gate_apply with that preview_id.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["from", "to", "relation"],
+      properties: {
+        from: { type: "string", description: "vault-relative path of the source note" },
+        to: { type: "string", description: "vault-relative path of the target note" },
+        relation: { type: "string", description: "relation label, e.g. REQUIRES, IMPLIES, EXAMPLE_OF" },
+        text: { type: "string", description: "why the relation holds, in the user's words or yours" },
+      },
+    },
+    output: envelopeSchema({
+      type: "object",
+      required: ["path", "created"],
+      properties: { path: { type: "string" }, created: { type: "boolean" }, preview: { type: "object" } },
     }),
   },
 ];
