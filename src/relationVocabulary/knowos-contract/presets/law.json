@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "name": "Law",
+  "terms": [
+    {
+      "key": "lawRegulates",
+      "label": "REGULATES",
+      "term": "regulates",
+      "category": "Legislation",
+      "bidirectional": false,
+      "reversed": false
+    },
+    {
+      "key": "lawAmends",
+      "label": "AMENDS",
+      "term": "amends",
+      "category": "Legislation",
+      "bidirectional": false,
+      "reversed": false
+    },
+    {
+      "key": "lawDerogates",
+      "label": "DEROGATES",
+      "term": "derogates",
+      "category": "Legislation",
+      "bidirectional": false,
+      "reversed": false
+    },
+    {
+      "key": "lawBasedOn",
+      "label": "BASED_ON",
+      "term": "is based on",
+      "category": "Legal Hierarchy",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "N",
+        "subject": "source"
+      }
+    },
+    {
+      "key": "lawConflicts",
+      "label": "CONFLICTS_WITH",
+      "term": "conflicts with",
+      "category": "Legal Hierarchy",
+      "bidirectional": true,
+      "reversed": false,
+      "repels": true
+    },
+    {
+      "key": "lawImplements",
+      "label": "IMPLEMENTS",
+      "term": "implements",
+      "category": "Legislation",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "S",
+        "subject": "new"
+      }
+    }
+  ]
+}

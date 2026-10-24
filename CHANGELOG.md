@@ -8,6 +8,16 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.16] - 2026-10-24
+
+### Added
+- `node cli.js context --vault <V> --seed <note.md> [--seed ...] --json` (knowOS Plan 0018 step 2): the context the 2D view's synthesis would assemble for the seed notes, without Obsidian: vector neighbors of the seeds' centroid and graph neighbors up to the synthesis hop depth, in the synthesis's order, each with its text (cut at the synthesis content cap), plus the typed relations among seeds and hits and the status of each retrieval channel (`ready`, `unindexed`, `error`). All limits come from MemVector's settings merged with the plugin's defaults; no flag overrides them, and the answer lists each value with its source. Always the agent envelope; `SEED_NOT_FOUND`, `INDEX_MISSING`, `INDEX_UNREADABLE`, `SETTINGS_UNREADABLE`. Listed in `tools --json` as `context` (input `seeds`, a list; the description tells an agent to use only notes the user named).
+- `tools --json` accepts `--vault <path>` (unused), so an MCP server can pass the vault to every component's tool list.
+
+### Changed
+- The hybrid context assembly moved from the 2D view into `src/context/hybridContext.ts` (knowOS Plan 0018 step 1), shared by the synthesis, the context preview and `cli.js context`; the plugin reads it through its stores and the vault API as before, so its context is unchanged.
+- The STEM default vocabulary, the bundled Law, Medicine and Philosophy presets and the canvas slot list are read from unchanged copies of the knowOS contract files in `src/relationVocabulary/knowos-contract/` instead of hand-kept tables (knowOS ADR-0011 amendment, knowOS#125); knowOS checks the copies byte for byte. Same values as before.
+
 ## [0.3.15] - 2026-10-23
 
 ### Added

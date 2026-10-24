@@ -1,0 +1,330 @@
+import { capText, stripFrontmatter } from "../noteContent";
+import type { RetrievalResult, RetrievalStatus } from "../retrievalStatus";
+import type { GraphNeighbor } from "../sync/graphStore";
+import type { VectorSearchHit } from "../sync/vectorStore";
+
+/**
+ * Purpose: Hybrid GraphRAG context assembly - semantic vector neighbors and multi-hop graph neighbors of the selected
+ * notes - shared by the 2D view's synthesis and the command line (`cli.js context`, knowOS Plan 0018 steps 1-2).
+ * Architecture: No Obsidian import. Everything the assembly reads goes through a ContextSource: the plugin builds one
+ * over its stores and the vault API, the CLI over the index file and the vault folder. Moved from
+ * views/vectorScatter/contextEnrichment.ts without a change in behaviour.
+ */
+
+export interface EnrichedContext {
+  notes: EnrichedNote[];
+  channels: { vector: RetrievalStatus; graph: RetrievalStatus };
+}
+
+export interface EnrichedNote {
+  id: string;
+  title: string;
+  path: string;
+  content: string;
+  sources: ("vector" | "graph")[];
+  /** Graph hop distance from the selection (graph-sourced notes only) - used for hop-balanced assembly (Issue #103). */
+  hops?: number;
+  /** Cosine similarity to the selection's centroid (vector-sourced notes only) - shown in the context preview. */
+  similarity?: number;
+}
+
+/** A selected note the context is built around: its index key and its vault path. */
+export interface ContextSeed {
+  id: string;
+  path: string;
+}
+
+/** The caps of the assembly, from MemVector's settings; 0 = unlimited (Issue #103). */
+export interface ContextLimits {
+  vectorNeighborLimit?: number;
+  hopLevelNeighborLimit?: number;
+  minVectorSimilarity?: number;
+  totalContextLimit?: number;
+}
+
+/** What the assembly reads: the index (vectors, graph) and the notes as they are now. */
+export interface ContextSource {
+  /** Stored vectors of these paths in the active embedding model's space. */
+  storedVectors(paths: string[]): Promise<Map<string, number[]>>;
+  /** Nearest stored vectors, best first; limit 0 = all. */
+  searchVectors(vector: number[], limit: number): Promise<VectorSearchHit[]>;
+  /** Whether the graph index has any notes; absent = always indexed. */
+  graphIndexed?(): Promise<boolean>;
+  /** Graph neighbors of these note ids up to `hops` hops, unconstrained (Issue #115). */
+  neighbors(ids: string[], hops: number): Promise<GraphNeighbor[]>;
+  /** null when no note exists at the path (stale index row); else whether the indexing exclusions keep it. */
+  note(path: string): { included: boolean } | null;
+  /** The note's current text. */
+  read(path: string): Promise<string>;
+  /** The key the index stores the note at `path` under. */
+  keyOf(path: string): string;
+}
+
+/**
+ * Purpose: Computes centroid query vector by averaging high-dimensional embeddings across selected notes.
+ */
+function averageEmbedding(vectors: number[][]): number[] | null {
+  if (vectors.length === 0) return null;
+  const dim = vectors[0].length;
+  const sum = new Array(dim).fill(0);
+  for (const vec of vectors) {
+    for (let i = 0; i < dim; i++) sum[i] += vec[i];
+  }
+  return sum.map((v) => v / vectors.length);
+}
+
+/**
+ * Purpose: Retrieves semantic nearest neighbors via vector search, reading fresh full note bodies from the vault.
+ * Architecture: limits.vectorNeighborLimit caps how many vector hits enter the context - 0 = unlimited (Issue #103).
+ */
+async function fetchVectorNeighbors(
+  source: ContextSource,
+  limits: ContextLimits,
+  selected: ContextSeed[],
+  excerptLength: number
+): Promise<RetrievalResult<Map<string, EnrichedNote>>> {
+  const found = new Map<string, EnrichedNote>();
+
+  // Query vectors come from the store only. It is scoped to the active embedding model; a node's in-memory vector may
+  // still belong to the previous model, and searching the new index with it silently returns unrelated notes.
+  const rawEmbeddings: number[][] = [];
+  const stored = await source.storedVectors(selected.map((n) => n.path));
+  for (const n of selected) {
+    const v = stored.get(n.path);
+    if (v && v.length > 0) rawEmbeddings.push(v);
+  }
+
+  const queryVector = averageEmbedding(rawEmbeddings);
+  if (!queryVector) return { data: found, status: "unindexed" };
+
+  const limit = limits.vectorNeighborLimit ?? 2;
+  // 0 = unlimited count: search unconstrained without an arbitrary 100-note cap.
+  // Relevance is still scoped by minVectorSimilarity below, so "unlimited" never means
+  // "the whole vault" - only notes actually related to the selection (Issue #103).
+  const searchLimit = limit > 0 ? limit + selected.length : 0;
+  const hits = await source.searchVectors(queryVector, searchLimit);
+  const minSim = limits.minVectorSimilarity ?? 0;
+
+  for (const hit of hits) {
+    if (!Number.isFinite(hit.score) || (minSim > 0 && hit.score < minSim)) continue;
+    const path = hit.payload?.path;
+    if (!path || selected.some((s) => s.path === path)) continue;
+    // A deleted note's stored vector/content can still be a stale hit here between
+    // full re-indexes (which reconcile it away) - re-check the file actually exists
+    // rather than trusting the stored payload content.
+    const note = source.note(path);
+    if (!note) continue;
+    // Enforce current exclusions before reading content, even with a stale index.
+    if (!note.included) continue;
+    const id = source.keyOf(path);
+    // The note as it is now - also when it was emptied. The stored payload is the excerpt from embedding time and
+    // would put text the note no longer contains into the synthesis prompt.
+    const content = stripFrontmatter(await source.read(path));
+    found.set(id, {
+      id,
+      title: hit.payload?.title || id,
+      path,
+      content: capText(content, excerptLength),
+      sources: ["vector"],
+      similarity: hit.score,
+    });
+    if (limit > 0 && found.size >= limit) break;
+  }
+  return { data: found, status: rawEmbeddings.length === selected.length ? "ready" : "unindexed" };
+}
+
+/**
+ * Purpose: Retrieves topological multi-hop neighbors from the graph store, reading fresh full note bodies from the vault.
+ * Architecture: Per-hop-level quota (limits.hopLevelNeighborLimit, 0 = unlimited) so a dense hop-1 neighborhood cannot crowd deeper hops out of the GraphRAG context (Issue #103). The store query runs unconstrained (Issue #115) - no hidden SQL-side caps or slack multipliers - and the explicit per-hop user quota is applied transparently client-side.
+ */
+async function fetchGraphNeighbors(
+  source: ContextSource,
+  limits: ContextLimits,
+  selected: ContextSeed[],
+  excerptLength: number,
+  hopDepth: number
+): Promise<RetrievalResult<Map<string, EnrichedNote>>> {
+  const found = new Map<string, EnrichedNote>();
+  const ids = selected.map((n) => n.id);
+  const perHop = limits.hopLevelNeighborLimit ?? 2;
+  const hops = Math.max(1, Math.trunc(hopDepth));
+  if (typeof source.graphIndexed === "function") {
+    const indexed = await source.graphIndexed();
+    if (!indexed) return { data: found, status: "unindexed" };
+  }
+  // Unconstrained: every reachable candidate comes back and the per-hop
+  // quota below decides admission - no arbitrary 3x slack or global LIMIT can
+  // silently cut off deeper hops (Issue #115).
+  const neighbors = await source.neighbors(ids, hops);
+
+  const perHopCount = new Map<number, number>();
+  const seen = new Set<string>();
+  for (const neighbor of neighbors) {
+    if (seen.has(neighbor.id)) continue;
+    seen.add(neighbor.id);
+    if (selected.some((s) => s.path === neighbor.path)) continue;
+    // A stale graph edge to a since-deleted note can still surface here between
+    // full re-indexes (which reconcile it away) - skip it rather than serve empty
+    // or (if the id happens to have been reused) wrong content.
+    const note = source.note(neighbor.path);
+    if (!note) continue;
+    // Enforce current exclusions before reading content, even with a stale index.
+    if (!note.included) continue;
+    const hop = neighbor.hops || 1;
+    const used = perHopCount.get(hop) ?? 0;
+    if (perHop > 0 && used >= perHop) continue;
+    perHopCount.set(hop, used + 1);
+    const content = stripFrontmatter(await source.read(neighbor.path));
+    found.set(neighbor.id, {
+      id: neighbor.id,
+      title: neighbor.title,
+      path: neighbor.path,
+      content: capText(content, excerptLength),
+      sources: ["graph"],
+      hops: hop,
+    });
+  }
+  return { data: found, status: "ready" };
+}
+
+/**
+ * Purpose: Assembles graph notes in hop-balanced round-robin order so trimming to the total budget cannot crowd deeper hops out (Issue #103).
+ */
+function orderGraphNotesHopBalanced(notes: EnrichedNote[]): EnrichedNote[] {
+  const byHop = new Map<number, EnrichedNote[]>();
+  for (const note of notes) {
+    const hop = note.hops ?? 1;
+    const bucket = byHop.get(hop);
+    if (bucket) bucket.push(note);
+    else byHop.set(hop, [note]);
+  }
+  const levels = Array.from(byHop.keys()).sort((a, b) => a - b);
+  const ordered: EnrichedNote[] = [];
+  for (let round = 0; ordered.length < notes.length; round++) {
+    let progressed = false;
+    for (const level of levels) {
+      const bucket = byHop.get(level)!;
+      if (round < bucket.length) {
+        ordered.push(bucket[round]);
+        progressed = true;
+      }
+    }
+    if (!progressed) break;
+  }
+  return ordered;
+}
+
+/**
+ * Purpose: Orchestrates hybrid GraphRAG context enrichment across semantic vector search and graph topology.
+ * Architecture: All context caps come from the limits (vectorNeighborLimit, hopLevelNeighborLimit, totalContextLimit) with 0 = unlimited - no hidden model-tier budget (Issue #103). Manually dismissed note ids (excludeIds, Issue #116) are filtered out of the final result so preview and synthesis payload stay identical.
+ */
+export async function assembleHybridContext(
+  source: ContextSource,
+  limits: ContextLimits,
+  selected: ContextSeed[],
+  excerptLength: number,
+  hopDepth: number,
+  excludeIds?: ReadonlySet<string>
+): Promise<EnrichedContext> {
+  // 0 = unlimited total context; no silent trimming unless the user sets a cap.
+  const maxTotal = limits.totalContextLimit ?? 0;
+
+  const [vectorResult, graphResult] = await Promise.allSettled([
+    fetchVectorNeighbors(source, limits, selected, excerptLength),
+    fetchGraphNeighbors(source, limits, selected, excerptLength, hopDepth),
+  ]);
+
+  const vectorNotes = vectorResult.status === "fulfilled"
+    ? Array.from(vectorResult.value.data.values())
+    : [];
+  if (vectorResult.status === "rejected") {
+    console.warn("MemVector: vector context enrichment skipped", vectorResult.reason);
+  }
+
+  const graphNotes = graphResult.status === "fulfilled"
+    ? orderGraphNotesHopBalanced(Array.from(graphResult.value.data.values()))
+    : [];
+  if (graphResult.status === "rejected") {
+    console.warn("MemVector: graph context enrichment skipped", graphResult.reason);
+  }
+
+  const assembled = assembleContextNotes(vectorNotes, graphNotes, maxTotal);
+  const notes = excludeIds && excludeIds.size > 0
+    ? assembled.filter((note) => !excludeIds.has(note.id))
+    : assembled;
+  return {
+    notes,
+    channels: {
+      vector: vectorResult.status === "fulfilled" ? vectorResult.value.status : "error",
+      graph: graphResult.status === "fulfilled" ? graphResult.value.status : "error",
+    },
+  };
+}
+
+/**
+ * Purpose: Assembles vector and graph notes into a final enriched context list up to maxTotal.
+ * Architecture: Prioritizes dual-confirmed notes (vector + graph), then interleaves vector (semantic)
+ * and graph (hop-balanced) channels fairly so vector hits cannot crowd out topological graph neighbors
+ * when totalContextLimit is bounded (Issue #110).
+ */
+export function assembleContextNotes(
+  vectorNotes: EnrichedNote[],
+  graphNotes: EnrichedNote[],
+  maxTotal: number
+): EnrichedNote[] {
+  const noteMap = new Map<string, EnrichedNote>();
+  const graphMap = new Map<string, EnrichedNote>(graphNotes.map((n) => [n.id, n]));
+
+  const dualNotes: EnrichedNote[] = [];
+  const onlyVector: EnrichedNote[] = [];
+
+  for (const v of vectorNotes) {
+    const g = graphMap.get(v.id);
+    if (g) {
+      const combined: EnrichedNote = {
+        ...v,
+        sources: ["vector", "graph"],
+        hops: g.hops,
+        content: v.content || g.content,
+      };
+      noteMap.set(v.id, combined);
+      dualNotes.push(combined);
+    } else {
+      noteMap.set(v.id, v);
+      onlyVector.push(v);
+    }
+  }
+
+  const onlyGraph: EnrichedNote[] = [];
+  for (const g of graphNotes) {
+    if (!noteMap.has(g.id)) {
+      noteMap.set(g.id, g);
+      onlyGraph.push(g);
+    }
+  }
+
+  if (maxTotal <= 0) {
+    return [...dualNotes, ...onlyVector, ...onlyGraph];
+  }
+
+  const result: EnrichedNote[] = [];
+  for (const dual of dualNotes) {
+    if (result.length >= maxTotal) return result;
+    result.push(dual);
+  }
+
+  let vIdx = 0;
+  let gIdx = 0;
+  while (result.length < maxTotal && (vIdx < onlyVector.length || gIdx < onlyGraph.length)) {
+    if (vIdx < onlyVector.length) {
+      result.push(onlyVector[vIdx++]);
+      if (result.length >= maxTotal) break;
+    }
+    if (gIdx < onlyGraph.length) {
+      result.push(onlyGraph[gIdx++]);
+      if (result.length >= maxTotal) break;
+    }
+  }
+
+  return result;
+}

@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "name": "Philosophy",
+  "terms": [
+    {
+      "key": "philCritiques",
+      "label": "CRITIQUES",
+      "term": "critiques",
+      "category": "Discourse",
+      "bidirectional": false,
+      "reversed": false
+    },
+    {
+      "key": "philPresupposes",
+      "label": "PRESUPPOSES",
+      "term": "presupposes",
+      "category": "Arguments",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "N",
+        "subject": "source"
+      }
+    },
+    {
+      "key": "philRefutes",
+      "label": "REFUTES",
+      "term": "refutes",
+      "category": "Discourse",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "W-down",
+        "subject": "new"
+      }
+    },
+    {
+      "key": "philEntails",
+      "label": "ENTAILS",
+      "term": "entails",
+      "category": "Arguments",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "S",
+        "subject": "source"
+      }
+    },
+    {
+      "key": "philEquivalent",
+      "label": "EQUIVALENT_TO",
+      "term": "is equivalent to",
+      "category": "Arguments",
+      "bidirectional": true,
+      "reversed": false,
+      "weight": 1.3
+    }
+  ]
+}

@@ -8,6 +8,8 @@ import { relationAdd } from "./relation";
 import { searchEnvelope, vaultReader } from "./agent";
 import { graphNeighbors } from "./graph";
 import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
+import { contextFor } from "./context";
+import { migrateSettings } from "../settings/secrets";
 import { toolList } from "./tools";
 
 declare const MEMVECTOR_VERSION: string;
@@ -15,7 +17,8 @@ declare const MEMVECTOR_VERSION: string;
 const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--instruction <text>] [--folder <folder>] [--type <type>] [--config-dir .obsidian] --json [--envelope]
        memvector relation add --vault <path> [--config-dir .obsidian] --json   (one JSON request on stdin)
        memvector graph neighbors --vault <path> --note <note.md> [--limit 100] [--config-dir .obsidian] --json
-       memvector tools --json
+       memvector context --vault <path> --seed <note.md> [--seed <note.md> ...] [--config-dir .obsidian] --json
+       memvector tools --json [--vault <path>]
        memvector --version
 
 --instruction is put before the query as "Instruct: <text>\\nQuery: <query>", the query form instruction-tuned
@@ -30,6 +33,9 @@ Each hit carries an excerpt: the paragraph of the note sharing most words with t
 {"v":1,"outcome":"error","error":{"code","message"}} (knowOS ADR-0014); without it the output is unchanged.
 graph neighbors lists the relations of one note from MemVector's graph (type, direction, the other note), always as
 the envelope; reads only.
+context assembles what the 2D view's synthesis would use for the seed notes: vector neighbors of their centroid and
+graph neighbors up to the synthesis hop depth, with the caps of MemVector's settings (no flag overrides them), the
+typed relations among seeds and hits, and the retrieval status of each channel; always as the envelope, reads only.
 tools lists the commands offered to agents with their JSON schemas.
 An API key for a cloud embedding endpoint comes from MEMVECTOR_EMBEDDING_API_KEY.
 Exit codes: 0 ok, 1 error (JSON on stdout), 2 usage.`;
@@ -74,7 +80,7 @@ function fail(code: string, error: string, envelope = false): number {
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
   if (command === "--version") {
-    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "graph neighbors", "tools"] })}\n`);
+    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "graph neighbors", "context", "tools"] })}\n`);
     return 0;
   }
   if (command === undefined || command === "--help" || command === "-h") {
@@ -83,8 +89,13 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (command === "relation") return relationCommand(rest);
   if (command === "graph") return graphCommand(rest);
+  if (command === "context") return contextCommand(rest);
   if (command === "tools") {
-    if (rest.some((a) => a !== "--json")) return usage("tools takes only --json");
+    // --vault (and --config-dir) are accepted and unused: an MCP server passes the vault to every component's list
+    const toolArgs = parseArgs(rest);
+    if (!toolArgs || [...toolArgs.keys()].some((k) => !["json", "vault", "config-dir"].includes(k))) {
+      return usage("tools takes only --json (and --vault)");
+    }
     process.stdout.write(`${JSON.stringify(toolList(MEMVECTOR_VERSION))}\n`);
     return 0;
   }
@@ -164,6 +175,53 @@ async function graphCommand(argv: string[]): Promise<number> {
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   const wasmPath = join(pluginDir, "sql-wasm.wasm");
   const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim(), limit);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+  return result.outcome === "ok" ? 0 : 1;
+}
+
+/** Splits every `--<key> <value>` / `--<key>=<value>` of a repeatable option off argv: (values, the rest). */
+function takeRepeated(argv: string[], key: string): [string[], string[]] | null {
+  const values: string[] = [];
+  const rest: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === `--${key}`) {
+      if (i + 1 >= argv.length) return null;
+      values.push(argv[++i]);
+    } else if (argv[i].startsWith(`--${key}=`)) values.push(argv[i].slice(key.length + 3));
+    else rest.push(argv[i]);
+  }
+  return [values, rest];
+}
+
+async function contextCommand(argv: string[]): Promise<number> {
+  const split = takeRepeated(argv, "seed");
+  if (!split) return usage("--seed needs a note");
+  const [seeds, rest] = split;
+  const args = parseArgs(rest);
+  if (!args) return usage("arguments must be --key value pairs");
+  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json", "envelope"].includes(k));
+  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+  const vault = args.get("vault");
+  if (typeof vault !== "string" || !vault) return usage("--vault is required");
+  const cleaned = seeds.map((seed) => seed.trim());
+  if (cleaned.length === 0 || cleaned.some((seed) => !seed)) return usage("at least one --seed <note.md> is required");
+  const configDir = args.get("config-dir");
+  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const dbPath = join(pluginDir, DB_FILENAME);
+  if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
+  let loaded: unknown = {};
+  const dataPath = join(pluginDir, "data.json");
+  if (existsSync(dataPath)) {
+    try {
+      loaded = JSON.parse(readFileSync(dataPath, "utf8"));
+    } catch (err) {
+      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, true);
+    }
+  }
+  const wasmPath = join(pluginDir, "sql-wasm.wasm");
+  // The plugin's own merge of data.json with its defaults, so a value the owner never changed is the plugin's
+  const result = await contextFor(vault, migrateSettings(loaded), readFileSync(dbPath),
+    existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), [...new Set(cleaned)]);
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }

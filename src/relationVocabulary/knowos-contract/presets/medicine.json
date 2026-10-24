@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "name": "Medicine",
+  "terms": [
+    {
+      "key": "medTreats",
+      "label": "TREATS",
+      "term": "treats",
+      "category": "Clinical",
+      "bidirectional": false,
+      "reversed": false
+    },
+    {
+      "key": "medContraindicated",
+      "label": "CONTRAINDICATED_WITH",
+      "term": "is contraindicated with",
+      "category": "Clinical",
+      "bidirectional": true,
+      "reversed": false,
+      "repels": true
+    },
+    {
+      "key": "medCauses",
+      "label": "CAUSES",
+      "term": "causes",
+      "category": "Pathophysiology",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "N",
+        "subject": "new"
+      }
+    },
+    {
+      "key": "medDiagnosedBy",
+      "label": "DIAGNOSED_BY",
+      "term": "is diagnosed by",
+      "category": "Diagnostics",
+      "bidirectional": false,
+      "reversed": true
+    },
+    {
+      "key": "medRiskFactorFor",
+      "label": "RISK_FACTOR_FOR",
+      "term": "is risk factor for",
+      "category": "Epidemiology",
+      "bidirectional": false,
+      "reversed": false,
+      "canvas": {
+        "slot": "S",
+        "subject": "source"
+      }
+    }
+  ]
+}

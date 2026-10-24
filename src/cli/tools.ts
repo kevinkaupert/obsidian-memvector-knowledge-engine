@@ -2,8 +2,8 @@
  * Purpose: `memvector tools --json` (knowOS ADR-0014 §2, Plan 0017): the commands MemVector offers to agents (an MCP
  * server, Cortex), with call fields, a description for the model and JSON schemas for input and output.
  * Architecture: A caller builds its tools only from this list. `argv` follows `cli.js`; the caller adds
- * `--vault <vault>`; `args` maps an input property to its flag. Listed commands answer with the envelope
- * `{"v": 1, "outcome": "ok", "data": ...}` or `{"v": 1, "outcome": "error", "error": {"code", "message"}}`.
+ * `--vault <vault>`; `args` maps an input property to its flag (an array property gives the flag once per item).
+ * Listed commands answer with the envelope `{"v": 1, "outcome": "ok", "data": ...}` or `{"v": 1, "outcome": "error", "error": {"code", "message"}}`.
  */
 
 type Schema = Record<string, unknown>;
@@ -126,6 +126,76 @@ export const TOOLS: AgentTool[] = [
               title: { type: "string" },
               description: { type: "string" },
             },
+          },
+        },
+      },
+    }),
+  },
+  {
+    name: "context",
+    argv: ["context", "--json"],
+    args: { seeds: "--seed" },
+    stdin: false,
+    effect: "read",
+    description:
+      "Assemble the context MemVector's synthesis would use around notes the user named: notes close in meaning to " +
+      "them (vector) and notes linked to them up to the configured hop depth (graph), each with its text, plus the " +
+      "typed relations among them. Call it only with notes the user named as [[Note]] in the chat; when a search hit " +
+      "looks like a good starting point, ask the user before using it as a seed. Limits come from MemVector's " +
+      "settings. channels says whether each retrieval leg was ready, unindexed or failed.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["seeds"],
+      properties: {
+        seeds: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string" },
+          description: "vault-relative paths of the notes the user named, e.g. [\"concepts/Basis.md\"]",
+        },
+      },
+    },
+    output: envelopeSchema({
+      type: "object",
+      required: ["parameters", "index", "seeds", "channels", "hits", "relations"],
+      properties: {
+        parameters: { type: "object", description: "each limit used, with its value and source (settings)" },
+        index: {
+          type: "object",
+          required: ["model", "fingerprint", "indexed"],
+          properties: { model: { type: "string" }, fingerprint: { type: "string" }, indexed: { type: "integer" } },
+        },
+        seeds: {
+          type: "array",
+          items: { type: "object", required: ["path", "title"], properties: { path: { type: "string" }, title: { type: "string" } } },
+        },
+        channels: {
+          type: "object",
+          required: ["vector", "graph"],
+          properties: { vector: { enum: ["ready", "unindexed", "error"] }, graph: { enum: ["ready", "unindexed", "error"] } },
+        },
+        hits: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["path", "title", "origin", "hops", "similarity", "excerpt"],
+            properties: {
+              path: { type: "string" },
+              title: { type: "string" },
+              origin: { enum: ["both", "vector", "graph"] },
+              hops: { type: ["integer", "null"] },
+              similarity: { type: ["number", "null"] },
+              excerpt: { type: "string", description: "the note's text, cut at the synthesis content cap (0 = whole)" },
+            },
+          },
+        },
+        relations: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["from", "to", "type", "description"],
+            properties: { from: { type: "string" }, to: { type: "string" }, type: { type: "string" }, description: { type: "string" } },
           },
         },
       },

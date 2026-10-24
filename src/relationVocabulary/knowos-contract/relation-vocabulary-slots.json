@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "slots": [
+    {
+      "id": "N",
+      "row": 0,
+      "col": 1,
+      "short": "↑",
+      "position": "above",
+      "meaning": "ground: what one needs before",
+      "de": "Grundlage",
+      "en": "ground",
+      "color": "5",
+      "sides": {
+        "source": "top",
+        "new": "bottom"
+      }
+    },
+    {
+      "id": "S",
+      "row": 1,
+      "col": 1,
+      "short": "↓",
+      "position": "below",
+      "meaning": "consequence: what follows",
+      "de": "Folge",
+      "en": "consequence",
+      "color": "2",
+      "sides": {
+        "source": "bottom",
+        "new": "top"
+      }
+    },
+    {
+      "id": "E-up",
+      "row": 0,
+      "col": 2,
+      "short": "↗",
+      "position": "right, upper",
+      "meaning": "more general",
+      "de": "allgemeiner",
+      "en": "more general",
+      "color": "3",
+      "sides": {
+        "source": "right",
+        "new": "left"
+      }
+    },
+    {
+      "id": "E-down",
+      "row": 1,
+      "col": 2,
+      "short": "↘",
+      "position": "right, lower",
+      "meaning": "more concrete, an example",
+      "de": "Beispiel",
+      "en": "example",
+      "color": "4",
+      "sides": {
+        "source": "right",
+        "new": "left"
+      }
+    },
+    {
+      "id": "W-up",
+      "row": 0,
+      "col": 0,
+      "short": "↖",
+      "position": "left, upper",
+      "meaning": "why it is so",
+      "de": "warum so",
+      "en": "why so",
+      "color": "6",
+      "sides": {
+        "source": "left",
+        "new": "right"
+      }
+    },
+    {
+      "id": "W-down",
+      "row": 1,
+      "col": 0,
+      "short": "↙",
+      "position": "left, lower",
+      "meaning": "why it is not so, an objection",
+      "de": "warum nicht",
+      "en": "why not",
+      "color": "1",
+      "sides": {
+        "source": "left",
+        "new": "right"
+      }
+    }
+  ]
+}
