@@ -140,6 +140,21 @@ Answers `{"v":1,"outcome":"ok","data":{"note":...,"title":...,"neighbors":[{"typ
 from the graph the plugin stored (relation notes and typed links); reads only. Errors: `NOTE_NOT_INDEXED`,
 `INDEX_MISSING`, `INDEX_UNREADABLE`.
 
+### `context`
+
+```sh
+node cli.js context --vault /path/to/vault --seed concepts/Basis.md --seed "Fragmente/Gruppe (Definition).md" --json
+```
+
+Answers `{"v":1,"outcome":"ok","data":{"parameters":{"synthesisHopDepth":{"value":2,"source":"settings"},...},
+"index":{"model","fingerprint","indexed"},"seeds":[...],"channels":{"vector":"ready","graph":"ready"},
+"hits":[{"path","title","origin":"vector|graph|both","hops","similarity","excerpt"}],"relations":[{"from","to","type","description"}]}}`:
+what the synthesis would put into its prompt for these notes, with the limits of the plugin's settings
+(`synthesisHopDepth`, `hopLevelNeighborLimit`, `vectorNeighborLimit`, `minVectorSimilarity`, `totalContextLimit`,
+`synthesisContentCapChars`; the plugin's defaults for values `data.json` does not set). The vector leg uses the seeds'
+stored embeddings, no embedding call. Reads only. Errors: `SEED_NOT_FOUND`, `INDEX_MISSING`, `INDEX_UNREADABLE`,
+`SETTINGS_UNREADABLE`.
+
 ### Agent tools
 
 `node cli.js tools --json` lists the commands offered to agents (knowOS ADR-0014): call fields (`argv`, `args`),
