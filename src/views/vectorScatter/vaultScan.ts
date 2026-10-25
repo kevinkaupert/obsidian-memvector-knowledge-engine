@@ -53,12 +53,12 @@ export function cachedFrontmatterType(app: App, file: TFile): string | undefined
 export async function buildScatterNode(app: App, file: TFile): Promise<ScatterNode> {
   const fm = app.metadataCache?.getFileCache(file)?.frontmatter;
   const content = await app.vault.cachedRead(file);
-  let type: ScatterNoteType = "concept";
+  let type: ScatterNoteType = ""; // untyped stays untyped (knowOS ADR-0016); was "concept"
   let title = file.basename;
 
   if (fm) {
     if (typeof fm.type === "string" && fm.type.trim()) {
-      type = fm.type.trim().toLowerCase() as ScatterNoteType;
+      type = fm.type.trim().toLowerCase();
     }
     if (typeof fm.title === "string" && fm.title.trim()) {
       title = fm.title.trim().replace(/^['"]|['"]$/g, "");
@@ -68,7 +68,7 @@ export async function buildScatterNode(app: App, file: TFile): Promise<ScatterNo
     if (frontmatterMatch) {
       const yaml = frontmatterMatch[1];
       const typeMatch = yaml.match(/^type:\s*(.+)$/m);
-      if (typeMatch) type = typeMatch[1].trim().toLowerCase() as ScatterNoteType;
+      if (typeMatch) type = typeMatch[1].trim().replace(/^['"]|['"]$/g, "").toLowerCase();
       const titleMatch = yaml.match(/^title:\s*(.+)$/m);
       if (titleMatch) title = titleMatch[1].trim().replace(/^['"]|['"]$/g, "");
     }

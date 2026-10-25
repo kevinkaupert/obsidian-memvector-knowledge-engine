@@ -8,6 +8,18 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.17] - 2026-10-25
+
+### Changed
+
+- Note colors in the 2D view ("Muted Type Colors") and the sidebar radar come from the knowOS kinds file (ADR-0016,
+  knowOS Plan 0021 steps 3-4): `knowos.json` `note_kinds`, else the bundled `src/noteKinds/knowos-contract/note-kinds.json`.
+  `hub` (former `concept` gold), `relation` and `synthesis` keep fixed colors; other values (`concept`, `course`,
+  `question`, `source`) and untyped notes are neutral. Both views use one palette now.
+- The radar reads the frontmatter `type` instead of guessing it from folder or file names; untyped notes are no longer
+  shown as `concept` in either view. A quoted `type` is read the same with and without Obsidian's metadata cache.
+- New relation notes no longer get `verified: null` (vault schema 2); an existing `verified` stays.
+
 ## [0.3.16] - 2026-10-24
 
 ### Added

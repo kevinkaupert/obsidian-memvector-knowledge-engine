@@ -5,18 +5,9 @@
  * onto the same RadarNode objects the hover and click handlers hit-test.
  */
 
+import { noteTypeColor } from "../../noteKinds/noteKinds";
 import type { RadarNode } from "./radarGeometry";
 
-const TYPE_COLORS: Record<string, string> = {
-  definition: "#3b82f6",
-  theorem: "#10b981",
-  concept: "#f59e0b",
-  relation: "#8b5cf6",
-  synthesis: "#ec4899",
-  course: "#6366f1",
-  question: "#ef4444",
-  source: "#6b7280",
-};
 
 export interface RadarState {
   zoom: number;
@@ -105,7 +96,7 @@ export function drawRadar(spec: RadarSpec, state: RadarState): void {
     const dotRadius = Math.max(3.5, 5 * Math.sqrt(state.zoom));
     ctx.beginPath();
     ctx.arc(node.x, node.y, dotRadius, 0, Math.PI * 2);
-    ctx.fillStyle = TYPE_COLORS[node.type] || "#94a3b8";
+    ctx.fillStyle = noteTypeColor(node.type);
     ctx.fill();
     ctx.strokeStyle = "rgba(15, 23, 42, 0.8)";
     ctx.lineWidth = 1;

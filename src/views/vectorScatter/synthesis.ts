@@ -115,7 +115,7 @@ export function buildPrompt(
 
   const notesSummary = selected
     .map(
-      (n, idx) => `### ${noteLabel} ${idx + 1}: ${n.title} (${n.type})
+      (n, idx) => `### ${noteLabel} ${idx + 1}: ${n.title}${n.type ? ` (${n.type})` : ""}
 ${pathLabel}: ${n.path}
 ${n.latexFormulas && n.latexFormulas.length > 0 ? `Formeln: ${n.latexFormulas.slice(0, isFrontier ? 10 : 3).map((f) => `$${f}$`).join(", ")}\n` : ""}${excerptLabel}:
 ${capText(n.fullContent, contentCapChars)}`

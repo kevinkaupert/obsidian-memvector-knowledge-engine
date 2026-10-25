@@ -5,17 +5,8 @@ import type { PanState } from "../hitTesting";
 import { worldToScreen } from "../hitTesting";
 import { createLabelPlacer, type LabelPlacer } from "./labelPlacement";
 import { isNodeInViewport, type ViewportBounds } from "./viewportCulling";
+import { noteTypeColor } from "../../../noteKinds/noteKinds";
 
-const TYPE_COLORS_MUTED: Record<string, string> = {
-  definition: "#6f93c9",
-  theorem: "#6fae8e",
-  concept: "#c9a25e",
-  relation: "#a897c9",
-  synthesis: "#c98fae",
-  course: "#8890c9",
-  question: "#c98f8f",
-  source: "#9098a3",
-};
 
 const NEUTRAL_DOT = "#8a8f97";
 const NEUTRAL_RING = "rgba(148, 163, 184, 0.6)";
@@ -142,7 +133,7 @@ export function drawNodes(ctx: CanvasRenderingContext2D, options: DrawNodesOptio
       }
     } else {
       if (isActive) drawHalo(ctx, pos.x, pos.y, radius + 6, themeAccent);
-      const fill = isActive ? themeAccent : style === "muted" ? TYPE_COLORS_MUTED[node.type] || NEUTRAL_DOT : NEUTRAL_DOT;
+      const fill = isActive ? themeAccent : style === "muted" ? noteTypeColor(node.type) : NEUTRAL_DOT;
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = fill;
