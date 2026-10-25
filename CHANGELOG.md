@@ -8,6 +8,13 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.18] - 2026-10-25
+
+### Changed
+
+- `cli.js tools`: the `search --type` description gives `definition or hub` as examples instead of `concept`, which
+  is no longer written to new notes (knowOS ADR-0016, Plan 0021 step 4); knowos-mcp forwards it to agents.
+
 ## [0.3.17] - 2026-10-25
 
 ### Changed
