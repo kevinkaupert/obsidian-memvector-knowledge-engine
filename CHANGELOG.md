@@ -8,6 +8,13 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.19] - 2026-10-25
+
+### Changed
+
+- The bundled knowOS kinds file follows knowOS (optional `expected_with` for Jovian's gap check, knowOS Plan 0022);
+  MemVector ignores the field, colors are unchanged.
+
 ## [0.3.18] - 2026-10-25
 
 ### Changed

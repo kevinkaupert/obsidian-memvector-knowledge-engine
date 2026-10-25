@@ -5,9 +5,9 @@
     { "type": "definition", "name": "Definition", "hub_section": "Definition", "color": "#6f93c9" },
     { "type": "axiom", "name": "Axiom", "hub_section": "Axiome", "color": "#c97f6f" },
     { "type": "theorem", "name": "Satz", "aliases": ["Voraussetzung", "Behauptung"], "hub_section": "Sätze", "color": "#6fae8e" },
-    { "type": "proof", "name": "Beweis", "aliases": ["Beweisschritt"], "hub_section": "Beweise", "color": "#7fb3c9" },
-    { "type": "example", "name": "Beispiel", "hub_section": "Beispiele", "color": "#b3c96f" },
-    { "type": "counterexample", "name": "Gegenbeispiel", "hub_section": "Gegenbeispiele", "color": "#c96f9b" },
+    { "type": "proof", "name": "Beweis", "aliases": ["Beweisschritt"], "hub_section": "Beweise", "color": "#7fb3c9", "expected_with": ["theorem"] },
+    { "type": "example", "name": "Beispiel", "hub_section": "Beispiele", "color": "#b3c96f", "expected_with": ["definition"] },
+    { "type": "counterexample", "name": "Gegenbeispiel", "hub_section": "Gegenbeispiele", "color": "#c96f9b", "expected_with": ["definition"] },
     { "type": "remark", "name": "Bemerkung", "hub_section": "Bemerkungen", "color": "#b8a07a" }
   ]
 }
