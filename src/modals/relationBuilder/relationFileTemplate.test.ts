@@ -172,3 +172,11 @@ describe("buildRelationFileContent and the knowOS vault schema (#248)", () => {
     expect(parsed.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
   });
 });
+
+describe("vault schema 2 (knowOS Plan 0021)", () => {
+  it("a new relation note has no verified field", () => {
+    const content = buildRelationFileContent(edge(), "", getTranslation("de"));
+    expect(content).not.toMatch(/^verified:/m);
+    expect(content).toMatch(/^status: /m);
+  });
+});

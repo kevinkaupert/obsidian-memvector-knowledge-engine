@@ -230,7 +230,7 @@ export class RelationBuilderModal extends Modal {
       attr: { style: "flex: 1; padding: 6px 12px; font-size: 0.85em; border-radius: 6px; background: var(--background-primary); color: var(--text-normal); border: 1px solid var(--background-modifier-border);" },
     });
     this.selectedNodes.forEach((n, idx) => {
-      const opt = focalSelect.createEl("option", { text: `[${n.type.toUpperCase()}] ${n.title}`, value: String(idx) });
+      const opt = focalSelect.createEl("option", { text: n.type ? `[${n.type.toUpperCase()}] ${n.title}` : n.title, value: String(idx) });
       if (idx === this.focalIndex) opt.selected = true;
     });
     focalSelect.onchange = () => {

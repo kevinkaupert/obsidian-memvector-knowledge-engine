@@ -1,5 +1,6 @@
-import { Plugin, TFile, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import { Notice, Plugin, TFile, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import { activeVocabularyFromKnowos, KNOWOS_FILE, migrateActiveVocabulary } from "./relationVocabulary/suiteContract";
+import { activeKindColors, kindsPathFromKnowos, resolveKindColors, setActiveKindColors, type ActiveKindColors } from "./noteKinds/noteKinds";
 import { resolveVocabularyPath } from "./vaultLayout";
 import { MathWikiSettingTab } from "./settings/SettingTab";
 import { migrateSecretsToSecretStorage, migrateSettings } from "./settings/secrets";
@@ -20,6 +21,7 @@ export default class MemVectorPlugin extends Plugin {
   vaultIndexer: VaultIndexingPipeline | null = null;
   private sidebarView: MathWikiSidebarView | null = null;
   private sidebarDebounceTimer: number | null = null;
+  private kindsProblemShown = "";
   /** Embedding fingerprint the open views were last hydrated for - see saveSettings. */
   private embeddingFingerprint = "";
 
@@ -57,6 +59,17 @@ export default class MemVectorPlugin extends Plugin {
     };
     this.registerEvent(this.app.vault.on("create", onKnowos));
     this.registerEvent(this.app.vault.on("modify", onKnowos));
+
+    // knowOS note kinds (ADR-0016): node colors follow the kinds file named in knowos.json, else the built-in kinds
+    this.app.workspace.onLayoutReady(() => void this.syncKindColors());
+    const onKindsFile = (file: TAbstractFile, oldPath?: string): void => {
+      const watched = [KNOWOS_FILE, activeKindColors().path];
+      if (watched.includes(file.path) || (oldPath !== undefined && watched.includes(oldPath))) void this.syncKindColors();
+    };
+    this.registerEvent(this.app.vault.on("create", (file) => onKindsFile(file)));
+    this.registerEvent(this.app.vault.on("modify", (file) => onKindsFile(file)));
+    this.registerEvent(this.app.vault.on("delete", (file) => onKindsFile(file)));
+    this.registerEvent(this.app.vault.on("rename", (file, oldPath) => onKindsFile(file, oldPath)));
 
     this.registerView(MATH_WIKI_VIEW_TYPE, (leaf: WorkspaceLeaf) => {
       const view = new MathWikiSidebarView(leaf, () => this.settings);
@@ -157,6 +170,40 @@ export default class MemVectorPlugin extends Plugin {
     } catch (err) {
       console.warn("MemVector: could not apply knowos.json / migrate the relation vocabulary:", err);
     }
+  }
+
+  /**
+   * Purpose: Resolves the node colors of the vault's kinds file and redraws the open views.
+   * Architecture: Read on layout ready and whenever knowos.json or the named kinds file is created, changed, deleted
+   * or renamed; an unusable file gives the built-in colors and is reported once per distinct problem.
+   */
+  private async syncKindColors(): Promise<void> {
+    let next: ActiveKindColors;
+    try {
+      const knowos = this.app.vault.getAbstractFileByPath(KNOWOS_FILE);
+      const raw = knowos instanceof TFile ? await this.app.vault.cachedRead(knowos) : null;
+      const { path, problem } = kindsPathFromKnowos(raw);
+      const file = path ? this.app.vault.getAbstractFileByPath(path) : null;
+      let data: unknown = undefined;
+      if (file instanceof TFile) {
+        try {
+          data = JSON.parse(await this.app.vault.cachedRead(file));
+        } catch {
+          data = "not valid JSON";
+        }
+      }
+      next = resolveKindColors(path, data, problem);
+    } catch (err) {
+      next = resolveKindColors(null, undefined, err instanceof Error ? err.message : String(err));
+    }
+    setActiveKindColors(next);
+    if (next.problem && next.problem !== this.kindsProblemShown) {
+      this.kindsProblemShown = next.problem;
+      console.warn(`MemVector: kinds file not usable, the built-in colors apply: ${next.problem}`);
+      new Notice(`MemVector: Arten-Datei nicht nutzbar, die eingebauten Farben gelten. ${next.problem}`, 10000);
+    }
+    if (!next.problem) this.kindsProblemShown = "";
+    this.applySettingsToOpenViews();
   }
 
   async loadSettings(): Promise<void> {

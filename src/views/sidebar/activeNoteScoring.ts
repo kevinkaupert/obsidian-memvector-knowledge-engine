@@ -8,15 +8,8 @@ export interface NoteFileLike {
   basename: string;
 }
 
-export type RadarNoteType =
-  | "definition"
-  | "theorem"
-  | "concept"
-  | "relation"
-  | "synthesis"
-  | "course"
-  | "question"
-  | "source";
+/** A note's frontmatter `type`, lowercased; "relation" for relation notes; "" when it has none. */
+export type RadarNoteType = string;
 
 export interface ScoredNote {
   file: NoteFileLike;
@@ -35,15 +28,14 @@ export function shouldExcludeFromRadar(file: NoteFileLike, exclusions?: string):
   return file.path.includes("schema") || EXCLUDED_NAME_SUBSTRINGS.some((s) => file.name.includes(s));
 }
 
-export function classifyNoteType(path: string, name: string, frontmatterType?: unknown, relationsFolder?: string): RadarNoteType {
+/**
+ * Purpose: The radar type of a note: `relation` for relation notes (folder rule), else its frontmatter `type`.
+ * Architecture: No guess from folder or file names (knowOS ADR-0016): an untyped note is "" and drawn neutrally, the
+ * same as in the 2D view. `name` is kept for callers.
+ */
+export function classifyNoteType(path: string, _name: string, frontmatterType?: unknown, relationsFolder?: string): RadarNoteType {
   if (isRelationNote(path, frontmatterType, relationsFolder)) return "relation";
-  if (path.includes("/definitions/") || name.includes("def-")) return "definition";
-  if (path.includes("/theorems/") || name.includes("satz-") || name.includes("theorem-")) return "theorem";
-  if (path.includes("/synthesis/")) return "synthesis";
-  if (path.includes("/courses/")) return "course";
-  if (path.includes("/questions/")) return "question";
-  if (path.includes("/sources/") || path.includes("raw/")) return "source";
-  return "concept";
+  return typeof frontmatterType === "string" ? frontmatterType.trim().replace(/^['"]|['"]$/g, "").toLowerCase() : "";
 }
 
 export function extractWords(content: string): Set<string> {

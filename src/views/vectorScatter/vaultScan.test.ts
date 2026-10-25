@@ -135,3 +135,20 @@ describe("scanVaultNotes two-tier filtering (Issue #45)", () => {
   });
 });
 
+
+describe("note type for colors (knowOS ADR-0016)", () => {
+  it("an untyped note stays untyped and a quoted type is read the same with and without metadata cache", async () => {
+    const files = [
+      { path: "Fragmente/a.md", basename: "a", content: "---\ntype: \"Definition\"\n---\n# A" },
+      { path: "Fragmente/b.md", basename: "b", content: "# B\nno frontmatter" },
+      { path: "Fragmente/c.md", basename: "c", content: "---\ntype: 'proof'\n---\n# C" },
+    ];
+    const nodes = await scanVaultNotes(makeMockApp(files), "", "");
+    expect(nodes.map((n) => n.type).sort()).toEqual(["", "definition", "proof"]);
+    const cached = makeMockApp(files);
+    (cached.metadataCache as unknown as { getFileCache: (f: TFile) => unknown }).getFileCache = (f: TFile) =>
+      f.path === "Fragmente/a.md" ? { frontmatter: { type: "Definition" } } : null;
+    const withCache = await scanVaultNotes(cached, "", "");
+    expect(withCache.map((n) => n.type).sort()).toEqual(["", "definition", "proof"]);
+  });
+});

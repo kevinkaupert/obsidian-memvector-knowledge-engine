@@ -199,6 +199,18 @@ Alpha beweist Beta direkt.
     expect(updated).toContain("## Custom User Section\nHere are user-specific reflections.");
   });
 
+  it("keeps an existing verified value when a relation note is edited (vault schema 2 writes none)", async () => {
+    for (const [verified, value] of [["null", null], ['"2026-01-01"', "2026-01-01"]] as const) {
+      const path = "wiki/relations/rel-alpha-to-beta.md";
+      const existing = existingRelationNote.replace("type: relation\n", `type: relation\nverified: ${verified}\n`);
+      const { app, files } = createMockApp({ [path]: existing });
+      await writeRelationFile(app, path, freshlyGeneratedNote, path);
+      const fm = parseFrontmatter(files.get(path)!);
+      expect(fm && "verified" in fm).toBe(true);
+      expect(String(fm?.verified ?? null)).toBe(String(value));
+    }
+  });
+
   it("preserves foreign frontmatter and custom body when renaming/moving a relation", async () => {
     const oldPath = "wiki/relations/rel-alpha-to-beta-requires.md";
     const newPath = "wiki/relations/rel-alpha-to-beta-proves.md";

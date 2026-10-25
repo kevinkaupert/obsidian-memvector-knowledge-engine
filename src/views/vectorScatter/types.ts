@@ -1,13 +1,6 @@
 import { isRelationNote } from "../../relationNotes";
-export type ScatterNoteType =
-  | "definition"
-  | "theorem"
-  | "concept"
-  | "relation"
-  | "synthesis"
-  | "course"
-  | "question"
-  | "source";
+/** A note's frontmatter `type`, lowercased; "" when it has none (knowOS ADR-0016: untyped notes stay untyped). */
+export type ScatterNoteType = string;
 
 export interface ScatterNode {
   /** Storage/retrieval key of the note - see noteKey.ts (frontmatter ULID, else noteSlug.ts::pathToId). Never write this as literal WikiLink text. */

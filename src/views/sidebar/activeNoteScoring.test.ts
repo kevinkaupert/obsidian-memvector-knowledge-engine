@@ -32,14 +32,17 @@ describe("shouldExcludeFromRadar", () => {
 });
 
 describe("classifyNoteType", () => {
-  it("classifies by folder convention first", () => {
-    expect(classifyNoteType("wiki/definitions/koerper.md", "koerper.md")).toBe("definition");
-    expect(classifyNoteType("wiki/theorems/satz-1.md", "satz-1.md")).toBe("theorem");
+  it("reads the frontmatter type and guesses nothing from folders or names (knowOS ADR-0016)", () => {
+    expect(classifyNoteType("wiki/definitions/koerper.md", "koerper.md")).toBe("");
+    expect(classifyNoteType("wiki/theorems/satz-1.md", "satz-1.md")).toBe("");
+    expect(classifyNoteType("wiki/definitions/koerper.md", "koerper.md", "Definition")).toBe("definition");
+    expect(classifyNoteType("Fragmente/x.md", "x.md", '"proof"')).toBe("proof");
     expect(classifyNoteType("wiki/relations/rel-a-b.md", "rel-a-b.md")).toBe("relation");
   });
 
-  it("defaults to concept", () => {
-    expect(classifyNoteType("wiki/misc/foo.md", "foo.md")).toBe("concept");
+  it("an untyped note is untyped, not concept", () => {
+    expect(classifyNoteType("wiki/misc/foo.md", "foo.md")).toBe("");
+    expect(classifyNoteType("wiki/misc/foo.md", "foo.md", 3)).toBe("");
   });
 });
 

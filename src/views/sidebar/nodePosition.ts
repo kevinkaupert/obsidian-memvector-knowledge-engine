@@ -68,7 +68,7 @@ function pseudoPosition(file: NoteFileLike, content: string): Position2D {
   let type: RadarNoteType = "concept";
   if (frontmatterMatch) {
     const typeMatch = frontmatterMatch[1].match(/^type:\s*(.+)$/m);
-    if (typeMatch) type = typeMatch[1].trim().toLowerCase() as RadarNoteType;
+    if (typeMatch) type = typeMatch[1].trim().toLowerCase();
   }
 
   const latexMatches = [...content.matchAll(/\$\$?([\s\S]+?)\$\$?/g)].map((m) => m[1].trim());

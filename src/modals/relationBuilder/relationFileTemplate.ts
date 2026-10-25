@@ -66,7 +66,6 @@ export function buildRelationFileContent(
       by: "user",
       at: new Date().toISOString(),
     },
-    verified: null,
     relation_type: edge.label,
     original_term: edge.originalTerm,
     bidirectional: edge.bidirectional,
