@@ -60,7 +60,7 @@ export const TOOLS: AgentTool[] = [
         query: { type: "string", description: "the question or concept, in the words of the vault's language" },
         limit: { type: "integer", minimum: 1, description: "number of hits, default 20" },
         folder: { type: "string", description: "only notes below this vault-relative folder" },
-        type: { type: "string", description: "only notes with this frontmatter type, e.g. concept" },
+        type: { type: "string", description: "only notes with this frontmatter type, e.g. definition or hub" },
       },
     },
     output: envelopeSchema({
