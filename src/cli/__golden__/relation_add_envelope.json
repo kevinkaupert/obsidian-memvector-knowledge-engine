@@ -1,0 +1,20 @@
+{
+  "args": [
+    "relation",
+    "add",
+    "--vault",
+    "<VAULT>",
+    "--json",
+    "--envelope"
+  ],
+  "exit": 0,
+  "stdout": {
+    "v": 1,
+    "outcome": "ok",
+    "data": {
+      "path": "wiki/relations/rel-wiki-ventil-to-wiki-dichtung-requires-0f55403909b2eb332499ba5c7d9fa943f129a5607bae9ce7663a8b8115be96de.md",
+      "created": true
+    }
+  },
+  "stderr": ""
+}

@@ -1,0 +1,40 @@
+{
+  "args": [
+    "graph",
+    "neighbors",
+    "--vault",
+    "<VAULT>",
+    "--note",
+    "wiki/Ventil.md",
+    "--json"
+  ],
+  "exit": 0,
+  "stdout": {
+    "v": 1,
+    "outcome": "ok",
+    "data": {
+      "note": "wiki/Ventil.md",
+      "title": "Ventil",
+      "neighbors": [
+        {
+          "type": "EXAMPLE_OF",
+          "description": "",
+          "bidirectional": false,
+          "direction": "in",
+          "path": "wiki/Heizkreis.md",
+          "title": "Heizkreis"
+        },
+        {
+          "type": "REQUIRES",
+          "description": "braucht eine Dichtung",
+          "bidirectional": false,
+          "direction": "out",
+          "path": "wiki/Dichtung.md",
+          "title": "Dichtung"
+        }
+      ],
+      "truncated": false
+    }
+  },
+  "stderr": ""
+}
