@@ -1,0 +1,113 @@
+{
+  "args": [
+    "context",
+    "--vault",
+    "<VAULT>",
+    "--seed",
+    "wiki/Ventil.md",
+    "--json"
+  ],
+  "exit": 0,
+  "stdout": {
+    "v": 1,
+    "outcome": "ok",
+    "data": {
+      "parameters": {
+        "synthesisHopDepth": {
+          "value": 2,
+          "source": "settings"
+        },
+        "hopLevelNeighborLimit": {
+          "value": 2,
+          "source": "settings"
+        },
+        "vectorNeighborLimit": {
+          "value": 2,
+          "source": "settings"
+        },
+        "minVectorSimilarity": {
+          "value": 0.75,
+          "source": "settings"
+        },
+        "totalContextLimit": {
+          "value": 0,
+          "source": "settings"
+        },
+        "synthesisContentCapChars": {
+          "value": 0,
+          "source": "settings"
+        }
+      },
+      "index": {
+        "model": "bge-m3",
+        "fingerprint": "bge-m3@<STUB>",
+        "indexed": 5
+      },
+      "seeds": [
+        {
+          "path": "wiki/Ventil.md",
+          "title": "Ventil"
+        }
+      ],
+      "channels": {
+        "vector": "ready",
+        "graph": "ready"
+      },
+      "hits": [
+        {
+          "path": "wiki/Heizkreis.md",
+          "title": "Heizkreis",
+          "origin": "both",
+          "hops": 1,
+          "similarity": 0.9986178293325098,
+          "excerpt": "# Heizkreis\n\nText über Heizkreis und seine Teile.\n"
+        },
+        {
+          "path": "Fragmente/Pumpe.md",
+          "title": "Pumpe",
+          "origin": "vector",
+          "hops": null,
+          "similarity": 0.9938837346736189,
+          "excerpt": "# Pumpe\n\nText über Pumpe und seine Teile.\n"
+        },
+        {
+          "path": "wiki/Dichtung.md",
+          "title": "Dichtung",
+          "origin": "graph",
+          "hops": 1,
+          "similarity": null,
+          "excerpt": "# Dichtung\n\nText über Dichtung und seine Teile.\n"
+        },
+        {
+          "path": "wiki/Gummi.md",
+          "title": "Gummi",
+          "origin": "graph",
+          "hops": 2,
+          "similarity": null,
+          "excerpt": "# Gummi\n\nText über Gummi und seine Teile.\n"
+        }
+      ],
+      "relations": [
+        {
+          "from": "wiki/Dichtung.md",
+          "to": "wiki/Gummi.md",
+          "type": "REQUIRES",
+          "description": ""
+        },
+        {
+          "from": "wiki/Heizkreis.md",
+          "to": "wiki/Ventil.md",
+          "type": "EXAMPLE_OF",
+          "description": ""
+        },
+        {
+          "from": "wiki/Ventil.md",
+          "to": "wiki/Dichtung.md",
+          "type": "REQUIRES",
+          "description": "braucht eine Dichtung"
+        }
+      ]
+    }
+  },
+  "stderr": ""
+}

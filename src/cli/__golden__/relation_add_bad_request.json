@@ -1,0 +1,16 @@
+{
+  "args": [
+    "relation",
+    "add",
+    "--vault",
+    "<VAULT>",
+    "--json"
+  ],
+  "exit": 1,
+  "stdout": {
+    "outcome": "error",
+    "code": "INVALID_REQUEST",
+    "error": "stdin is not one JSON request."
+  },
+  "stderr": ""
+}

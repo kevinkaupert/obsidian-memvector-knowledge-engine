@@ -1,0 +1,17 @@
+{
+  "args": [
+    "--version"
+  ],
+  "exit": 0,
+  "stdout": {
+    "memvector": "<VERSION>",
+    "commands": [
+      "search",
+      "relation add",
+      "graph neighbors",
+      "context",
+      "tools"
+    ]
+  },
+  "stderr": ""
+}

@@ -8,6 +8,17 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.20] - 2026-10-26
+
+### Added
+
+- Golden tests of today's CLI (knowOS Plan 0023 phase 1 step 1): `src/cli/golden.test.ts` runs the committed
+  `cli.js` as a subprocess in 26 cases (`--version`, help, usage errors, `tools`, `search` with and without
+  `--envelope`, folder, type and instruction filters, missing index, failing embeddings, `graph neighbors`,
+  `context` with one and two seeds, `relation add` with preview, envelope, gate error and a bad request) against a
+  temporary vault with a real index, a local embedding stub and a gate stand-in, and compares exit code, stdout and
+  stderr with `src/cli/__golden__/`. `MEMVECTOR_UPDATE_GOLDEN=1` rewrites them.
+
 ## [0.3.19] - 2026-10-25
 
 ### Changed
