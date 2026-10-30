@@ -8,6 +8,18 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.21] - 2026-10-30
+
+### Added
+
+- CLI grammar migration (knowOS Plan 0023 Phase 2a, ADR-0017):
+  - `memvector note search <query>` (replacing `memvector search --query`) with positional query and envelope output by default under `--json`.
+  - `memvector note read <note> --neighbors` (replacing `memvector graph neighbors --note`) with envelope output under `--json`.
+  - `memvector note read <seed1> <seed2> ... --context` (replacing `memvector context --seed ...`) with positional seeds and envelope output under `--json`.
+  - `memvector relation create` (replacing `memvector relation add`) with envelope output under `--json` and `--dry-run` preview support.
+  - Subcommand discovery via `note --commands` and `relation --commands`.
+  - Legacy commands retained with full backward compatibility.
+
 ## [0.3.20] - 2026-10-26
 
 ### Added

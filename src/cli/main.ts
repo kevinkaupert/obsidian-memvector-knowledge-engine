@@ -59,7 +59,7 @@ function parseArgs(argv: string[]): Map<string, string | true> | null {
     if (!arg.startsWith("--")) return null;
     const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
     if (inline !== undefined) args.set(key, inline);
-    else if (key === "json" || key === "envelope" || key === "version" || key === "help") args.set(key, true);
+    else if (key === "json" || key === "envelope" || key === "version" || key === "help" || key === "dry-run") args.set(key, true);
     else if (i + 1 < argv.length) args.set(key, argv[++i]);
     else return null;
   }
@@ -72,14 +72,20 @@ function usage(message: string): number {
 }
 
 function fail(code: string, error: string, envelope = false): number {
+  const isTimeout = code.includes("TIMEOUT") || code.includes("LOCK") || error.toLowerCase().includes("timed out") || error.toLowerCase().includes("lock");
+  const exitCode = isTimeout ? 3 : 1;
   const body = envelope ? { v: 1, outcome: "error", error: { code, message: error } } : { outcome: "error", code, error };
   process.stdout.write(`${JSON.stringify(body)}\n`);
-  return 1;
+  return exitCode;
 }
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
   if (command === "--version") {
+    if (rest.includes("--json")) {
+      process.stdout.write(`${JSON.stringify({ v: 1, outcome: "ok", data: { memvector: MEMVECTOR_VERSION, commands: ["note search", "note read", "relation create", "tools"] } })}\n`);
+      return 0;
+    }
     process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "graph neighbors", "context", "tools"] })}\n`);
     return 0;
   }
@@ -87,6 +93,7 @@ export async function main(argv: string[]): Promise<number> {
     process.stdout.write(`${USAGE}\n`);
     return command === undefined ? 2 : 0;
   }
+  if (command === "note") return noteCommand(rest);
   if (command === "relation") return relationCommand(rest);
   if (command === "graph") return graphCommand(rest);
   if (command === "context") return contextCommand(rest);
@@ -236,14 +243,305 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function parseCommandArgs(argv: string[]): { positionals: string[]; options: Map<string, string | true> } | null {
+  const positionals: string[] = [];
+  const options = new Map<string, string | true>();
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith("--")) {
+      const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
+      if (inline !== undefined) {
+        options.set(key, inline);
+      } else if (["json", "envelope", "version", "help", "neighbors", "context", "dry-run"].includes(key)) {
+        options.set(key, true);
+      } else if (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
+        options.set(key, argv[++i]);
+      } else {
+        return null;
+      }
+    } else {
+      positionals.push(arg);
+    }
+  }
+  return { positionals, options };
+}
+
+async function noteCommand(argv: string[]): Promise<number> {
+  const [sub, ...rest] = argv;
+  if (sub === "--commands") {
+    process.stdout.write(`${JSON.stringify({ commands: ["search", "read"] })}\n`);
+    return 0;
+  }
+  if (sub === undefined || sub === "--help" || sub === "-h") {
+    return usage("note takes 'search' or 'read'");
+  }
+  if (sub === "search") return noteSearchCommand(rest);
+  if (sub === "read") return noteReadCommand(rest);
+  return usage(`unknown note command '${sub}'`);
+}
+
+async function noteSearchCommand(argv: string[]): Promise<number> {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write("usage: memvector note search <query> --vault <path> [--limit 20] [--instruction <text>] [--folder <folder>] [--type <type>] [--config-dir .obsidian] [--json]\n");
+    return 0;
+  }
+  const parsed = parseCommandArgs(argv);
+  if (!parsed) return usage("arguments must be --key value pairs");
+  const { positionals, options } = parsed;
+  const known = new Set(["vault", "query", "limit", "instruction", "folder", "type", "config-dir", "json", "envelope"]);
+  const unknown = [...options.keys()].filter((k) => !known.has(k));
+  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+
+  const vault = options.get("vault");
+  if (typeof vault !== "string" || !vault) return usage("--vault is required");
+
+  let query = positionals.join(" ").trim();
+  if (!query && options.has("query")) {
+    const q = options.get("query");
+    if (typeof q === "string") query = q.trim();
+  }
+  if (!query) return usage("note search requires a query");
+
+  const limitRaw = options.get("limit") ?? "20";
+  const limit = Number(limitRaw);
+  if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
+
+  const instruction = options.get("instruction");
+  if (instruction !== undefined && (typeof instruction !== "string" || !instruction.trim())) return usage("--instruction needs a text");
+
+  const folder = options.get("folder");
+  if (folder !== undefined && (typeof folder !== "string" || !folder.trim())) return usage("--folder needs a folder");
+
+  const type = options.get("type");
+  if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
+
+  const isJson = options.get("json") === true;
+  const configDir = options.get("config-dir");
+  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+
+  const dbPath = join(pluginDir, DB_FILENAME);
+  if (!existsSync(dbPath)) {
+    if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
+    process.stderr.write(`[ERROR] No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.\n`);
+    return 1;
+  }
+
+  let settings: Record<string, unknown> = {};
+  const dataPath = join(pluginDir, "data.json");
+  if (existsSync(dataPath)) {
+    try {
+      settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
+    } catch (err) {
+      const msg = `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`;
+      if (isJson) return fail("SETTINGS_UNREADABLE", msg, true);
+      process.stderr.write(`[ERROR] ${msg}\n`);
+      return 1;
+    }
+  }
+
+  const wasmPath = join(pluginDir, "sql-wasm.wasm");
+  const result = await searchIndex(
+    {
+      settings: {
+        embeddingModel: typeof settings.embeddingModel === "string" ? settings.embeddingModel : undefined,
+        embeddingApiBaseUrl: typeof settings.embeddingApiBaseUrl === "string" ? settings.embeddingApiBaseUrl : undefined,
+      },
+      db: readFileSync(dbPath),
+      wasm: existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
+    },
+    query,
+    limit,
+    nodePost,
+    process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
+    typeof instruction === "string" ? instruction.trim() : undefined,
+    vaultReader(vault),
+    { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
+  );
+
+  if (isJson) {
+    process.stdout.write(`${JSON.stringify(searchEnvelope(result))}\n`);
+    return result.outcome === "ok" ? 0 : 1;
+  }
+
+  if (result.outcome === "ok") {
+    if (result.results.length === 0) {
+      process.stdout.write(`No hits for '${query}'.\n`);
+    } else {
+      const lines = result.results.map((r, i) => `${i + 1}. ${r.title} (${r.path}) [score: ${r.score.toFixed(3)}]\n   ${r.excerpt}`);
+      process.stdout.write(`${lines.join("\n\n")}\n`);
+    }
+    return 0;
+  } else {
+    process.stderr.write(`[ERROR] ${result.error}\n`);
+    return 1;
+  }
+}
+
+async function noteReadCommand(argv: string[]): Promise<number> {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    process.stdout.write("usage: memvector note read <note.md> --neighbors --vault <path> [--limit 100] [--config-dir .obsidian] [--json]\n       memvector note read <seed1.md> [<seed2.md> ...] --context --vault <path> [--config-dir .obsidian] [--json]\n");
+    return 0;
+  }
+  const splitSeeds = takeRepeated(argv, "seed");
+  const extraSeeds = splitSeeds ? splitSeeds[0] : [];
+  const argvWithoutSeeds = splitSeeds ? splitSeeds[1] : argv;
+  const parsed = parseCommandArgs(argvWithoutSeeds);
+  if (!parsed) return usage("arguments must be --key value pairs");
+  const { positionals, options } = parsed;
+
+  const hasNeighbors = options.get("neighbors") === true;
+  const hasContext = options.get("context") === true;
+  if (!hasNeighbors && !hasContext) {
+    return usage("note read requires --neighbors or --context");
+  }
+  if (hasNeighbors && hasContext) {
+    return usage("note read cannot take both --neighbors and --context");
+  }
+
+  if (hasNeighbors) {
+    const known = new Set(["vault", "note", "limit", "config-dir", "json", "envelope", "neighbors"]);
+    const unknown = [...options.keys()].filter((k) => !known.has(k));
+    if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+
+    const vault = options.get("vault");
+    if (typeof vault !== "string" || !vault) return usage("--vault is required");
+
+    let note = positionals[0];
+    if (!note && options.has("note")) {
+      const n = options.get("note");
+      if (typeof n === "string") note = n;
+    }
+    if (typeof note !== "string" || !note.trim()) return usage("--note is required");
+
+    const limitRaw = options.get("limit") ?? "100";
+    const limit = Number(limitRaw);
+    if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
+
+    const isJson = options.get("json") === true;
+    const configDir = options.get("config-dir");
+    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const dbPath = join(pluginDir, DB_FILENAME);
+    if (!existsSync(dbPath)) {
+      if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
+      process.stderr.write(`[ERROR] No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.\n`);
+      return 1;
+    }
+
+    const wasmPath = join(pluginDir, "sql-wasm.wasm");
+    const result = await graphNeighbors(
+      readFileSync(dbPath),
+      existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
+      note.trim(),
+      limit
+    );
+
+    if (isJson) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.outcome === "ok" ? 0 : 1;
+    }
+
+    if (result.outcome === "ok") {
+      if (result.data.neighbors.length === 0) {
+        process.stdout.write(`${result.data.title} (${result.data.note}) has no neighbors.\n`);
+      } else {
+        const lines = [`Neighbors of ${result.data.title} (${result.data.note}):`];
+        for (const n of result.data.neighbors) {
+          const dir = n.direction === "out" ? "->" : "<-";
+          lines.push(`  ${dir} [${n.type}] ${n.title} (${n.path})${n.description ? `: ${n.description}` : ""}`);
+        }
+        process.stdout.write(`${lines.join("\n")}\n`);
+      }
+      return 0;
+    } else {
+      process.stderr.write(`[ERROR] ${result.error.message}\n`);
+      return 1;
+    }
+  } else {
+    // context
+    const known = new Set(["vault", "config-dir", "json", "envelope", "context"]);
+    const unknown = [...options.keys()].filter((k) => !known.has(k));
+    if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
+
+    const vault = options.get("vault");
+    if (typeof vault !== "string" || !vault) return usage("--vault is required");
+
+    const seeds = [...positionals, ...extraSeeds].map((s) => s.trim()).filter(Boolean);
+    if (seeds.length === 0) return usage("at least one seed note is required");
+
+    const isJson = options.get("json") === true;
+    const configDir = options.get("config-dir");
+    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const dbPath = join(pluginDir, DB_FILENAME);
+    if (!existsSync(dbPath)) {
+      if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
+      process.stderr.write(`[ERROR] No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.\n`);
+      return 1;
+    }
+
+    let loaded: unknown = {};
+    const dataPath = join(pluginDir, "data.json");
+    if (existsSync(dataPath)) {
+      try {
+        loaded = JSON.parse(readFileSync(dataPath, "utf8"));
+      } catch (err) {
+        const msg = `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`;
+        if (isJson) return fail("SETTINGS_UNREADABLE", msg, true);
+        process.stderr.write(`[ERROR] ${msg}\n`);
+        return 1;
+      }
+    }
+
+    const wasmPath = join(pluginDir, "sql-wasm.wasm");
+    const result = await contextFor(
+      vault,
+      migrateSettings(loaded),
+      readFileSync(dbPath),
+      existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
+      [...new Set(seeds)]
+    );
+
+    if (isJson) {
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      return result.outcome === "ok" ? 0 : 1;
+    }
+
+    if (result.outcome === "ok") {
+      const lines = [
+        `Context for seeds: ${result.data.seeds.map((s) => `${s.title} (${s.path})`).join(", ")}`,
+        `Hits (${result.data.hits.length}):`,
+        ...result.data.hits.map((h) => `  - ${h.title} (${h.path}) [${h.origin}${h.similarity !== null ? `, sim: ${h.similarity.toFixed(3)}` : ""}${h.hops !== null ? `, hops: ${h.hops}` : ""}]`),
+      ];
+      if (result.data.relations.length > 0) {
+        lines.push(`Relations (${result.data.relations.length}):`);
+        for (const r of result.data.relations) {
+          lines.push(`  - ${r.from} --[${r.type}]--> ${r.to}${r.description ? ` (${r.description})` : ""}`);
+        }
+      }
+      process.stdout.write(`${lines.join("\n")}\n`);
+      return 0;
+    } else {
+      process.stderr.write(`[ERROR] ${result.error.message}\n`);
+      return 1;
+    }
+  }
+}
+
 async function relationCommand(argv: string[]): Promise<number> {
   // The gate runner uses window timers (Obsidian popout rule); Node has them on globalThis
   (globalThis as { window?: unknown }).window ??= globalThis;
   const [sub, ...rest] = argv;
-  if (sub !== "add") return usage(`unknown relation command '${sub ?? ""}'`);
+  if (sub === "--commands") {
+    process.stdout.write(`${JSON.stringify({ commands: ["create", "add"] })}\n`);
+    return 0;
+  }
+  if (sub !== "add" && sub !== "create") return usage(`unknown relation command '${sub ?? ""}'`);
+  const isCreate = sub === "create";
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
-  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json", "envelope"].includes(k));
+  const known = isCreate
+    ? ["vault", "config-dir", "json", "envelope", "dry-run"]
+    : ["vault", "config-dir", "json", "envelope"];
+  const unknown = [...args.keys()].filter((k) => !known.includes(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
@@ -254,16 +552,45 @@ async function relationCommand(argv: string[]): Promise<number> {
     try {
       settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
     } catch (err) {
-      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`);
+      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, isCreate);
     }
   }
   let request: unknown;
   try {
     request = JSON.parse(await readStdin());
   } catch {
-    return fail("INVALID_REQUEST", "stdin is not one JSON request.");
+    return fail("INVALID_REQUEST", "stdin is not one JSON request.", isCreate);
+  }
+  if (isCreate && args.get("dry-run") === true && request && typeof request === "object") {
+    (request as Record<string, unknown>).preview = true;
   }
   const result = await relationAdd(vault, request, settings, { spawn: gateSpawn, clientVersion: MEMVECTOR_VERSION });
+
+  const isJson = args.get("json") === true;
+  if (isCreate) {
+    const { outcome, code, error, ...data } = result;
+    const isTimeout = (code ?? "").includes("TIMEOUT") || (code ?? "").includes("LOCK") || (error ?? "").toLowerCase().includes("timed out") || (error ?? "").toLowerCase().includes("lock");
+    const exitCode = outcome === "ok" ? 0 : (isTimeout ? 3 : 1);
+    if (isJson) {
+      const body = outcome === "ok" ? { v: 1, outcome, data } : { v: 1, outcome, error: { code: code ?? "FAILED", message: error ?? "" } };
+      process.stdout.write(`${JSON.stringify(body)}\n`);
+      return exitCode;
+    }
+    if (outcome === "ok") {
+      if (data.preview) {
+        process.stdout.write(`Relation preview created for ${data.path} (id: ${(data.preview as { preview_id?: string })?.preview_id ?? ""})\n`);
+      } else if (data.created) {
+        process.stdout.write(`Relation created: ${data.path}\n`);
+      } else {
+        process.stdout.write(`Relation already exists: ${data.path}\n`);
+      }
+      return 0;
+    } else {
+      process.stderr.write(`[ERROR] ${error ?? "Failed to create relation"}\n`);
+      return exitCode;
+    }
+  }
+
   if (args.get("envelope") === true) {
     const { outcome, code, error, ...data } = result;
     const body = outcome === "ok" ? { v: 1, outcome, data } : { v: 1, outcome, error: { code: code ?? "FAILED", message: error ?? "" } };
