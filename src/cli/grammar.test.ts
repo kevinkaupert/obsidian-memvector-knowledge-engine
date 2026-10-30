@@ -53,6 +53,7 @@ process.stdin.on("data", (c) => { input += c; });
 process.stdin.on("end", () => {
   const req = JSON.parse(input);
   if (process.env.GATE_FAIL) { process.stdout.write(JSON.stringify({ v: 1, outcome: "error", error: { code: "TARGET_EXISTS", message: "Target exists." } })); process.exit(1); }
+  if (process.env.GATE_TIMEOUT) { process.stdout.write(JSON.stringify({ v: 1, outcome: "timeout", error: { code: "LOCK_TIMEOUT", message: "Lock acquisition timed out." } })); process.exit(3); }
   if (req.preview) {
     process.stdout.write(JSON.stringify({ v: 1, outcome: "ok", data: { preview: true, preview_id: "p1", writes: [{ target: req.target, action: "create", content: req.content }] } }));
   } else {
@@ -135,6 +136,18 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
     expect(res.stderr).toContain("note takes 'search' or 'read'");
   });
 
+  it("note --help exits 0", async () => {
+    const res = await run(["note", "--help"]);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain("usage: memvector note");
+  });
+
+  it("relation --help exits 0", async () => {
+    const res = await run(["relation", "--help"]);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain("usage: memvector relation");
+  });
+
   it("note unknown subcommand exits with 2", async () => {
     const res = await run(["note", "unknown"]);
     expect(res.code).toBe(2);
@@ -202,6 +215,20 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
       expect(res.code).toBe(2);
       expect(res.stderr).toContain("--vault is required");
     });
+
+    it("rejects query positional argument together with --query with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "search", "Ventil", "--query", "Dichtung", "--vault", root]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("cannot specify both a query positional argument and --query");
+    });
+
+    it("rejects --envelope on note search with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "search", "Ventil", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
   });
 
   describe("note read --neighbors", () => {
@@ -240,6 +267,34 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
       expect(res.code).toBe(2);
       expect(res.stderr).toContain("--note is required");
     });
+
+    it("rejects multiple positional targets with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "wiki/Dichtung.md", "--neighbors", "--vault", root]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("note read --neighbors takes at most one note");
+    });
+
+    it("rejects both positional target and --note with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--note", "wiki/Dichtung.md", "--neighbors", "--vault", root]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("cannot specify both a note positional argument and --note");
+    });
+
+    it("rejects --seed option under --neighbors with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--neighbors", "--seed", "wiki/Dichtung.md", "--vault", root]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --seed");
+    });
+
+    it("rejects --envelope under --neighbors with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--neighbors", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
   });
 
   describe("note read --context", () => {
@@ -277,6 +332,20 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
       const res = await run(["note", "read", "--context", "--vault", root]);
       expect(res.code).toBe(2);
       expect(res.stderr).toContain("at least one seed note is required");
+    });
+
+    it("rejects dangling --seed with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "--context", "--vault", root, "--seed"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("--seed needs a note");
+    });
+
+    it("rejects --envelope under --context with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--context", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
     });
   });
 
@@ -350,6 +419,37 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
       const res = await run(["relation", "unknown", "--vault", root]);
       expect(res.code).toBe(2);
       expect(res.stderr).toContain("unknown relation command 'unknown'");
+    });
+
+    it("rejects --dry-run with preview: false in request with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["relation", "create", "--vault", root, "--dry-run"], JSON.stringify({ ...RELATION, preview: false }));
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("cannot specify --dry-run with 'preview': false");
+    });
+
+    it("rejects --envelope on relation create with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["relation", "create", "--vault", root, "--envelope"], JSON.stringify(RELATION));
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
+
+    it("handles gate lock timeout with exit 3 and timeout envelope", async () => {
+      const root = await vault();
+      const res = await run(["relation", "create", "--vault", root, "--json"], JSON.stringify(RELATION), { GATE_TIMEOUT: "1" });
+      expect(res.code).toBe(3);
+      const parsed = JSON.parse(res.stdout);
+      expect(parsed.outcome).toBe("timeout");
+      expect(parsed.error.code).toBe("LOCK_TIMEOUT");
+    });
+
+    it("prints error to stderr in human mode without --json on invalid stdin", async () => {
+      const root = await vault();
+      const res = await run(["relation", "create", "--vault", root], "invalid json");
+      expect(res.code).toBe(1);
+      expect(res.stderr).toContain("[ERROR] stdin is not one JSON request.");
+      expect(res.stdout).toBe("");
     });
   });
 });

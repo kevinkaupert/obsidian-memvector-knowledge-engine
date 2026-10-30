@@ -72,11 +72,9 @@ function usage(message: string): number {
 }
 
 function fail(code: string, error: string, envelope = false): number {
-  const isTimeout = code.includes("TIMEOUT") || code.includes("LOCK") || error.toLowerCase().includes("timed out") || error.toLowerCase().includes("lock");
-  const exitCode = isTimeout ? 3 : 1;
   const body = envelope ? { v: 1, outcome: "error", error: { code, message: error } } : { outcome: "error", code, error };
   process.stdout.write(`${JSON.stringify(body)}\n`);
-  return exitCode;
+  return 1;
 }
 
 export async function main(argv: string[]): Promise<number> {
@@ -272,7 +270,11 @@ async function noteCommand(argv: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify({ commands: ["search", "read"] })}\n`);
     return 0;
   }
-  if (sub === undefined || sub === "--help" || sub === "-h") {
+  if (sub === "--help" || sub === "-h") {
+    process.stdout.write("usage: memvector note <search|read> [args...]\n");
+    return 0;
+  }
+  if (sub === undefined) {
     return usage("note takes 'search' or 'read'");
   }
   if (sub === "search") return noteSearchCommand(rest);
@@ -288,17 +290,23 @@ async function noteSearchCommand(argv: string[]): Promise<number> {
   const parsed = parseCommandArgs(argv);
   if (!parsed) return usage("arguments must be --key value pairs");
   const { positionals, options } = parsed;
-  const known = new Set(["vault", "query", "limit", "instruction", "folder", "type", "config-dir", "json", "envelope"]);
+  const known = new Set(["vault", "query", "limit", "instruction", "folder", "type", "config-dir", "json"]);
   const unknown = [...options.keys()].filter((k) => !known.has(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
 
   const vault = options.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
 
-  let query = positionals.join(" ").trim();
-  if (!query && options.has("query")) {
-    const q = options.get("query");
-    if (typeof q === "string") query = q.trim();
+  const positionalQuery = positionals.join(" ").trim();
+  const optionQuery = options.get("query");
+  if (positionalQuery && optionQuery !== undefined) {
+    return usage("cannot specify both a query positional argument and --query");
+  }
+  let query: string | undefined;
+  if (positionalQuery) {
+    query = positionalQuery;
+  } else if (typeof optionQuery === "string") {
+    query = optionQuery.trim();
   }
   if (!query) return usage("note search requires a query");
 
@@ -383,8 +391,13 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     return 0;
   }
   const splitSeeds = takeRepeated(argv, "seed");
-  const extraSeeds = splitSeeds ? splitSeeds[0] : [];
-  const argvWithoutSeeds = splitSeeds ? splitSeeds[1] : argv;
+  if (splitSeeds === null) {
+    if (argv.includes("--neighbors")) return usage("unknown option --seed");
+    if (argv.includes("--context")) return usage("--seed needs a note");
+    return usage("note read requires --neighbors or --context");
+  }
+  const extraSeeds = splitSeeds[0];
+  const argvWithoutSeeds = splitSeeds[1];
   const parsed = parseCommandArgs(argvWithoutSeeds);
   if (!parsed) return usage("arguments must be --key value pairs");
   const { positionals, options } = parsed;
@@ -399,15 +412,26 @@ async function noteReadCommand(argv: string[]): Promise<number> {
   }
 
   if (hasNeighbors) {
-    const known = new Set(["vault", "note", "limit", "config-dir", "json", "envelope", "neighbors"]);
+    if (extraSeeds.length > 0) {
+      return usage("unknown option --seed");
+    }
+    const known = new Set(["vault", "note", "limit", "config-dir", "json", "neighbors"]);
     const unknown = [...options.keys()].filter((k) => !known.has(k));
     if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
 
     const vault = options.get("vault");
     if (typeof vault !== "string" || !vault) return usage("--vault is required");
 
-    let note = positionals[0];
-    if (!note && options.has("note")) {
+    if (positionals.length > 1) {
+      return usage("note read --neighbors takes at most one note");
+    }
+    let note: string | undefined;
+    if (positionals.length === 1) {
+      if (options.has("note")) {
+        return usage("cannot specify both a note positional argument and --note");
+      }
+      note = positionals[0];
+    } else if (options.has("note")) {
       const n = options.get("note");
       if (typeof n === "string") note = n;
     }
@@ -458,7 +482,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     }
   } else {
     // context
-    const known = new Set(["vault", "config-dir", "json", "envelope", "context"]);
+    const known = new Set(["vault", "config-dir", "json", "context"]);
     const unknown = [...options.keys()].filter((k) => !known.has(k));
     if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
 
@@ -534,17 +558,25 @@ async function relationCommand(argv: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify({ commands: ["create", "add"] })}\n`);
     return 0;
   }
-  if (sub !== "add" && sub !== "create") return usage(`unknown relation command '${sub ?? ""}'`);
+  if (sub === "--help" || sub === "-h") {
+    process.stdout.write("usage: memvector relation <create|add> [args...]\n");
+    return 0;
+  }
+  if (sub === undefined) {
+    return usage("relation takes 'create' or 'add'");
+  }
+  if (sub !== "add" && sub !== "create") return usage(`unknown relation command '${sub}'`);
   const isCreate = sub === "create";
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
   const known = isCreate
-    ? ["vault", "config-dir", "json", "envelope", "dry-run"]
+    ? ["vault", "config-dir", "json", "dry-run"]
     : ["vault", "config-dir", "json", "envelope"];
   const unknown = [...args.keys()].filter((k) => !known.includes(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
+  const isJson = args.get("json") === true;
   const configDir = args.get("config-dir");
   const dataPath = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID, "data.json");
   let settings: Record<string, unknown> = {};
@@ -552,27 +584,58 @@ async function relationCommand(argv: string[]): Promise<number> {
     try {
       settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
     } catch (err) {
-      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, isCreate);
+      const msg = `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`;
+      if (isCreate) {
+        if (isJson) {
+          process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "SETTINGS_UNREADABLE", message: msg } })}\n`);
+        } else {
+          process.stderr.write(`[ERROR] ${msg}\n`);
+        }
+        return 1;
+      }
+      return fail("SETTINGS_UNREADABLE", msg, false);
     }
   }
   let request: unknown;
   try {
     request = JSON.parse(await readStdin());
   } catch {
-    return fail("INVALID_REQUEST", "stdin is not one JSON request.", isCreate);
+    const msg = "stdin is not one JSON request.";
+    if (isCreate) {
+      if (isJson) {
+        process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "INVALID_REQUEST", message: msg } })}\n`);
+      } else {
+        process.stderr.write(`[ERROR] ${msg}\n`);
+      }
+      return 1;
+    }
+    return fail("INVALID_REQUEST", msg, false);
   }
-  if (isCreate && args.get("dry-run") === true && request && typeof request === "object") {
-    (request as Record<string, unknown>).preview = true;
+  if (isCreate) {
+    if (args.get("dry-run") === true) {
+      if (request && typeof request === "object" && (request as Record<string, unknown>).preview === false) {
+        return usage("cannot specify --dry-run with 'preview': false in request");
+      }
+      if (request && typeof request === "object") {
+        (request as Record<string, unknown>).preview = true;
+      }
+    }
   }
   const result = await relationAdd(vault, request, settings, { spawn: gateSpawn, clientVersion: MEMVECTOR_VERSION });
 
-  const isJson = args.get("json") === true;
   if (isCreate) {
     const { outcome, code, error, ...data } = result;
-    const isTimeout = (code ?? "").includes("TIMEOUT") || (code ?? "").includes("LOCK") || (error ?? "").toLowerCase().includes("timed out") || (error ?? "").toLowerCase().includes("lock");
+    const isTimeout = outcome === "timeout" ||
+      (code ?? "").toUpperCase().includes("TIMEOUT") ||
+      (code ?? "").toUpperCase().includes("LOCK") ||
+      (error ?? "").toLowerCase().includes("timeout") ||
+      (error ?? "").toLowerCase().includes("timed out") ||
+      (error ?? "").toLowerCase().includes("lock");
     const exitCode = outcome === "ok" ? 0 : (isTimeout ? 3 : 1);
     if (isJson) {
-      const body = outcome === "ok" ? { v: 1, outcome, data } : { v: 1, outcome, error: { code: code ?? "FAILED", message: error ?? "" } };
+      const body = outcome === "ok"
+        ? { v: 1, outcome, data }
+        : { v: 1, outcome: isTimeout ? "timeout" : "error", error: { code: code ?? (isTimeout ? "LOCK_TIMEOUT" : "FAILED"), message: error ?? "" } };
       process.stdout.write(`${JSON.stringify(body)}\n`);
       return exitCode;
     }
