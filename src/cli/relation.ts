@@ -25,7 +25,7 @@ export interface RelationAddRequest {
 }
 
 export interface RelationAddResult {
-  outcome: "ok" | "error";
+  outcome: "ok" | "error" | "timeout";
   path?: string;
   created?: boolean;
   /** With `"preview": true`: Jovian's preview of the write (preview_id, writes); nothing is written (knowOS ADR-0014 §3). */
@@ -195,7 +195,14 @@ export async function relationAdd(
     return { outcome: "ok", path, created: false, preview: data };
   }
   if (call.result?.outcome === "ok") return { outcome: "ok", path, created: true };
+  if (call.result?.outcome === "timeout") {
+    const error = call.result?.error;
+    return fail(typeof error?.code === "string" ? error.code : "TIMEOUT", typeof error?.message === "string" ? error.message : "Jovian's gate timed out.");
+  }
   const error = call.result?.error;
   if (error) return fail(typeof error.code === "string" ? error.code : "GATE_ERROR", typeof error.message === "string" ? error.message : "The gate refused the write.");
+  if (call.problem && (call.problem.toLowerCase().includes("timeout") || call.problem.toLowerCase().includes("lock"))) {
+    return fail("TIMEOUT", call.problem);
+  }
   return fail("GATE_UNAVAILABLE", call.problem ?? "Jovian's gate did not answer.");
 }
