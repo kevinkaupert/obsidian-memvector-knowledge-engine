@@ -90,8 +90,11 @@ export async function searchIndex(
     return texts.get(path) ?? null;
   };
   if (filters.folder) {
-    const prefix = `${filters.folder.replace(/^\/+|\/+$/g, "")}/`;
-    rows = rows.filter((r) => r.path.startsWith(prefix));
+    const cleaned = filters.folder.replace(/^\.[/\\]+/, "").replace(/^\/+|\/+$/g, "");
+    if (cleaned) {
+      const prefix = `${cleaned}/`;
+      rows = rows.filter((r) => r.path.startsWith(prefix));
+    }
   }
   if (filters.type) {
     rows = rows.filter((r) => frontmatterType(textOf(r.path)) === filters.type);

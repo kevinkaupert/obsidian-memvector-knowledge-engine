@@ -172,7 +172,7 @@ export async function main(argv: string[]): Promise<number> {
     process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
     typeof instruction === "string" ? instruction.trim() : undefined,
     vaultReader(vault),
-    { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
+    { folder: typeof folder === "string" ? folder.trim().replace(/^\.[/\\]+/, "") : undefined, type: typeof type === "string" ? type.trim() : undefined }
   );
   process.stdout.write(`${JSON.stringify(envelope ? searchEnvelope(result) : result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
@@ -379,7 +379,7 @@ async function noteSearchCommand(argv: string[]): Promise<number> {
     process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
     typeof instruction === "string" ? instruction.trim() : undefined,
     vaultReader(vault),
-    { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
+    { folder: typeof folder === "string" ? folder.trim().replace(/^\.[/\\]+/, "") : undefined, type: typeof type === "string" ? type.trim() : undefined }
   );
 
   if (isJson) {
