@@ -13,6 +13,8 @@ export interface AgentTool {
   preview?: boolean;
   name: string;
   argv: string[];
+  /** Positional target input property or properties, placed after argv (ADR-0017 §1, §7). */
+  positional?: string | string[];
   args: Record<string, string>;
   stdin: boolean;
   effect: "read" | "write";
@@ -44,8 +46,9 @@ export function envelopeSchema(data: Schema): Schema {
 export const TOOLS: AgentTool[] = [
   {
     name: "search",
-    argv: ["search", "--json", "--envelope"],
-    args: { query: "--query", limit: "--limit", folder: "--folder", type: "--type" },
+    argv: ["note", "search", "--json"],
+    positional: ["query"],
+    args: { limit: "--limit", folder: "--folder", type: "--type" },
     stdin: false,
     effect: "read",
     description:
@@ -89,8 +92,9 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "graph.neighbors",
-    argv: ["graph", "neighbors", "--json"],
-    args: { note: "--note", limit: "--limit" },
+    argv: ["note", "read", "--neighbors", "--json"],
+    positional: ["note"],
+    args: { limit: "--limit" },
     stdin: false,
     effect: "read",
     description:
@@ -133,8 +137,9 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "context",
-    argv: ["context", "--json"],
-    args: { seeds: "--seed" },
+    argv: ["note", "read", "--context", "--json"],
+    positional: ["seeds"],
+    args: {},
     stdin: false,
     effect: "read",
     description:
@@ -203,7 +208,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "relation.add",
-    argv: ["relation", "add", "--json", "--envelope"],
+    argv: ["relation", "create", "--json"],
     args: {},
     stdin: true,
     effect: "write",
