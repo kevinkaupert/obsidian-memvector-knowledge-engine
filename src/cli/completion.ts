@@ -454,11 +454,9 @@ export function getVaultFolders(vaultPath: string | null, prefix = ""): string[]
 
 export function getConfigDirCandidates(vaultPath: string | null, prefix = ""): string[] {
   const cleanPrefix = normalizeSearchPrefix(prefix);
-  const candidates = new Set<string>();
-  if (!cleanPrefix || ".obsidian".startsWith(cleanPrefix)) {
-    candidates.add(".obsidian");
-  }
+  const defaultList = !cleanPrefix || ".obsidian".startsWith(cleanPrefix) ? [".obsidian"] : [];
   if (vaultPath && existsSync(vaultPath)) {
+    const candidates = new Set<string>(defaultList);
     try {
       const entries = readdirSync(vaultPath).sort();
       for (const entry of entries) {
@@ -476,12 +474,11 @@ export function getConfigDirCandidates(vaultPath: string | null, prefix = ""): s
     } catch {
       // ignore
     }
-  } else {
-    for (const p of getFsPaths(prefix, true)) {
-      candidates.add(p);
-    }
+    return [...candidates].sort().map(escapeCandidate);
   }
-  return [...candidates].sort().map(escapeCandidate);
+  // When no vault is detected, getFsPaths already returns escaped candidates
+  const fsCandidates = getFsPaths(prefix, true);
+  return [...new Set([...defaultList.map(escapeCandidate), ...fsCandidates])].sort();
 }
 
 export async function completeOptionValue(
@@ -626,11 +623,36 @@ export async function complete(argv: string[]): Promise<string[]> {
       idx += 1;
     }
 
+    let availableOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
+
+    if (first === "note" && verb === "read") {
+      const hasNeighbors = restTokens.includes("--neighbors");
+      const hasContext = restTokens.includes("--context");
+      if (hasNeighbors) {
+        availableOpts = [
+          ["--vault", "path to Obsidian vault directory"],
+          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
+          ["--neighbors", "query graph neighbors for a note"],
+          ["--note", "target note for graph neighbors"],
+          ["--limit", "maximum neighbors to return (default 100)"],
+          ["--json", "output structured JSON envelope"],
+        ];
+        if (prevOption === "--seed") return [];
+      } else if (hasContext) {
+        availableOpts = [
+          ["--vault", "path to Obsidian vault directory"],
+          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
+          ["--context", "assemble 2D view synthesis context for seed notes"],
+          ["--seed", "seed note for synthesis context (repeatable)"],
+          ["--json", "output structured JSON envelope"],
+        ];
+        if (prevOption === "--note" || prevOption === "--limit") return [];
+      }
+    }
+
     if (lastIsOptionValue && prevOption !== null) {
       return completeOptionValue(prevOption, lastToken, vault, configDir);
     }
-
-    const availableOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
 
     // If user is explicitly typing an option flag
     if (lastToken.startsWith("-")) {

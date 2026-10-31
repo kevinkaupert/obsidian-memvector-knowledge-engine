@@ -264,6 +264,49 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("--seed:seed note for synthesis context (repeatable)");
     });
 
+    it("filters note read options by selected mode (Codex R5 Finding 2)", async () => {
+      // Under --neighbors: offers --note and --limit; rejects --seed and --context
+      const neighRes = await run(["__complete", "note", "read", "--neighbors", "--"]);
+      expect(neighRes.code).toBe(0);
+      const neighLines = neighRes.stdout.split("\n").filter(Boolean);
+      expect(neighLines).toContain("--note:target note for graph neighbors");
+      expect(neighLines).toContain("--limit:maximum neighbors to return (default 100)");
+      expect(neighLines).not.toContain("--seed:seed note for synthesis context (repeatable)");
+      expect(neighLines).not.toContain("--context:assemble 2D view synthesis context for seed notes");
+
+      // Under --context: offers --seed; rejects --note, --limit, and --neighbors
+      const ctxRes = await run(["__complete", "note", "read", "--context", "--"]);
+      expect(ctxRes.code).toBe(0);
+      const ctxLines = ctxRes.stdout.split("\n").filter(Boolean);
+      expect(ctxLines).toContain("--seed:seed note for synthesis context (repeatable)");
+      expect(ctxLines).not.toContain("--note:target note for graph neighbors");
+      expect(ctxLines).not.toContain("--limit:maximum neighbors to return (default 100)");
+      expect(ctxLines).not.toContain("--neighbors:query graph neighbors for a note");
+
+      // Option-value completion rejects conflicting flags
+      const seedUnderNeigh = await run(["__complete", "note", "read", "--neighbors", "--seed", ""]);
+      expect(seedUnderNeigh.code).toBe(0);
+      expect(seedUnderNeigh.stdout.trim()).toBe("");
+
+      const noteUnderCtx = await run(["__complete", "note", "read", "--context", "--note", ""]);
+      expect(noteUnderCtx.code).toBe(0);
+      expect(noteUnderCtx.stdout.trim()).toBe("");
+    });
+
+    it("escapes fallback filesystem config-dir candidates only once (Codex R5 Finding 1)", async () => {
+      // Without --vault, completing a folder with spaces in current directory does not double-escape
+      const spaceDir = mkdtempSync(join(tmpdir(), "mv space "));
+      const subDir = join(spaceDir, "My Config");
+      mkdirSync(subDir, { recursive: true });
+
+      const res = await run(["__complete", "tools", "--config-dir", `${spaceDir}/My`]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      // Must be singly escaped: My\ Config/ (not My\\ Config/)
+      expect(lines.some((l) => l.includes("My\\ Config/"))).toBe(true);
+      expect(lines.some((l) => l.includes("My\\\\ Config/"))).toBe(false);
+    });
+
     it("completes options for relation create", async () => {
       const res = await run(["__complete", "relation", "create", "--"]);
       expect(res.code).toBe(0);
