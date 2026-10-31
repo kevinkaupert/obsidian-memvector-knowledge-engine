@@ -126,8 +126,9 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("--json:output structured JSON envelope");
     });
 
-    it("returns all verbs for each noun", async () => {
+    it("returns all verbs for each noun and rejects verb options before verb is specified", async () => {
       for (const [noun, info] of Object.entries(COMMAND_TABLE)) {
+        if (Object.keys(info.verbs).length === 0) continue;
         const res = await run(["__complete", noun, ""]);
         expect(res.code).toBe(0);
         const lines = res.stdout.split("\n").filter(Boolean);
@@ -136,6 +137,15 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
           expect(returnedVerbs.has(verb), `Verb ${verb} missing for noun ${noun}`).toBe(true);
         }
       }
+      // Codex finding 4: Require an explicit verb before suggesting verb-specific options
+      const noteOpts = await run(["__complete", "note", ""]);
+      const lines = noteOpts.stdout.split("\n").filter(Boolean);
+      expect(lines).toContain("search:search notes by vector similarity");
+      expect(lines).toContain("read:read graph neighbors or synthesis context of notes");
+      expect(lines).toContain("--commands:list subcommands for this noun");
+      expect(lines).toContain("--vault:path to Obsidian vault directory");
+      expect(lines).not.toContain("--query:search text query");
+      expect(lines).not.toContain("--limit:maximum hits to return (default 20)");
     });
 
     it("filters nouns by prefix", async () => {
@@ -256,6 +266,30 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("--json:output structured JSON envelope");
     });
 
+    it("resolves note IDs to executable vault-relative paths (Codex Finding 3)", async () => {
+      // NOTES[0] is ["v", "Ventil", "wiki/Ventil.md"]
+      const res = await run(["__complete", "note", "read", "--vault", testVault, "v"]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      // Must contain the vault-relative executable path
+      expect(lines).toContain("wiki/Ventil.md");
+      // Must not contain the bare non-executable ID "v"
+      expect(lines).not.toContain("v");
+    });
+
+    it("expands tilde-prefixed vault paths before index lookup (Codex Finding 1)", async () => {
+      // Relies on finding vault when passed as tilde path relative to homedir
+      const home = process.env.HOME ?? "/root";
+      const relToHome = testVault.startsWith(home) ? testVault.slice(home.length).replace(/^[/\\]+/, "") : null;
+      if (relToHome) {
+        const tildePath = `~/${relToHome}`;
+        const res = await run(["__complete", "note", "read", "--vault", tildePath, "wiki/V"]);
+        expect(res.code).toBe(0);
+        const lines = res.stdout.split("\n").filter(Boolean);
+        expect(lines).toContain("wiki/Ventil.md");
+      }
+    });
+
     it("falls back to filesystem scan when SQLite index is missing", async () => {
       const vaultWithoutIndex = await createTestVault(false);
       const res = await run(["__complete", "note", "read", "--vault", vaultWithoutIndex, "wiki/"]);
@@ -286,6 +320,24 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       });
       expect(zshRes.code).toBe(0);
       expect(zshRes.stdout).toContain("_memvector");
+    });
+
+    it("correctly classifies directories containing colons (Codex Finding 2)", async () => {
+      const zshRes = await new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
+        const cmd = 'line="wiki/Foo\\:Bar/"; temp="${line//\\\\:}"; if [[ "$line" == */ && "$temp" != *:* ]]; then echo DIR; else echo NOT_DIR; fi';
+        const proc = spawn("zsh", ["-f", "-c", cmd]);
+        let stdout = "";
+        let stderr = "";
+        proc.stdout.on("data", (d) => {
+          stdout += d;
+        });
+        proc.stderr.on("data", (d) => {
+          stderr += d;
+        });
+        proc.on("close", (code) => done({ code, stdout, stderr }));
+      });
+      expect(zshRes.code).toBe(0);
+      expect(zshRes.stdout.trim()).toBe("DIR");
     });
   });
 });

@@ -36,7 +36,7 @@ _memvector() {
     if [[ -n "$output" ]]; then
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
-            temp="\${line//\\\\\\\\:}"
+            temp="\${line//\\\\:}"
             if [[ "$line" == */ && "$temp" != *:* ]]; then
                 dirs+=("\${(Q)line}")
             elif [[ "$temp" != *:* ]]; then
@@ -97,13 +97,11 @@ export const COMMAND_TABLE: Record<string, CommandInfo> = {
       search: "search notes by vector similarity",
       read: "read graph neighbors or synthesis context of notes",
     },
-    default_verb: "search",
   },
   relation: {
     verbs: {
       create: "create or preview typed relation note through gate",
     },
-    default_verb: "create",
   },
   tools: {
     verbs: {},
@@ -245,6 +243,14 @@ export function getFsPaths(prefix = "", onlyDirs = false): string[] {
   return results.sort();
 }
 
+export function expandTilde(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/") || p.startsWith("~\\")) {
+    return join(homedir(), p.slice(2));
+  }
+  return p;
+}
+
 export function findVaultPath(tokens: string[]): { vault: string | null; configDir: string } {
   let vault: string | null = null;
   let configDir = ".obsidian";
@@ -262,10 +268,12 @@ export function findVaultPath(tokens: string[]): { vault: string | null; configD
     }
   }
 
-  if (!vault) {
+  if (vault) {
+    vault = expandTilde(vault);
+  } else {
     // Check environment or parent directories for .obsidian
     if (process.env.MEMVECTOR_VAULT && existsSync(process.env.MEMVECTOR_VAULT)) {
-      vault = process.env.MEMVECTOR_VAULT;
+      vault = expandTilde(process.env.MEMVECTOR_VAULT);
     } else {
       let curr = resolve(".");
       while (true) {
@@ -326,12 +334,11 @@ export async function getNoteTargets(
               !searchPrefix ||
               pathStr.startsWith(searchPrefix) ||
               baseName.startsWith(searchPrefix) ||
-              pathStr.includes(searchPrefix)
+              pathStr.includes(searchPrefix) ||
+              (idStr && idStr.startsWith(searchPrefix)) ||
+              (titleStr && titleStr.startsWith(searchPrefix))
             ) {
               results.add(`${lexicalLead}${pathStr}`);
-            }
-            if (idStr && searchPrefix && idStr.startsWith(searchPrefix)) {
-              results.add(idStr);
             }
             if (Date.now() - startTime > 150 || results.size >= 500) break;
           }
@@ -458,7 +465,7 @@ export async function complete(argv: string[]): Promise<string[]> {
 
   if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "")) {
     const nouns = Object.entries(COMMAND_TABLE).map(([k, info]) => {
-      const desc = info.default_verb ? `commands for ${k}s` : `${k} command`;
+      const desc = Object.keys(info.verbs).length > 0 ? `commands for ${k}s` : `${k} command`;
       return `${k}:${desc}`;
     });
     const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
@@ -475,7 +482,7 @@ export async function complete(argv: string[]): Promise<string[]> {
     const matching = Object.entries(COMMAND_TABLE)
       .filter(([k]) => k.startsWith(first))
       .map(([k, info]) => {
-        const desc = info.default_verb ? `commands for ${k}s` : `${k} command`;
+        const desc = Object.keys(info.verbs).length > 0 ? `commands for ${k}s` : `${k} command`;
         return `${k}:${desc}`;
       });
     if (matching.length > 0) return matching;
@@ -497,20 +504,34 @@ export async function complete(argv: string[]): Promise<string[]> {
     const info = COMMAND_TABLE[first];
     const verbs = info.verbs;
 
+    // Handle nouns without subcommands (such as `tools`)
+    if (Object.keys(verbs).length === 0) {
+      const toolOpts = (VERB_OPTIONS[`${first}:`] ?? []).map(([o, d]) => `${o}:${d}`);
+      const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
+      const all = [...toolOpts, ...globals];
+      const prefix = tokens.length > 1 ? tokens[tokens.length - 1] : "";
+      if (prefix.startsWith("--") && prefix.includes("=")) {
+        const [optName, valPrefix] = prefix.split(/=(.*)/s, 2);
+        if (VALUE_OPTIONS.has(optName)) {
+          const valCands = await completeOptionValue(optName, valPrefix, vault, configDir);
+          return valCands.map((c) => `${optName}=${c}`);
+        }
+      }
+      return all.filter((entry) => !prefix || entry.startsWith(prefix));
+    }
+
     // Subcase 1: User typed `memvector <noun> ` and hit TAB or is typing verb
     if (tokens.length === 2) {
       const prefix = tokens[1];
       if (prefix === "") {
         const verbList = Object.entries(verbs).map(([v, desc]) => `${v}:${desc}`);
-        const defaultVerb = info.default_verb ?? "";
-        const defaultOpts = (VERB_OPTIONS[`${first}:${defaultVerb}`] ?? []).map(([o, d]) => `${o}:${d}`);
+        const nounMeta = [["--commands", "list subcommands for this noun"]];
         const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
-        return [...verbList, ...defaultOpts, ...globals];
+        return [...verbList, ...nounMeta.map(([o, d]) => `${o}:${d}`), ...globals];
       }
       if (prefix.startsWith("-") && !prefix.includes("=")) {
-        const defaultVerb = info.default_verb ?? "";
-        const defaultOpts = VERB_OPTIONS[`${first}:${defaultVerb}`] ?? [];
-        return [...defaultOpts, ...GLOBAL_OPTIONS]
+        const nounMeta = [["--commands", "list subcommands for this noun"]];
+        return [...nounMeta, ...GLOBAL_OPTIONS]
           .filter(([o]) => o.startsWith(prefix))
           .map(([o, d]) => `${o}:${d}`);
       } else if (!prefix.startsWith("-")) {
@@ -522,8 +543,12 @@ export async function complete(argv: string[]): Promise<string[]> {
     }
 
     // Subcase 2: Resolving verb, options, and targets
-    const verb = tokens.length > 1 && tokens[1] in verbs ? tokens[1] : (info.default_verb ?? "");
-    const restTokens = tokens.length > 1 && tokens[1] in verbs ? tokens.slice(2) : tokens.slice(1);
+    const verb = tokens.length > 1 && tokens[1] in verbs ? tokens[1] : "";
+    if (!verb) {
+      // Require an explicit verb before suggesting verb-specific options
+      return [];
+    }
+    const restTokens = tokens.slice(2);
     const lastToken = restTokens.length > 0 ? restTokens[restTokens.length - 1] : "";
 
     // Equals-style option value (e.g. --vault=./path, --note=wiki/Ventil)
