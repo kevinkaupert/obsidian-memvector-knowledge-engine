@@ -519,6 +519,45 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("wiki/Ventil.md");
       expect(lines).toContain("wiki/Dichtung.md");
     });
+
+    it("bounds and prunes folder traversal when unmatched or narrow prefix is used (Codex R8 Finding 2)", async () => {
+      // Unmatched folder prefix returns empty immediately without unbounded scan
+      const t0 = Date.now();
+      const resUnmatched = await run(["__complete", "note", "search", "--vault", testVault, "--folder", "nonexistent/prefix"]);
+      expect(resUnmatched.code).toBe(0);
+      expect(resUnmatched.stdout.trim()).toBe("");
+      expect(Date.now() - t0).toBeLessThan(500);
+
+      // Narrow prefix returns only matching subfolders
+      const resNarrow = await run(["__complete", "note", "search", "--vault", testVault, "--folder", "wiki"]);
+      expect(resNarrow.code).toBe(0);
+      const lines = resNarrow.stdout.split("\n").filter(Boolean);
+      expect(lines).toContain("wiki");
+      expect(lines).not.toContain("Fragmente");
+      expect(lines).not.toContain("relations");
+    });
+
+    it("executes commands using absolute or tilde-prefixed config-dir (Codex R8 Finding 1)", async () => {
+      // Find where plugin database is in testVault
+      const absConfigDir = join(testVault, ".obsidian");
+      const execRes = await run(["note", "read", "wiki/Ventil.md", "--neighbors", "--vault", testVault, "--config-dir", absConfigDir, "--json"]);
+      expect(execRes.code).toBe(0);
+      const data = JSON.parse(execRes.stdout);
+      expect(data.outcome).toBe("ok");
+      expect(data.data.note).toBe("wiki/Ventil.md");
+
+      // With tilde-prefixed config-dir
+      const home = process.env.HOME ?? "/root";
+      if (absConfigDir.startsWith(home)) {
+        const relHome = absConfigDir.slice(home.length).replace(/^[/\\]+/, "");
+        const tildeConfigDir = `~/${relHome}`;
+        const execTilde = await run(["note", "read", "wiki/Ventil.md", "--neighbors", "--vault", testVault, "--config-dir", tildeConfigDir, "--json"]);
+        expect(execTilde.code).toBe(0);
+        const tildeData = JSON.parse(execTilde.stdout);
+        expect(tildeData.outcome).toBe("ok");
+        expect(tildeData.data.note).toBe("wiki/Ventil.md");
+      }
+    });
   });
 
   describe("Interactive Zsh Completion Simulation", () => {

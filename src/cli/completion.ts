@@ -12,7 +12,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import initSqlJs from "sql.js";
 import { getEmbeddedWasmBinary } from "../sync/sqlite/embeddedWasm";
 import { DB_FILENAME, PLUGIN_ID } from "./search";
@@ -269,6 +269,19 @@ export function expandTilde(p: string): string {
   return p;
 }
 
+export function resolveConfigDir(vaultPath: string | null, configDir: unknown): string {
+  const dirStr = typeof configDir === "string" && configDir.trim() ? configDir.trim() : ".obsidian";
+  const expanded = expandTilde(dirStr);
+  if (isAbsolute(expanded)) {
+    return expanded;
+  }
+  return vaultPath ? join(resolve(vaultPath), expanded) : resolve(expanded);
+}
+
+export function resolvePluginDir(vaultPath: string | null, configDir: unknown): string {
+  return join(resolveConfigDir(vaultPath, configDir), "plugins", PLUGIN_ID);
+}
+
 export function findVaultPath(tokens: string[]): { vault: string | null; configDir: string } {
   let vault: string | null = null;
   let configDir = ".obsidian";
@@ -328,7 +341,7 @@ export async function getNoteTargets(
   const startTime = Date.now();
 
   // 1. Try reading from SQLite index if available
-  const pluginDir = join(resolve(vaultPath), configDir, "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vaultPath, configDir);
   const dbPath = join(pluginDir, DB_FILENAME);
 
   if (existsSync(dbPath)) {
@@ -416,11 +429,20 @@ export async function getNoteTargets(
 export function getVaultFolders(vaultPath: string | null, prefix = ""): string[] {
   if (!vaultPath || !existsSync(vaultPath)) return [];
   const cleanPrefix = normalizeSearchPrefix(prefix);
+  let lexicalLead = "";
+  let searchPrefix = cleanPrefix;
+  if (cleanPrefix.startsWith("./") || cleanPrefix.startsWith(".\\")) {
+    lexicalLead = cleanPrefix.slice(0, 2);
+    searchPrefix = cleanPrefix.slice(2);
+  }
+
   const results = new Set<string>();
+  const startTime = Date.now();
 
   try {
     const queue: string[] = [""];
     while (queue.length > 0 && results.size < 100) {
+      if (Date.now() - startTime > 150) break;
       const relDir = queue.shift()!;
       const absDir = relDir ? join(vaultPath, relDir) : vaultPath;
       let entries: string[] = [];
@@ -435,10 +457,14 @@ export function getVaultFolders(vaultPath: string | null, prefix = ""): string[]
         const entryAbs = join(vaultPath, entryRel);
         try {
           if (statSync(entryAbs).isDirectory()) {
-            if (!cleanPrefix || entryRel.startsWith(cleanPrefix)) {
-              results.add(entryRel);
+            if (!searchPrefix || entryRel.startsWith(searchPrefix)) {
+              results.add(`${lexicalLead}${entryRel}`);
             }
-            queue.push(entryRel);
+            const canContainMatches =
+              !searchPrefix || entryRel.startsWith(searchPrefix) || searchPrefix.startsWith(entryRel + "/");
+            if (canContainMatches) {
+              queue.push(entryRel);
+            }
           }
         } catch {
           // ignore

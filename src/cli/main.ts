@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { getEmbeddedWasmBinary } from "../sync/sqlite/embeddedWasm";
 import type { EmbeddingPost } from "../llm/embeddingRequest";
 import type { GateSpawn } from "../noteWriter/jovianGate";
@@ -11,7 +11,7 @@ import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 import { contextFor } from "./context";
 import { migrateSettings } from "../settings/secrets";
 import { toolList } from "./tools";
-import { complete, expandTilde, ZSH_SCRIPT } from "./completion";
+import { complete, expandTilde, resolvePluginDir, ZSH_SCRIPT } from "./completion";
 
 declare const MEMVECTOR_VERSION: string;
 
@@ -143,8 +143,7 @@ export async function main(argv: string[]): Promise<number> {
   const type = args.get("type");
   if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
   const envelope = args.get("envelope") === true;
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
 
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, envelope);
@@ -193,8 +192,7 @@ async function graphCommand(argv: string[]): Promise<number> {
   const limitRaw = args.get("limit") ?? "100";
   const limit = Number(limitRaw);
   if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   const wasmPath = join(pluginDir, "sql-wasm.wasm");
@@ -229,8 +227,7 @@ async function contextCommand(argv: string[]): Promise<number> {
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
   const cleaned = seeds.map((seed) => seed.trim().replace(/^\.[/\\]+/, ""));
   if (cleaned.length === 0 || cleaned.some((seed) => !seed)) return usage("at least one --seed <note.md> is required");
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   let loaded: unknown = {};
@@ -344,8 +341,7 @@ async function noteSearchCommand(argv: string[]): Promise<number> {
   if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
 
   const isJson = options.get("json") === true;
-  const configDir = options.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
 
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) {
@@ -462,8 +458,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
 
     const isJson = options.get("json") === true;
-    const configDir = options.get("config-dir");
-    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
     const dbPath = join(pluginDir, DB_FILENAME);
     if (!existsSync(dbPath)) {
       if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
@@ -513,8 +508,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     if (seeds.length === 0) return usage("at least one seed note is required");
 
     const isJson = options.get("json") === true;
-    const configDir = options.get("config-dir");
-    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
     const dbPath = join(pluginDir, DB_FILENAME);
     if (!existsSync(dbPath)) {
       if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
@@ -597,8 +591,7 @@ async function relationCommand(argv: string[]): Promise<number> {
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
   const isJson = args.get("json") === true;
-  const configDir = args.get("config-dir");
-  const dataPath = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID, "data.json");
+  const dataPath = join(resolvePluginDir(vault, args.get("config-dir")), "data.json");
   let settings: Record<string, unknown> = {};
   if (existsSync(dataPath)) {
     try {
