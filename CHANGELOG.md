@@ -8,6 +8,18 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.24] - 2026-10-31
+
+### Changed
+
+- Migrate MemVector agent tools catalogue to unified `<noun> <verb>` grammar (knowOS Plan 0023 Phase 3, ADR-0017 §7):
+  - `search` tool defines `argv: ["note", "search", "--json"]` and `positional: ["query"]`.
+  - `graph.neighbors` tool defines `argv: ["note", "read", "--neighbors", "--json"]` and `positional: ["note"]`.
+  - `context` tool defines `argv: ["note", "read", "--context", "--json"]` and `positional: ["seeds"]`.
+  - `relation.add` tool defines `argv: ["relation", "create", "--json"]` and references `jovian_change_apply` in preview confirmation.
+  - `AgentTool` interface supports `positional?: string | string[]` for positional targets.
+  - Updated golden snapshots in `src/cli/__golden__/tools.json` and `tools_with_vault.json`.
+
 ## [0.3.23] - 2026-10-31
 
 ### Changed

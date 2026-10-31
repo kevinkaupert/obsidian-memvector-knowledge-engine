@@ -16,12 +16,14 @@
         {
           "name": "search",
           "argv": [
+            "note",
             "search",
-            "--json",
-            "--envelope"
+            "--json"
+          ],
+          "positional": [
+            "query"
           ],
           "args": {
-            "query": "--query",
             "limit": "--limit",
             "folder": "--folder",
             "type": "--type"
@@ -160,12 +162,15 @@
         {
           "name": "graph.neighbors",
           "argv": [
-            "graph",
-            "neighbors",
+            "note",
+            "read",
+            "--neighbors",
             "--json"
           ],
+          "positional": [
+            "note"
+          ],
           "args": {
-            "note": "--note",
             "limit": "--limit"
           },
           "stdin": false,
@@ -301,12 +306,15 @@
         {
           "name": "context",
           "argv": [
-            "context",
+            "note",
+            "read",
+            "--context",
             "--json"
           ],
-          "args": {
-            "seeds": "--seed"
-          },
+          "positional": [
+            "seeds"
+          ],
+          "args": {},
           "stdin": false,
           "effect": "read",
           "description": "Assemble the context MemVector's synthesis would use around notes the user named: notes close in meaning to them (vector) and notes linked to them up to the configured hop depth (graph), each with its text, plus the typed relations among them. Call it only with notes the user named as [[Note]] in the chat; when a search hit looks like a good starting point, ask the user before using it as a seed. Limits come from MemVector's settings. channels says whether each retrieval leg was ready, unindexed or failed.",
@@ -531,15 +539,14 @@
           "name": "relation.add",
           "argv": [
             "relation",
-            "add",
-            "--json",
-            "--envelope"
+            "create",
+            "--json"
           ],
           "args": {},
           "stdin": true,
           "effect": "write",
           "preview": true,
-          "description": "Create the relation note for one typed relation between two existing notes (e.g. from REQUIRES to), with your reasoning as its text, so it appears in the vault's knowledge graph. An existing relation note for the same pair and type is answered with its path. It writes nothing: the answer is a preview with a preview_id. Show it to the user; only when they confirm, call jovian_gate_apply with that preview_id.",
+          "description": "Create the relation note for one typed relation between two existing notes (e.g. from REQUIRES to), with your reasoning as its text, so it appears in the vault's knowledge graph. An existing relation note for the same pair and type is answered with its path. It writes nothing: the answer is a preview with a preview_id. Show it to the user; only when they confirm, call jovian_change_apply with that preview_id.",
           "input": {
             "type": "object",
             "additionalProperties": false,

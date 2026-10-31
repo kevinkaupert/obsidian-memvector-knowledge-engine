@@ -33,7 +33,10 @@ describe("agent helpers (knowOS ADR-0014)", () => {
       expect(tool.description.length).toBeGreaterThan(40);
       const input = tool.input as { properties: Record<string, unknown>; additionalProperties: boolean };
       expect(input.additionalProperties).toBe(false);
-      if (!tool.stdin) expect(Object.keys(tool.args).sort()).toEqual(Object.keys(input.properties).sort());
+      if (!tool.stdin) {
+        const pos = typeof tool.positional === "string" ? [tool.positional] : Array.isArray(tool.positional) ? tool.positional : [];
+        expect([...Object.keys(tool.args), ...pos].sort()).toEqual(Object.keys(input.properties).sort());
+      }
       if (tool.effect === "write") expect(tool.preview && tool.stdin).toBe(true);
     }
   });

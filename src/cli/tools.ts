@@ -13,6 +13,8 @@ export interface AgentTool {
   preview?: boolean;
   name: string;
   argv: string[];
+  /** Positional target input property or properties, placed after argv (ADR-0017 §1, §7). */
+  positional?: string | string[];
   args: Record<string, string>;
   stdin: boolean;
   effect: "read" | "write";
@@ -44,8 +46,9 @@ export function envelopeSchema(data: Schema): Schema {
 export const TOOLS: AgentTool[] = [
   {
     name: "search",
-    argv: ["search", "--json", "--envelope"],
-    args: { query: "--query", limit: "--limit", folder: "--folder", type: "--type" },
+    argv: ["note", "search", "--json"],
+    positional: ["query"],
+    args: { limit: "--limit", folder: "--folder", type: "--type" },
     stdin: false,
     effect: "read",
     description:
@@ -89,8 +92,9 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "graph.neighbors",
-    argv: ["graph", "neighbors", "--json"],
-    args: { note: "--note", limit: "--limit" },
+    argv: ["note", "read", "--neighbors", "--json"],
+    positional: ["note"],
+    args: { limit: "--limit" },
     stdin: false,
     effect: "read",
     description:
@@ -133,8 +137,9 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "context",
-    argv: ["context", "--json"],
-    args: { seeds: "--seed" },
+    argv: ["note", "read", "--context", "--json"],
+    positional: ["seeds"],
+    args: {},
     stdin: false,
     effect: "read",
     description:
@@ -203,7 +208,7 @@ export const TOOLS: AgentTool[] = [
   },
   {
     name: "relation.add",
-    argv: ["relation", "add", "--json", "--envelope"],
+    argv: ["relation", "create", "--json"],
     args: {},
     stdin: true,
     effect: "write",
@@ -212,7 +217,7 @@ export const TOOLS: AgentTool[] = [
       "Create the relation note for one typed relation between two existing notes (e.g. from REQUIRES to), with your " +
       "reasoning as its text, so it appears in the vault's knowledge graph. An existing relation note for the same pair " +
       "and type is answered with its path. It writes nothing: the answer is a preview with a preview_id. Show it to the " +
-      "user; only when they confirm, call jovian_gate_apply with that preview_id.",
+      "user; only when they confirm, call jovian_change_apply with that preview_id.",
     input: {
       type: "object",
       additionalProperties: false,
