@@ -115,10 +115,10 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
     expect(JSON.parse(res.stdout)).toEqual({ commands: ["search", "read"] });
   });
 
-  it("relation --commands lists create and add", async () => {
+  it("relation --commands lists create", async () => {
     const res = await run(["relation", "--commands"]);
     expect(res.code).toBe(0);
-    expect(JSON.parse(res.stdout)).toEqual({ commands: ["create", "add"] });
+    expect(JSON.parse(res.stdout)).toEqual({ commands: ["create"] });
   });
 
   it("--version --json outputs version envelope", async () => {
@@ -450,6 +450,70 @@ describe("memvector CLI grammar migration (knowOS Plan 0023 Phase 2a)", () => {
       expect(res.code).toBe(1);
       expect(res.stderr).toContain("[ERROR] stdin is not one JSON request.");
       expect(res.stdout).toBe("");
+    });
+  });
+
+  describe("rejection of removed legacy commands and --envelope (M4.1)", () => {
+    it("rejects legacy search command with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["search", "--vault", root, "--query", "Ventil"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown command 'search'");
+    });
+
+    it("rejects legacy graph command with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["graph", "neighbors", "--vault", root, "--note", "wiki/Ventil.md"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown command 'graph'");
+    });
+
+    it("rejects legacy context command with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["context", "--vault", root, "--seed", "wiki/Ventil.md"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown command 'context'");
+    });
+
+    it("rejects legacy relation add subcommand with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["relation", "add", "--vault", root], JSON.stringify(RELATION));
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown relation command 'add'");
+    });
+
+    it("rejects --envelope on note search with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "search", "Ventil", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
+
+    it("rejects --envelope on note read --neighbors with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--neighbors", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
+
+    it("rejects --envelope on note read --context with exit 2", async () => {
+      const root = await vault();
+      const res = await run(["note", "read", "wiki/Ventil.md", "--context", "--vault", root, "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("unknown option --envelope");
+    });
+
+    it("rejects --envelope on tools with exit 2", async () => {
+      const res = await run(["tools", "--json", "--envelope"]);
+      expect(res.code).toBe(2);
+      expect(res.stderr).toContain("tools takes only --json");
+    });
+
+    it("reports canonical commands in --version", async () => {
+      const res = await run(["--version"]);
+      expect(res.code).toBe(0);
+      const parsed = JSON.parse(res.stdout);
+      expect(parsed.commands).toEqual(["note search", "note read", "relation create", "tools"]);
     });
   });
 });

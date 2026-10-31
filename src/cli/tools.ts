@@ -217,7 +217,7 @@ export const TOOLS: AgentTool[] = [
       "Create the relation note for one typed relation between two existing notes (e.g. from REQUIRES to), with your " +
       "reasoning as its text, so it appears in the vault's knowledge graph. An existing relation note for the same pair " +
       "and type is answered with its path. It writes nothing: the answer is a preview with a preview_id. Show it to the " +
-      "user; only when they confirm, call jovian_gate_apply with that preview_id.",
+      "user; only when they confirm, call jovian_change_apply with that preview_id.",
     input: {
       type: "object",
       additionalProperties: false,

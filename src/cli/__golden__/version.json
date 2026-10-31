@@ -6,10 +6,9 @@
   "stdout": {
     "memvector": "<VERSION>",
     "commands": [
-      "search",
-      "relation add",
-      "graph neighbors",
-      "context",
+      "note search",
+      "note read",
+      "relation create",
       "tools"
     ]
   },

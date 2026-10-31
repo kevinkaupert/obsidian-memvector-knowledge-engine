@@ -15,31 +15,26 @@ import { complete, expandTilde, resolvePluginDir, ZSH_SCRIPT } from "./completio
 
 declare const MEMVECTOR_VERSION: string;
 
-const USAGE = `usage: memvector search --vault <path> --query <text> [--limit 20] [--instruction <text>] [--folder <folder>] [--type <type>] [--config-dir .obsidian] --json [--envelope]
-       memvector relation add --vault <path> [--config-dir .obsidian] --json   (one JSON request on stdin)
-       memvector graph neighbors --vault <path> --note <note.md> [--limit 100] [--config-dir .obsidian] --json
-       memvector context --vault <path> --seed <note.md> [--seed <note.md> ...] [--config-dir .obsidian] --json
+const USAGE = `usage: memvector note search <query> --vault <path> [--limit 20] [--instruction <text>] [--folder <folder>] [--type <type>] [--config-dir .obsidian] [--json]
+       memvector note read <note.md> --neighbors --vault <path> [--limit 100] [--config-dir .obsidian] [--json]
+       memvector note read <seed1.md> [<seed2.md> ...] --context --vault <path> [--config-dir .obsidian] [--json]
+       memvector relation create --vault <path> [--config-dir .obsidian] [--dry-run] [--json]   (one JSON request on stdin)
        memvector tools --json [--vault <path>]
        memvector --version
+       memvector completion [zsh]
 
---instruction is put before the query as "Instruct: <text>\\nQuery: <query>", the query form instruction-tuned
-embedding models such as qwen3-embedding expect; notes are embedded without it.
-search reads MemVector's index and settings from <vault>/<config-dir>/plugins/${PLUGIN_ID}/ and never writes.
-relation add takes "preview": true (Jovian 0.25.27+): the gate plans the note, writes nothing and answers with a
-preview_id that \`jovian gate apply\` writes; --envelope answers in the agent envelope.
-relation add builds the relation note for {"v":1,"from":"<note>.md","to":"<note>.md","relation":"REQUIRES","text":"..."}
+note search: searches notes by vector similarity and returns matching excerpts.
+note read --neighbors: lists typed relations of one note from the graph.
+note read --context: assembles 2D synthesis context (vector centroid + graph expansion) for seed notes.
+relation create: builds the relation note for {"v":1,"from":"<note>.md","to":"<note>.md","relation":"REQUIRES","text":"..."}
 and writes it through Jovian's gate (the plugin's "Jovian command" setting); an existing one is answered with its path.
-Each hit carries an excerpt: the paragraph of the note sharing most words with the query. --folder and --type
-(frontmatter type) filter before ranking. --envelope answers as {"v":1,"outcome":"ok","data":{...}} or
-{"v":1,"outcome":"error","error":{"code","message"}} (knowOS ADR-0014); without it the output is unchanged.
-graph neighbors lists the relations of one note from MemVector's graph (type, direction, the other note), always as
-the envelope; reads only.
-context assembles what the 2D view's synthesis would use for the seed notes: vector neighbors of their centroid and
-graph neighbors up to the synthesis hop depth, with the caps of MemVector's settings (no flag overrides them), the
-typed relations among seeds and hits, and the retrieval status of each channel; always as the envelope, reads only.
-tools lists the commands offered to agents with their JSON schemas.
+--dry-run plans the relation note without writing and answers with a preview_id that \`jovian change apply\` writes.
+tools: lists the commands offered to agents with their JSON schemas.
+--instruction is put before the query as "Instruct: <text>\\nQuery: <query>" for instruction-tuned models.
+--folder and --type filter before ranking.
+--json always outputs structured JSON envelope: {"v":1,"outcome":"ok","data":{...}} or {"v":1,"outcome":"error","error":{"code","message"}} (ADR-0014).
 An API key for a cloud embedding endpoint comes from MEMVECTOR_EMBEDDING_API_KEY.
-Exit codes: 0 ok, 1 error (JSON on stdout), 2 usage.`;
+Exit codes: 0 ok, 1 error, 2 usage, 3 timeout.`;
 
 /** Node's fetch as the embedding POST: a body that is not JSON reads as undefined, like the plugin's requestUrl. */
 const nodePost: EmbeddingPost = async (req) => {
@@ -103,7 +98,7 @@ export async function main(argv: string[]): Promise<number> {
       process.stdout.write(`${JSON.stringify({ v: 1, outcome: "ok", data: { memvector: MEMVECTOR_VERSION, commands: ["note search", "note read", "relation create", "tools"] } })}\n`);
       return 0;
     }
-    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["search", "relation add", "graph neighbors", "context", "tools"] })}\n`);
+    process.stdout.write(`${JSON.stringify({ memvector: MEMVECTOR_VERSION, commands: ["note search", "note read", "relation create", "tools"] })}\n`);
     return 0;
   }
   if (command === undefined || command === "--help" || command === "-h") {
@@ -112,8 +107,6 @@ export async function main(argv: string[]): Promise<number> {
   }
   if (command === "note") return noteCommand(rest);
   if (command === "relation") return relationCommand(rest);
-  if (command === "graph") return graphCommand(rest);
-  if (command === "context") return contextCommand(rest);
   if (command === "tools") {
     // --vault (and --config-dir) are accepted and unused: an MCP server passes the vault to every component's list
     const toolArgs = parseArgs(rest);
@@ -123,83 +116,9 @@ export async function main(argv: string[]): Promise<number> {
     process.stdout.write(`${JSON.stringify(toolList(MEMVECTOR_VERSION))}\n`);
     return 0;
   }
-  if (command !== "search") return usage(`unknown command '${command}'`);
-  const args = parseArgs(rest);
-  if (!args) return usage("arguments must be --key value pairs");
-  const known = new Set(["vault", "query", "limit", "instruction", "folder", "type", "config-dir", "json", "envelope"]);
-  const unknown = [...args.keys()].filter((k) => !known.has(k));
-  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
-  const vault = args.get("vault");
-  const query = args.get("query");
-  if (typeof vault !== "string" || !vault) return usage("--vault is required");
-  if (typeof query !== "string" || !query.trim()) return usage("--query is required");
-  const limitRaw = args.get("limit") ?? "20";
-  const limit = Number(limitRaw);
-  if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
-  const instruction = args.get("instruction");
-  if (instruction !== undefined && (typeof instruction !== "string" || !instruction.trim())) return usage("--instruction needs a text");
-  const folder = args.get("folder");
-  if (folder !== undefined && (typeof folder !== "string" || !folder.trim())) return usage("--folder needs a folder");
-  const type = args.get("type");
-  if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
-  const envelope = args.get("envelope") === true;
-  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
-
-  const dbPath = join(pluginDir, DB_FILENAME);
-  if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, envelope);
-  let settings: Record<string, unknown> = {};
-  const dataPath = join(pluginDir, "data.json");
-  if (existsSync(dataPath)) {
-    try {
-      settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
-    } catch (err) {
-      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, envelope);
-    }
-  }
-  const wasmPath = join(pluginDir, "sql-wasm.wasm");
-  const result = await searchIndex(
-    {
-      settings: {
-        embeddingModel: typeof settings.embeddingModel === "string" ? settings.embeddingModel : undefined,
-        embeddingApiBaseUrl: typeof settings.embeddingApiBaseUrl === "string" ? settings.embeddingApiBaseUrl : undefined,
-      },
-      db: readFileSync(dbPath),
-      wasm: existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
-    },
-    query.trim(),
-    limit,
-    nodePost,
-    process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
-    typeof instruction === "string" ? instruction.trim() : undefined,
-    vaultReader(vault),
-    { folder: typeof folder === "string" ? folder.trim().replace(/^\.[/\\]+/, "") : undefined, type: typeof type === "string" ? type.trim() : undefined }
-  );
-  process.stdout.write(`${JSON.stringify(envelope ? searchEnvelope(result) : result)}\n`);
-  return result.outcome === "ok" ? 0 : 1;
+  return usage(`unknown command '${command}'`);
 }
 
-async function graphCommand(argv: string[]): Promise<number> {
-  const [sub, ...rest] = argv;
-  if (sub !== "neighbors") return usage(`unknown graph command '${sub ?? ""}'`);
-  const args = parseArgs(rest);
-  if (!args) return usage("arguments must be --key value pairs");
-  const unknown = [...args.keys()].filter((k) => !["vault", "note", "limit", "config-dir", "json", "envelope"].includes(k));
-  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
-  const vault = args.get("vault");
-  const note = args.get("note");
-  if (typeof vault !== "string" || !vault) return usage("--vault is required");
-  if (typeof note !== "string" || !note.trim()) return usage("--note is required");
-  const limitRaw = args.get("limit") ?? "100";
-  const limit = Number(limitRaw);
-  if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
-  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
-  const dbPath = join(pluginDir, DB_FILENAME);
-  if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
-  const wasmPath = join(pluginDir, "sql-wasm.wasm");
-  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim().replace(/^\.[/\\]+/, ""), limit);
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-  return result.outcome === "ok" ? 0 : 1;
-}
 
 /** Splits every `--<key> <value>` / `--<key>=<value>` of a repeatable option off argv: (values, the rest). */
 function takeRepeated(argv: string[], key: string): [string[], string[]] | null {
@@ -213,38 +132,6 @@ function takeRepeated(argv: string[], key: string): [string[], string[]] | null 
     else rest.push(argv[i]);
   }
   return [values, rest];
-}
-
-async function contextCommand(argv: string[]): Promise<number> {
-  const split = takeRepeated(argv, "seed");
-  if (!split) return usage("--seed needs a note");
-  const [seeds, rest] = split;
-  const args = parseArgs(rest);
-  if (!args) return usage("arguments must be --key value pairs");
-  const unknown = [...args.keys()].filter((k) => !["vault", "config-dir", "json", "envelope"].includes(k));
-  if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
-  const vault = args.get("vault");
-  if (typeof vault !== "string" || !vault) return usage("--vault is required");
-  const cleaned = seeds.map((seed) => seed.trim().replace(/^\.[/\\]+/, ""));
-  if (cleaned.length === 0 || cleaned.some((seed) => !seed)) return usage("at least one --seed <note.md> is required");
-  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
-  const dbPath = join(pluginDir, DB_FILENAME);
-  if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
-  let loaded: unknown = {};
-  const dataPath = join(pluginDir, "data.json");
-  if (existsSync(dataPath)) {
-    try {
-      loaded = JSON.parse(readFileSync(dataPath, "utf8"));
-    } catch (err) {
-      return fail("SETTINGS_UNREADABLE", `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, true);
-    }
-  }
-  const wasmPath = join(pluginDir, "sql-wasm.wasm");
-  // The plugin's own merge of data.json with its defaults, so a value the owner never changed is the plugin's
-  const result = await contextFor(vault, migrateSettings(loaded), readFileSync(dbPath),
-    existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), [...new Set(cleaned)]);
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-  return result.outcome === "ok" ? 0 : 1;
 }
 
 /** Node's spawn for the gate, with the CLI's own environment under the extra bin folders runGate adds. */
@@ -569,23 +456,20 @@ async function relationCommand(argv: string[]): Promise<number> {
   (globalThis as { window?: unknown }).window ??= globalThis;
   const [sub, ...rest] = argv;
   if (sub === "--commands") {
-    process.stdout.write(`${JSON.stringify({ commands: ["create", "add"] })}\n`);
+    process.stdout.write(`${JSON.stringify({ commands: ["create"] })}\n`);
     return 0;
   }
   if (sub === "--help" || sub === "-h") {
-    process.stdout.write("usage: memvector relation <create|add> [args...]\n");
+    process.stdout.write("usage: memvector relation create [args...]\n");
     return 0;
   }
   if (sub === undefined) {
-    return usage("relation takes 'create' or 'add'");
+    return usage("relation takes 'create'");
   }
-  if (sub !== "add" && sub !== "create") return usage(`unknown relation command '${sub}'`);
-  const isCreate = sub === "create";
+  if (sub !== "create") return usage(`unknown relation command '${sub}'`);
   const args = parseArgs(rest);
   if (!args) return usage("arguments must be --key value pairs");
-  const known = isCreate
-    ? ["vault", "config-dir", "json", "dry-run"]
-    : ["vault", "config-dir", "json", "envelope"];
+  const known = ["vault", "config-dir", "json", "dry-run"];
   const unknown = [...args.keys()].filter((k) => !known.includes(k));
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
@@ -598,15 +482,12 @@ async function relationCommand(argv: string[]): Promise<number> {
       settings = JSON.parse(readFileSync(dataPath, "utf8")) as Record<string, unknown>;
     } catch (err) {
       const msg = `${dataPath} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`;
-      if (isCreate) {
-        if (isJson) {
-          process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "SETTINGS_UNREADABLE", message: msg } })}\n`);
-        } else {
-          process.stderr.write(`[ERROR] ${msg}\n`);
-        }
-        return 1;
+      if (isJson) {
+        process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "SETTINGS_UNREADABLE", message: msg } })}\n`);
+      } else {
+        process.stderr.write(`[ERROR] ${msg}\n`);
       }
-      return fail("SETTINGS_UNREADABLE", msg, false);
+      return 1;
     }
   }
   let request: unknown;
@@ -614,67 +495,51 @@ async function relationCommand(argv: string[]): Promise<number> {
     request = JSON.parse(await readStdin());
   } catch {
     const msg = "stdin is not one JSON request.";
-    if (isCreate) {
-      if (isJson) {
-        process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "INVALID_REQUEST", message: msg } })}\n`);
-      } else {
-        process.stderr.write(`[ERROR] ${msg}\n`);
-      }
-      return 1;
+    if (isJson) {
+      process.stdout.write(`${JSON.stringify({ v: 1, outcome: "error", error: { code: "INVALID_REQUEST", message: msg } })}\n`);
+    } else {
+      process.stderr.write(`[ERROR] ${msg}\n`);
     }
-    return fail("INVALID_REQUEST", msg, false);
+    return 1;
   }
-  if (isCreate) {
-    if (args.get("dry-run") === true) {
-      if (request && typeof request === "object" && (request as Record<string, unknown>).preview === false) {
-        return usage("cannot specify --dry-run with 'preview': false in request");
-      }
-      if (request && typeof request === "object") {
-        (request as Record<string, unknown>).preview = true;
-      }
+  if (args.get("dry-run") === true) {
+    if (request && typeof request === "object" && (request as Record<string, unknown>).preview === false) {
+      return usage("cannot specify --dry-run with 'preview': false in request");
+    }
+    if (request && typeof request === "object") {
+      (request as Record<string, unknown>).preview = true;
     }
   }
   const result = await relationAdd(vault, request, settings, { spawn: gateSpawn, clientVersion: MEMVECTOR_VERSION });
 
-  if (isCreate) {
-    const { outcome, code, error, ...data } = result;
-    const isTimeout = outcome === "timeout" ||
-      (code ?? "").toUpperCase().includes("TIMEOUT") ||
-      (code ?? "").toUpperCase().includes("LOCK") ||
-      (error ?? "").toLowerCase().includes("timeout") ||
-      (error ?? "").toLowerCase().includes("timed out") ||
-      (error ?? "").toLowerCase().includes("lock");
-    const exitCode = outcome === "ok" ? 0 : (isTimeout ? 3 : 1);
-    if (isJson) {
-      const body = outcome === "ok"
-        ? { v: 1, outcome, data }
-        : { v: 1, outcome: isTimeout ? "timeout" : "error", error: { code: code ?? (isTimeout ? "LOCK_TIMEOUT" : "FAILED"), message: error ?? "" } };
-      process.stdout.write(`${JSON.stringify(body)}\n`);
-      return exitCode;
-    }
-    if (outcome === "ok") {
-      if (data.preview) {
-        process.stdout.write(`Relation preview created for ${data.path} (id: ${(data.preview as { preview_id?: string })?.preview_id ?? ""})\n`);
-      } else if (data.created) {
-        process.stdout.write(`Relation created: ${data.path}\n`);
-      } else {
-        process.stdout.write(`Relation already exists: ${data.path}\n`);
-      }
-      return 0;
-    } else {
-      process.stderr.write(`[ERROR] ${error ?? "Failed to create relation"}\n`);
-      return exitCode;
-    }
-  }
-
-  if (args.get("envelope") === true) {
-    const { outcome, code, error, ...data } = result;
-    const body = outcome === "ok" ? { v: 1, outcome, data } : { v: 1, outcome, error: { code: code ?? "FAILED", message: error ?? "" } };
+  const { outcome, code, error, ...data } = result;
+  const isTimeout = outcome === "timeout" ||
+    (code ?? "").toUpperCase().includes("TIMEOUT") ||
+    (code ?? "").toUpperCase().includes("LOCK") ||
+    (error ?? "").toLowerCase().includes("timeout") ||
+    (error ?? "").toLowerCase().includes("timed out") ||
+    (error ?? "").toLowerCase().includes("lock");
+  const exitCode = outcome === "ok" ? 0 : (isTimeout ? 3 : 1);
+  if (isJson) {
+    const body = outcome === "ok"
+      ? { v: 1, outcome, data }
+      : { v: 1, outcome: isTimeout ? "timeout" : "error", error: { code: code ?? (isTimeout ? "LOCK_TIMEOUT" : "FAILED"), message: error ?? "" } };
     process.stdout.write(`${JSON.stringify(body)}\n`);
-    return outcome === "ok" ? 0 : 1;
+    return exitCode;
   }
-  process.stdout.write(`${JSON.stringify(result)}\n`);
-  return result.outcome === "ok" ? 0 : 1;
+  if (outcome === "ok") {
+    if (data.preview) {
+      process.stdout.write(`Relation preview created for ${data.path} (id: ${(data.preview as { preview_id?: string })?.preview_id ?? ""})\n`);
+    } else if (data.created) {
+      process.stdout.write(`Relation created: ${data.path}\n`);
+    } else {
+      process.stdout.write(`Relation already exists: ${data.path}\n`);
+    }
+    return 0;
+  } else {
+    process.stderr.write(`[ERROR] ${error ?? "Failed to create relation"}\n`);
+    return exitCode;
+  }
 }
 
 // exitCode instead of process.exit(): the process ends after stdout is written, also when it is piped
