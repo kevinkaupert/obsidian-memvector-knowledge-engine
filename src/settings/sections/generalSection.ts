@@ -42,7 +42,7 @@ export function renderGeneralSection(containerEl: HTMLElement, host: SettingsHos
     .setDesc(t.jovianCommandDesc)
     .addText((text) =>
       text
-        .setPlaceholder("python3 -m jovian.gate")
+        .setPlaceholder("python3 -m jovian.cli")
         .setValue(settings.jovianCommand || "")
         .onChange(async (value) => {
           settings.jovianCommand = value;

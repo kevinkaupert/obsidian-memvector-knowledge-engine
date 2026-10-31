@@ -175,7 +175,7 @@ export async function relationAdd(
   } catch (err) {
     return fail("GATE_UNAVAILABLE", err instanceof Error ? err.message : String(err));
   }
-  const call = await runGate(invocation, ["write", "--vault", root, "--json"], {
+  const call = await runGate(invocation, ["change", "create", ...(preview ? ["--dry-run"] : []), "--vault", root, "--json"], {
     v: 1,
     client: { component: "memvector", version: options.clientVersion },
     target: path,
@@ -195,9 +195,12 @@ export async function relationAdd(
     return { outcome: "ok", path, created: false, preview: data };
   }
   if (call.result?.outcome === "ok") return { outcome: "ok", path, created: true };
-  if (call.result?.outcome === "timeout") {
+  if (call.result?.outcome === "timeout" || call.exitCode === 3) {
     const error = call.result?.error;
     return fail(typeof error?.code === "string" ? error.code : "TIMEOUT", typeof error?.message === "string" ? error.message : "Jovian's gate timed out.");
+  }
+  if (call.exitCode === 130) {
+    return fail("ABORTED", "Jovian call aborted.");
   }
   const error = call.result?.error;
   if (error) return fail(typeof error.code === "string" ? error.code : "GATE_ERROR", typeof error.message === "string" ? error.message : "The gate refused the write.");

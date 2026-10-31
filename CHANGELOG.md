@@ -8,6 +8,17 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.23] - 2026-10-31
+
+### Changed
+
+- Migrate Jovian gate callers to unified `<noun> <verb>` CLI grammar (knowOS Plan 0023 Phase 3, ADR-0017):
+  - Gate capability probing runs `jovian gate read --json` instead of legacy `jovian gate --version`.
+  - Gate precondition check runs `jovian gate check --vault <path> --json`.
+  - Note write and relation creation run `jovian change create --vault <path> --json` (with `--dry-run` on preview) instead of legacy `jovian gate write`.
+  - Gate invocation tokenization defaults to `python3 -m jovian.cli` when unconfigured and preserves subcommands.
+  - Handles exit code 3 (lock timeout) and exit code 130 (SIGINT / aborted) gracefully.
+
 ## [0.3.22] - 2026-10-31
 
 ### Added

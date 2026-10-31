@@ -47,7 +47,7 @@ afterAll(() => new Promise<void>((done) => stub.close(() => done())));
 
 const GATE = `
 const args = process.argv.slice(2);
-if (args.includes("--version")) { process.stdout.write(JSON.stringify({ v: 1, outcome: "ok", data: { jovian: "0.0.0", protocol: [1] } })); process.exit(0); }
+if (args.includes("--version") || (args.includes("gate") && args.includes("read"))) { process.stdout.write(JSON.stringify({ v: 1, outcome: "ok", data: { jovian: "0.0.0", protocol: [1] } })); process.exit(0); }
 let input = "";
 process.stdin.on("data", (c) => { input += c; });
 process.stdin.on("end", () => {
