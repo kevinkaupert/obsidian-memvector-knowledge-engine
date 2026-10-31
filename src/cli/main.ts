@@ -11,7 +11,7 @@ import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 import { contextFor } from "./context";
 import { migrateSettings } from "../settings/secrets";
 import { toolList } from "./tools";
-import { complete, ZSH_SCRIPT } from "./completion";
+import { complete, expandTilde, ZSH_SCRIPT } from "./completion";
 
 declare const MEMVECTOR_VERSION: string;
 
@@ -59,9 +59,9 @@ function parseArgs(argv: string[]): Map<string, string | true> | null {
     const arg = argv[i];
     if (!arg.startsWith("--")) return null;
     const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
-    if (inline !== undefined) args.set(key, inline);
+    if (inline !== undefined) args.set(key, key === "vault" ? expandTilde(inline) : inline);
     else if (key === "json" || key === "envelope" || key === "version" || key === "help" || key === "dry-run") args.set(key, true);
-    else if (i + 1 < argv.length) args.set(key, argv[++i]);
+    else if (i + 1 < argv.length) args.set(key, key === "vault" ? expandTilde(argv[++i]) : argv[++i]);
     else return null;
   }
   return args;
@@ -268,11 +268,12 @@ function parseCommandArgs(argv: string[]): { positionals: string[]; options: Map
     if (arg.startsWith("--")) {
       const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
       if (inline !== undefined) {
-        options.set(key, inline);
+        options.set(key, key === "vault" ? expandTilde(inline) : inline);
       } else if (["json", "envelope", "version", "help", "neighbors", "context", "dry-run"].includes(key)) {
         options.set(key, true);
       } else if (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
-        options.set(key, argv[++i]);
+        const val = argv[++i];
+        options.set(key, key === "vault" ? expandTilde(val) : val);
       } else {
         return null;
       }

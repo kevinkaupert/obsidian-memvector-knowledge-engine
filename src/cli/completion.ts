@@ -189,6 +189,10 @@ export function normalizeSearchPrefix(prefix: string): string {
   return clean;
 }
 
+export function escapeLikePattern(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+}
+
 export function escapeCandidate(text: string): string {
   let escaped = text.replace(/\\/g, "\\\\");
   escaped = escaped.replace(/:/g, "\\:");
@@ -340,9 +344,10 @@ export async function getNoteTargets(
         if (!searchPrefix) {
           rows = db.exec("SELECT path FROM notes ORDER BY path ASC LIMIT 500");
         } else {
+          const escaped = escapeLikePattern(searchPrefix);
           rows = db.exec(
-            "SELECT path FROM notes WHERE path LIKE ? OR id LIKE ? OR title LIKE ? ORDER BY path ASC LIMIT 500",
-            [`%${searchPrefix}%`, `${searchPrefix}%`, `${searchPrefix}%`]
+            "SELECT path FROM notes WHERE path LIKE ? ESCAPE '\\' OR id LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\' ORDER BY path ASC LIMIT 500",
+            [`%${escaped}%`, `${escaped}%`, `${escaped}%`]
           );
         }
         if (rows.length > 0 && rows[0].values) {

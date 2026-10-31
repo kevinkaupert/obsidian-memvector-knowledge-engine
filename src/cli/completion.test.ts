@@ -357,6 +357,42 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("wiki/ZTargetNote.md");
     });
 
+    it("escapes LIKE wildcards so literal underscore matches exact target (Codex R4 Finding 1)", async () => {
+      const largeVault = mkdtempSync(join(tmpdir(), "mv-like-"));
+      mkdirSync(join(largeVault, "wiki"), { recursive: true });
+      const plugin = join(largeVault, ".obsidian", "plugins", PLUGIN_ID);
+      mkdirSync(plugin, { recursive: true });
+      const SQL = await initSqlJs({
+        wasmBinary: WASM.buffer.slice(WASM.byteOffset, WASM.byteOffset + WASM.byteLength) as ArrayBuffer,
+      });
+      const db = new SQL.Database();
+      db.run("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT, path TEXT);");
+      for (let i = 0; i < 600; i++) {
+        db.run("INSERT INTO notes VALUES (?, ?, ?)", [`id${i}`, `Note${i}`, `wiki/Note${String(i).padStart(4, "0")}.md`]);
+      }
+      db.run("INSERT INTO notes VALUES ('target', 'Special', 'wiki/Note_special.md')");
+      writeFileSync(join(plugin, DB_FILENAME), db.export());
+      db.close();
+
+      const res = await run(["__complete", "note", "read", "--vault", largeVault, "wiki/Note_"]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      expect(lines).toEqual(["wiki/Note_special.md"]);
+    });
+
+    it("supports equals-style tilde expansion during command execution (Codex R4 Finding 2)", async () => {
+      const home = process.env.HOME ?? "/root";
+      const relToHome = testVault.startsWith(home) ? testVault.slice(home.length).replace(/^[/\\]+/, "") : null;
+      if (relToHome) {
+        const tildeVault = `--vault=~/${relToHome}`;
+        const execRes = await run(["note", "read", "wiki/Ventil.md", "--neighbors", tildeVault, "--json"]);
+        expect(execRes.code).toBe(0);
+        const data = JSON.parse(execRes.stdout);
+        expect(data.outcome).toBe("ok");
+        expect(data.data.note).toBe("wiki/Ventil.md");
+      }
+    });
+
     it("resolves --config-dir candidates relative to the specified vault (Codex R3 Finding 1)", async () => {
       const customVault = mkdtempSync(join(tmpdir(), "mv-cfgdir-"));
       mkdirSync(join(customVault, ".custom-obsidian"), { recursive: true });
