@@ -11,7 +11,7 @@ vi.stubGlobal("window", globalThis);
 vi.mock("obsidian", () => ({ stringifyYaml: (o: unknown) => yaml.stringify(o), parseYaml: (t: string) => yaml.parse(t) }));
 
 /** A gate that answers `ok` (or `error`) and records the request it got. */
-function gate(answer: Record<string, unknown> = { v: 1, outcome: "ok", data: {} }) {
+function gate(answer: Record<string, unknown> = { v: 1, outcome: "ok", data: {} }, exitCode = 0) {
   const requests: Array<Record<string, unknown>> = [];
   const args: string[][] = [];
   const spawn: GateSpawn = (_command, a) => {
@@ -23,7 +23,7 @@ function gate(answer: Record<string, unknown> = { v: 1, outcome: "ok", data: {} 
       stderr: { setEncoding: () => undefined, on: () => undefined },
       stdin: { on: () => undefined, end: (data: string) => {
         requests.push(JSON.parse(data) as Record<string, unknown>);
-        queueMicrotask(() => { out(JSON.stringify(answer)); on.close?.(0 as never); });
+        queueMicrotask(() => { out(JSON.stringify(answer)); on.close?.(exitCode as never); });
       } },
       on: (event: string, cb: (v: never) => void) => { on[event] = cb; },
       kill: () => undefined,
@@ -61,7 +61,7 @@ describe("memvector relation add", () => {
     expect(content).toContain('source_note: "[[Fragmente/Gruppe (Definition)|Gruppe]]"');
     expect(content).toContain("original_term: setzt voraus");
     expect(content).toContain("Zuerst eine Menge.");
-    expect(g.args[0]).toEqual(["gate", "write", "--vault", expect.any(String), "--json"]);
+    expect(g.args[0]).toEqual(["change", "create", "--vault", expect.any(String), "--json"]);
   });
 
   it("answers an existing relation note with its path and writes nothing", async () => {
@@ -94,6 +94,13 @@ describe("memvector relation add", () => {
     const result = await relationAdd(vault(), { ...REQ, preview: true }, SETTINGS, { spawn: g.spawn, clientVersion: "0.3.15" });
     expect(result).toMatchObject({ outcome: "ok", created: false, preview });
     expect(g.requests[0]).toMatchObject({ preview: true, mode: "create_new" });
+    expect(g.args[0]).toEqual(["change", "create", "--dry-run", "--vault", expect.any(String), "--json"]);
+  });
+
+  it("reports aborted on exit 130", async () => {
+    const aborted = gate({ v: 1, outcome: "error" }, 130);
+    const result = await relationAdd(vault(), REQ, SETTINGS, { spawn: aborted.spawn, clientVersion: "0" });
+    expect(result).toEqual({ outcome: "error", code: "ABORTED", error: "Jovian call aborted." });
   });
 
   it("refuses a preview from a gate that does not know previews", async () => {

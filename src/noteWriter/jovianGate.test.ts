@@ -40,13 +40,14 @@ function fakeSpawn(answer: { stdout?: string; stderr?: string; code?: number; ha
 }
 
 describe("gate invocation", () => {
-  it("runs python3 -m jovian.gate without a configured command", () => {
-    expect(resolveGateInvocation("")).toEqual({ command: "python3", args: ["-m", "jovian.gate"] });
+  it("runs python3 -m jovian.cli without a configured command", () => {
+    expect(resolveGateInvocation("")).toEqual({ command: "python3", args: ["-m", "jovian.cli"] });
   });
 
-  it("appends gate to a configured command and expands ~", () => {
-    expect(resolveGateInvocation("~/venv/bin/jovian", "/home/u")).toEqual({ command: "/home/u/venv/bin/jovian", args: ["gate"] });
-    expect(resolveGateInvocation('"/my apps/python" -m jovian.cli')).toEqual({ command: "/my apps/python", args: ["-m", "jovian.cli", "gate"] });
+  it("resolves a configured command, expands ~, and normalizes legacy module", () => {
+    expect(resolveGateInvocation("~/venv/bin/jovian", "/home/u")).toEqual({ command: "/home/u/venv/bin/jovian", args: [] });
+    expect(resolveGateInvocation('"/my apps/python" -m jovian.cli')).toEqual({ command: "/my apps/python", args: ["-m", "jovian.cli"] });
+    expect(resolveGateInvocation("python3 -m jovian.gate")).toEqual({ command: "python3", args: ["-m", "jovian.cli"] });
   });
 
   it("rejects an unclosed quote", () => {
@@ -55,37 +56,39 @@ describe("gate invocation", () => {
 });
 
 describe("runGate", () => {
-  const invocation = { command: "jovian", args: ["gate"] };
+  const invocation = { command: "jovian", args: [] };
 
   it("sends the request as JSON on stdin and parses the result", async () => {
     const fake = fakeSpawn({ stdout: '{"v":1,"outcome":"ok","data":{"target":"a.md"}}' });
-    const call = await runGate(invocation, ["write", "--vault", "/v", "--json"], { v: 1 }, 1000, fake.spawn);
+    const call = await runGate(invocation, ["change", "create", "--vault", "/v", "--json"], { v: 1 }, 1000, fake.spawn);
     expect(call).toEqual({ exitCode: 0, result: { v: 1, outcome: "ok", data: { target: "a.md" } }, problem: undefined });
-    expect(fake.calls[0]).toEqual({ command: "jovian", args: ["gate", "write", "--vault", "/v", "--json"], stdin: '{"v":1}' });
+    expect(fake.calls[0]).toEqual({ command: "jovian", args: ["change", "create", "--vault", "/v", "--json"], stdin: '{"v":1}' });
   });
 
   it("reports malformed output without a result", async () => {
-    const call = await runGate(invocation, ["write"], {}, 1000, fakeSpawn({ stdout: "Traceback", stderr: "boom\nValueError: x", code: 1 }).spawn);
+    const call = await runGate(invocation, ["change", "create"], {}, 1000, fakeSpawn({ stdout: "Traceback", stderr: "boom\nValueError: x", code: 1 }).spawn);
     expect(call.result).toBeUndefined();
     expect(call.problem).toBe("ValueError: x");
   });
 
   it("reports a timeout", async () => {
-    const call = await runGate(invocation, ["write"], {}, 10, fakeSpawn({ hang: true }).spawn);
+    const call = await runGate(invocation, ["change", "create"], {}, 10, fakeSpawn({ hang: true }).spawn);
     expect(call.exitCode).toBeNull();
     expect(call.problem).toContain("Timeout");
   });
 
   it("reports a command that cannot start", async () => {
-    const call = await runGate(invocation, ["write"], {}, 1000, fakeSpawn({ throws: true }).spawn);
+    const call = await runGate(invocation, ["change", "create"], {}, 1000, fakeSpawn({ throws: true }).spawn);
     expect(call.problem).toContain("Not startable");
   });
 });
 
 describe("probeGate", () => {
-  it("accepts protocol 1", async () => {
-    const result = await probeGate("", 1000, fakeSpawn({ stdout: '{"v":1,"outcome":"ok","data":{"jovian":"0.25.6","protocol":[1]}}' }).spawn);
+  it("accepts protocol 1 via jovian gate read", async () => {
+    const fake = fakeSpawn({ stdout: '{"v":1,"outcome":"ok","data":{"jovian":"0.25.6","protocol":[1]}}' });
+    const result = await probeGate("", 1000, fake.spawn);
     expect(result).toEqual({ ok: true, message: "Jovian gate 0.25.6" });
+    expect(fake.calls[0]).toEqual({ command: "python3", args: ["-m", "jovian.cli", "gate", "read", "--json"], stdin: "" });
   });
 
   it("refuses another protocol or a Jovian without the gate", async () => {

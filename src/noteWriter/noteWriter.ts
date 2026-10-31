@@ -69,12 +69,16 @@ export interface JovianWriterOptions {
   newRequestId?: () => string;
 }
 
-/** Writes through `jovian gate check|write` (protocol 1). */
+/** Writes through Jovian CLI: `jovian gate check` and `jovian change create` (protocol 1, knowOS ADR-0017). */
 export function createJovianWriter(options: JovianWriterOptions): NoteWriter {
   const run = options.run ?? runGate;
   const newRequestId = options.newRequestId ?? (() => crypto.randomUUID());
-  const call = (command: "check" | "write", request: Record<string, unknown>): Promise<GateCall> =>
-    run(resolveGateInvocation(options.jovianCommand), [command, "--vault", options.vaultPath, "--json"], request, JOVIAN_GATE_CALL_TIMEOUT_MS);
+  const call = (action: "check" | "write", request: Record<string, unknown>): Promise<GateCall> => {
+    const args = action === "check"
+      ? ["gate", "check", "--vault", options.vaultPath, "--json"]
+      : ["change", "create", "--vault", options.vaultPath, "--json"];
+    return run(resolveGateInvocation(options.jovianCommand), args, request, JOVIAN_GATE_CALL_TIMEOUT_MS);
+  };
   const base = (target: string, content: string, expectedHash: string | null) => ({
     v: 1,
     client: { component: "memvector", version: options.clientVersion ?? pluginVersion },
@@ -139,6 +143,9 @@ function rejected(call: GateCall, target: string): NoteWriteError {
   if (result?.outcome === "timeout" || call.exitCode === 3) {
     return new NoteWriteError(`${target} is locked (Jovian timeout); nothing written. Please try again.`, "TIMEOUT");
   }
+  if (call.exitCode === 130) {
+    return new NoteWriteError(`Write aborted (${target}); nothing written.`, "ABORTED");
+  }
   return new NoteWriteError(
     `Unclear answer from Jovian (${call.problem ?? "no result"}); not written natively, please check ${target}.`,
     "UNCLEAR"
@@ -156,7 +163,7 @@ export interface ChooseNoteWriterDeps {
 
 /**
  * Chooses the writer for one save: native when `writeViaJovian` is off (standalone use, Jovian not needed); with it
- * on, Jovian's gate when `jovian gate --version` answers with protocol 1. With it on and Jovian not usable (no local
+ * on, Jovian's gate when `jovian gate read` answers with protocol 1. With it on and Jovian not usable (no local
  * vault path, command not startable, wrong protocol) nothing is written: a NoteWriteError ("GATE_UNAVAILABLE")
  * names the cause, and the caller keeps the content for another try (#292). There is no direct-write fallback.
  */

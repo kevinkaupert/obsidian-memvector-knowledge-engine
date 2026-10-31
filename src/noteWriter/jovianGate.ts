@@ -1,14 +1,14 @@
 /**
- * Purpose: Runs Jovian's write gate CLI (`jovian gate --version|check|write`, protocol 1) for optional note writes
- * through Jovian (#274, knowOS docs/contracts/jovian-gate.md).
+ * Purpose: Runs Jovian's write gate CLI (`jovian gate read|check`, `jovian change create`, protocol 1) for optional note writes
+ * through Jovian (#274, knowOS docs/contracts/jovian-gate.md, ADR-0017).
  * Architecture: One process per call, one JSON request on stdin, one JSON result on stdout. `spawn` is injected so
  * tests run without Jovian; in Obsidian it is Node's `child_process.spawn`, loaded lazily because the bundle targets
  * the browser platform.
  */
 
-/** Wait for `jovian gate --version` before the write falls back to the native path. */
+/** Wait for `jovian gate read` before the write falls back to the native path. */
 export const JOVIAN_GATE_PROBE_TIMEOUT_MS = 10000;
-/** Wait for `jovian gate check|write`; the gate's own lock timeout answers earlier (exit 3). */
+/** Wait for `jovian gate check` or `jovian change create`; the gate's own lock timeout answers earlier (exit 3). */
 export const JOVIAN_GATE_CALL_TIMEOUT_MS = 60000;
 
 export interface GateInvocation {
@@ -69,15 +69,19 @@ export function splitCommandLine(commandLine: string): string[] {
 }
 
 /**
- * Builds the gate invocation: a configured command is treated like the `jovian` CLI (e.g. `~/venv/bin/jovian`) and
- * gets `gate` appended; an empty command runs `python3 -m jovian.gate`.
+ * Builds the Jovian CLI invocation: a configured command is treated like the `jovian` CLI (e.g. `~/venv/bin/jovian`)
+ * and tokenized; an empty command defaults to `python3 -m jovian.cli`. Subcommands (`["gate", "read"]`,
+ * `["change", "create"]`, etc.) are appended by the caller.
  */
 export function resolveGateInvocation(jovianCommand: string, home: string = homeDir()): GateInvocation {
   const tokens = splitCommandLine(jovianCommand.trim());
-  if (tokens.length === 0) return { command: "python3", args: ["-m", "jovian.gate"] };
+  if (tokens.length === 0) return { command: "python3", args: ["-m", "jovian.cli"] };
   const [first, ...rest] = tokens;
   const command = first === "~" || first.startsWith("~/") ? `${home}${first.slice(1)}` : first;
-  return { command, args: [...rest, "gate"] };
+  if (rest.length === 2 && rest[0] === "-m" && rest[1] === "jovian.gate") {
+    return { command, args: ["-m", "jovian.cli"] };
+  }
+  return { command, args: rest };
 }
 
 /** Environment for the gate process: common user bin folders on PATH, since Obsidian starts with a minimal PATH. */
@@ -148,7 +152,7 @@ export interface GateProbeResult {
   message: string;
 }
 
-/** Whether `jovian gate --version` answers with protocol 1 (contract §2); otherwise the reason. */
+/** Whether `jovian gate read` answers with protocol 1 (contract §2); otherwise the reason. */
 export async function probeGate(
   jovianCommand: string,
   timeoutMs: number = JOVIAN_GATE_PROBE_TIMEOUT_MS,
@@ -160,7 +164,7 @@ export async function probeGate(
   } catch (err) {
     return { ok: false, message: errorText(err) };
   }
-  const call = await runGate(invocation, ["--version"], undefined, timeoutMs, spawn);
+  const call = await runGate(invocation, ["gate", "read", "--json"], undefined, timeoutMs, spawn);
   const protocol = call.result?.data?.protocol;
   if (call.exitCode === 0 && call.result?.outcome === "ok" && Array.isArray(protocol) && protocol.includes(1)) {
     return { ok: true, message: `Jovian gate ${textField(call.result.data?.jovian)}`.trim() };

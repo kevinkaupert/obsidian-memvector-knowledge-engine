@@ -68,7 +68,7 @@ export interface MemVectorSettings {
    * written with Obsidian's vault API. When true and the gate does not answer, the save is native with a notice.
    */
   writeViaJovian: boolean;
-  /** The `jovian` CLI, e.g. `~/venv/bin/jovian`; empty runs `python3 -m jovian.gate`. */
+  /** The `jovian` CLI, e.g. `~/venv/bin/jovian`; empty runs `python3 -m jovian.cli`. */
   jovianCommand: string;
 
   /** Hybrid GraphRAG: pull vector-similar + graph-neighbor notes into the LLM synthesis prompt as extra context. */

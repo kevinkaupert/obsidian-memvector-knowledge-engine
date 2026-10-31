@@ -31,9 +31,9 @@ const error = (code: string, extra: Record<string, unknown> = {}): GateCall => (
 
 /** A fake gate: records each request and answers from `answers` in order. */
 function fakeGate(...answers: GateCall[]) {
-  const requests: Array<{ command: string; request: Record<string, unknown> }> = [];
+  const requests: Array<{ command: string; args: string[]; request: Record<string, unknown> }> = [];
   const run = vi.fn(async (_inv: unknown, args: string[], request: unknown) => {
-    requests.push({ command: args[0], request: request as Record<string, unknown> });
+    requests.push({ command: args.slice(0, 2).join(" "), args, request: request as Record<string, unknown> });
     return answers.shift() ?? ok();
   });
   return { run, requests };
@@ -57,7 +57,8 @@ describe("Jovian writer (#274)", () => {
     const gate = fakeGate(ok({ target: "wiki/synthesis/s.md" }));
     await jovian(gate).create("wiki/synthesis/s.md", "# S\n", "memvector.synthesis_save");
     expect(gate.requests).toEqual([{
-      command: "write",
+      command: "change create",
+      args: ["change", "create", "--vault", "/vault", "--json"],
       request: {
         v: 1,
         client: { component: "memvector", version: "0.3.1" },
@@ -76,7 +77,9 @@ describe("Jovian writer (#274)", () => {
     const gate = fakeGate(ok({ removed_units: [{ fingerprint: "f1", text: "Old." }] }), ok());
     await jovian(gate, { "r.md": "Old.\n" }).update(file("r.md"), (current) => `${current}New.\n`, "memvector.relation_save");
     const { hash } = await decodeNote(new TextEncoder().encode("Old.\n").buffer);
-    expect(gate.requests.map((r) => r.command)).toEqual(["check", "write"]);
+    expect(gate.requests.map((r) => r.command)).toEqual(["gate check", "change create"]);
+    expect(gate.requests[0].args).toEqual(["gate", "check", "--vault", "/vault", "--json"]);
+    expect(gate.requests[1].args).toEqual(["change", "create", "--vault", "/vault", "--json"]);
     expect(gate.requests[0].request).toMatchObject({ mode: "update", expected_hash: hash, content: "Old.\nNew.\n" });
     expect(gate.requests[1].request).toMatchObject({ declared_removals: [{ fingerprint: "f1" }], operation: "memvector.relation_save" });
   });
@@ -85,6 +88,7 @@ describe("Jovian writer (#274)", () => {
     ["STALE_HASH", error("STALE_HASH", { rescue_path: ".jovian/conflicts/x.md" }), "changed since it was read"],
     ["TARGET_EXISTS", error("TARGET_EXISTS"), "TARGET_EXISTS"],
     ["timeout", { exitCode: 3, result: { v: 1, outcome: "timeout" } } as GateCall, "locked"],
+    ["aborted", { exitCode: 130 } as GateCall, "Write aborted"],
     ["malformed output", { exitCode: 1, problem: "Traceback" } as GateCall, "Unclear answer"],
   ])("throws on %s and writes nothing else", async (_name, answer, message) => {
     const gate = fakeGate(answer);
@@ -96,7 +100,7 @@ describe("Jovian writer (#274)", () => {
   it("does not write when check refuses the update", async () => {
     const gate = fakeGate(error("STALE_HASH"));
     await expect(jovian(gate, { "r.md": "a" }).update(file("r.md"), () => "b", "memvector.relation_save")).rejects.toThrow("changed");
-    expect(gate.requests.map((r) => r.command)).toEqual(["check"]);
+    expect(gate.requests.map((r) => r.command)).toEqual(["gate check"]);
   });
 });
 
@@ -197,7 +201,7 @@ describe("relation notes through the gate", () => {
     await expect(saveRelation(f.app, store, path, generated, edge, { path, srcId: "a", tgtId: "b", relType: "REQUIRES" },
       undefined, jovian(gate, { [path]: old }))).rejects.toThrow("graph down");
     expect(gate.requests.map((r) => [r.command, r.request.operation])).toEqual([
-      ["check", undefined], ["write", "memvector.relation_save"], ["check", undefined], ["write", "memvector.relation_revert"],
+      ["gate check", undefined], ["change create", "memvector.relation_save"], ["gate check", undefined], ["change create", "memvector.relation_revert"],
     ]);
     expect(gate.requests[3].request.content).toBe(old);
     expect(f.modify).not.toHaveBeenCalled();
