@@ -449,6 +449,43 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("other-folder");
     });
 
+    it("suppresses additional note targets in note read --neighbors once target is supplied (Codex R6 Finding 1)", async () => {
+      // With positional target already provided
+      const res1 = await run(["__complete", "note", "read", "--neighbors", "wiki/Ventil.md", "--vault", testVault, ""]);
+      expect(res1.code).toBe(0);
+      const lines1 = res1.stdout.split("\n").filter(Boolean);
+      expect(lines1).not.toContain("wiki/Dichtung.md");
+
+      // With --note provided
+      const res2 = await run(["__complete", "note", "read", "--neighbors", "--note", "wiki/Ventil.md", "--vault", testVault, ""]);
+      expect(res2.code).toBe(0);
+      const lines2 = res2.stdout.split("\n").filter(Boolean);
+      expect(lines2).not.toContain("wiki/Dichtung.md");
+
+      // With --note= provided
+      const res3 = await run(["__complete", "note", "read", "--neighbors", "--note=wiki/Ventil.md", "--vault", testVault, ""]);
+      expect(res3.code).toBe(0);
+      const lines3 = res3.stdout.split("\n").filter(Boolean);
+      expect(lines3).not.toContain("wiki/Dichtung.md");
+    });
+
+    it("validates equals-style and space-separated options against active mode (Codex R6 Finding 2)", async () => {
+      // In --neighbors mode, --seed= should return empty
+      const resEq = await run(["__complete", "note", "read", "--neighbors", "--vault", testVault, "--seed=wiki/"]);
+      expect(resEq.code).toBe(0);
+      expect(resEq.stdout.trim()).toBe("");
+
+      // In --neighbors mode, trailing '--seed' value completion should return empty
+      const resSpace = await run(["__complete", "note", "read", "--neighbors", "--vault", testVault, "--seed", "wiki/"]);
+      expect(resSpace.code).toBe(0);
+      expect(resSpace.stdout.trim()).toBe("");
+
+      // In --context mode, --note= should return empty
+      const resContextNote = await run(["__complete", "note", "read", "--context", "--vault", testVault, "--note=wiki/"]);
+      expect(resContextNote.code).toBe(0);
+      expect(resContextNote.stdout.trim()).toBe("");
+    });
+
     it("falls back to filesystem scan when SQLite index is missing", async () => {
       const vaultWithoutIndex = await createTestVault(false);
       const res = await run(["__complete", "note", "read", "--vault", vaultWithoutIndex, "wiki/"]);

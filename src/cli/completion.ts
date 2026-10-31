@@ -585,13 +585,41 @@ export async function complete(argv: string[]): Promise<string[]> {
     const restTokens = hasVerbs ? tokens.slice(2) : tokens.slice(1);
     const lastToken = restTokens.length > 0 ? restTokens[restTokens.length - 1] : "";
 
+    let availableOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
+
+    if (first === "note" && verb === "read") {
+      const hasNeighbors = restTokens.includes("--neighbors");
+      const hasContext = restTokens.includes("--context");
+      if (hasNeighbors) {
+        availableOpts = [
+          ["--vault", "path to Obsidian vault directory"],
+          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
+          ["--neighbors", "query graph neighbors for a note"],
+          ["--note", "target note for graph neighbors"],
+          ["--limit", "maximum neighbors to return (default 100)"],
+          ["--json", "output structured JSON envelope"],
+        ];
+      } else if (hasContext) {
+        availableOpts = [
+          ["--vault", "path to Obsidian vault directory"],
+          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
+          ["--context", "assemble 2D view synthesis context for seed notes"],
+          ["--seed", "seed note for synthesis context (repeatable)"],
+          ["--json", "output structured JSON envelope"],
+        ];
+      }
+    }
+
+    const availableOptionKeys = new Set(availableOpts.map(([o]) => o));
+
     // Equals-style option value (e.g. --vault=./path, --note=wiki/Ventil)
     if (lastToken.startsWith("--") && lastToken.includes("=")) {
       const [optName, valPrefix] = lastToken.split(/=(.*)/s, 2);
-      if (VALUE_OPTIONS.has(optName)) {
+      if (VALUE_OPTIONS.has(optName) && availableOptionKeys.has(optName)) {
         const valCands = await completeOptionValue(optName, valPrefix, vault, configDir);
         return valCands.map((c) => `${optName}=${c}`);
       }
+      return [];
     }
 
     // Check positional arguments and active option context
@@ -623,34 +651,8 @@ export async function complete(argv: string[]): Promise<string[]> {
       idx += 1;
     }
 
-    let availableOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
-
-    if (first === "note" && verb === "read") {
-      const hasNeighbors = restTokens.includes("--neighbors");
-      const hasContext = restTokens.includes("--context");
-      if (hasNeighbors) {
-        availableOpts = [
-          ["--vault", "path to Obsidian vault directory"],
-          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
-          ["--neighbors", "query graph neighbors for a note"],
-          ["--note", "target note for graph neighbors"],
-          ["--limit", "maximum neighbors to return (default 100)"],
-          ["--json", "output structured JSON envelope"],
-        ];
-        if (prevOption === "--seed") return [];
-      } else if (hasContext) {
-        availableOpts = [
-          ["--vault", "path to Obsidian vault directory"],
-          ["--config-dir", "Obsidian configuration directory (.obsidian)"],
-          ["--context", "assemble 2D view synthesis context for seed notes"],
-          ["--seed", "seed note for synthesis context (repeatable)"],
-          ["--json", "output structured JSON envelope"],
-        ];
-        if (prevOption === "--note" || prevOption === "--limit") return [];
-      }
-    }
-
     if (lastIsOptionValue && prevOption !== null) {
+      if (!availableOptionKeys.has(prevOption)) return [];
       return completeOptionValue(prevOption, lastToken, vault, configDir);
     }
 
@@ -666,8 +668,15 @@ export async function complete(argv: string[]): Promise<string[]> {
 
     // Note read takes positional note path (for --neighbors or --context)
     if (first === "note" && verb === "read") {
-      const notes = await getNoteTargets(vault, configDir, lastToken);
-      targetResults.push(...notes);
+      const hasNeighbors = restTokens.includes("--neighbors");
+      const hasNoteOption = restTokens.some((t) => t === "--note" || t.startsWith("--note="));
+      const hasPositionalTarget = posArgs.length > 0;
+      // In neighbors mode, at most one target is allowed
+      const neighborsTargetAlreadySupplied = hasNeighbors && (hasNoteOption || hasPositionalTarget);
+      if (!neighborsTargetAlreadySupplied) {
+        const notes = await getNoteTargets(vault, configDir, lastToken);
+        targetResults.push(...notes);
+      }
     }
 
     // If no positional target matched or token is empty, suggest option flags too
