@@ -8,7 +8,15 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
-## [0.3.24] - 2026-10-31
+## [0.3.25] - 2026-10-31
+
+### Removed
+
+- Remove legacy CLI commands (`search`, `graph`, `context`, `relation add`) and `--envelope` option (knowOS Plan 0023 Phase 4, ADR-0017 §9):
+  - MemVector CLI now dispatches exclusively to unified `<noun> <verb>` grammar (`note search`, `note read`, `relation create`, `tools`).
+  - Legacy commands and `--envelope` are rejected with exit code 2.
+  - `memvector --version` outputs canonical commands.
+  - Golden tests updated to canonical grammar; obsolete golden fixtures removed.
 
 ### Changed
 
