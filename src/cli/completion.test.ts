@@ -117,7 +117,7 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
   });
 
   describe("M2b.1: Table coverage for nouns and verbs", () => {
-    it("returns all nouns and global options for empty __complete", async () => {
+    it("returns all nouns and root options for empty __complete (Codex R3 Finding 2)", async () => {
       const res = await run(["__complete", ""]);
       expect(res.code).toBe(0);
       const lines = res.stdout.split("\n").filter(Boolean);
@@ -125,8 +125,11 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       for (const noun of Object.keys(COMMAND_TABLE)) {
         expect(returnedNouns.has(noun), `Noun ${noun} missing from __complete`).toBe(true);
       }
-      expect(lines).toContain("--vault:path to Obsidian vault directory");
-      expect(lines).toContain("--json:output structured JSON envelope");
+      expect(lines).toContain("--version:show version information");
+      expect(lines).toContain("--help:show help message");
+      expect(lines).toContain("-h:show help message");
+      expect(lines).not.toContain("--vault:path to Obsidian vault directory");
+      expect(lines).not.toContain("--json:output structured JSON envelope");
     });
 
     it("returns all verbs for each noun and rejects verb options before verb is specified", async () => {
@@ -354,6 +357,19 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("wiki/ZTargetNote.md");
     });
 
+    it("resolves --config-dir candidates relative to the specified vault (Codex R3 Finding 1)", async () => {
+      const customVault = mkdtempSync(join(tmpdir(), "mv-cfgdir-"));
+      mkdirSync(join(customVault, ".custom-obsidian"), { recursive: true });
+      mkdirSync(join(customVault, "other-folder"), { recursive: true });
+
+      const res = await run(["__complete", "tools", "--vault", customVault, "--config-dir", ""]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      expect(lines).toContain(".custom-obsidian");
+      expect(lines).toContain(".obsidian");
+      expect(lines).toContain("other-folder");
+    });
+
     it("falls back to filesystem scan when SQLite index is missing", async () => {
       const vaultWithoutIndex = await createTestVault(false);
       const res = await run(["__complete", "note", "read", "--vault", vaultWithoutIndex, "wiki/"]);
@@ -402,6 +418,33 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       });
       expect(zshRes.code).toBe(0);
       expect(zshRes.stdout.trim()).toBe("DIR");
+    });
+
+    it("preserves tilde expansion in equals-style directory completions (Codex R3 Finding 3)", async () => {
+      // In zsh with compadd -P "--vault=~/" -S ''
+      const zshRes = await new Promise<{ code: number | null; stdout: string; stderr: string }>((done) => {
+        const script = `
+          autoload -Uz compinit && compinit -D
+          local -a tilde_dirs
+          d="--vault=~/knowOS/components/"
+          prefix="\${d%%"~/"*}~/"
+          echo "PREFIX:$prefix"
+          echo "SUFFIX:\${d#"$prefix"}"
+        `;
+        const proc = spawn("zsh", ["-f", "-c", script]);
+        let stdout = "";
+        let stderr = "";
+        proc.stdout.on("data", (d) => {
+          stdout += d;
+        });
+        proc.stderr.on("data", (d) => {
+          stderr += d;
+        });
+        proc.on("close", (code) => done({ code, stdout, stderr }));
+      });
+      expect(zshRes.code).toBe(0);
+      expect(zshRes.stdout).toContain("PREFIX:--vault=~/");
+      expect(zshRes.stdout).toContain("SUFFIX:knowOS/components/");
     });
   });
 });

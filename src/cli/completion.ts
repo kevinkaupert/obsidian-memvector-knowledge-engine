@@ -32,6 +32,7 @@ _memvector() {
     local temp
     local d
     local f
+    local prefix
     output="$(memvector __complete "\${(@Q)words[2,CURRENT]}" 2>/dev/null)"
     if [[ -n "$output" ]]; then
         while IFS= read -r line; do
@@ -49,6 +50,9 @@ _memvector() {
             for d in "\${dirs[@]}"; do
                 if [[ "$d" == "~/"* ]]; then
                     tilde_dirs+=("\${d#"~/"}")
+                elif [[ "$d" == --*="~/"* ]]; then
+                    prefix="\${d%%"~/"*}~/"
+                    compadd -P "$prefix" -S '' -- "\${d#"$prefix"}"
                 else
                     normal_dirs+=("$d")
                 fi
@@ -64,6 +68,9 @@ _memvector() {
             for f in "\${files[@]}"; do
                 if [[ "$f" == "~/"* ]]; then
                     tilde_files+=("\${f#"~/"}")
+                elif [[ "$f" == --*="~/"* ]]; then
+                    prefix="\${d%%"~/"*}~/"
+                    compadd -U -P "$prefix" -- "\${f#"$prefix"}"
                 else
                     normal_files+=("$f")
                 fi
@@ -108,14 +115,13 @@ export const COMMAND_TABLE: Record<string, CommandInfo> = {
   },
 };
 
-export const GLOBAL_OPTIONS: Array<[string, string]> = [
-  ["--vault", "path to Obsidian vault directory"],
-  ["--config-dir", "Obsidian configuration directory (.obsidian)"],
-  ["--json", "output structured JSON envelope"],
+export const ROOT_OPTIONS: Array<[string, string]> = [
   ["--help", "show help message"],
   ["-h", "show help message"],
   ["--version", "show version information"],
 ];
+
+export const GLOBAL_OPTIONS = ROOT_OPTIONS;
 
 export const VERB_OPTIONS: Record<string, Array<[string, string]>> = {
   "note:search": [
@@ -441,6 +447,38 @@ export function getVaultFolders(vaultPath: string | null, prefix = ""): string[]
   return [...results].sort().map(escapeCandidate);
 }
 
+export function getConfigDirCandidates(vaultPath: string | null, prefix = ""): string[] {
+  const cleanPrefix = normalizeSearchPrefix(prefix);
+  const candidates = new Set<string>();
+  if (!cleanPrefix || ".obsidian".startsWith(cleanPrefix)) {
+    candidates.add(".obsidian");
+  }
+  if (vaultPath && existsSync(vaultPath)) {
+    try {
+      const entries = readdirSync(vaultPath).sort();
+      for (const entry of entries) {
+        if (!cleanPrefix || entry.startsWith(cleanPrefix)) {
+          const entryPath = join(vaultPath, entry);
+          try {
+            if (statSync(entryPath).isDirectory()) {
+              candidates.add(entry);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  } else {
+    for (const p of getFsPaths(prefix, true)) {
+      candidates.add(p);
+    }
+  }
+  return [...candidates].sort().map(escapeCandidate);
+}
+
 export async function completeOptionValue(
   opt: string,
   val: string,
@@ -451,7 +489,7 @@ export async function completeOptionValue(
     return getFsPaths(val, true);
   }
   if (opt === "--config-dir") {
-    return [".obsidian", ...getFsPaths(val, true)];
+    return getConfigDirCandidates(vault, val);
   }
   if (opt === "--folder") {
     return getVaultFolders(vault, val);
@@ -471,8 +509,8 @@ export async function complete(argv: string[]): Promise<string[]> {
       const desc = Object.keys(info.verbs).length > 0 ? `commands for ${k}s` : `${k} command`;
       return `${k}:${desc}`;
     });
-    const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
-    return [...nouns, ...globals];
+    const roots = ROOT_OPTIONS.map(([o, d]) => `${o}:${d}`);
+    return [...nouns, ...roots];
   }
 
   const first = tokens[0];
@@ -480,7 +518,7 @@ export async function complete(argv: string[]): Promise<string[]> {
   // If user is typing the first command/noun
   if (tokens.length === 1) {
     if (first.startsWith("-")) {
-      return GLOBAL_OPTIONS.filter(([o]) => o.startsWith(first)).map(([o, d]) => `${o}:${d}`);
+      return ROOT_OPTIONS.filter(([o]) => o.startsWith(first)).map(([o, d]) => `${o}:${d}`);
     }
     const matching = Object.entries(COMMAND_TABLE)
       .filter(([k]) => k.startsWith(first))
