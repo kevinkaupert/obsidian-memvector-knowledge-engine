@@ -32,7 +32,8 @@ export async function graphNeighbors(db: Uint8Array, wasm: Uint8Array, notePath:
   let database;
   try {
     database = new SQL.Database(db);
-    const found = database.exec("SELECT id, title FROM notes WHERE path = ? LIMIT 1", [notePath]);
+    const cleanPath = notePath.replace(/^\.[/\\]+/, "");
+    const found = database.exec("SELECT id, title FROM notes WHERE path = ? LIMIT 1", [cleanPath]);
     if (found.length === 0 || found[0].values.length === 0) {
       return failure("NOTE_NOT_INDEXED", `MemVector's graph has no note ${notePath}; open the vault in Obsidian and let MemVector index it.`);
     }

@@ -198,7 +198,7 @@ async function graphCommand(argv: string[]): Promise<number> {
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   const wasmPath = join(pluginDir, "sql-wasm.wasm");
-  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim(), limit);
+  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim().replace(/^\.[/\\]+/, ""), limit);
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }
@@ -227,7 +227,7 @@ async function contextCommand(argv: string[]): Promise<number> {
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
-  const cleaned = seeds.map((seed) => seed.trim());
+  const cleaned = seeds.map((seed) => seed.trim().replace(/^\.[/\\]+/, ""));
   if (cleaned.length === 0 || cleaned.some((seed) => !seed)) return usage("at least one --seed <note.md> is required");
   const configDir = args.get("config-dir");
   const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
@@ -474,7 +474,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     const result = await graphNeighbors(
       readFileSync(dbPath),
       existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
-      note.trim(),
+      note.trim().replace(/^\.[/\\]+/, ""),
       limit
     );
 
@@ -508,7 +508,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     const vault = options.get("vault");
     if (typeof vault !== "string" || !vault) return usage("--vault is required");
 
-    const seeds = [...positionals, ...extraSeeds].map((s) => s.trim()).filter(Boolean);
+    const seeds = [...positionals, ...extraSeeds].map((s) => s.trim().replace(/^\.[/\\]+/, "")).filter(Boolean);
     if (seeds.length === 0) return usage("at least one seed note is required");
 
     const isJson = options.get("json") === true;

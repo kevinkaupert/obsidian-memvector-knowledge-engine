@@ -119,6 +119,8 @@ export const GLOBAL_OPTIONS: Array<[string, string]> = [
 
 export const VERB_OPTIONS: Record<string, Array<[string, string]>> = {
   "note:search": [
+    ["--vault", "path to Obsidian vault directory"],
+    ["--config-dir", "Obsidian configuration directory (.obsidian)"],
     ["--query", "search text query"],
     ["--limit", "maximum hits to return (default 20)"],
     ["--instruction", "instruction prefixed to query for embedding"],
@@ -127,6 +129,8 @@ export const VERB_OPTIONS: Record<string, Array<[string, string]>> = {
     ["--json", "output structured JSON envelope"],
   ],
   "note:read": [
+    ["--vault", "path to Obsidian vault directory"],
+    ["--config-dir", "Obsidian configuration directory (.obsidian)"],
     ["--neighbors", "query graph neighbors for a note"],
     ["--context", "assemble 2D view synthesis context for seed notes"],
     ["--note", "target note for graph neighbors"],
@@ -135,10 +139,14 @@ export const VERB_OPTIONS: Record<string, Array<[string, string]>> = {
     ["--json", "output structured JSON envelope"],
   ],
   "relation:create": [
+    ["--vault", "path to Obsidian vault directory"],
+    ["--config-dir", "Obsidian configuration directory (.obsidian)"],
     ["--dry-run", "plan relation note without writing"],
     ["--json", "output structured JSON envelope"],
   ],
   "tools:": [
+    ["--vault", "path to Obsidian vault directory"],
+    ["--config-dir", "Obsidian configuration directory (.obsidian)"],
     ["--json", "output JSON schema of agent tools"],
   ],
 };
@@ -322,24 +330,19 @@ export async function getNoteTargets(
       });
       const db = new SQL.Database(readFileSync(dbPath));
       try {
-        const rows = db.exec("SELECT path, id, title FROM notes ORDER BY path ASC LIMIT 500");
+        let rows;
+        if (!searchPrefix) {
+          rows = db.exec("SELECT path FROM notes ORDER BY path ASC LIMIT 500");
+        } else {
+          rows = db.exec(
+            "SELECT path FROM notes WHERE path LIKE ? OR id LIKE ? OR title LIKE ? ORDER BY path ASC LIMIT 500",
+            [`%${searchPrefix}%`, `${searchPrefix}%`, `${searchPrefix}%`]
+          );
+        }
         if (rows.length > 0 && rows[0].values) {
           for (const row of rows[0].values) {
             const pathStr = String(row[0] ?? "");
-            const idStr = String(row[1] ?? "");
-            const titleStr = String(row[2] ?? "");
-            const baseName = basename(pathStr);
-
-            if (
-              !searchPrefix ||
-              pathStr.startsWith(searchPrefix) ||
-              baseName.startsWith(searchPrefix) ||
-              pathStr.includes(searchPrefix) ||
-              (idStr && idStr.startsWith(searchPrefix)) ||
-              (titleStr && titleStr.startsWith(searchPrefix))
-            ) {
-              results.add(`${lexicalLead}${pathStr}`);
-            }
+            results.add(`${lexicalLead}${pathStr}`);
             if (Date.now() - startTime > 150 || results.size >= 500) break;
           }
         }
@@ -503,37 +506,27 @@ export async function complete(argv: string[]): Promise<string[]> {
   if (first in COMMAND_TABLE) {
     const info = COMMAND_TABLE[first];
     const verbs = info.verbs;
+    const hasVerbs = Object.keys(verbs).length > 0;
 
-    // Handle nouns without subcommands (such as `tools`)
-    if (Object.keys(verbs).length === 0) {
-      const toolOpts = (VERB_OPTIONS[`${first}:`] ?? []).map(([o, d]) => `${o}:${d}`);
-      const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
-      const all = [...toolOpts, ...globals];
-      const prefix = tokens.length > 1 ? tokens[tokens.length - 1] : "";
-      if (prefix.startsWith("--") && prefix.includes("=")) {
-        const [optName, valPrefix] = prefix.split(/=(.*)/s, 2);
-        if (VALUE_OPTIONS.has(optName)) {
-          const valCands = await completeOptionValue(optName, valPrefix, vault, configDir);
-          return valCands.map((c) => `${optName}=${c}`);
-        }
-      }
-      return all.filter((entry) => !prefix || entry.startsWith(prefix));
-    }
-
-    // Subcase 1: User typed `memvector <noun> ` and hit TAB or is typing verb
-    if (tokens.length === 2) {
+    // Subcase 1: Noun with subcommands at noun level (e.g. `memvector note <TAB>` or `memvector note se<TAB>`)
+    if (hasVerbs && tokens.length === 2) {
       const prefix = tokens[1];
       if (prefix === "") {
         const verbList = Object.entries(verbs).map(([v, desc]) => `${v}:${desc}`);
-        const nounMeta = [["--commands", "list subcommands for this noun"]];
-        const globals = GLOBAL_OPTIONS.map(([o, d]) => `${o}:${d}`);
-        return [...verbList, ...nounMeta.map(([o, d]) => `${o}:${d}`), ...globals];
+        const nounMeta = [
+          ["--commands", "list subcommands for this noun"],
+          ["--help", "show help message"],
+          ["-h", "show help message"],
+        ];
+        return [...verbList, ...nounMeta.map(([o, d]) => `${o}:${d}`)];
       }
       if (prefix.startsWith("-") && !prefix.includes("=")) {
-        const nounMeta = [["--commands", "list subcommands for this noun"]];
-        return [...nounMeta, ...GLOBAL_OPTIONS]
-          .filter(([o]) => o.startsWith(prefix))
-          .map(([o, d]) => `${o}:${d}`);
+        const nounMeta = [
+          ["--commands", "list subcommands for this noun"],
+          ["--help", "show help message"],
+          ["-h", "show help message"],
+        ];
+        return nounMeta.filter(([o]) => o.startsWith(prefix)).map(([o, d]) => `${o}:${d}`);
       } else if (!prefix.startsWith("-")) {
         const matchingVerbs = Object.entries(verbs)
           .filter(([v]) => v.startsWith(prefix))
@@ -542,13 +535,14 @@ export async function complete(argv: string[]): Promise<string[]> {
       }
     }
 
-    // Subcase 2: Resolving verb, options, and targets
-    const verb = tokens.length > 1 && tokens[1] in verbs ? tokens[1] : "";
-    if (!verb) {
+    // Subcase 2: Resolving verb (or empty verb for nouns without subcommands like `tools`)
+    const verb = hasVerbs ? (tokens.length > 1 && tokens[1] in verbs ? tokens[1] : "") : "";
+    if (hasVerbs && !verb) {
       // Require an explicit verb before suggesting verb-specific options
       return [];
     }
-    const restTokens = tokens.slice(2);
+
+    const restTokens = hasVerbs ? tokens.slice(2) : tokens.slice(1);
     const lastToken = restTokens.length > 0 ? restTokens[restTokens.length - 1] : "";
 
     // Equals-style option value (e.g. --vault=./path, --note=wiki/Ventil)
@@ -593,8 +587,7 @@ export async function complete(argv: string[]): Promise<string[]> {
       return completeOptionValue(prevOption, lastToken, vault, configDir);
     }
 
-    const verbOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
-    const availableOpts = [...verbOpts, ...GLOBAL_OPTIONS];
+    const availableOpts = VERB_OPTIONS[`${first}:${verb}`] ?? [];
 
     // If user is explicitly typing an option flag
     if (lastToken.startsWith("-")) {

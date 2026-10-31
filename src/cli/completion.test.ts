@@ -46,6 +46,9 @@ async function createTestVault(withIndex = true): Promise<string> {
     });
     const db = new SQL.Database();
     db.run("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT, path TEXT);");
+    db.run(
+      "CREATE TABLE edges (src TEXT, tgt TEXT, type TEXT, description TEXT, bidirectional INTEGER, original_term TEXT, updated_at TEXT, PRIMARY KEY (src, tgt, type));"
+    );
     for (const [id, title, path] of NOTES) {
       db.run("INSERT INTO notes VALUES (?, ?, ?)", [id, title, path]);
     }
@@ -143,7 +146,8 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       expect(lines).toContain("search:search notes by vector similarity");
       expect(lines).toContain("read:read graph neighbors or synthesis context of notes");
       expect(lines).toContain("--commands:list subcommands for this noun");
-      expect(lines).toContain("--vault:path to Obsidian vault directory");
+      expect(lines).toContain("--help:show help message");
+      expect(lines).not.toContain("--vault:path to Obsidian vault directory");
       expect(lines).not.toContain("--query:search text query");
       expect(lines).not.toContain("--limit:maximum hits to return (default 20)");
     });
@@ -288,6 +292,66 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
         const lines = res.stdout.split("\n").filter(Boolean);
         expect(lines).toContain("wiki/Ventil.md");
       }
+    });
+
+    it("completes space-separated option values for tools (Codex R2 Finding 3)", async () => {
+      const res = await run(["__complete", "tools", "--vault", "testing/"]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      expect(lines).toContain("testing/fixtures/");
+    });
+
+    it("restricts option suggestions strictly to flags accepted in that scope (Codex R2 Finding 4)", async () => {
+      // note search rejects --version
+      const searchRes = await run(["__complete", "note", "search", "--ver"]);
+      expect(searchRes.code).toBe(0);
+      expect(searchRes.stdout.trim()).toBe("");
+
+      // tools rejects --help
+      const toolsRes = await run(["__complete", "tools", "--hel"]);
+      expect(toolsRes.code).toBe(0);
+      expect(toolsRes.stdout.trim()).toBe("");
+
+      // relation create rejects --help
+      const relRes = await run(["__complete", "relation", "create", "--hel"]);
+      expect(relRes.code).toBe(0);
+      expect(relRes.stdout.trim()).toBe("");
+    });
+
+    it("ensures ./-prefixed targets remain executable in graphNeighbors and context (Codex R2 Finding 2)", async () => {
+      const execRes = await run(["note", "read", "./wiki/Ventil.md", "--neighbors", "--vault", testVault, "--json"]);
+      expect(execRes.code).toBe(0);
+      const data = JSON.parse(execRes.stdout);
+      expect(data.outcome).toBe("ok");
+      expect(data.data.note).toBe("wiki/Ventil.md");
+    });
+
+    it("filters indexed notes in SQL before applying limit (Codex R2 Finding 1)", async () => {
+      const largeVault = mkdtempSync(join(tmpdir(), "mv-large-"));
+      mkdirSync(join(largeVault, "wiki"), { recursive: true });
+      const plugin = join(largeVault, ".obsidian", "plugins", PLUGIN_ID);
+      mkdirSync(plugin, { recursive: true });
+      const SQL = await initSqlJs({
+        wasmBinary: WASM.buffer.slice(WASM.byteOffset, WASM.byteOffset + WASM.byteLength) as ArrayBuffer,
+      });
+      const db = new SQL.Database();
+      db.run("CREATE TABLE notes (id TEXT PRIMARY KEY, title TEXT, path TEXT);");
+      // Insert 600 notes
+      for (let i = 0; i < 600; i++) {
+        const id = `id_${String(i).padStart(4, "0")}`;
+        const title = `Note_${String(i).padStart(4, "0")}`;
+        const path = `wiki/Note_${String(i).padStart(4, "0")}.md`;
+        db.run("INSERT INTO notes VALUES (?, ?, ?)", [id, title, path]);
+      }
+      // Note 550 has a unique search token
+      db.run("INSERT INTO notes VALUES ('target_id', 'TargetTitle', 'wiki/ZTargetNote.md')");
+      writeFileSync(join(plugin, DB_FILENAME), db.export());
+      db.close();
+
+      const res = await run(["__complete", "note", "read", "--vault", largeVault, "ZTarget"]);
+      expect(res.code).toBe(0);
+      const lines = res.stdout.split("\n").filter(Boolean);
+      expect(lines).toContain("wiki/ZTargetNote.md");
     });
 
     it("falls back to filesystem scan when SQLite index is missing", async () => {
