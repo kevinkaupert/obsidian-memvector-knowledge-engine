@@ -454,29 +454,59 @@ export function getVaultFolders(vaultPath: string | null, prefix = ""): string[]
 
 export function getConfigDirCandidates(vaultPath: string | null, prefix = ""): string[] {
   const cleanPrefix = normalizeSearchPrefix(prefix);
-  const defaultList = !cleanPrefix || ".obsidian".startsWith(cleanPrefix) ? [".obsidian"] : [];
+
+  if (cleanPrefix.startsWith("/") || cleanPrefix.startsWith("~")) {
+    return getFsPaths(prefix, true);
+  }
+
   if (vaultPath && existsSync(vaultPath)) {
-    const candidates = new Set<string>(defaultList);
+    let lexicalDir = "";
+    let filePrefix = "";
+    let searchDir = vaultPath;
+
+    if (cleanPrefix.includes("/") || cleanPrefix.includes("\\")) {
+      const lastSlash = Math.max(cleanPrefix.lastIndexOf("/"), cleanPrefix.lastIndexOf("\\"));
+      lexicalDir = cleanPrefix.slice(0, lastSlash + 1);
+      filePrefix = cleanPrefix.slice(lastSlash + 1);
+      const sub = cleanPrefix.slice(0, lastSlash);
+      searchDir = resolve(vaultPath, sub);
+    } else {
+      lexicalDir = "";
+      filePrefix = cleanPrefix;
+      searchDir = vaultPath;
+    }
+
+    const candidates = new Set<string>();
+
+    if (searchDir === resolve(vaultPath) && (!filePrefix || ".obsidian".startsWith(filePrefix))) {
+      candidates.add(`${lexicalDir}.obsidian`);
+    }
+
     try {
-      const entries = readdirSync(vaultPath).sort();
-      for (const entry of entries) {
-        if (!cleanPrefix || entry.startsWith(cleanPrefix)) {
-          const entryPath = join(vaultPath, entry);
-          try {
-            if (statSync(entryPath).isDirectory()) {
-              candidates.add(entry);
+      if (existsSync(searchDir) && statSync(searchDir).isDirectory()) {
+        const entries = readdirSync(searchDir).sort();
+        for (const entry of entries) {
+          if (!filePrefix || entry.startsWith(filePrefix)) {
+            const entryPath = join(searchDir, entry);
+            try {
+              if (statSync(entryPath).isDirectory()) {
+                candidates.add(`${lexicalDir}${entry}`);
+              }
+            } catch {
+              // ignore
             }
-          } catch {
-            // ignore
           }
         }
       }
     } catch {
       // ignore
     }
+
     return [...candidates].sort().map(escapeCandidate);
   }
+
   // When no vault is detected, getFsPaths already returns escaped candidates
+  const defaultList = !cleanPrefix || ".obsidian".startsWith(cleanPrefix) ? [".obsidian"] : [];
   const fsCandidates = getFsPaths(prefix, true);
   return [...new Set([...defaultList.map(escapeCandidate), ...fsCandidates])].sort();
 }

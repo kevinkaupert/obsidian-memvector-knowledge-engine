@@ -440,13 +440,38 @@ describe("memvector CLI shell completion (Plan 0023 Phase 2b)", () => {
       const customVault = mkdtempSync(join(tmpdir(), "mv-cfgdir-"));
       mkdirSync(join(customVault, ".custom-obsidian"), { recursive: true });
       mkdirSync(join(customVault, "other-folder"), { recursive: true });
+      mkdirSync(join(customVault, "nested", "sub-config"), { recursive: true });
 
+      // Bare prefix
       const res = await run(["__complete", "tools", "--vault", customVault, "--config-dir", ""]);
       expect(res.code).toBe(0);
       const lines = res.stdout.split("\n").filter(Boolean);
       expect(lines).toContain(".custom-obsidian");
       expect(lines).toContain(".obsidian");
       expect(lines).toContain("other-folder");
+      expect(lines).toContain("nested");
+
+      // Relative prefix (./) (Codex R7 Finding 1)
+      const resRel = await run(["__complete", "tools", "--vault", customVault, "--config-dir", "./"]);
+      expect(resRel.code).toBe(0);
+      const linesRel = resRel.stdout.split("\n").filter(Boolean);
+      expect(linesRel).toContain("./.custom-obsidian");
+      expect(linesRel).toContain("./.obsidian");
+      expect(linesRel).toContain("./other-folder");
+      expect(linesRel).toContain("./nested");
+
+      // Nested prefix (nested/) (Codex R7 Finding 1)
+      const resNested = await run(["__complete", "tools", "--vault", customVault, "--config-dir", "nested/"]);
+      expect(resNested.code).toBe(0);
+      const linesNested = resNested.stdout.split("\n").filter(Boolean);
+      expect(linesNested).toContain("nested/sub-config");
+
+      // Equals-style relative prefix (--config-dir=./)
+      const resEqRel = await run(["__complete", "tools", "--vault", customVault, "--config-dir=./"]);
+      expect(resEqRel.code).toBe(0);
+      const linesEqRel = resEqRel.stdout.split("\n").filter(Boolean);
+      expect(linesEqRel).toContain("--config-dir=./.custom-obsidian");
+      expect(linesEqRel).toContain("--config-dir=./.obsidian");
     });
 
     it("suppresses additional note targets in note read --neighbors once target is supplied (Codex R6 Finding 1)", async () => {
