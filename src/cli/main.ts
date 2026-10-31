@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { getEmbeddedWasmBinary } from "../sync/sqlite/embeddedWasm";
 import type { EmbeddingPost } from "../llm/embeddingRequest";
 import type { GateSpawn } from "../noteWriter/jovianGate";
@@ -11,6 +11,7 @@ import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 import { contextFor } from "./context";
 import { migrateSettings } from "../settings/secrets";
 import { toolList } from "./tools";
+import { complete, expandTilde, resolvePluginDir, ZSH_SCRIPT } from "./completion";
 
 declare const MEMVECTOR_VERSION: string;
 
@@ -58,9 +59,9 @@ function parseArgs(argv: string[]): Map<string, string | true> | null {
     const arg = argv[i];
     if (!arg.startsWith("--")) return null;
     const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
-    if (inline !== undefined) args.set(key, inline);
+    if (inline !== undefined) args.set(key, key === "vault" ? expandTilde(inline) : inline);
     else if (key === "json" || key === "envelope" || key === "version" || key === "help" || key === "dry-run") args.set(key, true);
-    else if (i + 1 < argv.length) args.set(key, argv[++i]);
+    else if (i + 1 < argv.length) args.set(key, key === "vault" ? expandTilde(argv[++i]) : argv[++i]);
     else return null;
   }
   return args;
@@ -79,6 +80,24 @@ function fail(code: string, error: string, envelope = false): number {
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
+  if (command === "__complete") {
+    const candidates = await complete(rest);
+    if (candidates.length > 0) {
+      process.stdout.write(candidates.join("\n") + "\n");
+    }
+    return 0;
+  }
+  if (command === "completion") {
+    if (rest.includes("--help") || rest.includes("-h")) {
+      process.stdout.write("usage: memvector completion [zsh]\n");
+      return 0;
+    }
+    if (rest.length === 0 || rest[0] === "zsh") {
+      process.stdout.write(ZSH_SCRIPT);
+      return 0;
+    }
+    return usage(`unsupported shell '${rest[0]}' (only zsh is supported)`);
+  }
   if (command === "--version") {
     if (rest.includes("--json")) {
       process.stdout.write(`${JSON.stringify({ v: 1, outcome: "ok", data: { memvector: MEMVECTOR_VERSION, commands: ["note search", "note read", "relation create", "tools"] } })}\n`);
@@ -124,8 +143,7 @@ export async function main(argv: string[]): Promise<number> {
   const type = args.get("type");
   if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
   const envelope = args.get("envelope") === true;
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
 
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, envelope);
@@ -154,7 +172,7 @@ export async function main(argv: string[]): Promise<number> {
     process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
     typeof instruction === "string" ? instruction.trim() : undefined,
     vaultReader(vault),
-    { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
+    { folder: typeof folder === "string" ? folder.trim().replace(/^\.[/\\]+/, "") : undefined, type: typeof type === "string" ? type.trim() : undefined }
   );
   process.stdout.write(`${JSON.stringify(envelope ? searchEnvelope(result) : result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
@@ -174,12 +192,11 @@ async function graphCommand(argv: string[]): Promise<number> {
   const limitRaw = args.get("limit") ?? "100";
   const limit = Number(limitRaw);
   if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   const wasmPath = join(pluginDir, "sql-wasm.wasm");
-  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim(), limit);
+  const result = await graphNeighbors(readFileSync(dbPath), existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(), note.trim().replace(/^\.[/\\]+/, ""), limit);
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result.outcome === "ok" ? 0 : 1;
 }
@@ -208,10 +225,9 @@ async function contextCommand(argv: string[]): Promise<number> {
   if (unknown.length > 0) return usage(`unknown option --${unknown[0]}`);
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
-  const cleaned = seeds.map((seed) => seed.trim());
+  const cleaned = seeds.map((seed) => seed.trim().replace(/^\.[/\\]+/, ""));
   if (cleaned.length === 0 || cleaned.some((seed) => !seed)) return usage("at least one --seed <note.md> is required");
-  const configDir = args.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, args.get("config-dir"));
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
   let loaded: unknown = {};
@@ -249,11 +265,12 @@ function parseCommandArgs(argv: string[]): { positionals: string[]; options: Map
     if (arg.startsWith("--")) {
       const [key, inline] = arg.slice(2).split(/=(.*)/s, 2);
       if (inline !== undefined) {
-        options.set(key, inline);
+        options.set(key, key === "vault" ? expandTilde(inline) : inline);
       } else if (["json", "envelope", "version", "help", "neighbors", "context", "dry-run"].includes(key)) {
         options.set(key, true);
       } else if (i + 1 < argv.length && !argv[i + 1].startsWith("--")) {
-        options.set(key, argv[++i]);
+        const val = argv[++i];
+        options.set(key, key === "vault" ? expandTilde(val) : val);
       } else {
         return null;
       }
@@ -324,8 +341,7 @@ async function noteSearchCommand(argv: string[]): Promise<number> {
   if (type !== undefined && (typeof type !== "string" || !type.trim())) return usage("--type needs a type");
 
   const isJson = options.get("json") === true;
-  const configDir = options.get("config-dir");
-  const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+  const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
 
   const dbPath = join(pluginDir, DB_FILENAME);
   if (!existsSync(dbPath)) {
@@ -363,7 +379,7 @@ async function noteSearchCommand(argv: string[]): Promise<number> {
     process.env.MEMVECTOR_EMBEDDING_API_KEY ?? "",
     typeof instruction === "string" ? instruction.trim() : undefined,
     vaultReader(vault),
-    { folder: typeof folder === "string" ? folder.trim() : undefined, type: typeof type === "string" ? type.trim() : undefined }
+    { folder: typeof folder === "string" ? folder.trim().replace(/^\.[/\\]+/, "") : undefined, type: typeof type === "string" ? type.trim() : undefined }
   );
 
   if (isJson) {
@@ -442,8 +458,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     if (typeof limitRaw !== "string" || !Number.isInteger(limit) || limit < 1) return usage("--limit must be a positive integer");
 
     const isJson = options.get("json") === true;
-    const configDir = options.get("config-dir");
-    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
     const dbPath = join(pluginDir, DB_FILENAME);
     if (!existsSync(dbPath)) {
       if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
@@ -455,7 +470,7 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     const result = await graphNeighbors(
       readFileSync(dbPath),
       existsSync(wasmPath) ? readFileSync(wasmPath) : getEmbeddedWasmBinary(),
-      note.trim(),
+      note.trim().replace(/^\.[/\\]+/, ""),
       limit
     );
 
@@ -489,12 +504,11 @@ async function noteReadCommand(argv: string[]): Promise<number> {
     const vault = options.get("vault");
     if (typeof vault !== "string" || !vault) return usage("--vault is required");
 
-    const seeds = [...positionals, ...extraSeeds].map((s) => s.trim()).filter(Boolean);
+    const seeds = [...positionals, ...extraSeeds].map((s) => s.trim().replace(/^\.[/\\]+/, "")).filter(Boolean);
     if (seeds.length === 0) return usage("at least one seed note is required");
 
     const isJson = options.get("json") === true;
-    const configDir = options.get("config-dir");
-    const pluginDir = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID);
+    const pluginDir = resolvePluginDir(vault, options.get("config-dir"));
     const dbPath = join(pluginDir, DB_FILENAME);
     if (!existsSync(dbPath)) {
       if (isJson) return fail("INDEX_MISSING", `No MemVector index at ${dbPath}; open the vault in Obsidian and let MemVector index it.`, true);
@@ -577,8 +591,7 @@ async function relationCommand(argv: string[]): Promise<number> {
   const vault = args.get("vault");
   if (typeof vault !== "string" || !vault) return usage("--vault is required");
   const isJson = args.get("json") === true;
-  const configDir = args.get("config-dir");
-  const dataPath = join(resolve(vault), typeof configDir === "string" ? configDir : ".obsidian", "plugins", PLUGIN_ID, "data.json");
+  const dataPath = join(resolvePluginDir(vault, args.get("config-dir")), "data.json");
   let settings: Record<string, unknown> = {};
   if (existsSync(dataPath)) {
     try {

@@ -129,6 +129,10 @@ describe("search hits for agents (knowOS ADR-0014, Plan 0017 step 2)", () => {
     const other = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 5, answering([1, 0]), "", undefined, read, { folder: "Fragmente/" });
     if (other.outcome !== "ok") throw new Error(other.error);
     expect(other.results).toEqual([]);
+
+    const dotRel = await searchIndex({ settings: SETTINGS, db, wasm: WASM }, "x", 5, answering([1, 0]), "", undefined, read, { folder: "./wiki" });
+    if (dotRel.outcome !== "ok") throw new Error(dotRel.error);
+    expect(dotRel.results.map((r) => r.path)).toEqual(["wiki/Ventile.md", "wiki/Pumpe.md"]);
   });
 
   it("cuts a long paragraph and reads quoted and plain types", () => {
