@@ -8,6 +8,17 @@ Releases are cut only when the maintainer explicitly asks for one.
 
 ## [Unreleased]
 
+## [0.3.22] - 2026-10-31
+
+### Added
+
+- CLI Grammar Migration Phase 2b (knowOS ADR-0017 §10, Plan 0023):
+  - Shell completion engine in `src/cli/completion.ts` supporting hidden `memvector __complete` command and `memvector completion zsh`.
+  - Static command table completion for things (`note`, `relation`, `tools`), verbs (`search`, `read`, `create`), and options (`--vault`, `--json`, etc.) without model calls.
+  - Fast, model-free dynamic completion (<200ms) for note paths and note IDs from the SQLite index (with filesystem fallback).
+  - Proper shell escaping for paths containing spaces, colons, and quotes; preserves tilde and relative path continuation.
+  - Zero edits to user dotfiles; read-only and failure-tolerant execution.
+
 ## [0.3.21] - 2026-10-30
 
 ### Added

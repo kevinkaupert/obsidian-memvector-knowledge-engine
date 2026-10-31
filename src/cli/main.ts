@@ -11,6 +11,7 @@ import { DB_FILENAME, PLUGIN_ID, searchIndex } from "./search";
 import { contextFor } from "./context";
 import { migrateSettings } from "../settings/secrets";
 import { toolList } from "./tools";
+import { complete, ZSH_SCRIPT } from "./completion";
 
 declare const MEMVECTOR_VERSION: string;
 
@@ -79,6 +80,24 @@ function fail(code: string, error: string, envelope = false): number {
 
 export async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
+  if (command === "__complete") {
+    const candidates = await complete(rest);
+    if (candidates.length > 0) {
+      process.stdout.write(candidates.join("\n") + "\n");
+    }
+    return 0;
+  }
+  if (command === "completion") {
+    if (rest.includes("--help") || rest.includes("-h")) {
+      process.stdout.write("usage: memvector completion [zsh]\n");
+      return 0;
+    }
+    if (rest.length === 0 || rest[0] === "zsh") {
+      process.stdout.write(ZSH_SCRIPT);
+      return 0;
+    }
+    return usage(`unsupported shell '${rest[0]}' (only zsh is supported)`);
+  }
   if (command === "--version") {
     if (rest.includes("--json")) {
       process.stdout.write(`${JSON.stringify({ v: 1, outcome: "ok", data: { memvector: MEMVECTOR_VERSION, commands: ["note search", "note read", "relation create", "tools"] } })}\n`);
